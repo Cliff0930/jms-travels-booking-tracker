@@ -295,3 +295,20 @@ Vehicle: {vehicle_name} ({vehicle_color})
 Plate: {vehicle_number}
 We apologise for any inconvenience. — CabFlow Team');
 
+-- ─── CONVERSATION SESSIONS ───────────────────────────────────
+-- Run this migration in Supabase SQL Editor
+create table if not exists conversation_sessions (
+  id              uuid primary key default uuid_generate_v4(),
+  phone           text not null,
+  client_id       uuid references clients(id),
+  status          text default 'collecting',  -- collecting | complete | abandoned
+  messages        jsonb default '[]',         -- [{role, content, timestamp}]
+  extracted       jsonb default '{}',         -- accumulated extracted fields
+  missing_fields  text[] default '{}',
+  booking_id      uuid references bookings(id),
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+
+create index if not exists idx_conv_sessions_phone_status
+  on conversation_sessions(phone, status);

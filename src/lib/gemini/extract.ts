@@ -12,7 +12,7 @@ export interface ExtractionResult {
     vehicle_type: string | null
     guest_name: string | null
     guest_phone: string | null
-    trip_type: 'local' | 'outstation'
+    trip_type: 'local' | 'outstation' | 'airport'
     service_type: 'one_way' | 'return'
     total_days: number
     special_instructions: string | null

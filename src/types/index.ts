@@ -1,5 +1,5 @@
 export type BookingStatus = 'draft' | 'pending_approval' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
-export type TripType = 'local' | 'outstation'
+export type TripType = 'local' | 'outstation' | 'airport'
 export type ServiceType = 'one_way' | 'return'
 export type DriverStatus = 'available' | 'on_duty' | 'off_duty'
 export type MessageChannel = 'whatsapp' | 'email'
@@ -195,5 +195,24 @@ export interface MessageTemplate {
   subject: string | null
   body: string
   is_active: boolean
+  updated_at: string
+}
+
+export interface ConversationMessage {
+  role: 'client' | 'agent'
+  content: string
+  timestamp: string
+}
+
+export interface ConversationSession {
+  id: string
+  phone: string
+  client_id: string | null
+  status: 'collecting' | 'complete' | 'abandoned'
+  messages: ConversationMessage[]
+  extracted: Record<string, unknown>
+  missing_fields: string[]
+  booking_id: string | null
+  created_at: string
   updated_at: string
 }
