@@ -144,7 +144,7 @@ export default function BookingsPage() {
         {companies.length > 0 && (
           <Select
             value={companyFilter || '__all__'}
-            onValueChange={v => setCompanyFilter(v === '__all__' ? '' : v)}
+            onValueChange={v => setCompanyFilter(!v || v === '__all__' ? '' : v)}
           >
             <SelectTrigger className={`h-7 rounded-full text-xs px-3 gap-1.5 min-w-[140px] transition-colors ${
               companyFilter
