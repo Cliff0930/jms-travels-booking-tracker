@@ -1,6 +1,6 @@
 {
-  "name": "CabFlow",
-  "short_name": "CabFlow",
+  "name": "JMS Travels",
+  "short_name": "JMS Travels",
   "description": "Professional cab service management platform",
   "start_url": "/",
   "display": "standalone",
