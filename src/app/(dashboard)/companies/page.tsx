@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Building2, Plus } from 'lucide-react'
+import { Building2, Plus, X, Mail, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Company } from '@/types'
 
@@ -132,17 +132,41 @@ export default function CompaniesPage() {
 
       {/* Company Detail Panel */}
       <Sheet open={!!selectedCompany} onOpenChange={o => !o && setSelectedCompany(null)}>
-        <SheetContent className="w-full sm:w-[420px] overflow-y-auto">
+        <SheetContent className="w-full sm:w-[440px] px-6 py-0 gap-0" showCloseButton={false}>
           {selectedCompany && (
             <>
-              <SheetHeader>
-                <SheetTitle>{selectedCompany.name}</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-5">
+              {/* Sticky Header */}
+              <div className="flex-shrink-0 pt-5 pb-4 border-b border-[#EEEEF5]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-[#EDEDF8] flex items-center justify-center shrink-0">
+                      <Building2 className="w-6 h-6 text-[#434654]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-base font-semibold text-[#191B23] leading-tight truncate">{selectedCompany.name}</h2>
+                      {selectedCompany.aliases?.length > 0 && (
+                        <p className="text-xs text-[#737686] mt-0.5 truncate">{selectedCompany.aliases.join(', ')}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSelectedCompany(null)}
+                    className="shrink-0 mt-0.5 text-[#737686] hover:text-[#191B23]"
+                  >
+                    <X className="w-4 h-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-5">
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-2">Approval Settings</h3>
+                  <h3 className="text-label-caps text-[#737686] mb-3">Approval Settings</h3>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between py-1">
                       <Label className="text-sm">Require Approval</Label>
                       <Switch
                         checked={selectedCompany.approval_required}
@@ -152,7 +176,7 @@ export default function CompaniesPage() {
                     {selectedCompany.approval_required && (
                       <>
                         <div>
-                          <Label className="text-sm mb-1 block">Approval Channel</Label>
+                          <Label className="text-sm mb-1.5 block">Approval Channel</Label>
                           <Select
                             value={selectedCompany.approval_channel}
                             onValueChange={v => v && updateCompany(selectedCompany.id, { approval_channel: v as Company['approval_channel'] })}
@@ -168,7 +192,7 @@ export default function CompaniesPage() {
                           </Select>
                         </div>
                         <div>
-                          <Label className="text-sm mb-1 block">Timeout (hours)</Label>
+                          <Label className="text-sm mb-1.5 block">Timeout (hours)</Label>
                           <Input
                             type="number"
                             defaultValue={selectedCompany.approval_timeout_hours}
@@ -185,17 +209,47 @@ export default function CompaniesPage() {
 
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-2">Email Domains</h3>
-                  <p className="text-sm text-[#434654]">{selectedCompany.email_domains?.join(', ') || 'None configured'}</p>
+                  {selectedCompany.email_domains?.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCompany.email_domains.map(d => (
+                        <span key={d} className="text-xs bg-[#F3F3FE] border border-[#C3C5D7] text-[#434654] px-2 py-0.5 rounded-md">{d}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#737686]">None configured</p>
+                  )}
                 </section>
 
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-2">Approver Emails</h3>
-                  <p className="text-sm text-[#434654]">{selectedCompany.approver_emails?.join(', ') || 'None configured'}</p>
+                  {selectedCompany.approver_emails?.length ? (
+                    <div className="space-y-1.5">
+                      {selectedCompany.approver_emails.map(e => (
+                        <div key={e} className="flex items-center gap-2 text-sm text-[#434654]">
+                          <Mail className="w-4 h-4 text-[#737686] shrink-0" />
+                          <span className="truncate">{e}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#737686]">None configured</p>
+                  )}
                 </section>
 
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-2">Approver WhatsApp</h3>
-                  <p className="text-sm text-[#434654]">{selectedCompany.approver_whatsapp?.join(', ') || 'None configured'}</p>
+                  {selectedCompany.approver_whatsapp?.length ? (
+                    <div className="space-y-1.5">
+                      {selectedCompany.approver_whatsapp.map(w => (
+                        <div key={w} className="flex items-center gap-2 text-sm text-[#434654]">
+                          <Phone className="w-4 h-4 text-[#737686] shrink-0" />
+                          <span className="truncate">{w}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#737686]">None configured</p>
+                  )}
                 </section>
               </div>
             </>
