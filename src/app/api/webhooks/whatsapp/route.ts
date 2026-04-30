@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'whatsapp' }),
+        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
       })
     }
   } catch (err) {

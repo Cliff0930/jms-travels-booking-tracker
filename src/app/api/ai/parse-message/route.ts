@@ -9,7 +9,7 @@ import { sendEmail } from '@/lib/gmail/send'
 import type { Client, ClientLocation } from '@/types'
 
 export async function POST(request: Request) {
-  const { raw_message_id, client, message, channel, sender_email } = await request.json()
+  const { raw_message_id, client, message, channel, sender_email, sender_phone } = await request.json()
   const supabase = createAdminClient()
 
   try {
@@ -109,8 +109,8 @@ export async function POST(request: Request) {
             .join(', ')
           const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: bookingRef })
 
-          if (channel === 'whatsapp' && (client as Client)?.primary_phone) {
-            await sendWhatsAppMessage({ to: (client as Client).primary_phone!, body })
+          if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
+            await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
           } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
             await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
           }
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
             client_id: (client as Client)?.id,
             channel,
             direction: 'outbound',
-            recipient: channel === 'whatsapp' ? (client as Client)?.primary_phone : sender_email,
+            recipient: channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email,
             content: body,
             template_used: TEMPLATE_KEYS.MISSING_INFO_REQUEST,
           })
@@ -157,8 +157,8 @@ export async function POST(request: Request) {
 
       if (tmpl) {
         const body = fillTemplate(tmpl.body, { client_name: (client as Client)?.name || 'there', booking_ref: bookingRef })
-        if (channel === 'whatsapp' && (client as Client)?.primary_phone) {
-          await sendWhatsAppMessage({ to: (client as Client).primary_phone!, body })
+        if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
+          await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
         } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
           await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
         }
