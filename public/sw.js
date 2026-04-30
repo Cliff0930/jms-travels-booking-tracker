@@ -1,4 +1,4 @@
-const CACHE = 'cabflow-v1'
+const CACHE = 'cabflow-v2'
 const PRECACHE = ['/', '/manifest.json']
 
 self.addEventListener('install', e => {
