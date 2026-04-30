@@ -35,7 +35,7 @@ export function Sidebar() {
         <div className="w-7 h-7 rounded-lg bg-[#1A56DB] flex items-center justify-center">
           <Car className="w-4 h-4 text-white" />
         </div>
-        <span className="font-semibold text-[#191B23] text-base">CabFlow</span>
+        <span className="font-semibold text-[#191B23] text-base">JMS Travels</span>
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-0.5">

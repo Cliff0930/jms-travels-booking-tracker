@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         messaging_product: 'whatsapp',
         to,
         type: 'text',
-        text: { body: 'Test message from CabFlow — if you see this, WhatsApp sending is working!' },
+        text: { body: 'Test message from JMS Travels — if you see this, WhatsApp sending is working!' },
       }),
     })
 

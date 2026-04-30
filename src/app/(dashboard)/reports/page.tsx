@@ -109,7 +109,7 @@ export default function ReportsPage() {
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Bookings')
-    XLSX.writeFile(wb, `cabflow-report-${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `jmstravels-report-${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const QUICK_RANGES = [

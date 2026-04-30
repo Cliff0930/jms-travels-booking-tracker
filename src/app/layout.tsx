@@ -8,10 +8,10 @@ import { ServiceWorkerRegister } from '@/components/layout/ServiceWorkerRegister
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'CabFlow',
+  title: 'JMS Travels',
   description: 'Professional cab service management platform',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CabFlow' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'JMS Travels' },
 }
 
 export const viewport: Viewport = {

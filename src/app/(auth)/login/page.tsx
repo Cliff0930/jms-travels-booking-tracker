@@ -37,7 +37,7 @@ export default function LoginPage() {
           <div className="w-12 h-12 rounded-xl bg-[#1A56DB] flex items-center justify-center mb-3">
             <Car className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-semibold text-[#191B23]">CabFlow</h1>
+          <h1 className="text-2xl font-semibold text-[#191B23]">JMS Travels</h1>
           <p className="text-sm text-[#434654] mt-1">Sign in to your workspace</p>
         </div>
         <div className="bg-white rounded-lg border border-[#C3C5D7] p-6 shadow-sm">
