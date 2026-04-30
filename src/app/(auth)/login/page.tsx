@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Car } from 'lucide-react'
 import { toast } from 'sonner'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -34,11 +34,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#FAF8FF]">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-[#1A56DB] flex items-center justify-center mb-3">
-            <Car className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-semibold text-[#191B23]">JMS Travels</h1>
-          <p className="text-sm text-[#434654] mt-1">Sign in to your workspace</p>
+          <Image src="/icons/icon-512.png" alt="JMS Travels" width={96} height={96} className="rounded-xl mb-2" priority />
+          <p className="text-sm text-[#434654]">Sign in to your workspace</p>
         </div>
         <div className="bg-white rounded-lg border border-[#C3C5D7] p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   description: 'Professional cab service management platform',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'JMS Travels' },
+  icons: {
+    apple: '/icons/apple-icon-180.png',
+  },
 }
 
 export const viewport: Viewport = {

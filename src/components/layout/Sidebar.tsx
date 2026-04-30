@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare
 } from 'lucide-react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -31,11 +32,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex flex-col w-[240px] min-h-screen bg-[#EDEDF8] border-r border-[#C3C5D7] shrink-0">
-      <div className="flex items-center gap-2.5 px-5 h-14 border-b border-[#C3C5D7]">
-        <div className="w-7 h-7 rounded-lg bg-[#1A56DB] flex items-center justify-center">
-          <Car className="w-4 h-4 text-white" />
-        </div>
-        <span className="font-semibold text-[#191B23] text-base">JMS Travels</span>
+      <div className="flex items-center px-4 h-14 border-b border-[#C3C5D7]">
+        <Image src="/icons/icon-512.png" alt="JMS Travels" width={120} height={120} className="h-9 w-auto object-contain rounded" priority />
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-0.5">
