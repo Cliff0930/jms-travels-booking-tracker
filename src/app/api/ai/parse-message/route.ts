@@ -8,6 +8,35 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import type { Client, ClientLocation } from '@/types'
 
+function getTodayIST(): string {
+  const istOffset = 5.5 * 60 * 60 * 1000
+  return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
+}
+
+async function logOutbound(
+  supabase: ReturnType<typeof createAdminClient>,
+  params: {
+    bookingId: string
+    clientId: string | null | undefined
+    channel: string
+    recipient: string | null | undefined
+    body: string
+    templateKey: string
+    status: string
+  }
+) {
+  await supabase.from('message_logs').insert({
+    booking_id: params.bookingId,
+    client_id: params.clientId,
+    channel: params.channel,
+    direction: 'outbound',
+    recipient: params.recipient,
+    content: params.body,
+    template_used: params.templateKey,
+    status: params.status,
+  })
+}
+
 export async function POST(request: Request) {
   const { raw_message_id, client, message, channel, sender_email, sender_phone, skip_auto_reply } = await request.json()
   const supabase = createAdminClient()
@@ -31,6 +60,17 @@ export async function POST(request: Request) {
     // Booking flow
     const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
     const extraction = await extractBookingFields(message, client, savedLocations)
+
+    // Check for past date
+    const today = getTodayIST()
+    const isPastDate = extraction.extracted.pickup_date && extraction.extracted.pickup_date < today
+
+    if (isPastDate) {
+      extraction.extracted.pickup_date = null
+      if (!extraction.missing_mandatory.includes('pickup_date')) {
+        extraction.missing_mandatory.push('pickup_date')
+      }
+    }
 
     await supabase
       .from('raw_messages')
@@ -74,7 +114,6 @@ export async function POST(request: Request) {
     if (booking) {
       await supabase.from('raw_messages').update({ booking_id: booking.id }).eq('id', raw_message_id)
 
-      // Save newly detected location keyword for future resolution
       if (extraction.new_keyword_detected && booking.client_id) {
         const keyword = extraction.new_keyword_detected
         const resolvedAddress = extraction.resolved_keywords?.[keyword]
@@ -82,9 +121,7 @@ export async function POST(request: Request) {
           try {
             await supabase.from('client_locations')
               .upsert({ client_id: booking.client_id, keyword, address: resolvedAddress }, { onConflict: 'client_id,keyword' })
-          } catch {
-            // non-critical
-          }
+          } catch { /* non-critical */ }
         }
       }
 
@@ -97,34 +134,34 @@ export async function POST(request: Request) {
       // If mandatory fields missing, send one auto-reply (unless suppressed for onboarding)
       if (extraction.missing_mandatory.length > 0) {
         if (!skip_auto_reply) {
+          // Use specific past-date message if that's the only issue
+          const pastDateOnly = isPastDate && extraction.missing_mandatory.length === 1 && extraction.missing_mandatory[0] === 'pickup_date'
+          const templateKey = TEMPLATE_KEYS.MISSING_INFO_REQUEST
           const { data: tmpl } = await supabase
             .from('message_templates')
             .select('body, subject')
-            .eq('template_key', TEMPLATE_KEYS.MISSING_INFO_REQUEST)
+            .eq('template_key', templateKey)
             .single()
 
+          const clientName = (client as Client)?.name || 'there'
+          const missingList = pastDateOnly
+            ? 'pickup date (the date provided appears to be in the past — please provide a future date)'
+            : extraction.missing_mandatory.map(f => f.replace(/_/g, ' ')).join(', ')
+          const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email
+
           if (tmpl) {
-            const clientName = (client as Client)?.name || 'there'
-            const missingList = extraction.missing_mandatory
-              .map(f => f.replace(/_/g, ' '))
-              .join(', ')
             const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: bookingRef })
-
-            if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
-              await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
-            } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
-              await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+            let status = 'failed'
+            if (channel === 'whatsapp' && recipient) {
+              const result = await sendWhatsAppMessage({ to: recipient, body })
+              status = result.ok ? 'sent' : `failed: ${result.error}`
+            } else if (channel === 'email' && recipient) {
+              try {
+                await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+                status = 'sent'
+              } catch (e) { status = `failed: ${String(e)}` }
             }
-
-            await supabase.from('message_logs').insert({
-              booking_id: booking.id,
-              client_id: (client as Client)?.id,
-              channel,
-              direction: 'outbound',
-              recipient: channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email,
-              content: body,
-              template_used: TEMPLATE_KEYS.MISSING_INFO_REQUEST,
-            })
+            await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey, status })
           }
         }
         return NextResponse.json({ ok: true, booking_id: booking.id, missing: extraction.missing_mandatory })
@@ -162,22 +199,21 @@ export async function POST(request: Request) {
       if (!tmpl) {
         console.error(`[parse-message] Template '${TEMPLATE_KEYS.BOOKING_RECEIVED}' not found in message_templates — no reply sent`)
       }
+
       if (tmpl) {
         const body = fillTemplate(tmpl.body, { client_name: (client as Client)?.name || 'there', booking_ref: bookingRef })
-        if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
-          await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
-        } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
-          await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+        const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : (sender_email || (client as Client)?.primary_email)
+        let status = 'failed'
+        if (channel === 'whatsapp' && recipient) {
+          const result = await sendWhatsAppMessage({ to: recipient, body })
+          status = result.ok ? 'sent' : `failed: ${result.error}`
+        } else if (channel === 'email' && recipient) {
+          try {
+            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+            status = 'sent'
+          } catch (e) { status = `failed: ${String(e)}` }
         }
-        await supabase.from('message_logs').insert({
-          booking_id: booking.id,
-          client_id: (client as Client)?.id,
-          channel,
-          direction: 'outbound',
-          recipient: channel === 'whatsapp' ? (client as Client)?.primary_phone : sender_email,
-          content: body,
-          template_used: TEMPLATE_KEYS.BOOKING_RECEIVED,
-        })
+        await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
       }
     }
 

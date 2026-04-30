@@ -26,6 +26,14 @@ export interface ExtractionResult {
   confidence: number
 }
 
+function getTodayIST(): string {
+  // India Standard Time = UTC+5:30
+  const now = new Date()
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const ist = new Date(now.getTime() + istOffset)
+  return ist.toISOString().slice(0, 10)
+}
+
 export async function extractBookingFields(
   message: string,
   client: Client | null,
@@ -36,7 +44,9 @@ export async function extractBookingFields(
     ? JSON.stringify({ name: client.name, default_pax: client.default_pax, default_vehicle_type: client.default_vehicle_type })
     : '{}'
   const locationsJson = JSON.stringify(savedLocations.map(l => ({ keyword: l.keyword, address: l.address })))
+  const today = getTodayIST()
   const prompt = EXTRACTION_PROMPT
+    .replace(/{today}/g, today)
     .replace('{message}', message)
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)

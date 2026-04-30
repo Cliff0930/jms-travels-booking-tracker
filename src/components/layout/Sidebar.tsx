@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 const NAV_ITEMS = [
   { href: '/',          label: 'Dashboard', icon: LayoutDashboard },
   { href: '/bookings',  label: 'Bookings',  icon: BookOpen },
+  { href: '/messages',  label: 'Messages',  icon: MessageSquare },
   { href: '/clients',   label: 'Clients',   icon: Users },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/drivers',   label: 'Drivers',   icon: Car },

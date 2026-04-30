@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Users, Car, MoreHorizontal, BarChart3, Settings, Building2, X } from 'lucide-react'
+import { BookOpen, Users, Car, MoreHorizontal, BarChart3, Settings, Building2, X, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const PRIMARY_NAV = [
@@ -12,6 +12,7 @@ const PRIMARY_NAV = [
 ]
 
 const MORE_NAV = [
+  { href: '/messages',  label: 'Messages',  icon: MessageSquare },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/reports',   label: 'Reports',   icon: BarChart3 },
   { href: '/settings',  label: 'Settings',  icon: Settings },

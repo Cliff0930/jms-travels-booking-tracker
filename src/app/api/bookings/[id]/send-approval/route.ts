@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const subject = fillTemplate(tmpl.subject || '', vars)
   const channel = company.approval_channel || 'email'
 
-  const sends: Promise<void>[] = []
+  const sends: Promise<unknown>[] = []
 
   if ((channel === 'email' || channel === 'both') && hasEmailApprovers) {
     for (const email of company.approver_emails) {
