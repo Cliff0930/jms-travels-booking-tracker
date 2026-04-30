@@ -9,7 +9,7 @@ import { sendEmail } from '@/lib/gmail/send'
 import type { Client, ClientLocation } from '@/types'
 
 export async function POST(request: Request) {
-  const { raw_message_id, client, message, channel, sender_email, sender_phone } = await request.json()
+  const { raw_message_id, client, message, channel, sender_email, sender_phone, skip_auto_reply } = await request.json()
   const supabase = createAdminClient()
 
   try {
@@ -94,36 +94,38 @@ export async function POST(request: Request) {
         changed_by: 'system',
       })
 
-      // If mandatory fields missing, send one auto-reply
+      // If mandatory fields missing, send one auto-reply (unless suppressed for onboarding)
       if (extraction.missing_mandatory.length > 0) {
-        const { data: tmpl } = await supabase
-          .from('message_templates')
-          .select('body, subject')
-          .eq('template_key', TEMPLATE_KEYS.MISSING_INFO_REQUEST)
-          .single()
+        if (!skip_auto_reply) {
+          const { data: tmpl } = await supabase
+            .from('message_templates')
+            .select('body, subject')
+            .eq('template_key', TEMPLATE_KEYS.MISSING_INFO_REQUEST)
+            .single()
 
-        if (tmpl) {
-          const clientName = (client as Client)?.name || 'there'
-          const missingList = extraction.missing_mandatory
-            .map(f => f.replace(/_/g, ' '))
-            .join(', ')
-          const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: bookingRef })
+          if (tmpl) {
+            const clientName = (client as Client)?.name || 'there'
+            const missingList = extraction.missing_mandatory
+              .map(f => f.replace(/_/g, ' '))
+              .join(', ')
+            const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: bookingRef })
 
-          if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
-            await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
-          } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
-            await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+            if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
+              await sendWhatsAppMessage({ to: (client as Client)?.primary_phone || sender_phone, body })
+            } else if (channel === 'email' && (sender_email || (client as Client)?.primary_email)) {
+              await sendEmail({ to: sender_email || (client as Client)?.primary_email!, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+            }
+
+            await supabase.from('message_logs').insert({
+              booking_id: booking.id,
+              client_id: (client as Client)?.id,
+              channel,
+              direction: 'outbound',
+              recipient: channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email,
+              content: body,
+              template_used: TEMPLATE_KEYS.MISSING_INFO_REQUEST,
+            })
           }
-
-          await supabase.from('message_logs').insert({
-            booking_id: booking.id,
-            client_id: (client as Client)?.id,
-            channel,
-            direction: 'outbound',
-            recipient: channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email,
-            content: body,
-            template_used: TEMPLATE_KEYS.MISSING_INFO_REQUEST,
-          })
         }
         return NextResponse.json({ ok: true, booking_id: booking.id, missing: extraction.missing_mandatory })
       }
@@ -147,6 +149,8 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: true, booking_id: booking.id, requires_approval: true })
         }
       }
+
+      if (skip_auto_reply) return NextResponse.json({ ok: true, booking_id: booking.id })
 
       // Send booking received confirmation
       const { data: tmpl } = await supabase

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
+import { extractClientInfo } from '@/lib/gemini/extract-client'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -49,21 +51,166 @@ export async function POST(request: Request) {
       const handled = await handleApprovalReply(supabase, rawContent, senderPhone, null)
       if (handled) continue
 
+      // Look up known client
       const { data: client } = await supabase
         .from('clients')
         .select('*, company:companies(*), locations:client_locations(*)')
         .eq('primary_phone', senderPhone)
         .single()
 
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
-      })
+      if (client) {
+        // Known client — process normally
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
+        })
+        continue
+      }
+
+      // Unknown sender — check if awaiting onboarding reply
+      const { data: pendingOnboarding } = await supabase
+        .from('raw_messages')
+        .select('id, booking_id')
+        .eq('sender_phone', senderPhone)
+        .eq('ai_classification', 'awaiting_client_info')
+        .order('received_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (pendingOnboarding) {
+        // This is a reply to our "who are you?" question
+        await handleOnboardingReply(supabase, senderPhone, senderName, rawContent, rawMsg.id, pendingOnboarding.booking_id)
+        continue
+      }
+
+      // First message from unknown sender — try to extract identity
+      const clientInfo = await extractClientInfo(rawContent)
+
+      if (clientInfo.name) {
+        // We got a name — create client and process booking immediately
+        const newClient = await createClientFromInfo(supabase, senderPhone, senderName, clientInfo)
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client: newClient, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
+        })
+      } else {
+        // No name found — create draft booking silently, then ask for their details
+        const parseRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client: null, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone, skip_auto_reply: true }),
+        })
+        const parseData = await parseRes.json().catch(() => ({}))
+
+        await supabase
+          .from('raw_messages')
+          .update({ ai_classification: 'awaiting_client_info', booking_id: parseData.booking_id || null })
+          .eq('id', rawMsg.id)
+
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Hi! Thanks for reaching out to JMS Travels.\n\nTo complete your booking, could you please share:\n1. Your full name\n2. Your company name (or reply "personal" if it's for personal use)\n\nWe'll get your booking sorted right away!`,
+        })
+      }
     }
   } catch (err) {
     console.error('WhatsApp webhook error:', err)
   }
 
   return NextResponse.json({ ok: true })
+}
+
+async function handleOnboardingReply(
+  supabase: ReturnType<typeof createAdminClient>,
+  senderPhone: string,
+  senderName: string | undefined,
+  replyText: string,
+  rawMsgId: string,
+  draftBookingId: string | null,
+) {
+  const clientInfo = await extractClientInfo(replyText)
+  const resolvedName = clientInfo.name || senderName || 'Unknown'
+
+  const newClient = await createClientFromInfo(supabase, senderPhone, resolvedName, clientInfo)
+
+  // Mark this raw_message as processed
+  await supabase
+    .from('raw_messages')
+    .update({ ai_classification: 'onboarding_complete', processed: true })
+    .eq('id', rawMsgId)
+
+  // Link draft booking to new client if one exists
+  if (draftBookingId && newClient) {
+    await supabase
+      .from('bookings')
+      .update({ client_id: newClient.id, company_id: newClient.company_id })
+      .eq('id', draftBookingId)
+      .eq('status', 'draft')
+  }
+
+  // Send confirmation
+  const companyLine = clientInfo.company_name && !clientInfo.is_personal
+    ? ` (${clientInfo.company_name})`
+    : ''
+  await sendWhatsAppMessage({
+    to: senderPhone,
+    body: `Thanks, ${resolvedName}${companyLine}! Your profile has been created and your booking request is being processed. We'll be in touch shortly.`,
+  })
+}
+
+async function createClientFromInfo(
+  supabase: ReturnType<typeof createAdminClient>,
+  senderPhone: string,
+  displayName: string | null | undefined,
+  clientInfo: { name: string | null; company_name: string | null; is_personal: boolean },
+) {
+  const resolvedName = clientInfo.name || displayName || 'Unknown'
+  let companyId: string | null = null
+
+  if (clientInfo.company_name && !clientInfo.is_personal) {
+    // Find or create company
+    const { data: existingCompany } = await supabase
+      .from('companies')
+      .select('id')
+      .ilike('name', clientInfo.company_name)
+      .single()
+
+    if (existingCompany) {
+      companyId = existingCompany.id
+    } else {
+      const { data: newCompany } = await supabase
+        .from('companies')
+        .insert({
+          name: clientInfo.company_name,
+          aliases: [],
+          email_domains: [],
+          approver_emails: [],
+          approver_whatsapp: [],
+          approval_required: false,
+          approval_channel: 'whatsapp',
+          approval_timeout_hours: 24,
+          digest_mode: false,
+        })
+        .select('id')
+        .single()
+      companyId = newCompany?.id || null
+    }
+  }
+
+  const { data: newClient } = await supabase
+    .from('clients')
+    .insert({
+      name: resolvedName,
+      primary_phone: senderPhone,
+      company_id: companyId,
+      client_type: companyId ? 'corporate' : 'walkin',
+      is_verified: false,
+      is_vip: false,
+    })
+    .select('*, company:companies(*), locations:client_locations(*)')
+    .single()
+
+  return newClient
 }
