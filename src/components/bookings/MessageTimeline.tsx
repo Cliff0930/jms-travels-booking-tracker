@@ -1,5 +1,5 @@
 'use client'
-import { Mail, MessageCircle, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { Mail, MessageCircle, ArrowUpRight, ArrowDownLeft, CheckCircle, XCircle } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils/date'
 import type { MessageLog } from '@/types'
 
@@ -28,10 +28,13 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
 
   return (
     <div className="space-y-3">
-      {messages.map(msg => {
+      {messages.map((msg, i) => {
         const isOutbound = msg.direction === 'outbound'
         const isEmail = msg.channel === 'email'
         const label = msg.template_used ? (TEMPLATE_LABELS[msg.template_used] ?? msg.template_used) : null
+        const isFailed = isOutbound && msg.status?.startsWith('failed')
+        const isSent = isOutbound && msg.status === 'sent'
+        const isLast = i === messages.length - 1
 
         return (
           <div key={msg.id} className="flex gap-3">
@@ -42,10 +45,10 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
                   : <MessageCircle className={`w-3.5 h-3.5 ${isOutbound ? 'text-[#1A56DB]' : 'text-green-700'}`} />
                 }
               </div>
-              <div className="w-px flex-1 bg-[#EDEDF8] mt-1" />
+              {!isLast && <div className="w-px flex-1 bg-[#EDEDF8] mt-1" />}
             </div>
 
-            <div className="pb-3 flex-1 min-w-0">
+            <div className={`pb-3 flex-1 min-w-0 ${isFailed ? 'opacity-75' : ''}`}>
               <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                 {isOutbound
                   ? <ArrowUpRight className="w-3 h-3 text-[#1A56DB] shrink-0" />
@@ -56,6 +59,16 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
                 </span>
                 {label && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-[#EDEDF8] text-[#434654]">{label}</span>
+                )}
+                {isSent && (
+                  <span className="inline-flex items-center gap-0.5 text-xs text-green-600">
+                    <CheckCircle className="w-3 h-3" /> Sent
+                  </span>
+                )}
+                {isFailed && (
+                  <span className="inline-flex items-center gap-0.5 text-xs text-red-500" title={msg.status ?? ''}>
+                    <XCircle className="w-3 h-3" /> Failed
+                  </span>
                 )}
                 <span className="text-xs text-[#737686] ml-auto shrink-0">{formatTimestamp(msg.sent_at)}</span>
               </div>
