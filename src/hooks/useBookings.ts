@@ -39,8 +39,12 @@ export function useBookingMessages(bookingId: string) {
 export function useCreateBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Partial<Booking>) =>
-      fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: async (data: Partial<Booking>) => {
+      const res = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to create booking')
+      return json as Booking
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
   })
 }
