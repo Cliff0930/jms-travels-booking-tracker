@@ -94,7 +94,17 @@ async function processSession(
   const savedLocations = (client.locations || []) as any[]
   const result = await parseConversation(messages, client, savedLocations)
 
-  if (result.is_complete) {
+  // Compute missing mandatory fields from extracted values directly — never trust Gemini's
+  // missing_mandatory or is_complete since it sometimes omits fields or marks complete prematurely.
+  const actualMissing: string[] = []
+  if (!result.extracted.pickup_location) actualMissing.push('pickup_location')
+  if (!result.extracted.pickup_date)     actualMissing.push('pickup_date')
+  if (!result.extracted.pickup_time)     actualMissing.push('pickup_time')
+  const isComplete = actualMissing.length === 0
+
+  console.log(`[cron] session=${session.id} missing=${JSON.stringify(actualMissing)} complete=${isComplete}`)
+
+  if (isComplete) {
     // ── Create the booking ─────────────────────────────────────────────────
     const bookingRef = generateBookingRef()
     const flags: string[] = []
@@ -205,8 +215,8 @@ async function processSession(
     }
   } else {
     // ── Ask for missing info ───────────────────────────────────────────────
-    // Build question from missing_mandatory in code — never trust Gemini to batch them
-    const reply = buildMissingQuestion(result.missing_mandatory)
+    // Build question from actualMissing (computed from extracted values, not Gemini's array)
+    const reply = buildMissingQuestion(actualMissing)
     if (!reply) return
 
     const updatedMessages: ConversationMessage[] = [
@@ -217,7 +227,7 @@ async function processSession(
     await supabase.from('conversation_sessions').update({
       messages: updatedMessages,
       extracted: result.extracted,
-      missing_fields: result.missing_mandatory,
+      missing_fields: actualMissing,
       updated_at: now,
     }).eq('id', session.id)
 
