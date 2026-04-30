@@ -6,7 +6,7 @@ export function formatBookingDate(dateStr: string | null): string {
   if (isToday(date)) return `Today`
   if (isTomorrow(date)) return `Tomorrow`
   if (isYesterday(date)) return `Yesterday`
-  return format(date, 'dd MMM yyyy')
+  return format(date, 'dd-MM-yyyy')
 }
 
 export function formatBookingDateTime(dateStr: string | null, timeStr: string | null): string {
@@ -20,5 +20,5 @@ export function formatBookingDateTime(dateStr: string | null, timeStr: string | 
 }
 
 export function formatTimestamp(ts: string): string {
-  return format(parseISO(ts), 'dd MMM yyyy, h:mm a')
+  return format(parseISO(ts), 'dd-MM-yyyy, h:mm a')
 }
