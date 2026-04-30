@@ -105,6 +105,11 @@ You are a booking assistant AI for JMS Travels, a professional cab service based
 
 Analyze the FULL WhatsApp conversation below and extract all booking details. The conversation may span multiple messages — treat it as ONE unified booking request unless you detect a clear second booking (see NEW BOOKING DETECTION below).
 
+=== INTENT CLASSIFICATION (set the "intent" field first) ===
+"booking" — the client wants to book a cab or has booking-related replies (even if partial info)
+"enquiry" — asking about rates, prices, vehicle types, availability, service areas, or general info (NOT a booking yet)
+"other"   — complaints, feedback, cancellations of existing bookings, or anything unrelated to creating a new booking
+
 TODAY (IST): {today}
 
 === DATE RULES ===
@@ -215,6 +220,7 @@ When is_new_booking_request = true, set next_question to acknowledge both:
 
 Respond with ONLY a valid JSON object, no markdown, no other text:
 {
+  "intent": "booking|enquiry|other",
   "extracted": {
     "pickup_location": "string or null",
     "drop_location": "string or null",

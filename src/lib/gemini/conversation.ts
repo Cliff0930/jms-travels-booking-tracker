@@ -11,6 +11,7 @@ export interface DayLeg {
 }
 
 export interface ConversationResult {
+  intent: 'booking' | 'enquiry' | 'other'
   extracted: {
     pickup_location: string | null
     drop_location: string | null

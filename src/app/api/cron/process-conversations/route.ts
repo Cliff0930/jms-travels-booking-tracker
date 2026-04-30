@@ -102,7 +102,18 @@ async function processSession(
   if (!result.extracted.pickup_time)     actualMissing.push('pickup_time')
   const isComplete = actualMissing.length === 0
 
-  console.log(`[cron] session=${session.id} missing=${JSON.stringify(actualMissing)} complete=${isComplete}`)
+  console.log(`[cron] session=${session.id} intent=${result.intent} missing=${JSON.stringify(actualMissing)} complete=${isComplete}`)
+
+  // ── Handle enquiry / off-topic ─────────────────────────────────────────────
+  const intent = result.intent ?? 'booking'
+  if (intent === 'enquiry' || intent === 'other') {
+    const offTopicReply = intent === 'enquiry'
+      ? 'For rates and pricing information, please call us at 9845572207. We are happy to help!'
+      : 'For any queries or assistance with an existing booking, please call us at 9845572207.'
+    await sendWhatsAppMessage({ to: phone, body: offTopicReply })
+    await supabase.from('conversation_sessions').update({ status: 'complete', updated_at: now }).eq('id', session.id)
+    return
+  }
 
   if (isComplete) {
     // ── Create the booking ─────────────────────────────────────────────────
@@ -216,7 +227,7 @@ async function processSession(
   } else {
     // ── Ask for missing info ───────────────────────────────────────────────
     // Build question from actualMissing (computed from extracted values, not Gemini's array)
-    const reply = buildMissingQuestion(actualMissing)
+    const reply = buildMissingQuestion(actualMissing, !!result.extracted.drop_location)
     if (!reply) return
 
     const updatedMessages: ConversationMessage[] = [
@@ -236,16 +247,20 @@ async function processSession(
 }
 
 // ─── MISSING FIELDS QUESTION — deterministic, always batches all missing ─────
-// Gemini tells us WHICH fields are missing; we build the question in code.
-// This guarantees all missing mandatory fields are asked in ONE message every time.
+// Computed from extracted values directly — Gemini cannot cause one-at-a-time behaviour.
+// hasDropLocation: if false and all 3 mandatory fields are also missing, also ask for drop.
 
-function buildMissingQuestion(missing: string[]): string | null {
+function buildMissingQuestion(missing: string[], hasDropLocation = true): string | null {
   const hasPL = missing.includes('pickup_location')
   const hasPD = missing.includes('pickup_date')
   const hasPT = missing.includes('pickup_time')
 
-  if (hasPL && hasPD && hasPT)
-    return 'Could you share where to pick you up from, the date, and what time?'
+  if (hasPL && hasPD && hasPT) {
+    // First ask — include drop location hint too so client gives everything at once
+    return hasDropLocation
+      ? 'To book your cab, could you share the pickup location, date, and time?'
+      : 'To book your cab, could you share the pickup location, drop location, date, and time?'
+  }
   if (hasPL && hasPD) return 'Where should we pick you up from, and what date?'
   if (hasPL && hasPT) return 'Where should we pick you up from, and what time?'
   if (hasPD && hasPT) return 'What date and time do you need the cab?'
@@ -253,7 +268,6 @@ function buildMissingQuestion(missing: string[]): string | null {
   if (hasPD) return 'What date do you need the cab?'
   if (hasPT) return 'What time should we pick you up?'
 
-  // Unknown mandatory fields — surface them plainly
   if (missing.length > 0)
     return `Could you also confirm: ${missing.map(f => f.replace(/_/g, ' ')).join(', ')}?`
 
