@@ -58,6 +58,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if (tmpl) {
     const client = booking.client as Client | null
+
+    // Fallback: look up sender phone from raw_messages linked to this booking
+    let fallbackPhone: string | null = null
+    if (!client?.primary_phone && !booking.guest_phone) {
+      const { data: rawMsg } = await supabase
+        .from('raw_messages')
+        .select('sender_phone')
+        .eq('booking_id', id)
+        .not('sender_phone', 'is', null)
+        .order('received_at', { ascending: true })
+        .limit(1)
+        .single()
+      fallbackPhone = rawMsg?.sender_phone || null
+    }
+
     const clientName = booking.guest_name || client?.name || 'there'
     const body = fillTemplate(tmpl.body, {
       client_name: clientName,
@@ -67,11 +82,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       pickup_location: booking.pickup_location || 'TBD',
     })
 
-    const phone = client?.primary_phone || booking.guest_phone
+    const phone = client?.primary_phone || booking.guest_phone || fallbackPhone
     const email = client?.primary_email
     const channel = phone ? 'whatsapp' : email ? 'email' : null
 
-    let status = 'failed'
+    console.log(`[confirm] booking=${id} client_phone=${client?.primary_phone} guest_phone=${booking.guest_phone} fallback=${fallbackPhone} channel=${channel}`)
+
+    let status = 'no_contact'
     if (channel === 'whatsapp' && phone) {
       const result = await sendWhatsAppMessage({ to: phone, body })
       status = result.ok ? 'sent' : `failed: ${result.error}`
@@ -82,18 +99,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       } catch (e) { status = `failed: ${String(e)}` }
     }
 
-    if (channel) {
-      await supabase.from('message_logs').insert({
-        booking_id: id,
-        client_id: client?.id || null,
-        channel,
-        direction: 'outbound',
-        recipient: phone || email,
-        content: body,
-        template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
-        status,
-      })
-    }
+    await supabase.from('message_logs').insert({
+      booking_id: id,
+      client_id: client?.id || null,
+      channel: channel || 'whatsapp',
+      direction: 'outbound',
+      recipient: phone || email || 'unknown',
+      content: body,
+      template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
+      status,
+    })
   }
 
   return NextResponse.json(data)
