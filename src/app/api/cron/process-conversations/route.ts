@@ -205,7 +205,8 @@ async function processSession(
     }
   } else {
     // ── Ask for missing info ───────────────────────────────────────────────
-    const reply = result.next_question
+    // Build question from missing_mandatory in code — never trust Gemini to batch them
+    const reply = buildMissingQuestion(result.missing_mandatory)
     if (!reply) return
 
     const updatedMessages: ConversationMessage[] = [
@@ -222,6 +223,31 @@ async function processSession(
 
     await sendWhatsAppMessage({ to: phone, body: reply })
   }
+}
+
+// ─── MISSING FIELDS QUESTION — deterministic, always batches all missing ─────
+// Gemini tells us WHICH fields are missing; we build the question in code.
+// This guarantees all missing mandatory fields are asked in ONE message every time.
+
+function buildMissingQuestion(missing: string[]): string | null {
+  const hasPL = missing.includes('pickup_location')
+  const hasPD = missing.includes('pickup_date')
+  const hasPT = missing.includes('pickup_time')
+
+  if (hasPL && hasPD && hasPT)
+    return 'Could you share where to pick you up from, the date, and what time?'
+  if (hasPL && hasPD) return 'Where should we pick you up from, and what date?'
+  if (hasPL && hasPT) return 'Where should we pick you up from, and what time?'
+  if (hasPD && hasPT) return 'What date and time do you need the cab?'
+  if (hasPL) return 'Where should we pick you up from?'
+  if (hasPD) return 'What date do you need the cab?'
+  if (hasPT) return 'What time should we pick you up?'
+
+  // Unknown mandatory fields — surface them plainly
+  if (missing.length > 0)
+    return `Could you also confirm: ${missing.map(f => f.replace(/_/g, ' ')).join(', ')}?`
+
+  return null
 }
 
 // ─── BOOKING CONFIRMATION MESSAGE ────────────────────────────────────────────
