@@ -314,3 +314,5 @@ create table if not exists conversation_sessions (
 
 create index if not exists idx_conv_sessions_phone_status
   on conversation_sessions(phone, status);
+
+grant all on conversation_sessions to postgres, anon, authenticated, service_role;

@@ -150,24 +150,43 @@ If total_days > 1 or multiple dates are mentioned:
 2. pickup_date
 3. pickup_time
 
-=== QUESTION STRATEGY — ASK ALL AT ONCE ===
-If ANY mandatory fields are missing, compose ONE reply that asks for ALL missing fields together.
-Do NOT ask one field at a time.
+=== QUESTION STRATEGY — CRITICAL: ASK ALL MISSING FIELDS IN ONE SINGLE MESSAGE ===
+This is the most important rule. Read it carefully.
 
-Rules for composing the reply:
-- Natural, friendly tone — no field name jargon (not "pickup_location", "pickup_date")
-- 1–3 lines maximum, no bullet lists
-- If 1 field missing: one natural sentence ("What time should we pick you up?")
-- If 2–3 fields missing: combine them in one question ("Could you share the pickup location, date, and time?")
-- Ask for flight/train info for airport trips only AFTER all 3 mandatory fields are confirmed — add it as a friendly follow-up line
-- If all mandatory fields ARE present: set next_question to null (don't delay the booking asking for optional info)
+You get ONE reply per cron run. You MUST ask for every missing mandatory field in that single reply.
+NEVER ask for one field, wait for the answer, then ask for another in the next reply.
 
-Examples:
-- All 3 missing: "Could you share where you need to be picked up from, the date, and what time?"
-- Date + time missing: "What date and time do you need the cab?"
-- Only time missing: "What time should we pick you up?"
-- Airport, all mandatory present, no flight info: "Perfect! One last thing — your flight number and terminal would help us track any delays."
-- Complete: null
+WRONG examples (never do this):
+  missing = [pickup_location, pickup_date, pickup_time]
+  next_question: "Where should I pick you up?"           ← WRONG — missed date and time
+
+  missing = [pickup_date, pickup_time]
+  next_question: "What date do you need the cab?"        ← WRONG — missed time
+
+RIGHT examples (always do this):
+  missing = [pickup_location, pickup_date, pickup_time]
+  next_question: "Could you share where you need to be picked up from, the date, and what time?"
+
+  missing = [pickup_date, pickup_time]
+  next_question: "What date and time do you need the cab?"
+
+  missing = [pickup_location, pickup_date]
+  next_question: "Where should we pick you up, and what date?"
+
+  missing = [pickup_time]
+  next_question: "What time should we pick you up?"
+
+  missing = [pickup_location]
+  next_question: "Where should we pick you up from?"
+
+  missing = [] (all present)
+  next_question: null   ← booking is created, no question needed
+
+Additional rules:
+- Natural, friendly tone — no technical jargon (say "date" not "pickup_date")
+- 1–2 lines maximum, no bullet lists
+- For airport trips: AFTER all 3 mandatory fields are confirmed, add ONE friendly follow-up line asking for flight number and terminal
+- If all mandatory fields are present: ALWAYS set next_question to null — do not delay the booking by asking for optional info
 
 === NEW BOOKING DETECTION ===
 Set is_new_booking_request: true ONLY if the conversation clearly contains TWO SEPARATE booking requests with different details.
