@@ -4,7 +4,7 @@ import { verifyDriverToken } from '@/lib/utils/driver-token'
 
 export async function POST(request: Request) {
   const { booking_id, status, token } = await request.json()
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   if (!verifyDriverToken(booking_id, status, token)) {
     return NextResponse.json({ error: 'Invalid or expired link' }, { status: 401 })

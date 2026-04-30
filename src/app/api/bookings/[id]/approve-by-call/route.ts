@@ -7,7 +7,7 @@ import type { Company, Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const { note, actioned_by } = await request.json()
 
   const { data: booking } = await supabase

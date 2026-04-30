@@ -26,7 +26,7 @@ const DUMMY_VARS: Record<string, string> = {
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const { recipient_phone, recipient_email } = await request.json()
 
   if (!recipient_phone && !recipient_email) {

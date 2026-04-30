@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const vehicle_type = searchParams.get('vehicle_type')
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const body = await request.json()
   const { data, error } = await supabase.from('drivers').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

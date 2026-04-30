@@ -10,7 +10,7 @@ import type { Client, ClientLocation } from '@/types'
 
 export async function POST(request: Request) {
   const { raw_message_id, client, message, channel, sender_email } = await request.json()
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   try {
     const classification = await classifyMessage(message)

@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('booking_legs')
@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   const { data: booking } = await supabase
     .from('bookings')

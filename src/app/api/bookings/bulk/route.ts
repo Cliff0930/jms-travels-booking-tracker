@@ -16,7 +16,7 @@ interface BulkRow {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const { rows } = await request.json() as { rows: BulkRow[] }
 
   if (!Array.isArray(rows) || rows.length === 0) {

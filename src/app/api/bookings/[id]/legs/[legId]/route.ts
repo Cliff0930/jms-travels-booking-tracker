@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; legId: string }> }) {
   const { legId } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
   const { driver_id, leg_status } = await request.json()
 
   const updates: Record<string, unknown> = {}

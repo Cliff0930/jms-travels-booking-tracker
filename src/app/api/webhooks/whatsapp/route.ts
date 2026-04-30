@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   try {
     const entry = body?.entry?.[0]

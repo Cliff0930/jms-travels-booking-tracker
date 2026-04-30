@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   const { data: booking } = await supabase
     .from('bookings')

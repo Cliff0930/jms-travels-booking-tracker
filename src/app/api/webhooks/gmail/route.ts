@@ -14,7 +14,7 @@ function getOAuthClient() {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const supabase = await createAdminClient()
+  const supabase = createAdminClient()
 
   try {
     const data = body?.message?.data
