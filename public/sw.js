@@ -29,7 +29,15 @@ self.addEventListener('fetch', e => {
     return
   }
 
-  // Cache-first for static assets
+  // Network-first for navigation (HTML pages) — avoids stale cached pages after deploys
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      fetch(request).catch(() => caches.match('/'))
+    )
+    return
+  }
+
+  // Cache-first for static assets (_next/static, icons, etc.)
   if (request.method === 'GET') {
     e.respondWith(
       caches.match(request).then(cached => {
