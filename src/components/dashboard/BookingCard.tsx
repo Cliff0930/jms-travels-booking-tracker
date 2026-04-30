@@ -21,7 +21,10 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const companyName = booking.company?.name
 
   return (
-    <div className={`bg-white rounded-lg border border-[#C3C5D7] p-4 card-hover ${statusBarClass(booking.status)}`}>
+    <div
+      className={`bg-white rounded-lg border border-[#C3C5D7] p-4 card-hover cursor-pointer ${statusBarClass(booking.status)}`}
+      onClick={() => router.push(`/bookings/${booking.id}`)}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -62,7 +65,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {booking.status === 'confirmed' && !booking.driver_id && onAssign && (
             <Button
               size="sm"
