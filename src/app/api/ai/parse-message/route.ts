@@ -159,6 +159,9 @@ export async function POST(request: Request) {
         .eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED)
         .single()
 
+      if (!tmpl) {
+        console.error(`[parse-message] Template '${TEMPLATE_KEYS.BOOKING_RECEIVED}' not found in message_templates — no reply sent`)
+      }
       if (tmpl) {
         const body = fillTemplate(tmpl.body, { client_name: (client as Client)?.name || 'there', booking_ref: bookingRef })
         if (channel === 'whatsapp' && ((client as Client)?.primary_phone || sender_phone)) {
@@ -180,7 +183,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, booking_id: booking?.id })
   } catch (err) {
-    console.error('Parse message error:', err)
+    console.error('[parse-message] Error:', String(err))
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
