@@ -31,10 +31,10 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
-  const isPublicApi = request.nextUrl.pathname.startsWith('/api/webhooks') ||
-                      request.nextUrl.pathname.startsWith('/driver-status')
+  const isApi = request.nextUrl.pathname.startsWith('/api/')
+  const isPublicPath = request.nextUrl.pathname.startsWith('/driver-status')
 
-  if (!user && !isAuthPage && !isPublicApi) {
+  if (!user && !isAuthPage && !isApi && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
