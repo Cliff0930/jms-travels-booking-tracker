@@ -29,6 +29,7 @@ export interface ConversationResult {
   }
   missing_mandatory: string[]
   is_complete: boolean
+  is_new_booking_request: boolean
   next_question: string | null
   is_guest_booking: boolean
   new_keyword_detected: string | null
