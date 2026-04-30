@@ -5,19 +5,21 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { generateBookingRef } from '@/lib/utils/booking-ref'
 import type { Client, ConversationMessage } from '@/types'
 
-const SILENCE_WINDOW_MS = 10_000 // 10 seconds — wait for burst messages to settle
+const SILENCE_WINDOW_MS = 10_000  // 10 seconds — wait for burst messages to settle
+const STALE_RETRY_MS   = 3 * 60_000 // 3 minutes — rescue stuck sessions
 
 export async function GET(request: Request) {
-  // Vercel Cron calls this with the authorization header
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response('Unauthorized', { status: 401 })
   }
 
   const supabase = createAdminClient()
-  const cutoff = new Date(Date.now() - SILENCE_WINDOW_MS).toISOString()
+  const now = Date.now()
+  const cutoff = new Date(now - SILENCE_WINDOW_MS).toISOString()
+  const staleCutoff = new Date(now - STALE_RETRY_MS).toISOString()
 
-  // Find sessions that have been quiet for 10+ seconds and need processing
+  // Find sessions that are ready to process (quiet for 10+ seconds)
   const { data: pendingSessions } = await supabase
     .from('conversation_sessions')
     .select('*')
@@ -25,7 +27,16 @@ export async function GET(request: Request) {
     .eq('pending_process', true)
     .lte('last_message_at', cutoff)
     .order('last_message_at', { ascending: true })
-    .limit(20) // process up to 20 sessions per cron run
+    .limit(20)
+
+  // Rescue sessions stuck with pending_process=false for more than 3 minutes
+  // (happens when a previous cron run crashed mid-processing)
+  await supabase
+    .from('conversation_sessions')
+    .update({ pending_process: true })
+    .eq('status', 'collecting')
+    .eq('pending_process', false)
+    .lte('updated_at', staleCutoff)
 
   if (!pendingSessions?.length) {
     return NextResponse.json({ ok: true, processed: 0 })
@@ -39,6 +50,12 @@ export async function GET(request: Request) {
       processed++
     } catch (err) {
       console.error(`[cron] Error processing session ${session.id}:`, String(err))
+      // Reset so the next cron run retries instead of leaving it stuck
+      await supabase
+        .from('conversation_sessions')
+        .update({ pending_process: true })
+        .eq('id', session.id)
+        .eq('status', 'collecting')
     }
   }
 
@@ -290,5 +307,3 @@ async function createBookingLegs(
   }
 }
 
-// Import for type inference
-type ConversationResult = Awaited<ReturnType<typeof parseConversation>>

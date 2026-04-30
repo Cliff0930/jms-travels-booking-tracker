@@ -78,8 +78,13 @@ export async function parseConversation(
 
   const result = await model.generateContent(prompt)
   const text = result.response.text().trim()
-  const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
-  const parsed: ConversationResult = JSON.parse(cleaned)
+
+  // Strip markdown fences if present, then find the outermost JSON object
+  const stripped = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
+  const start = stripped.indexOf('{')
+  const end = stripped.lastIndexOf('}')
+  if (start === -1 || end === -1) throw new Error(`Gemini returned non-JSON: ${stripped.slice(0, 200)}`)
+  const parsed: ConversationResult = JSON.parse(stripped.slice(start, end + 1))
 
   // Guard: reject past pickup_date
   if (parsed.extracted.pickup_date && parsed.extracted.pickup_date < today) {
