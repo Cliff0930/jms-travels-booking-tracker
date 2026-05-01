@@ -140,76 +140,72 @@ JMS Travels is based in Bangalore. Classify every trip as:
 
 Apply rules in order: airport first, then outstation, then local.
 
-=== FOR AIRPORT TRIPS ===
-Include in special_instructions (after confirming mandatory fields):
-- Flight or train number if mentioned
-- Terminal number/name if mentioned
-- Whether ARRIVAL (picking FROM airport) or DEPARTURE (dropping TO airport)
-- Format: "Airport [arrival|departure]. Flight: [XX 123]. Terminal: [T2]."
+=== MANDATORY FIELDS BY TRIP TYPE ===
 
-=== FOR OUTSTATION / MULTI-DAY TRIPS ===
-If total_days > 1 or multiple dates are mentioned:
-- Set total_days correctly
-- Populate day_legs: [{ "day": 1, "date": "YYYY-MM-DD", "pickup_time": "HH:MM", "pickup_location": "...", "drop_location": "..." }]
+LOCAL trip (single or multi-day within Bangalore):
+  REQUIRED: pickup_location, pickup_date, pickup_time
+  drop_location is NEVER required for local trips — do not ask for it
+  If client mentions multiple days (e.g. "3 days", "Mon to Wed"), set total_days accordingly
+  All days use the SAME pickup_location — do not ask for per-day details
 
-=== MANDATORY FIELDS (ALL 3 required to create a booking) ===
-1. pickup_location
-2. pickup_date
-3. pickup_time
+OUTSTATION trip (destination outside Bangalore district):
+  REQUIRED: pickup_location, pickup_date, pickup_time, drop_location (destination city/place), total_days
+  Always ask for drop AND total_days together if both are missing
+  Example: "Which city are you travelling to, and for how many days?"
 
-=== QUESTION STRATEGY — CRITICAL: ASK ALL MISSING FIELDS IN ONE SINGLE MESSAGE ===
-This is the most important rule. Read it carefully.
+AIRPORT trip (any mention of airport/flight/terminal):
+  REQUIRED: pickup_location, pickup_date, pickup_time
+  drop_location is inferred from context (airport is the drop or pickup)
+  If client mentions flight number or terminal, capture in special_instructions
+  Format: "Airport [arrival|departure]. Flight: [XX 123]. Terminal: [T2]."
 
-You get ONE reply per cron run. You MUST ask for every missing mandatory field in that single reply.
-NEVER ask for one field, wait for the answer, then ask for another in the next reply.
+=== MULTI-DAY BOOKING RULES ===
+When total_days > 1:
+- pickup_location is the same for all days (the client's regular pickup point on day 1)
+- Do NOT ask the client for per-day details — just confirm total_days
+- Set total_days to the correct number; the system will auto-generate daily legs
 
-WRONG examples (never do this):
+=== QUESTION STRATEGY — CRITICAL: ONE MESSAGE, ALL MISSING FIELDS ===
+This is the most important rule. The client has no patience for back-and-forth.
+
+You MUST ask for EVERY missing mandatory field in ONE single reply. Never split questions across multiple turns.
+
+WRONG (never do this):
   missing = [pickup_location, pickup_date, pickup_time]
-  next_question: "Where should I pick you up?"           ← WRONG — missed date and time
+  next_question: "Where should I pick you up?"  ← WRONG, missed date and time
 
-  missing = [pickup_date, pickup_time]
-  next_question: "What date do you need the cab?"        ← WRONG — missed time
-
-RIGHT examples (always do this):
+RIGHT (always do this):
   missing = [pickup_location, pickup_date, pickup_time]
   next_question: "Could you share where you need to be picked up from, the date, and what time?"
+
+  missing = [drop_location, total_days]  (outstation)
+  next_question: "Which city are you travelling to, and for how many days?"
 
   missing = [pickup_date, pickup_time]
   next_question: "What date and time do you need the cab?"
 
-  missing = [pickup_location, pickup_date]
-  next_question: "Where should we pick you up, and what date?"
-
   missing = [pickup_time]
   next_question: "What time should we pick you up?"
 
-  missing = [pickup_location]
-  next_question: "Where should we pick you up from?"
-
   missing = [] (all present)
-  next_question: null   ← booking is created, no question needed
+  next_question: null  ← set is_complete to true
 
-Additional rules:
-- Natural, friendly tone — no technical jargon (say "date" not "pickup_date")
-- 1–2 lines maximum, no bullet lists
-- For airport trips: AFTER all 3 mandatory fields are confirmed, add ONE friendly follow-up line asking for flight number and terminal
-- If all mandatory fields are present: ALWAYS set next_question to null — do not delay the booking by asking for optional info
+Rules:
+- Natural, friendly tone — no jargon (say "date" not "pickup_date")
+- Maximum 1–2 lines, no bullet lists
+- NEVER ask for optional info (vehicle type, pax count) in the conversation — only capture if volunteered
+- If ALL mandatory fields are present: set is_complete = true AND next_question = null
 
 === NEW BOOKING DETECTION ===
 Set is_new_booking_request: true ONLY if the conversation clearly contains TWO SEPARATE booking requests with different details.
-Signals: "also book", "another cab", "one more", "for my colleague [name]" with a different trip, "next day also need", etc.
+Signals: "also book", "another cab", "one more", "for my colleague [name]" with a different trip.
 
 NOT a new booking:
-- "I need it for 2 days" → just set total_days = 2
+- "I need it for 2 days" → set total_days = 2
 - "Return trip also" → set service_type = "return"
 - "Book for my guest [name]" with same trip details → is_guest_booking = true
 
-IS a new booking:
-- "Also need a cab for my colleague Ravi to Whitefield tomorrow at 10am" → is_new_booking_request = true
-- "Book one more for next day at the same time" → is_new_booking_request = true
-
-When is_new_booking_request = true, set next_question to acknowledge both:
-"Got it! I will confirm your booking for [first trip summary]. For the second trip [summary], could you confirm [any missing details]?"
+When is_new_booking_request = true, acknowledge both and ask for any missing details of the second booking.
 
 === FULL CONVERSATION ===
 {conversation}
@@ -236,8 +232,7 @@ Respond with ONLY a valid JSON object, no markdown, no other text:
     "service_type": "one_way|return",
     "total_days": 1,
     "special_instructions": null,
-    "company_mentioned": null,
-    "day_legs": []
+    "company_mentioned": null
   },
   "missing_mandatory": [],
   "is_complete": false,

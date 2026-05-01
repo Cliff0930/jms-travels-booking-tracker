@@ -208,11 +208,12 @@ export interface ConversationSession {
   id: string
   phone: string
   client_id: string | null
-  status: 'collecting' | 'complete' | 'abandoned'
+  status: 'collecting' | 'awaiting_ack' | 'complete' | 'abandoned'
   messages: ConversationMessage[]
   extracted: Record<string, unknown>
   missing_fields: string[]
   booking_id: string | null
+  completed_at: string | null
   created_at: string
   updated_at: string
 }
