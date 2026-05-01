@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
-
-// Allow up to 30 seconds — Gemini needs time to respond
-export const maxDuration = 30
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
-import { processConversationSession } from '@/lib/conversation/process'
-import type { Client } from '@/types'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -39,9 +34,7 @@ export async function POST(request: Request) {
       const senderPhone = message.from
       const rawContent = message.text?.body || ''
       const senderName = value?.contacts?.[0]?.profile?.name
-      const now = new Date().toISOString()
 
-      // Save every incoming message to raw_messages
       const { data: rawMsg } = await supabase
         .from('raw_messages')
         .insert({
@@ -55,11 +48,10 @@ export async function POST(request: Request) {
 
       if (!rawMsg) continue
 
-      // Approval/rejection replies take priority (e.g. "APPROVE BK-2024-0001")
       const handled = await handleApprovalReply(supabase, rawContent, senderPhone, null)
       if (handled) continue
 
-      // Look up known client by phone
+      // Look up known client
       const { data: client } = await supabase
         .from('clients')
         .select('*, company:companies(*), locations:client_locations(*)')
@@ -67,8 +59,12 @@ export async function POST(request: Request) {
         .single()
 
       if (client) {
-        // Known client — accumulate message in session (processing happens in cron)
-        await accumulateMessage(supabase, client, senderPhone, rawContent, rawMsg.id, now)
+        // Known client — process normally
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
+        })
         continue
       }
 
@@ -92,14 +88,23 @@ export async function POST(request: Request) {
 
       if (clientInfo.name) {
         const newClient = await createClientFromInfo(supabase, senderPhone, senderName, clientInfo)
-        if (newClient) {
-          await accumulateMessage(supabase, newClient, senderPhone, rawContent, rawMsg.id, now)
-        }
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client: newClient, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone }),
+        })
       } else {
-        // No name — ask who they are first
+        // No name found — create draft booking silently, then ask for their details
+        const parseRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message_id: rawMsg.id, client: null, message: rawContent, channel: 'whatsapp', sender_phone: senderPhone, skip_auto_reply: true }),
+        })
+        const parseData = await parseRes.json().catch(() => ({}))
+
         await supabase
           .from('raw_messages')
-          .update({ ai_classification: 'awaiting_client_info' })
+          .update({ ai_classification: 'awaiting_client_info', booking_id: parseData.booking_id || null })
           .eq('id', rawMsg.id)
 
         await sendWhatsAppMessage({
@@ -114,83 +119,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true })
 }
-
-// ─── ACCUMULATE MESSAGE INTO SESSION ────────────────────────────────────────
-// Does NOT call Gemini — that happens in the cron job after a 10-second silence window
-
-async function accumulateMessage(
-  supabase: ReturnType<typeof createAdminClient>,
-  client: Client,
-  senderPhone: string,
-  content: string,
-  rawMsgId: string,
-  now: string,
-) {
-  // Load or create an active collecting session
-  let { data: session } = await supabase
-    .from('conversation_sessions')
-    .select('*')
-    .eq('phone', senderPhone)
-    .eq('status', 'collecting')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (!session) {
-    const { data: newSession } = await supabase
-      .from('conversation_sessions')
-      .insert({
-        phone: senderPhone,
-        client_id: client.id,
-        status: 'collecting',
-        messages: [],
-        extracted: {},
-        missing_fields: [],
-        last_message_at: now,
-        pending_process: true,
-      })
-      .select()
-      .single()
-    session = newSession
-  }
-
-  if (!session) return
-
-  // Append this client message
-  const updatedMessages = [
-    ...(session.messages as Array<{ role: string; content: string; timestamp: string }>),
-    { role: 'client', content, timestamp: now },
-  ]
-
-  // Mark session as pending with updated timestamp — cron will pick it up after 10s silence
-  await supabase
-    .from('conversation_sessions')
-    .update({
-      messages: updatedMessages,
-      last_message_at: now,
-      pending_process: true,
-      updated_at: now,
-    })
-    .eq('id', session.id)
-
-  // Tag the raw message with the session's client_id (no booking yet)
-  await supabase
-    .from('raw_messages')
-    .update({ processed: false })
-    .eq('id', rawMsgId)
-
-  // Process inline — runs before returning 200 to WhatsApp.
-  // maxDuration=30 gives Gemini enough time. Cron is a safety-net only.
-  const sessionSnapshot = { ...session, messages: updatedMessages, pending_process: true }
-  try {
-    await processConversationSession(supabase, sessionSnapshot)
-  } catch (err) {
-    console.error('[webhook] inline process error:', String(err))
-    // Session stays pending_process=true so the cron picks it up as fallback
-  }
-}
-
-// ─── ONBOARDING ──────────────────────────────────────────────────────────────
 
 async function handleOnboardingReply(
   supabase: ReturnType<typeof createAdminClient>,
@@ -221,14 +149,11 @@ async function handleOnboardingReply(
   const companyLine = clientInfo.company_name && !clientInfo.is_personal
     ? ` (${clientInfo.company_name})`
     : ''
-
   await sendWhatsAppMessage({
     to: senderPhone,
     body: `Thanks, ${resolvedName}${companyLine}! Your profile is set up. Now, what cab do you need?`,
   })
 }
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 async function createClientFromInfo(
   supabase: ReturnType<typeof createAdminClient>,
