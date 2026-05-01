@@ -227,7 +227,7 @@ async function processSession(
   } else {
     // ── Ask for missing info ───────────────────────────────────────────────
     // Build question from actualMissing (computed from extracted values, not Gemini's array)
-    const reply = buildMissingQuestion(actualMissing, !!result.extracted.drop_location)
+    const reply = buildMissingQuestion(actualMissing, client.name, !!result.extracted.drop_location)
     if (!reply) return
 
     const updatedMessages: ConversationMessage[] = [
@@ -247,31 +247,39 @@ async function processSession(
 }
 
 // ─── MISSING FIELDS QUESTION — deterministic, always batches all missing ─────
-// Computed from extracted values directly — Gemini cannot cause one-at-a-time behaviour.
-// hasDropLocation: if false and all 3 mandatory fields are also missing, also ask for drop.
+// Sends ONE message listing every missing field — matches the old JMS Travels style.
+// Gemini cannot cause one-at-a-time behaviour because we build the message in code.
 
-function buildMissingQuestion(missing: string[], hasDropLocation = true): string | null {
+function buildMissingQuestion(missing: string[], clientName: string, hasDropLocation = true): string | null {
+  if (missing.length === 0) return null
+
   const hasPL = missing.includes('pickup_location')
   const hasPD = missing.includes('pickup_date')
   const hasPT = missing.includes('pickup_time')
+  const name = clientName || 'there'
 
+  let fieldsList: string
   if (hasPL && hasPD && hasPT) {
-    // First ask — include drop location hint too so client gives everything at once
-    return hasDropLocation
-      ? 'To book your cab, could you share the pickup location, date, and time?'
-      : 'To book your cab, could you share the pickup location, drop location, date, and time?'
+    fieldsList = hasDropLocation
+      ? 'pickup location, date, and time'
+      : 'pickup location, drop location, date, and time'
+  } else if (hasPL && hasPD) {
+    fieldsList = 'pickup location and date'
+  } else if (hasPL && hasPT) {
+    fieldsList = 'pickup location and time'
+  } else if (hasPD && hasPT) {
+    fieldsList = 'date and time'
+  } else if (hasPL) {
+    fieldsList = 'pickup location'
+  } else if (hasPD) {
+    fieldsList = 'date'
+  } else if (hasPT) {
+    fieldsList = 'time'
+  } else {
+    fieldsList = missing.map(f => f.replace(/_/g, ' ')).join(', ')
   }
-  if (hasPL && hasPD) return 'Where should we pick you up from, and what date?'
-  if (hasPL && hasPT) return 'Where should we pick you up from, and what time?'
-  if (hasPD && hasPT) return 'What date and time do you need the cab?'
-  if (hasPL) return 'Where should we pick you up from?'
-  if (hasPD) return 'What date do you need the cab?'
-  if (hasPT) return 'What time should we pick you up?'
 
-  if (missing.length > 0)
-    return `Could you also confirm: ${missing.map(f => f.replace(/_/g, ' ')).join(', ')}?`
-
-  return null
+  return `Hi ${name}, to complete your booking we need: ${fieldsList}. Please reply with these details and we will confirm right away! — JMS Travels`
 }
 
 // ─── BOOKING CONFIRMATION MESSAGE ────────────────────────────────────────────
@@ -290,31 +298,26 @@ function buildConfirmationMsg(
   },
   pendingApproval: boolean,
 ): string {
-  const tripLabel =
-    extracted.trip_type === 'airport' ? 'Airport Transfer' :
-    extracted.trip_type === 'outstation' ? 'Outstation' : 'Local'
-
-  const timeStr = extracted.pickup_time ? formatTime12h(extracted.pickup_time) : 'TBD'
+  if (pendingApproval) {
+    return `Hi ${clientName}, thank you for your booking request (Ref: ${bookingRef}). Your booking is pending approval from your company. We will confirm once approved. — JMS Travels`
+  }
 
   const lines: string[] = [
-    `Hi ${clientName}, your booking has been received.`,
+    `Hi ${clientName}, thank you for your booking request.`,
     ``,
-    `Ref: ${bookingRef}`,
-    `Pickup: ${extracted.pickup_location ?? 'TBD'}`,
+    `We have received your details and will confirm your booking shortly.`,
+    `Your reference is ${bookingRef}.`,
+    ``,
   ]
-  if (extracted.drop_location) lines.push(`Drop: ${extracted.drop_location}`)
-  lines.push(`Date: ${extracted.pickup_date ?? 'TBD'}`)
-  lines.push(`Time: ${timeStr}`)
-  lines.push(`Trip: ${tripLabel}`)
-  if (extracted.total_days > 1) lines.push(`Days: ${extracted.total_days}`)
-  if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
-  lines.push(``)
-  lines.push(
-    pendingApproval
-      ? `This is pending approval from your company. We will confirm once approved.`
-      : `We will share your driver details once assigned. Thank you!`
-  )
 
+  if (extracted.pickup_location) lines.push(`Pickup: ${extracted.pickup_location}`)
+  if (extracted.drop_location)   lines.push(`Drop: ${extracted.drop_location}`)
+  if (extracted.pickup_date)     lines.push(`Date: ${extracted.pickup_date}`)
+  if (extracted.pickup_time)     lines.push(`Time: ${formatTime12h(extracted.pickup_time)}`)
+  if (extracted.total_days > 1)  lines.push(`Days: ${extracted.total_days}`)
+  if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
+
+  lines.push(``, `— JMS Travels Team`)
   return lines.join('\n')
 }
 
