@@ -155,9 +155,21 @@ OUTSTATION trip (destination outside Bangalore district):
 
 AIRPORT trip (any mention of airport/flight/terminal):
   REQUIRED: pickup_location, pickup_date, pickup_time
-  drop_location is inferred from context (airport is the drop or pickup)
-  If client mentions flight number or terminal, capture in special_instructions
-  Format: "Airport [arrival|departure]. Flight: [XX 123]. Terminal: [T2]."
+
+  AIRPORT PICKUP (client is arriving — being picked up FROM the airport):
+    Always ask for flight number and terminal in the same message as any other missing fields.
+    If the client provides either one (or both), save in special_instructions.
+    Neither is strictly mandatory — if client says they don't know, accept and proceed.
+    Format in special_instructions: "Airport arrival. Flight: [XX 123]. Terminal: [T2]."
+
+  AIRPORT DROP (client is departing — being dropped TO the airport):
+    Do NOT ask for flight number or terminal. Just confirm pickup, date, and time.
+    Format in special_instructions: "Airport departure."
+
+  Detecting arrival vs departure:
+    - "pick up from airport", "arriving", "flight lands", "coming from airport" → arrival (ask flight + terminal)
+    - "drop to airport", "going to airport", "catch a flight", "departure" → departure (do not ask)
+    - If unclear, treat as arrival and ask for flight + terminal
 
 === MULTI-DAY BOOKING RULES ===
 When total_days > 1:
