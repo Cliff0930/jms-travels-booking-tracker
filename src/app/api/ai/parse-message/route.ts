@@ -54,6 +54,13 @@ export async function POST(request: Request) {
     }
 
     if (classification.classification === 'enquiry' || classification.classification === 'unclassified') {
+      const replyTo = channel === 'whatsapp' ? (sender_phone || (client as Client)?.primary_phone) : null
+      if (channel === 'whatsapp' && replyTo) {
+        const reply = classification.classification === 'enquiry'
+          ? 'For rates and pricing information, please call us at 9845572207. We are happy to help!'
+          : 'For any queries or assistance, please call us at 9845572207.'
+        await sendWhatsAppMessage({ to: replyTo, body: reply })
+      }
       return NextResponse.json({ ok: true, classification: classification.classification })
     }
 
