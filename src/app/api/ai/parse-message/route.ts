@@ -13,6 +13,43 @@ function getTodayIST(): string {
   return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
 }
 
+function formatTime12h(time: string): string {
+  const [h, m] = time.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`
+}
+
+function buildWhatsAppConfirmation(
+  clientName: string,
+  bookingRef: string,
+  extracted: {
+    pickup_location: string | null
+    drop_location: string | null
+    pickup_date: string | null
+    pickup_time: string | null
+    trip_type: string
+    total_days: number
+    special_instructions: string | null
+  }
+): string {
+  const tripLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+  const lines = [
+    `Hi ${clientName}, your booking is confirmed.`,
+    ``,
+    `Ref: ${bookingRef}`,
+  ]
+  if (extracted.pickup_location) lines.push(`Pickup: ${extracted.pickup_location}`)
+  if (extracted.drop_location)   lines.push(`Drop: ${extracted.drop_location}`)
+  if (extracted.pickup_date)     lines.push(`Date: ${extracted.pickup_date}`)
+  if (extracted.pickup_time)     lines.push(`Time: ${formatTime12h(extracted.pickup_time)}`)
+  lines.push(`Trip: ${tripLabel[extracted.trip_type] ?? extracted.trip_type}`)
+  if ((extracted.total_days ?? 1) > 1) lines.push(`Days: ${extracted.total_days}`)
+  if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
+  lines.push(``, `We will share your driver details once assigned. Thank you!`, ``, `JMS Travels Team`)
+  return lines.join('\n')
+}
+
 async function logOutbound(
   supabase: ReturnType<typeof createAdminClient>,
   params: {
@@ -196,31 +233,25 @@ export async function POST(request: Request) {
 
       if (skip_auto_reply) return NextResponse.json({ ok: true, booking_id: booking.id })
 
-      // Send booking received confirmation
-      const { data: tmpl } = await supabase
-        .from('message_templates')
-        .select('body, subject')
-        .eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED)
-        .single()
+      // Send booking confirmation
+      const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : (sender_email || (client as Client)?.primary_email)
+      const clientName = (client as Client)?.name || 'there'
 
-      if (!tmpl) {
-        console.error(`[parse-message] Template '${TEMPLATE_KEYS.BOOKING_RECEIVED}' not found in message_templates — no reply sent`)
-      }
-
-      if (tmpl) {
-        const body = fillTemplate(tmpl.body, { client_name: (client as Client)?.name || 'there', booking_ref: bookingRef })
-        const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : (sender_email || (client as Client)?.primary_email)
-        let status = 'failed'
-        if (channel === 'whatsapp' && recipient) {
-          const result = await sendWhatsAppMessage({ to: recipient, body })
-          status = result.ok ? 'sent' : `failed: ${result.error}`
-        } else if (channel === 'email' && recipient) {
+      if (channel === 'whatsapp' && recipient) {
+        const body = buildWhatsAppConfirmation(clientName, bookingRef, extraction.extracted)
+        const result = await sendWhatsAppMessage({ to: recipient, body })
+        await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
+      } else if (channel === 'email' && recipient) {
+        const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED).single()
+        if (tmpl) {
+          const body = fillTemplate(tmpl.body, { client_name: clientName, booking_ref: bookingRef })
+          let status = 'failed'
           try {
             await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
             status = 'sent'
           } catch (e) { status = `failed: ${String(e)}` }
+          await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
         }
-        await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
       }
     }
 
