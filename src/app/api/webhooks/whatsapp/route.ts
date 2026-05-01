@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { processConversationSession } from '@/lib/conversation/process'
 import type { Client } from '@/types'
 
 export async function GET(request: Request) {
@@ -174,6 +175,17 @@ async function accumulateMessage(
     .from('raw_messages')
     .update({ processed: false })
     .eq('id', rawMsgId)
+
+  // Process immediately after the webhook responds 200 to WhatsApp.
+  // The cron is a safety-net only — this is the primary response path.
+  const sessionSnapshot = { ...session, messages: updatedMessages, pending_process: true }
+  after(async () => {
+    try {
+      await processConversationSession(supabase, sessionSnapshot)
+    } catch (err) {
+      console.error('[webhook] inline process error:', String(err))
+    }
+  })
 }
 
 // ─── ONBOARDING ──────────────────────────────────────────────────────────────
