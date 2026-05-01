@@ -1,4 +1,7 @@
-import { NextResponse, after } from 'next/server'
+import { NextResponse } from 'next/server'
+
+// Allow up to 30 seconds — Gemini needs time to respond
+export const maxDuration = 30
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
@@ -176,16 +179,15 @@ async function accumulateMessage(
     .update({ processed: false })
     .eq('id', rawMsgId)
 
-  // Process immediately after the webhook responds 200 to WhatsApp.
-  // The cron is a safety-net only — this is the primary response path.
+  // Process inline — runs before returning 200 to WhatsApp.
+  // maxDuration=30 gives Gemini enough time. Cron is a safety-net only.
   const sessionSnapshot = { ...session, messages: updatedMessages, pending_process: true }
-  after(async () => {
-    try {
-      await processConversationSession(supabase, sessionSnapshot)
-    } catch (err) {
-      console.error('[webhook] inline process error:', String(err))
-    }
-  })
+  try {
+    await processConversationSession(supabase, sessionSnapshot)
+  } catch (err) {
+    console.error('[webhook] inline process error:', String(err))
+    // Session stays pending_process=true so the cron picks it up as fallback
+  }
 }
 
 // ─── ONBOARDING ──────────────────────────────────────────────────────────────
