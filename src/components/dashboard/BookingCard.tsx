@@ -29,8 +29,14 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-[#191B23] text-sm">{booking.booking_ref}</span>
+            {booking.trip_type === 'local' && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#ECFDF5] text-[#065F46]">Local</span>
+            )}
             {booking.trip_type === 'outstation' && (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EDE9FE] text-[#7E3AF2]">Outstation</span>
+            )}
+            {booking.trip_type === 'airport' && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E]">Airport</span>
             )}
             <BookingStatusBadge status={booking.status} />
           </div>
