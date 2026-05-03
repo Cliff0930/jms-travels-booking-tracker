@@ -1,12 +1,12 @@
-import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
+import { format, isToday, isTomorrow, parseISO } from 'date-fns'
 
 export function formatBookingDate(dateStr: string | null): string {
   if (!dateStr) return '—'
   const date = parseISO(dateStr)
-  if (isToday(date)) return `Today`
-  if (isTomorrow(date)) return `Tomorrow`
-  if (isYesterday(date)) return `Yesterday`
-  return format(date, 'dd-MM-yyyy')
+  const dateFormatted = format(date, 'd MMM yyyy')
+  if (isToday(date)) return `${dateFormatted} (Today)`
+  if (isTomorrow(date)) return `${dateFormatted} (Tomorrow)`
+  return dateFormatted
 }
 
 export function formatBookingDateTime(dateStr: string | null, timeStr: string | null): string {
