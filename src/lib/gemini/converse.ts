@@ -36,6 +36,21 @@ function getTodayIST(): string {
   return ist.toISOString().slice(0, 10)
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+function sanitizePickupDate(raw: string | null, today: string): string | null {
+  if (!raw) return null
+  const lower = raw.toLowerCase().trim()
+  if (lower === 'today') return today
+  if (lower === 'tomorrow') return addDays(today, 1)
+  if (lower === 'day after tomorrow' || lower === 'day-after-tomorrow') return addDays(today, 2)
+  return raw
+}
+
 function isComplete(result: ConversationResult, hasCompany: boolean): boolean {
   const ext = result.extracted
   if (!ext.pickup_location || !ext.pickup_date || !ext.pickup_time) return false
@@ -51,6 +66,7 @@ export async function converseBooking(
 ): Promise<ConversationResult> {
   const model = getGeminiModel()
   const today = getTodayIST()
+  const tomorrow = addDays(today, 1)
 
   const conversationText = messages
     .map(m => `${m.role === 'client' ? 'Client' : 'Agent'}: ${m.content}`)
@@ -71,6 +87,7 @@ export async function converseBooking(
 
   const prompt = CONVERSATION_PROMPT
     .replace(/{today}/g, today)
+    .replace(/{tomorrow}/g, tomorrow)
     .replace('{conversation}', conversationText)
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)
@@ -79,6 +96,11 @@ export async function converseBooking(
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
   const parsed: ConversationResult = JSON.parse(cleaned)
+
+  // Safety net: resolve any relative date words the LLM may have slipped through
+  if (parsed.extracted?.pickup_date) {
+    parsed.extracted.pickup_date = sanitizePickupDate(parsed.extracted.pickup_date, today)
+  }
 
   const hasCompany = !!client?.company_id
   // Code-level completeness check overrides LLM if it missed something

@@ -116,10 +116,11 @@ TODAY (IST): {today}
 
 === DATE RULES ===
 - "today" → {today}
-- "tomorrow" → day after {today}
+- "tomorrow" → {tomorrow}
 - Day names ("Monday" etc.) → next upcoming occurrence of that day
-- Always output pickup_date as YYYY-MM-DD. NEVER output words like "today" or "tomorrow" as the value.
+- Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.
 - Dates before {today} → set pickup_date to null, add "pickup_date" to missing_mandatory
+- In next_question text: when referencing the date, always write it in readable format (e.g. "3 May 2026") — NEVER write "today" or "tomorrow" in your replies
 
 === TRIP TYPE — BANGALORE BASE RULES ===
 JMS Travels is based in Bangalore. Classify every trip as:

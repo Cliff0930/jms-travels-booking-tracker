@@ -232,18 +232,38 @@ async function processClientMessage(
     }).catch(() => {})
   }
 
+  // Format date and time for the ack message
+  const ackDateLine = (() => {
+    const ext = result.extracted
+    if (!ext.pickup_date) return null
+    const d = new Date(ext.pickup_date + 'T00:00:00Z')
+    const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    if (!ext.pickup_time) return `Date: ${dateStr}`
+    const [hh, mm] = ext.pickup_time.split(':').map(Number)
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    const h12 = hh % 12 || 12
+    return `Date: ${dateStr}, ${h12}:${String(mm).padStart(2, '0')} ${ampm}`
+  })()
+
+  const ackDetails = [
+    `Ref: ${booking.booking_ref}`,
+    ackDateLine,
+    result.extracted.pickup_location ? `Pickup: ${result.extracted.pickup_location}` : null,
+    result.extracted.drop_location ? `Drop: ${result.extracted.drop_location}` : null,
+  ].filter(Boolean).join('\n')
+
   const ackBody = needsApproval
     ? [
         `Hi ${client.name}, we have received your booking request.`,
         ``,
-        `Ref: ${booking.booking_ref}`,
+        ackDetails,
         ``,
         `Your company admin has been notified for approval. We will confirm your booking once approved. Thank you for choosing JMS Travels!`,
       ].join('\n')
     : [
         `Hi ${client.name}, we have received your booking request.`,
         ``,
-        `Ref: ${booking.booking_ref}`,
+        ackDetails,
         ``,
         `Our team will review and confirm your booking shortly. Thank you for choosing JMS Travels!`,
       ].join('\n')
