@@ -48,16 +48,16 @@ export async function POST(request: Request) {
 
       if (!rawMsg) continue
 
-      // Check for APPROVE/REJECT replies first
-      const handled = await handleApprovalReply(supabase, rawContent, senderPhone, null)
+      // Run approval check and client lookup in parallel
+      const [handled, { data: client }] = await Promise.all([
+        handleApprovalReply(supabase, rawContent, senderPhone, null),
+        supabase
+          .from('clients')
+          .select('*, company:companies(*), locations:client_locations(*)')
+          .eq('primary_phone', senderPhone)
+          .single(),
+      ])
       if (handled) continue
-
-      // Look up known client
-      const { data: client } = await supabase
-        .from('clients')
-        .select('*, company:companies(*), locations:client_locations(*)')
-        .eq('primary_phone', senderPhone)
-        .single()
 
       if (client) {
         await processClientMessage(supabase, client, senderPhone, rawContent, rawMsg.id)
@@ -97,6 +97,7 @@ export async function POST(request: Request) {
         await sendWhatsAppMessage({
           to: senderPhone,
           body: `Hi! Thanks for reaching out to JMS Travels.\n\nCould you share your name and company (or reply "personal" for a personal booking)? We will get your cab sorted right away.`,
+          log: {},
         })
       }
     }
@@ -121,30 +122,12 @@ async function processClientMessage(
     .from('conversation_sessions')
     .select('*')
     .eq('phone', senderPhone)
-    .in('status', ['collecting', 'awaiting_ack'])
+    .in('status', ['collecting'])
     .gt('last_message_at', cutoff)
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
 
-  // If all fields are collected and we're waiting to send the ack —
-  // just store this message; the send-ack function will include it as notes
-  if (activeSession?.status === 'awaiting_ack') {
-    const msgs = [
-      ...(activeSession.messages as Array<{ role: string; content: string; timestamp: string }>),
-      { role: 'client', content: rawContent, timestamp: new Date().toISOString() },
-    ]
-    await supabase
-      .from('conversation_sessions')
-      .update({ messages: msgs, last_message_at: new Date().toISOString() })
-      .eq('id', activeSession.id)
-
-    await supabase
-      .from('raw_messages')
-      .update({ ai_classification: 'booking', processed: true, booking_id: activeSession.booking_id })
-      .eq('id', rawMsgId)
-    return
-  }
 
   // Get or create session
   let session = activeSession
@@ -187,6 +170,7 @@ async function processClientMessage(
     await sendWhatsAppMessage({
       to: senderPhone,
       body: 'For rates and pricing information, please call us at 9845572207. We are happy to help!',
+      log: { client_id: client.id },
     })
     await supabase.from('conversation_sessions').delete().eq('id', session.id)
     return
@@ -196,6 +180,7 @@ async function processClientMessage(
     await sendWhatsAppMessage({
       to: senderPhone,
       body: 'For any queries or assistance regarding an existing booking, please call us at 9845572207.',
+      log: { client_id: client.id },
     })
     return
   }
@@ -219,7 +204,7 @@ async function processClientMessage(
         .from('conversation_sessions')
         .update({ messages: [...updatedMessages, agentMsg] })
         .eq('id', session.id)
-      await sendWhatsAppMessage({ to: senderPhone, body: result.next_question })
+      await sendWhatsAppMessage({ to: senderPhone, body: result.next_question, log: { client_id: client.id } })
     }
     return
   }
@@ -228,31 +213,25 @@ async function processClientMessage(
   const booking = await createBookingFromResult(supabase, client, result)
   if (!booking) return
 
-  await supabase
-    .from('conversation_sessions')
-    .update({
-      status: 'awaiting_ack',
-      booking_id: booking.id,
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', session.id)
+  const ackBody = [
+    `Hi ${client.name}, we have received your booking request.`,
+    ``,
+    `Ref: ${booking.booking_ref}`,
+    ``,
+    `Our team will review and confirm your booking shortly. Thank you for choosing JMS Travels!`,
+  ].join('\n')
 
-  await supabase
-    .from('raw_messages')
-    .update({ booking_id: booking.id })
-    .eq('id', rawMsgId)
-
-  // Fire-and-forget — send-ack waits 15s then sends acknowledgement
-  fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/send-ack`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: session.id,
-      booking_id: booking.id,
-      phone: senderPhone,
-      client_name: client.name,
-    }),
-  }).catch(() => {})
+  await Promise.all([
+    supabase
+      .from('conversation_sessions')
+      .update({ status: 'complete', booking_id: booking.id, completed_at: new Date().toISOString() })
+      .eq('id', session.id),
+    supabase
+      .from('raw_messages')
+      .update({ booking_id: booking.id })
+      .eq('id', rawMsgId),
+    sendWhatsAppMessage({ to: senderPhone, body: ackBody, log: { client_id: client.id, booking_id: booking.id, template_used: 'booking_received' } }),
+  ])
 }
 
 async function createBookingFromResult(
@@ -355,6 +334,7 @@ async function handleOnboardingReply(
   await sendWhatsAppMessage({
     to: senderPhone,
     body: `Thanks, ${resolvedName}${companyLine}! Your profile is set up. What cab do you need?`,
+    log: {},
   })
 }
 

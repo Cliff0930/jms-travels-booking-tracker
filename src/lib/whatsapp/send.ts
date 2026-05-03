@@ -1,6 +1,13 @@
+import { createAdminClient } from '@/lib/supabase/server'
+
 interface WhatsAppTextMessage {
   to: string
   body: string
+  log?: {
+    booking_id?: string
+    client_id?: string
+    template_used?: string
+  }
 }
 
 export interface SendResult {
@@ -8,7 +15,7 @@ export interface SendResult {
   error?: string
 }
 
-export async function sendWhatsAppMessage({ to, body }: WhatsAppTextMessage): Promise<SendResult> {
+export async function sendWhatsAppMessage({ to, body, log }: WhatsAppTextMessage): Promise<SendResult> {
   const normalizedTo = to.startsWith('+') ? to.slice(1) : to
   try {
     const res = await fetch(
@@ -32,6 +39,24 @@ export async function sendWhatsAppMessage({ to, body }: WhatsAppTextMessage): Pr
       console.error(`[WhatsApp] Send failed to=${normalizedTo} status=${res.status} body=${errText}`)
       return { ok: false, error: `API ${res.status}: ${errText}` }
     }
+
+    // Log to message_logs only when caller opts in — booking routes log manually
+    if (log !== undefined) {
+      try {
+        const supabase = createAdminClient()
+        await supabase.from('message_logs').insert({
+          channel: 'whatsapp',
+          direction: 'outbound',
+          recipient: to,
+          content: body,
+          booking_id: log.booking_id ?? null,
+          client_id: log.client_id ?? null,
+          template_used: log.template_used ?? null,
+          status: 'sent',
+        })
+      } catch { /* non-critical */ }
+    }
+
     return { ok: true }
   } catch (e) {
     console.error(`[WhatsApp] Network error to=${normalizedTo}:`, e)
