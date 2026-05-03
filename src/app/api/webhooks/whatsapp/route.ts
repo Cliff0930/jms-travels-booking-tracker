@@ -217,9 +217,8 @@ async function processClientMessage(
   const company = client.company as (typeof client.company & { approval_exclusions?: string[] }) | null
   const bookingType = result.extracted.booking_type ?? 'company'
   const isPersonal = bookingType === 'personal'
-  const clientContacts = [client.primary_phone, client.primary_email].filter(Boolean) as string[]
   const exclusions: string[] = company?.approval_exclusions ?? []
-  const isExcluded = clientContacts.some(c => exclusions.includes(c))
+  const isExcluded = exclusions.includes(client.id)
   const needsApproval = !isPersonal && !!client.company_id && company?.approval_required === true && !isExcluded
 
   if (needsApproval) {

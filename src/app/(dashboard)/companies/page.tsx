@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useRef, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,54 +10,129 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Building2, Plus, X, Mail, Phone } from 'lucide-react'
+import { Building2, Plus, X, Mail, Phone, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Company } from '@/types'
+import type { Company, Client } from '@/types'
 
 function useCompanies() {
   return useQuery<Company[]>({ queryKey: ['companies'], queryFn: () => fetch('/api/companies').then(r => r.json()) })
 }
 
-function ExclusionEditor({ exclusions, onSave }: { exclusions: string[]; onSave: (list: string[]) => void }) {
-  const [value, setValue] = useState('')
+function ClientExclusionPicker({
+  companyId,
+  exclusions,
+  onSave,
+}: {
+  companyId: string
+  exclusions: string[]
+  onSave: (list: string[]) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
 
-  function handleAdd() {
-    const v = value.trim()
-    if (!v || exclusions.includes(v)) return
-    onSave([...exclusions, v])
-    setValue('')
+  const { data: allClients = [] } = useQuery<Client[]>({
+    queryKey: ['clients', 'company', companyId],
+    queryFn: () => fetch(`/api/clients?company_id=${companyId}`).then(r => r.json()),
+  })
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const excludedClients = allClients.filter(c => exclusions.includes(c.id))
+  const available = allClients.filter(
+    c => !exclusions.includes(c.id) && (
+      !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.primary_phone?.includes(search) ||
+      c.primary_email?.toLowerCase().includes(search.toLowerCase())
+    )
+  )
+
+  function addClient(client: Client) {
+    onSave([...exclusions, client.id])
+    setSearch('')
+    setOpen(false)
   }
 
-  function handleRemove(item: string) {
-    onSave(exclusions.filter(e => e !== item))
+  function removeClient(clientId: string) {
+    onSave(exclusions.filter(id => id !== clientId))
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <Input
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          placeholder="Phone number or email"
-          className="border-[#C3C5D7] text-sm"
-          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAdd())}
-        />
-        <Button size="sm" variant="outline" onClick={handleAdd} className="shrink-0">Add</Button>
+      {/* Searchable dropdown trigger */}
+      <div ref={ref} className="relative">
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded border border-[#C3C5D7] bg-white cursor-pointer"
+          onClick={() => setOpen(o => !o)}
+        >
+          <Search className="w-3.5 h-3.5 text-[#737686] shrink-0" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setOpen(true) }}
+            placeholder="Search clients to exclude…"
+            className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#737686]"
+            onClick={e => { e.stopPropagation(); setOpen(true) }}
+          />
+        </div>
+        {open && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-[#C3C5D7] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {available.length === 0 ? (
+              <p className="px-3 py-2.5 text-sm text-[#737686]">
+                {allClients.length === 0 ? 'No clients under this company yet.' : 'No matching clients.'}
+              </p>
+            ) : (
+              available.map(client => (
+                <button
+                  key={client.id}
+                  onClick={() => addClient(client)}
+                  className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#F3F3FE] text-left transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0 mt-0.5">
+                    {client.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-[#191B23] truncate">{client.name}</div>
+                    <div className="text-xs text-[#737686] flex items-center gap-2 flex-wrap">
+                      {client.primary_phone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{client.primary_phone}</span>}
+                      {client.primary_email && <span className="flex items-center gap-0.5"><Mail className="w-2.5 h-2.5" />{client.primary_email}</span>}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
-      {exclusions.length > 0 && (
+
+      {/* Excluded clients list */}
+      {excludedClients.length > 0 && (
         <div className="space-y-1">
-          {exclusions.map(item => (
-            <div key={item} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-[#F3F3FE] border border-[#C3C5D7]">
-              <span className="text-sm text-[#434654] truncate">{item}</span>
-              <button onClick={() => handleRemove(item)} className="text-[#737686] hover:text-red-500 shrink-0">
+          {excludedClients.map(client => (
+            <div key={client.id} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded bg-[#F3F3FE] border border-[#C3C5D7]">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-[#191B23] truncate">{client.name}</div>
+                <div className="text-xs text-[#737686] flex items-center gap-2 flex-wrap">
+                  {client.primary_phone && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{client.primary_phone}</span>}
+                  {client.primary_email && <span className="flex items-center gap-0.5"><Mail className="w-2.5 h-2.5" />{client.primary_email}</span>}
+                </div>
+              </div>
+              <button onClick={() => removeClient(client.id)} className="text-[#737686] hover:text-red-500 shrink-0">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
         </div>
       )}
-      {exclusions.length === 0 && (
-        <p className="text-xs text-[#737686]">No exclusions yet.</p>
+      {excludedClients.length === 0 && (
+        <p className="text-xs text-[#737686]">No exclusions yet. Search and select clients above.</p>
       )}
     </div>
   )
@@ -301,10 +376,11 @@ export default function CompaniesPage() {
 
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-1">Approval Exclusions</h3>
-                  <p className="text-xs text-[#737686] mb-3">Clients on this list bypass approval and are confirmed directly — add their phone number or email.</p>
-                  <ExclusionEditor
+                  <p className="text-xs text-[#737686] mb-3">Clients on this list bypass approval and are confirmed directly.</p>
+                  <ClientExclusionPicker
+                    companyId={selectedCompany.id}
                     exclusions={selectedCompany.approval_exclusions ?? []}
-                    onSave={list => updateCompany(selectedCompany.id, { approval_exclusions: list })}
+                    onSave={(list: string[]) => updateCompany(selectedCompany.id, { approval_exclusions: list })}
                   />
                 </section>
               </div>
