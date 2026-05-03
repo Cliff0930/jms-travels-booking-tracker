@@ -1,11 +1,11 @@
 'use client'
 import { useRouter } from 'next/navigation'
-import { MapPin, Calendar, MoreVertical } from 'lucide-react'
+import { MapPin, Calendar, Clock, MoreVertical } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { BookingStatusBadge, statusBarClass } from '@/components/shared/StatusBadge'
 import { FlagList } from '@/components/shared/FlagBadge'
-import { formatBookingDateTime } from '@/lib/utils/date'
+import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import type { Booking } from '@/types'
 
 interface BookingCardProps {
@@ -56,6 +56,11 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
           <div className="flex items-center gap-1 mt-0.5 text-sm text-[#434654]">
             <Calendar className="w-3.5 h-3.5 shrink-0" />
             <span>{formatBookingDateTime(booking.pickup_date, booking.pickup_time)}</span>
+          </div>
+
+          <div className="flex items-center gap-1 mt-0.5 text-xs text-[#9CA3AF]">
+            <Clock className="w-3 h-3 shrink-0" />
+            <span>Received {formatTimestamp(booking.created_at)}</span>
           </div>
 
           {booking.flags?.length > 0 && (
