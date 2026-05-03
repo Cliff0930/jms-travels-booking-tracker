@@ -324,6 +324,20 @@ create index if not exists idx_conv_sessions_phone_status
 grant all on conversation_sessions to postgres, anon, authenticated, service_role;
 grant all on message_logs to postgres, anon, authenticated, service_role;
 
+-- ─── BOOKING EDIT LOGS ───────────────────────────────────────
+create table if not exists booking_edit_logs (
+  id              uuid primary key default uuid_generate_v4(),
+  booking_id      uuid references bookings(id) on delete cascade,
+  changed_by      text not null,
+  changed_by_id   uuid references auth.users(id) on delete set null,
+  reason          text not null,
+  changes         jsonb not null,  -- [{field, label, old_value, new_value}]
+  changed_at      timestamptz default now()
+);
+
+create index if not exists idx_booking_edit_logs_booking_id on booking_edit_logs(booking_id);
+grant all on booking_edit_logs to postgres, anon, authenticated, service_role;
+
 -- ─── USER PROFILES ───────────────────────────────────────────
 create table if not exists user_profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
