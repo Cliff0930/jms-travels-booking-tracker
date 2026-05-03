@@ -18,6 +18,51 @@ function useCompanies() {
   return useQuery<Company[]>({ queryKey: ['companies'], queryFn: () => fetch('/api/companies').then(r => r.json()) })
 }
 
+function ExclusionEditor({ exclusions, onSave }: { exclusions: string[]; onSave: (list: string[]) => void }) {
+  const [value, setValue] = useState('')
+
+  function handleAdd() {
+    const v = value.trim()
+    if (!v || exclusions.includes(v)) return
+    onSave([...exclusions, v])
+    setValue('')
+  }
+
+  function handleRemove(item: string) {
+    onSave(exclusions.filter(e => e !== item))
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder="Phone number or email"
+          className="border-[#C3C5D7] text-sm"
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAdd())}
+        />
+        <Button size="sm" variant="outline" onClick={handleAdd} className="shrink-0">Add</Button>
+      </div>
+      {exclusions.length > 0 && (
+        <div className="space-y-1">
+          {exclusions.map(item => (
+            <div key={item} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-[#F3F3FE] border border-[#C3C5D7]">
+              <span className="text-sm text-[#434654] truncate">{item}</span>
+              <button onClick={() => handleRemove(item)} className="text-[#737686] hover:text-red-500 shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {exclusions.length === 0 && (
+        <p className="text-xs text-[#737686]">No exclusions yet.</p>
+      )}
+    </div>
+  )
+}
+
 export default function CompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -250,6 +295,17 @@ export default function CompaniesPage() {
                   ) : (
                     <p className="text-sm text-[#737686]">None configured</p>
                   )}
+                </section>
+
+                <Separator />
+
+                <section>
+                  <h3 className="text-label-caps text-[#737686] mb-1">Approval Exclusions</h3>
+                  <p className="text-xs text-[#737686] mb-3">Clients on this list bypass approval and are confirmed directly — add their phone number or email.</p>
+                  <ExclusionEditor
+                    exclusions={selectedCompany.approval_exclusions ?? []}
+                    onSave={list => updateCompany(selectedCompany.id, { approval_exclusions: list })}
+                  />
                 </section>
               </div>
             </>

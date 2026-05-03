@@ -213,13 +213,41 @@ async function processClientMessage(
   const booking = await createBookingFromResult(supabase, client, result)
   if (!booking) return
 
-  const ackBody = [
-    `Hi ${client.name}, we have received your booking request.`,
-    ``,
-    `Ref: ${booking.booking_ref}`,
-    ``,
-    `Our team will review and confirm your booking shortly. Thank you for choosing JMS Travels!`,
-  ].join('\n')
+  // Determine if approval is needed: company billing + approval_required + client not excluded
+  const company = client.company as (typeof client.company & { approval_exclusions?: string[] }) | null
+  const bookingType = result.extracted.booking_type ?? 'company'
+  const isPersonal = bookingType === 'personal'
+  const clientContacts = [client.primary_phone, client.primary_email].filter(Boolean) as string[]
+  const exclusions: string[] = company?.approval_exclusions ?? []
+  const isExcluded = clientContacts.some(c => exclusions.includes(c))
+  const needsApproval = !isPersonal && !!client.company_id && company?.approval_required === true && !isExcluded
+
+  if (needsApproval) {
+    await supabase
+      .from('bookings')
+      .update({ status: 'pending_approval', approval_status: 'pending', updated_at: new Date().toISOString() })
+      .eq('id', booking.id)
+    // Fire approval request to company admins in background
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/bookings/${booking.id}/send-approval`, {
+      method: 'POST',
+    }).catch(() => {})
+  }
+
+  const ackBody = needsApproval
+    ? [
+        `Hi ${client.name}, we have received your booking request.`,
+        ``,
+        `Ref: ${booking.booking_ref}`,
+        ``,
+        `Your company admin has been notified for approval. We will confirm your booking once approved. Thank you for choosing JMS Travels!`,
+      ].join('\n')
+    : [
+        `Hi ${client.name}, we have received your booking request.`,
+        ``,
+        `Ref: ${booking.booking_ref}`,
+        ``,
+        `Our team will review and confirm your booking shortly. Thank you for choosing JMS Travels!`,
+      ].join('\n')
 
   const sessionCreatedAt = (session as { created_at?: string }).created_at ?? new Date(0).toISOString()
 
@@ -256,8 +284,8 @@ async function createBookingFromResult(
   const totalDays = Math.max(ext.total_days ?? 1, 1)
 
   const flags: string[] = []
-  if (!client.company_id) flags.push('unknown_company')
   if (result.is_guest_booking) flags.push('guest_booking')
+  if (ext.booking_type === 'personal' && client.company_id) flags.push('personal_trip')
 
   const { data: booking } = await supabase
     .from('bookings')
@@ -279,6 +307,7 @@ async function createBookingFromResult(
       guest_phone: ext.guest_phone,
       total_days: totalDays,
       special_instructions: ext.special_instructions,
+      booking_type: ext.booking_type ?? (client.company_id ? 'company' : 'personal'),
       flags,
     })
     .select()

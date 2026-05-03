@@ -18,6 +18,7 @@ export interface ConversationResult {
     total_days: number
     special_instructions: string | null
     company_mentioned: string | null
+    booking_type: 'company' | 'personal' | null
   }
   missing_mandatory: string[]
   is_complete: boolean
@@ -35,10 +36,11 @@ function getTodayIST(): string {
   return ist.toISOString().slice(0, 10)
 }
 
-function isComplete(result: ConversationResult): boolean {
+function isComplete(result: ConversationResult, hasCompany: boolean): boolean {
   const ext = result.extracted
   if (!ext.pickup_location || !ext.pickup_date || !ext.pickup_time) return false
   if (ext.trip_type === 'outstation' && (!ext.drop_location || !ext.total_days || ext.total_days < 1)) return false
+  if (hasCompany && !ext.booking_type) return false
   return true
 }
 
@@ -59,6 +61,7 @@ export async function converseBooking(
         name: client.name,
         default_pax: client.default_pax,
         default_vehicle_type: client.default_vehicle_type,
+        has_company: !!client.company_id,
       })
     : '{}'
 
@@ -77,8 +80,9 @@ export async function converseBooking(
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
   const parsed: ConversationResult = JSON.parse(cleaned)
 
+  const hasCompany = !!client?.company_id
   // Code-level completeness check overrides LLM if it missed something
-  if (parsed.intent === 'booking' && !isComplete(parsed)) {
+  if (parsed.intent === 'booking' && !isComplete(parsed, hasCompany)) {
     parsed.is_complete = false
   }
 

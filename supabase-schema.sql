@@ -1,4 +1,4 @@
--- CabFlow — Full Database Schema
+-- JMS Travels — Full Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Enable UUID extension
@@ -15,6 +15,7 @@ create table companies (
   approval_required   boolean default false,
   approval_channel    text default 'email',
   approval_timeout_hours int default 4,
+  approval_exclusions text[] default '{}',
   digest_mode         boolean default false,
   created_at          timestamptz default now(),
   updated_at          timestamptz default now()
@@ -97,6 +98,7 @@ create table bookings (
   total_days          int default 1,
   source              text default 'manual',
   special_instructions text,
+  booking_type        text,
   missing_fields      text[] default '{}',
   flags               text[] default '{}',
   approval_status     text,
@@ -224,28 +226,28 @@ alter publication supabase_realtime add table message_logs;
 insert into message_templates (template_key, name, channel, subject, body) values
 
 ('booking_received', 'Booking Received Confirmation', 'both',
- 'Your booking request has been received — CabFlow',
- 'Hi {client_name}, thank you for your booking request. We have received your details and will confirm your booking shortly. Your reference is {booking_ref}. — CabFlow Team'),
+ 'Your booking request has been received — JMS Travels',
+ 'Hi {client_name}, thank you for your booking request. We have received your details and will confirm your booking shortly. Your reference is {booking_ref}. — JMS Travels Team'),
 
 ('missing_info_request', 'Missing Information Request', 'both',
- 'We need a few more details for your booking — CabFlow',
- 'Hi {client_name}, thank you for reaching out. To complete your booking we need the following: {missing_fields_list}. Please reply with these details and we will confirm right away. — CabFlow Team'),
+ 'We need a few more details for your booking — JMS Travels',
+ 'Hi {client_name}, thank you for reaching out. To complete your booking we need the following: {missing_fields_list}. Please reply with these details and we will confirm right away. — JMS Travels Team'),
 
 ('approval_request', 'Booking Approval Request', 'both',
- 'Approval needed: Booking {booking_ref} — CabFlow',
- 'Hi {approver_name}, a booking has been raised for your approval. Booking Ref: {booking_ref}. Guest: {guest_name}. Pickup: {pickup_location}. Date & Time: {pickup_date} at {pickup_time}. Please reply APPROVE {booking_ref} to confirm or REJECT {booking_ref} to decline. — CabFlow Team'),
+ 'Approval needed: Booking {booking_ref} — JMS Travels',
+ 'Hi {approver_name}, a booking has been raised for your approval. Booking Ref: {booking_ref}. Guest: {guest_name}. Pickup: {pickup_location}. Date & Time: {pickup_date} at {pickup_time}. Please reply APPROVE {booking_ref} to confirm or REJECT {booking_ref} to decline. — JMS Travels Team'),
 
 ('approval_chase', 'Approval Follow-up', 'both',
- 'Reminder: Approval pending for {booking_ref} — CabFlow',
- 'Hi {approver_name}, this is a gentle reminder that booking {booking_ref} is still awaiting your approval. Pickup: {pickup_date} at {pickup_time}. Please reply APPROVE {booking_ref} at your earliest convenience. — CabFlow Team'),
+ 'Reminder: Approval pending for {booking_ref} — JMS Travels',
+ 'Hi {approver_name}, this is a gentle reminder that booking {booking_ref} is still awaiting your approval. Pickup: {pickup_date} at {pickup_time}. Please reply APPROVE {booking_ref} at your earliest convenience. — JMS Travels Team'),
 
 ('verbal_approval_ack', 'Verbal Approval Acknowledgement', 'both',
- 'Booking {booking_ref} initiated based on verbal approval — CabFlow',
- 'Hi {approver_name}, as discussed on call, we have initiated booking {booking_ref} for {guest_name} on {pickup_date} based on your verbal approval. Please reply CONFIRM to acknowledge. — CabFlow Team'),
+ 'Booking {booking_ref} initiated based on verbal approval — JMS Travels',
+ 'Hi {approver_name}, as discussed on call, we have initiated booking {booking_ref} for {guest_name} on {pickup_date} based on your verbal approval. Please reply CONFIRM to acknowledge. — JMS Travels Team'),
 
 ('booking_confirmed', 'Booking Confirmed', 'both',
  'Your booking is confirmed — {booking_ref}',
- 'Hi {client_name}, your booking {booking_ref} is confirmed for {pickup_date} at {pickup_time} from {pickup_location}. We will share your driver details shortly. — CabFlow Team'),
+ 'Hi {client_name}, your booking {booking_ref} is confirmed for {pickup_date} at {pickup_time} from {pickup_location}. We will share your driver details shortly. — JMS Travels Team'),
 
 ('driver_details_to_client', 'Driver Details to Client', 'both',
  'Your driver details — Booking {booking_ref}',
@@ -257,7 +259,7 @@ Vehicle: {vehicle_name} ({vehicle_color})
 Plate: {vehicle_number}
 Reporting at: {pickup_location} by {pickup_time}
 
-Please contact the driver directly if needed. — CabFlow Team'),
+Please contact the driver directly if needed. — JMS Travels Team'),
 
 ('trip_brief_to_driver', 'Trip Brief to Driver', 'whatsapp',
  null,
@@ -275,15 +277,15 @@ Pax: {pax_count}
 Please confirm receipt. Tap below to update status:
 Arrived: {arrived_link}
 Completed: {completed_link}
-— CabFlow'),
+— JMS Travels'),
 
 ('cancellation_client', 'Cancellation Confirmation to Client', 'both',
- 'Booking {booking_ref} has been cancelled — CabFlow',
- 'Hi {client_name}, your booking {booking_ref} scheduled for {pickup_date} at {pickup_time} has been cancelled as requested. If you need to rebook please reach out to us. — CabFlow Team'),
+ 'Booking {booking_ref} has been cancelled — JMS Travels',
+ 'Hi {client_name}, your booking {booking_ref} scheduled for {pickup_date} at {pickup_time} has been cancelled as requested. If you need to rebook please reach out to us. — JMS Travels Team'),
 
 ('cancellation_driver', 'Cancellation Notice to Driver', 'whatsapp',
  null,
- 'Hi {driver_name}, booking {booking_ref} for {pickup_date} at {pickup_time} has been cancelled. You are now available for new assignments. — CabFlow'),
+ 'Hi {driver_name}, booking {booking_ref} for {pickup_date} at {pickup_time} has been cancelled. You are now available for new assignments. — JMS Travels'),
 
 ('substitute_vehicle_client', 'Substitute Vehicle Notification', 'both',
  'Updated driver details for your booking {booking_ref}',
@@ -293,7 +295,7 @@ Driver: {driver_name}
 Phone: {driver_phone}
 Vehicle: {vehicle_name} ({vehicle_color})
 Plate: {vehicle_number}
-We apologise for any inconvenience. — CabFlow Team');
+We apologise for any inconvenience. — JMS Travels Team');
 
 -- ─── CONVERSATION SESSIONS ───────────────────────────────────
 -- Run this migration in Supabase SQL Editor
@@ -321,3 +323,10 @@ create index if not exists idx_conv_sessions_phone_status
 
 grant all on conversation_sessions to postgres, anon, authenticated, service_role;
 grant all on message_logs to postgres, anon, authenticated, service_role;
+
+-- ─── MIGRATIONS (run if tables already exist) ────────────────
+-- ALTER TABLE conversation_sessions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+-- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_type text;
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS approval_exclusions text[] DEFAULT '{}';
+-- Run these in Supabase SQL Editor to update the live templates:
+-- UPDATE message_templates SET subject = replace(subject, 'CabFlow', 'JMS Travels'), body = replace(body, 'CabFlow Team', 'JMS Travels Team'), body = replace(body, '— CabFlow', '— JMS Travels') WHERE subject LIKE '%CabFlow%' OR body LIKE '%CabFlow%';

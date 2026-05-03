@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
+import { TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import type { Client } from '@/types'
@@ -50,13 +50,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   // Send booking confirmed notification to client
-  const { data: tmpl } = await supabase
-    .from('message_templates')
-    .select('body, subject')
-    .eq('template_key', TEMPLATE_KEYS.BOOKING_CONFIRMED)
-    .single()
-
-  if (tmpl) {
+  {
     const client = booking.client as Client | null
 
     // Fallback: look up sender phone from raw_messages linked to this booking
@@ -74,13 +68,25 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }
 
     const clientName = booking.guest_name || client?.name || 'there'
-    const body = fillTemplate(tmpl.body, {
-      client_name: clientName,
-      booking_ref: booking.booking_ref,
-      pickup_date: booking.pickup_date || 'TBD',
-      pickup_time: booking.pickup_time || 'TBD',
-      pickup_location: booking.pickup_location || 'TBD',
-    })
+
+    // Build dynamic body — only include fields that have values
+    const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+    const lines: string[] = [
+      `Hi ${clientName}, your booking is confirmed.`,
+      ``,
+      `Ref: ${booking.booking_ref}`,
+      `Pickup: ${booking.pickup_location || 'TBD'}`,
+    ]
+    if (booking.drop_location) lines.push(`Drop: ${booking.drop_location}`)
+    lines.push(`Date: ${booking.pickup_date || 'TBD'}`)
+    lines.push(`Time: ${booking.pickup_time || 'TBD'}`)
+    lines.push(`Trip: ${tripTypeLabel[booking.trip_type] ?? booking.trip_type}`)
+    if (booking.total_days > 1) lines.push(`Days: ${booking.total_days}`)
+    if (booking.pax_count) lines.push(`Passengers: ${booking.pax_count}`)
+    if (booking.vehicle_type) lines.push(`Vehicle: ${booking.vehicle_type}`)
+    if (booking.special_instructions) lines.push(`Notes: ${booking.special_instructions}`)
+    lines.push(``, `We will share your driver details once assigned. Thank you!`, ``, `JMS Travels Team`)
+    const body = lines.join('\n')
 
     const phone = client?.primary_phone || booking.guest_phone || fallbackPhone
     const email = client?.primary_email
@@ -94,7 +100,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       status = result.ok ? 'sent' : `failed: ${result.error}`
     } else if (channel === 'email' && email) {
       try {
-        await sendEmail({ to: email, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking.booking_ref }), body })
+        await sendEmail({ to: email, subject: `Your booking is confirmed — ${booking.booking_ref}`, body })
         status = 'sent'
       } catch (e) { status = `failed: ${String(e)}` }
     }

@@ -47,7 +47,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* CabFlow design tokens */
+  /* JMS Travels design tokens */
   --cf-primary: #1A56DB;
   --cf-primary-dark: #003FB1;
   --cf-primary-container: #D4DCFF;

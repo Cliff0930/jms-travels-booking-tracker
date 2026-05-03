@@ -19,6 +19,7 @@ export interface Company {
   approval_required: boolean
   approval_channel: ApprovalChannel
   approval_timeout_hours: number
+  approval_exclusions: string[]
   digest_mode: boolean
   created_at: string
   updated_at: string
@@ -103,6 +104,7 @@ export interface Booking {
   approved_by: string | null
   approved_at: string | null
   approval_note: string | null
+  booking_type: 'company' | 'personal' | null
   cancelled_reason: string | null
   cancelled_at: string | null
   created_at: string
