@@ -353,7 +353,7 @@ async function createBookingFromResult(
         leg_status: 'upcoming',
       }
     })
-    await supabase.from('booking_legs').insert(legs)
+    await supabase.from('booking_legs').upsert(legs, { onConflict: 'booking_id,day_number' })
   }
 
   await supabase.from('booking_status_history').insert({

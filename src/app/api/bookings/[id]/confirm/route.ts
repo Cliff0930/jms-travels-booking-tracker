@@ -15,11 +15,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (booking.status === 'cancelled') return NextResponse.json({ error: 'Cannot confirm a cancelled booking' }, { status: 400 })
+  if (booking.status === 'completed') return NextResponse.json({ error: 'Booking is already completed' }, { status: 400 })
+  if (booking.status === 'confirmed') return NextResponse.json(booking) // idempotent
 
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'confirmed', updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('status', booking.status) // optimistic lock — only update if status hasn't changed
     .select()
     .single()
 
@@ -32,15 +36,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     changed_by: 'operator',
   })
 
-  // Auto-create legs for multi-day bookings
+  // Auto-create legs for multi-day bookings (UTC date math to avoid timezone shifts)
   if (booking.total_days > 1 && booking.pickup_date) {
     const legs = Array.from({ length: booking.total_days }, (_, i) => {
-      const date = new Date(booking.pickup_date)
-      date.setDate(date.getDate() + i)
+      const d = new Date(booking.pickup_date + 'T00:00:00Z')
+      d.setUTCDate(d.getUTCDate() + i)
       return {
         booking_id: id,
         day_number: i + 1,
-        leg_date: date.toISOString().split('T')[0],
+        leg_date: d.toISOString().slice(0, 10),
         leg_status: 'upcoming',
       }
     })
@@ -78,8 +82,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       `Pickup: ${booking.pickup_location || 'TBD'}`,
     ]
     if (booking.drop_location) lines.push(`Drop: ${booking.drop_location}`)
-    lines.push(`Date: ${booking.pickup_date || 'TBD'}`)
-    lines.push(`Time: ${booking.pickup_time || 'TBD'}`)
+    const dateFormatted = booking.pickup_date
+      ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+      : 'TBD'
+    const timeFormatted = (() => {
+      if (!booking.pickup_time) return 'TBD'
+      const [hh, mm] = booking.pickup_time.split(':').map(Number)
+      const ampm = hh >= 12 ? 'PM' : 'AM'
+      return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
+    })()
+    lines.push(`Date: ${dateFormatted}`)
+    lines.push(`Time: ${timeFormatted}`)
     lines.push(`Trip: ${tripTypeLabel[booking.trip_type] ?? booking.trip_type}`)
     if (booking.total_days > 1) lines.push(`Days: ${booking.total_days}`)
     if (booking.pax_count) lines.push(`Passengers: ${booking.pax_count}`)
