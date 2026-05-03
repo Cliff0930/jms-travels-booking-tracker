@@ -1,4 +1,15 @@
 export type BookingStatus = 'draft' | 'pending_approval' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+export type UserRole = 'admin' | 'operator' | 'viewer'
+
+export interface UserProfile {
+  id: string
+  email: string
+  name: string | null
+  role: UserRole
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
 export type TripType = 'local' | 'outstation' | 'airport'
 export type ServiceType = 'one_way' | 'return'
 export type DriverStatus = 'available' | 'on_duty' | 'off_duty'

@@ -2,8 +2,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Users, Car, MoreHorizontal, BarChart3, Settings, Building2, X, MessageSquare } from 'lucide-react'
+import { BookOpen, Users, Car, MoreHorizontal, BarChart3, Settings, Building2, X, MessageSquare, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const PRIMARY_NAV = [
   { href: '/bookings', label: 'Bookings', icon: BookOpen },
@@ -18,10 +19,18 @@ const MORE_NAV = [
   { href: '/settings',  label: 'Settings',  icon: Settings },
 ]
 
+const ADMIN_MORE_NAV = [
+  ...MORE_NAV,
+  { href: '/users', label: 'Users', icon: ShieldCheck },
+]
+
 export function MobileNav() {
   const pathname = usePathname()
   const [showMore, setShowMore] = useState(false)
-  const moreActive = MORE_NAV.some(({ href }) => pathname.startsWith(href))
+  const { data: me } = useCurrentUser()
+
+  const moreNav = me?.role === 'admin' ? ADMIN_MORE_NAV : MORE_NAV
+  const moreActive = moreNav.some(({ href }) => pathname.startsWith(href))
 
   return (
     <>
@@ -34,7 +43,7 @@ export function MobileNav() {
           />
           <div className="md:hidden fixed bottom-[57px] left-0 right-0 z-50 bg-white border-t border-[#C3C5D7] shadow-lg p-3">
             <div className="grid grid-cols-3 gap-2">
-              {MORE_NAV.map(({ href, label, icon: Icon }) => {
+              {moreNav.map(({ href, label, icon: Icon }) => {
                 const isActive = pathname.startsWith(href)
                 return (
                   <Link

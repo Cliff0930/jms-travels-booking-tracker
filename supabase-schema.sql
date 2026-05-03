@@ -324,6 +324,26 @@ create index if not exists idx_conv_sessions_phone_status
 grant all on conversation_sessions to postgres, anon, authenticated, service_role;
 grant all on message_logs to postgres, anon, authenticated, service_role;
 
+-- ─── USER PROFILES ───────────────────────────────────────────
+create table if not exists user_profiles (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  email       text not null,
+  name        text,
+  role        text not null default 'viewer' check (role in ('admin', 'operator', 'viewer')),
+  is_active   boolean default true,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
+);
+
+grant all on user_profiles to postgres, anon, authenticated, service_role;
+
+-- ─── BOOTSTRAP FIRST ADMIN ───────────────────────────────────
+-- After running this schema, promote your account to admin:
+-- insert into user_profiles (id, email, name, role)
+-- select id, email, raw_user_meta_data->>'name', 'admin'
+-- from auth.users where email = 'your@email.com'
+-- on conflict (id) do update set role = 'admin';
+
 -- ─── MIGRATIONS (run if tables already exist) ────────────────
 -- ALTER TABLE conversation_sessions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_type text;
