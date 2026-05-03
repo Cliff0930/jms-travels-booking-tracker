@@ -124,6 +124,7 @@ async function processClientMessage(
     .eq('phone', senderPhone)
     .in('status', ['collecting'])
     .gt('last_message_at', cutoff)
+    .is('booking_id', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -209,6 +210,12 @@ async function processClientMessage(
     return
   }
 
+  // Lock session immediately — prevents duplicate bookings if ack send times out
+  await supabase
+    .from('conversation_sessions')
+    .update({ status: 'complete', completed_at: new Date().toISOString() })
+    .eq('id', session.id)
+
   // All fields collected — create booking
   const booking = await createBookingFromResult(supabase, client, result)
   if (!booking) return
@@ -273,7 +280,7 @@ async function processClientMessage(
   await Promise.all([
     supabase
       .from('conversation_sessions')
-      .update({ status: 'complete', booking_id: booking.id, completed_at: new Date().toISOString() })
+      .update({ booking_id: booking.id })
       .eq('id', session.id),
     // Link ALL inbound messages from this session to the booking
     supabase
