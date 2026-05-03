@@ -9,7 +9,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Sparkles } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -87,55 +87,55 @@ export default function BookingsPage() {
       />
 
       {/* Filter Bar */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {/* Today's Trips */}
-        <button
-          onClick={() => setPickupDate(v => v === 'today' ? '' : 'today')}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-            pickupDate === 'today'
-              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
-              : 'bg-white text-[#434654] border-[#C3C5D7] hover:border-[#1A56DB] hover:text-[#1A56DB]'
-          }`}
-        >
-          <CalendarDays className="w-3 h-3" /> Today&apos;s Trips
-        </button>
+      <div className="mb-4 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">
+        {/* Quick date button group — segmented control */}
+        <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
+          <button
+            onClick={() => setPickupDate(v => v === 'today' ? '' : 'today')}
+            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
+              pickupDate === 'today'
+                ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
+                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+            }`}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setPickupDate(v => v === 'tomorrow' ? '' : 'tomorrow')}
+            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
+              pickupDate === 'tomorrow'
+                ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
+                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+            }`}
+          >
+            Tomorrow
+          </button>
+          <button
+            onClick={() => setNewTodayOnly(v => !v)}
+            className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap ${
+              newTodayOnly
+                ? 'bg-[#7E3AF2] text-white'
+                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+            }`}
+          >
+            New Today
+          </button>
+        </div>
 
-        {/* Tomorrow's Trips */}
-        <button
-          onClick={() => setPickupDate(v => v === 'tomorrow' ? '' : 'tomorrow')}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-            pickupDate === 'tomorrow'
-              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
-              : 'bg-white text-[#434654] border-[#C3C5D7] hover:border-[#1A56DB] hover:text-[#1A56DB]'
-          }`}
-        >
-          <CalendarDays className="w-3 h-3" /> Tomorrow&apos;s Trips
-        </button>
-
-        {/* New Today (bookings received today) */}
-        <button
-          onClick={() => setNewTodayOnly(v => !v)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-            newTodayOnly
-              ? 'bg-[#7E3AF2] text-white border-[#7E3AF2]'
-              : 'bg-white text-[#434654] border-[#C3C5D7] hover:border-[#7E3AF2] hover:text-[#7E3AF2]'
-          }`}
-        >
-          <Sparkles className="w-3 h-3" /> New Today
-        </button>
+        {/* Vertical divider — desktop only */}
+        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
 
         {/* Custom Date Picker */}
         <div className="relative inline-flex items-center">
-          <CalendarDays className="pointer-events-none absolute left-2.5 w-3 h-3 text-[#737686] z-10" />
+          <CalendarDays className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
           <input
             type="date"
             value={customDateValue}
             onChange={e => setPickupDate(e.target.value || '')}
-            placeholder="Pick date"
-            className={`h-7 pl-7 pr-2.5 text-xs border rounded-full bg-white focus:outline-none focus:border-[#1A56DB] cursor-pointer transition-colors ${
+            className={`h-8 pl-8 pr-3 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] cursor-pointer transition-colors ${
               customDateValue
-                ? 'border-[#1A56DB] text-[#1A56DB]'
-                : 'border-[#C3C5D7] text-[#434654]'
+                ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
+                : 'border-[#C3C5D7] text-[#6B7280] hover:border-[#9CA3AF]'
             }`}
           />
         </div>
@@ -144,14 +144,14 @@ export default function BookingsPage() {
         {companies.length > 0 && (
           <Select
             value={companyFilter || '__all__'}
-            onValueChange={v => setCompanyFilter(!v || v === '__all__' ? '' : v)}
+            onValueChange={v => { if (v !== null) setCompanyFilter(v === '__all__' ? '' : v) }}
           >
-            <SelectTrigger className={`h-7 rounded-full text-xs px-3 gap-1.5 min-w-[140px] transition-colors ${
+            <SelectTrigger className={`h-8 rounded-md text-xs px-3 gap-1.5 min-w-[150px] transition-colors ${
               companyFilter
-                ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF0FF]'
-                : 'border-[#C3C5D7] bg-white text-[#434654]'
+                ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
+                : 'border-[#C3C5D7] bg-white text-[#6B7280] hover:border-[#9CA3AF]'
             }`}>
-              <Building2 className="w-3 h-3 shrink-0" />
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
               <SelectValue placeholder="All Companies" />
             </SelectTrigger>
             <SelectContent>
@@ -163,13 +163,13 @@ export default function BookingsPage() {
           </Select>
         )}
 
-        {/* Clear All */}
+        {/* Clear filters */}
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs text-[#737686] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#737686] bg-white transition-colors"
+            className="ml-auto flex items-center gap-1.5 px-3 h-8 rounded-md text-xs text-[#6B7280] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#9CA3AF] bg-white transition-colors"
           >
-            <X className="w-3 h-3" /> Clear
+            <X className="w-3.5 h-3.5" /> Clear filters
           </button>
         )}
       </div>
