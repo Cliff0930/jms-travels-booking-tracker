@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Mail, MessageCircle, ArrowUpRight, ArrowDownLeft,
-  CheckCircle, XCircle, Clock, RefreshCw, Search, X, User,
+  CheckCircle, XCircle, Clock, RefreshCw, X, User,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
