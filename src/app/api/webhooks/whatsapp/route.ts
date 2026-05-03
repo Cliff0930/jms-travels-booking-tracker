@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
+import { handleClientChange } from '@/lib/utils/change-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { generateBookingRef } from '@/lib/utils/booking-ref'
@@ -173,6 +174,13 @@ async function processClientMessage(
       body: 'For rates and pricing information, please call us at 9845572207. We are happy to help!',
       log: { client_id: client.id },
     })
+    await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    return
+  }
+
+  if (result.intent === 'cancel_request' || result.intent === 'modify_request') {
+    const replyBody = await handleClientChange(supabase, client, senderPhone, result)
+    await sendWhatsAppMessage({ to: senderPhone, body: replyBody, log: { client_id: client.id } })
     await supabase.from('conversation_sessions').delete().eq('id', session.id)
     return
   }

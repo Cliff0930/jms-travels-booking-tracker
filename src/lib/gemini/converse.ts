@@ -2,8 +2,14 @@ import { getGeminiModel } from './client'
 import { CONVERSATION_PROMPT } from './prompts'
 import type { Client, ClientLocation } from '@/types'
 
+export interface ModificationRequest {
+  field: 'pickup_time' | 'pickup_date' | 'pickup_location' | 'drop_location' | 'pax_count' | 'vehicle_type' | 'special_instructions' | null
+  new_value: string | null
+  booking_ref: string | null
+}
+
 export interface ConversationResult {
-  intent: 'booking' | 'enquiry' | 'other'
+  intent: 'booking' | 'enquiry' | 'other' | 'cancel_request' | 'modify_request'
   extracted: {
     pickup_location: string | null
     drop_location: string | null
@@ -20,6 +26,8 @@ export interface ConversationResult {
     company_mentioned: string | null
     booking_type: 'company' | 'personal' | null
   }
+  modification_request: ModificationRequest | null
+  cancel_reason: string | null
   missing_mandatory: string[]
   is_complete: boolean
   is_new_booking_request: boolean
