@@ -9,6 +9,7 @@ import { ApproveByCallModal } from '@/components/bookings/ApproveByCallModal'
 import { MessageTimeline } from '@/components/bookings/MessageTimeline'
 import { SubstituteDriverModal } from '@/components/bookings/SubstituteDriverModal'
 import { TripLegsPanel } from '@/components/bookings/TripLegsPanel'
+import { TripTimeline } from '@/components/bookings/TripTimeline'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -679,6 +680,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <dd className="text-[#434654] text-xs">{formatTimestamp(booking.created_at)}</dd>
               </div>
             </dl>
+          </div>
+
+          <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+            <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Timeline</h2>
+            <TripTimeline booking={booking} />
           </div>
         </div>
       </div>
