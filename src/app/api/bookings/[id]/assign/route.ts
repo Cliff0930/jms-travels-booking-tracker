@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients(name, primary_phone), driver:drivers(id)')
+    .select('*, client:clients(name, primary_phone, primary_email), driver:drivers(id)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -47,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Send trip brief to driver via WhatsApp
   const { data: driver } = await supabase
     .from('drivers')
-    .select('name, phone')
+    .select('name, phone, vehicle_name, vehicle_number, vehicle_color')
     .eq('id', driver_id)
     .single()
 
@@ -89,6 +89,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         content: body,
         template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
       })
+    }
+  }
+
+  // Send driver details to client
+  if (driver) {
+    const client = booking.client as Client & { primary_email?: string } | null
+    const clientPhone = booking.guest_phone || client?.primary_phone || null
+    const clientName = booking.guest_name || client?.name || 'there'
+
+    if (clientPhone && booking.pickup_date && booking.pickup_time) {
+      const d = new Date(booking.pickup_date + 'T00:00:00Z')
+      const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+      const [hh, mm] = booking.pickup_time.split(':').map(Number)
+      const ampm = hh >= 12 ? 'PM' : 'AM'
+      const timeStr = `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
+
+      const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
+
+      const clientBody = [
+        `Hi ${clientName}, your driver has been assigned for booking ${booking.booking_ref}.`,
+        ``,
+        `Driver: ${driver.name}`,
+        `Phone: ${driver.phone}`,
+        vehicleLine ? `Vehicle: ${vehicleLine}` : null,
+        driver.vehicle_number ? `Plate: ${driver.vehicle_number}` : null,
+        ``,
+        `Your pickup is on ${dateStr} at ${timeStr} from ${booking.pickup_location || 'your pickup point'}.`,
+        ``,
+        `Please contact the driver directly if needed. — JMS Travels`,
+      ].filter(l => l !== null).join('\n')
+
+      await sendWhatsAppMessage({
+        to: clientPhone,
+        body: clientBody,
+        log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
+      }).catch(e => console.error('Driver details to client WA error:', e))
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyDriverToken } from '@/lib/utils/driver-token'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 
 export async function POST(request: Request) {
   const { booking_id, status, token } = await request.json()
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, driver_id, status')
+    .select('*, client:clients(id, name, primary_phone), driver:drivers(name, phone, vehicle_name, vehicle_number, vehicle_color)')
     .eq('id', booking_id)
     .single()
 
@@ -31,6 +32,53 @@ export async function POST(request: Request) {
 
   if (booking.driver_id) {
     await supabase.from('drivers').update({ status: driverStatus }).eq('id', booking.driver_id)
+  }
+
+  // Notify client
+  const client = booking.client as { id?: string; name?: string; primary_phone?: string } | null
+  const driver = booking.driver as { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string } | null
+  const clientPhone = booking.guest_phone || client?.primary_phone || null
+  const clientName = booking.guest_name || client?.name || 'there'
+
+  if (clientPhone && driver) {
+    const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
+
+    let body: string
+
+    if (status === 'arrived') {
+      body = [
+        `Hi ${clientName}, your driver ${driver.name} has arrived at your pickup location.`,
+        ``,
+        vehicleLine ? `Vehicle: ${vehicleLine} — ${driver.vehicle_number || ''}` : `Vehicle: ${driver.vehicle_number || 'assigned'}`,
+        ``,
+        `Please proceed to your pickup point. Safe travels! — JMS Travels`,
+      ].join('\n')
+    } else {
+      const dateStr = booking.pickup_date
+        ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+        : null
+
+      body = [
+        `Hi ${clientName}, your trip has been completed successfully.`,
+        ``,
+        `Booking: ${booking.booking_ref}`,
+        booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
+        booking.drop_location ? `Drop: ${booking.drop_location}` : null,
+        dateStr ? `Date: ${dateStr}` : null,
+        ``,
+        `Thank you for choosing JMS Travels! We look forward to serving you again.`,
+      ].filter(l => l !== null).join('\n')
+    }
+
+    await sendWhatsAppMessage({
+      to: clientPhone,
+      body,
+      log: {
+        booking_id,
+        client_id: client?.id || undefined,
+        template_used: status === 'arrived' ? 'driver_arrived' : 'trip_completed',
+      },
+    }).catch(e => console.error(`Driver ${status} notify error:`, e))
   }
 
   return NextResponse.json({ ok: true })
