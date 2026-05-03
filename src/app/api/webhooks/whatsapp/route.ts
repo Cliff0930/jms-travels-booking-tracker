@@ -221,15 +221,27 @@ async function processClientMessage(
     `Our team will review and confirm your booking shortly. Thank you for choosing JMS Travels!`,
   ].join('\n')
 
+  const sessionCreatedAt = (session as { created_at?: string }).created_at ?? new Date(0).toISOString()
+
   await Promise.all([
     supabase
       .from('conversation_sessions')
       .update({ status: 'complete', booking_id: booking.id, completed_at: new Date().toISOString() })
       .eq('id', session.id),
+    // Link ALL inbound messages from this session to the booking
     supabase
       .from('raw_messages')
       .update({ booking_id: booking.id })
-      .eq('id', rawMsgId),
+      .eq('sender_phone', senderPhone)
+      .gte('received_at', sessionCreatedAt)
+      .is('booking_id', null),
+    // Link ALL outbound bot replies from this session to the booking
+    supabase
+      .from('message_logs')
+      .update({ booking_id: booking.id })
+      .eq('recipient', senderPhone)
+      .gte('sent_at', sessionCreatedAt)
+      .is('booking_id', null),
     sendWhatsAppMessage({ to: senderPhone, body: ackBody, log: { client_id: client.id, booking_id: booking.id, template_used: 'booking_received' } }),
   ])
 }
