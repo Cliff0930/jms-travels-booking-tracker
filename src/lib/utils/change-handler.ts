@@ -24,6 +24,9 @@ export interface PendingAction {
     pickup_date: string | null
     pickup_time: string | null
     pickup_location: string | null
+    drop_location: string | null
+    trip_type: string | null
+    total_days: number | null
     driver_id: string | null
     status: string
   }>
@@ -244,10 +247,18 @@ async function performModify(
 
 function buildBookingList(bookings: PendingAction['bookings']): string {
   return bookings.map((b, i) => {
-    const guest = b.guest_name ? ` — Guest: ${b.guest_name}` : ''
     const date = b.pickup_date ? fmtDate(b.pickup_date) : '?'
     const time = b.pickup_time ? `, ${fmtTime(b.pickup_time)}` : ''
-    return `${i + 1}. ${b.booking_ref} — ${date}${time}${guest}`
+    const guest = b.guest_name ? ` — Guest: ${b.guest_name}` : ''
+    let tripDesc = ''
+    if (b.trip_type === 'outstation' && b.drop_location) {
+      tripDesc = ` — Outstation to ${b.drop_location}${b.total_days && b.total_days > 1 ? `, ${b.total_days} days` : ''}`
+    } else if (b.trip_type === 'airport') {
+      tripDesc = ` — Airport`
+    } else if (b.trip_type === 'local' && (b.total_days ?? 1) > 1) {
+      tripDesc = ` — Local, ${b.total_days} days`
+    }
+    return `${i + 1}. ${b.booking_ref} — ${date}${time}${guest}${tripDesc}`
   }).join('\n')
 }
 
@@ -305,11 +316,14 @@ export async function handleClientChange(
       allBookings.slice(0, 5).map(b => ({
         id: b.id,
         booking_ref: b.booking_ref,
-        guest_name: b.guest_name,
-        pickup_date: b.pickup_date,
-        pickup_time: b.pickup_time,
-        pickup_location: b.pickup_location,
-        driver_id: b.driver_id,
+        guest_name: b.guest_name ?? null,
+        pickup_date: b.pickup_date ?? null,
+        pickup_time: b.pickup_time ?? null,
+        pickup_location: b.pickup_location ?? null,
+        drop_location: b.drop_location ?? null,
+        trip_type: b.trip_type ?? null,
+        total_days: b.total_days ?? null,
+        driver_id: b.driver_id ?? null,
         status: b.status,
       }))
     )
@@ -333,6 +347,9 @@ export async function handleClientChange(
         pickup_date: b.pickup_date ?? null,
         pickup_time: b.pickup_time ?? null,
         pickup_location: b.pickup_location ?? null,
+        drop_location: b.drop_location ?? null,
+        trip_type: b.trip_type ?? null,
+        total_days: b.total_days ?? null,
         driver_id: b.driver_id ?? null,
         status: b.status,
       })),
@@ -421,7 +438,27 @@ export async function handleDisambiguationReply(
     if (found) booking = found
   }
 
-  // 5. Time match (e.g. "9 am", "2 pm", "14:00")
+  // 5. Drop location / destination (e.g. "the Mysore trip", "Coorg booking")
+  if (!booking) {
+    const found = bookings.find(b =>
+      b.drop_location &&
+      b.drop_location.toLowerCase().split(/[\s,]+/).some(part => part.length > 2 && text.includes(part))
+    )
+    if (found) booking = found
+  }
+
+  // 6. Trip type keyword (e.g. "airport", "outstation", "local")
+  if (!booking) {
+    const tripKeywords: Record<string, string> = { airport: 'airport', outstation: 'outstation', local: 'local' }
+    for (const [keyword, type] of Object.entries(tripKeywords)) {
+      if (text.includes(keyword)) {
+        const matches = bookings.filter(b => b.trip_type === type)
+        if (matches.length === 1) { booking = matches[0]; break }
+      }
+    }
+  }
+
+  // 7. Time match (e.g. "9 am", "2 pm", "14:00")
   if (!booking) {
     const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i)
     if (timeMatch) {
