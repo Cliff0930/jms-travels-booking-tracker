@@ -167,7 +167,7 @@ async function performModify(
   modReq: ModificationRequest | null,
   fallbackQuestion: string | null,
 ): Promise<string> {
-  if (!modReq?.field || !modReq?.new_value) {
+  if (!modReq?.changes?.length) {
     return fallbackQuestion
       ?? `What would you like to change on your booking ${booking.booking_ref}? (e.g. pickup time, date, or location)`
   }
@@ -175,22 +175,30 @@ async function performModify(
   const hasDriver = !!booking.driver_id
   const driver = booking.driver as { name?: string; phone?: string } | null
   const summary = pickupSummary(booking)
-  const fieldLabel = FIELD_LABELS[modReq.field] ?? modReq.field
-  const oldValue = String((booking as Record<string, unknown>)[modReq.field] ?? '—')
-  const newValue = modReq.new_value
-  const displayNew = fmtValue(modReq.field, newValue)
+
+  // Build update payload and change log entries for all requested changes
+  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const changeEntries: Array<{ field: string; label: string; old_value: string; new_value: string }> = []
+
+  for (const change of modReq.changes) {
+    const label = FIELD_LABELS[change.field] ?? change.field
+    const oldVal = String((booking as Record<string, unknown>)[change.field] ?? '—')
+    updateData[change.field] = change.field === 'pax_count' ? (parseInt(change.new_value) || null) : change.new_value
+    changeEntries.push({ field: change.field, label, old_value: oldVal, new_value: change.new_value })
+  }
+
+  const changesSummary = changeEntries
+    .map(c => `${c.label}: ${fmtValue(c.field, c.new_value)}`)
+    .join('\n')
 
   if (!hasDriver) {
-    const updateData: Record<string, unknown> = { [modReq.field]: newValue, updated_at: new Date().toISOString() }
-    if (modReq.field === 'pax_count') updateData.pax_count = parseInt(newValue) || null
-
     await supabase.from('bookings').update(updateData).eq('id', booking.id)
 
     await supabase.from('booking_edit_logs').insert({
       booking_id: booking.id,
       changed_by: `${client.name} (WhatsApp)`,
       reason: 'Client requested change via WhatsApp',
-      changes: [{ field: modReq.field, label: fieldLabel, old_value: oldValue, new_value: newValue }],
+      changes: changeEntries,
     })
 
     await notifyOperator(
@@ -198,7 +206,7 @@ async function performModify(
         `ℹ️ Booking Modified by Client`,
         `Booking: ${booking.booking_ref}`,
         `Client: ${client.name} (${senderPhone})`,
-        `Changed: ${fieldLabel}: ${fmtValue(modReq.field, oldValue)} → ${displayNew}`,
+        ...changeEntries.map(c => `Changed: ${c.label}: ${fmtValue(c.field, c.old_value)} → ${fmtValue(c.field, c.new_value)}`),
         `Pickup: ${summary}`,
         `No driver assigned.`,
       ].join('\n'),
@@ -208,18 +216,23 @@ async function performModify(
     return [
       `Done! Your booking ${booking.booking_ref} has been updated.`,
       ``,
-      `${fieldLabel}: ${displayNew}`,
+      changesSummary,
       ``,
       `Our team will be in touch if there are any issues. Thank you!`,
     ].join('\n')
   }
 
-  // Driver assigned — flag for operator review
+  // Driver assigned — flag all changes for operator review
+  const pendingEntries = changeEntries.map(c => ({
+    ...c,
+    new_value: `${c.new_value} (requested, not yet applied)`,
+  }))
+
   await supabase.from('booking_edit_logs').insert({
     booking_id: booking.id,
     changed_by: `${client.name} (WhatsApp) [PENDING]`,
     reason: 'Client requested change via WhatsApp — pending operator review',
-    changes: [{ field: modReq.field, label: fieldLabel, old_value: oldValue, new_value: `${newValue} (requested, not yet applied)` }],
+    changes: pendingEntries,
   })
 
   await notifyOperator(
@@ -227,8 +240,7 @@ async function performModify(
       `⚠️ MODIFY REQUEST — Review needed`,
       `Booking: ${booking.booking_ref}`,
       `Client: ${client.name} (${senderPhone})`,
-      `Wants to change: ${fieldLabel} → ${displayNew}`,
-      `Current value: ${fmtValue(modReq.field, oldValue)}`,
+      ...changeEntries.map(c => `Wants to change: ${c.label}: ${fmtValue(c.field, c.old_value)} → ${fmtValue(c.field, c.new_value)}`),
       `Pickup: ${summary}`,
       `Driver: ${driver?.name ?? 'assigned'} ${driver?.phone ? `— ${driver.phone}` : ''}`,
       `Please update booking and inform driver if needed.`,
@@ -370,7 +382,7 @@ export async function handleClientChange(
         `🚨 URGENT — Client change request`,
         `Booking: ${booking.booking_ref}`,
         `Client: ${client.name} (${senderPhone})`,
-        `Request: ${isCancelRequest ? 'CANCEL' : `MODIFY — ${FIELD_LABELS[modReq?.field ?? ''] ?? modReq?.field ?? '?'} → "${modReq?.new_value ?? '?'}"`}`,
+        `Request: ${isCancelRequest ? 'CANCEL' : `MODIFY — ${modReq?.changes?.map(c => `${FIELD_LABELS[c.field] ?? c.field} → "${c.new_value}"`).join(', ') ?? '?'}`}`,
         `Pickup: ${summary}`,
         hasDriver ? `Driver: ${(booking.driver as { name?: string; phone?: string } | null)?.name ?? 'assigned'}` : '',
         isInProgress ? `Status: IN PROGRESS` : `Pickup in ${Math.round(hours * 10) / 10}h`,

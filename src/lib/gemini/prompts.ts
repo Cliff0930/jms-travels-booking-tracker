@@ -116,6 +116,11 @@ Default to "booking" when in doubt.
 
 IMPORTANT: If the client says "cancel" but immediately gives new trip details → treat as "booking" (new request), not "cancel_request".
 
+IMPORTANT: Short acknowledgements or confirmations WITHOUT any trip details are ALWAYS "other", never "booking":
+- "Confirm booking", "please confirm", "is it confirmed?", "confirm" → "other"
+- "No", "OK", "Yes", "Thanks", "Okay", "Fine", "Sure", "Got it" (alone, no trip details) → "other"
+- Any single word or very short reply that mentions no location, date, time, or destination → "other"
+
 TODAY (IST): {today}
 
 === DATE RULES ===
@@ -250,13 +255,15 @@ For "cancel_request":
 - extracted.guest_name: if the client mentions a guest name to identify the booking (e.g. "cancel Rahul's booking"), extract the name here
 
 For "modify_request":
-- Extract what they want to change into modification_request:
+- Extract ALL changes the client wants into modification_request.changes (an ARRAY — handle multiple field changes in one request):
   - field: one of pickup_time | pickup_date | pickup_location | drop_location | pax_count | vehicle_type | special_instructions
   - new_value: resolved value — time as HH:MM (24h), date as YYYY-MM-DD, numbers as digits, others as text
-  - booking_ref: if client mentioned a specific booking reference, otherwise null
-- target_booking_ref: same as modification_request.booking_ref (duplicate here for consistency)
+- booking_ref: if client mentioned a specific booking reference, otherwise null
+- target_booking_ref: same as booking_ref
 - extracted.guest_name: if the client mentions a guest name to identify the booking, extract it
-- If field or new_value is unclear: set next_question to ask what they want to change (e.g. "What would you like to change on your booking — the time, date, or pickup location?")
+- CRITICAL: NEVER write date or time changes into special_instructions — always use pickup_date or pickup_time fields
+- If the client says "change date to 7 May and time to 3 PM" → two entries in changes: [{field:"pickup_date",new_value:"2026-05-07"},{field:"pickup_time",new_value:"15:00"}]
+- If no specific field can be identified: set changes to [] and set next_question to ask what they want to change (e.g. "What would you like to change — the time, date, or pickup location?")
 - cancel_reason: null
 
 === NEW BOOKING DETECTION ===
@@ -298,7 +305,7 @@ Respond with ONLY a valid JSON object, no markdown, no other text:
     "company_mentioned": null,
     "booking_type": "company|personal|null"
   },
-  "modification_request": null,
+  "modification_request": { "changes": [], "booking_ref": null },
   "cancel_reason": null,
   "target_booking_ref": null,
   "missing_mandatory": [],

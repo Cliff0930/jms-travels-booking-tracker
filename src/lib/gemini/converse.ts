@@ -2,9 +2,13 @@ import { getGeminiModel } from './client'
 import { CONVERSATION_PROMPT } from './prompts'
 import type { Client, ClientLocation } from '@/types'
 
+export interface ModificationChange {
+  field: 'pickup_time' | 'pickup_date' | 'pickup_location' | 'drop_location' | 'pax_count' | 'vehicle_type' | 'special_instructions'
+  new_value: string
+}
+
 export interface ModificationRequest {
-  field: 'pickup_time' | 'pickup_date' | 'pickup_location' | 'drop_location' | 'pax_count' | 'vehicle_type' | 'special_instructions' | null
-  new_value: string | null
+  changes: ModificationChange[]
   booking_ref: string | null
 }
 
@@ -109,6 +113,13 @@ export async function converseBooking(
   // Safety net: resolve any relative date words the LLM may have slipped through
   if (parsed.extracted?.pickup_date) {
     parsed.extracted.pickup_date = sanitizePickupDate(parsed.extracted.pickup_date, today)
+  }
+  if (parsed.modification_request?.changes) {
+    for (const change of parsed.modification_request.changes) {
+      if (change.field === 'pickup_date') {
+        change.new_value = sanitizePickupDate(change.new_value, today) ?? change.new_value
+      }
+    }
   }
 
   const hasCompany = !!client?.company_id
