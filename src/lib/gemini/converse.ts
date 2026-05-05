@@ -28,6 +28,7 @@ export interface ConversationResult {
   }
   modification_request: ModificationRequest | null
   cancel_reason: string | null
+  target_booking_ref: string | null
   missing_mandatory: string[]
   is_complete: boolean
   is_new_booking_request: boolean

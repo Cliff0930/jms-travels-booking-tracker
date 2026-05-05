@@ -246,12 +246,16 @@ For "cancel_request":
 - next_question: null (no clarification needed)
 - cancel_reason: extract reason if client gave one, otherwise null
 - modification_request: null
+- target_booking_ref: if the client mentions a booking reference (e.g. "BK-0023"), extract it here; otherwise null
+- extracted.guest_name: if the client mentions a guest name to identify the booking (e.g. "cancel Rahul's booking"), extract the name here
 
 For "modify_request":
 - Extract what they want to change into modification_request:
   - field: one of pickup_time | pickup_date | pickup_location | drop_location | pax_count | vehicle_type | special_instructions
   - new_value: resolved value — time as HH:MM (24h), date as YYYY-MM-DD, numbers as digits, others as text
   - booking_ref: if client mentioned a specific booking reference, otherwise null
+- target_booking_ref: same as modification_request.booking_ref (duplicate here for consistency)
+- extracted.guest_name: if the client mentions a guest name to identify the booking, extract it
 - If field or new_value is unclear: set next_question to ask what they want to change (e.g. "What would you like to change on your booking — the time, date, or pickup location?")
 - cancel_reason: null
 
@@ -296,6 +300,7 @@ Respond with ONLY a valid JSON object, no markdown, no other text:
   },
   "modification_request": null,
   "cancel_reason": null,
+  "target_booking_ref": null,
   "missing_mandatory": [],
   "is_complete": false,
   "is_new_booking_request": false,

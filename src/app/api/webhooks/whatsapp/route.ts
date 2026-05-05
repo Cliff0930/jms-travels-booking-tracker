@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
-import { handleClientChange } from '@/lib/utils/change-handler'
+import { handleClientChange, handleDisambiguationReply, type PendingAction } from '@/lib/utils/change-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { generateBookingRef } from '@/lib/utils/booking-ref'
@@ -152,6 +152,17 @@ async function processClientMessage(
 
   if (!session) return
 
+  // If a disambiguation is pending, resolve it before running Gemini
+  const pendingAction = (session.extracted as Record<string, unknown>)?.pending_action as PendingAction | undefined
+  if (pendingAction) {
+    const { reply, resolved } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
+    await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
+    if (resolved) {
+      await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    }
+    return
+  }
+
   // Add this message to the conversation
   const updatedMessages = [
     ...(session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>),
@@ -179,9 +190,16 @@ async function processClientMessage(
   }
 
   if (result.intent === 'cancel_request' || result.intent === 'modify_request') {
-    const replyBody = await handleClientChange(supabase, client, senderPhone, result)
+    const { reply: replyBody, pendingAction: newPending } = await handleClientChange(supabase, client, senderPhone, result)
     await sendWhatsAppMessage({ to: senderPhone, body: replyBody, log: { client_id: client.id } })
-    await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    if (newPending) {
+      await supabase.from('conversation_sessions').update({
+        extracted: { pending_action: newPending },
+        last_message_at: new Date().toISOString(),
+      }).eq('id', session.id)
+    } else {
+      await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    }
     return
   }
 
