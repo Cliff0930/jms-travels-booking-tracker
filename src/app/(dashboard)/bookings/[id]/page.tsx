@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle } from 'lucide-react'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -84,6 +84,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [editReason, setEditReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [applyingLog, setApplyingLog] = useState<string | null>(null)
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
@@ -178,6 +179,25 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       }
     } catch {
       toast.error('Failed to send approval request')
+    }
+  }
+
+  async function handleApplyPending(logId: string, action: 'apply' | 'dismiss') {
+    setApplyingLog(logId)
+    try {
+      const res = await fetch(`/api/bookings/${id}/apply-pending`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: logId, action }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      qc.invalidateQueries({ queryKey: ['booking-edit-logs', id] })
+      toast.success(action === 'apply' ? 'Change applied to booking' : 'Change request dismissed')
+    } catch {
+      toast.error('Failed to update change request')
+    } finally {
+      setApplyingLog(null)
     }
   }
 
@@ -549,16 +569,37 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             ) : (
               <div className="space-y-4">
                 {editLogs.map((log) => {
-                  const initials = log.changed_by
+                  const isPending = log.changed_by.includes('[PENDING]')
+                  const isApplied = log.changed_by.includes('[APPLIED]')
+                  const isDismissed = log.changed_by.includes('[DISMISSED]')
+                  const displayName = log.changed_by
+                    .replace(' [PENDING]', '').replace(' [APPLIED]', '').replace(' [DISMISSED]', '')
+                  const initials = displayName
                     .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() || '?'
+                  const avatarClass = isPending
+                    ? 'bg-[#FEF3C7] text-[#D97706]'
+                    : isApplied
+                    ? 'bg-[#D1FAE5] text-[#059669]'
+                    : isDismissed
+                    ? 'bg-[#F3F4F6] text-[#9CA3AF]'
+                    : 'bg-[#D4DCFF] text-[#1A56DB]'
                   return (
-                    <div key={log.id} className="flex gap-3">
-                      <div className="w-7 h-7 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0 mt-0.5">
-                        {initials}
+                    <div key={log.id} className={`flex gap-3 rounded-lg p-2 -m-2 ${isPending ? 'bg-[#FFFBEB] border border-[#FDE68A]' : ''}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5 ${avatarClass}`}>
+                        {isPending ? <AlertCircle className="w-3.5 h-3.5" /> : initials}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-[#191B23]">{log.changed_by}</span>
+                          <span className="text-sm font-medium text-[#191B23]">{displayName}</span>
+                          {isPending && (
+                            <span className="text-xs font-medium text-[#D97706] bg-[#FEF3C7] px-1.5 py-0.5 rounded">Pending</span>
+                          )}
+                          {isApplied && (
+                            <span className="text-xs font-medium text-[#059669] bg-[#D1FAE5] px-1.5 py-0.5 rounded">Applied</span>
+                          )}
+                          {isDismissed && (
+                            <span className="text-xs font-medium text-[#9CA3AF] bg-[#F3F4F6] px-1.5 py-0.5 rounded">Dismissed</span>
+                          )}
                           <span className="text-xs text-[#737686]">
                             {format(new Date(log.changed_at), 'd MMM yyyy, h:mm a')}
                           </span>
@@ -570,10 +611,33 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                               <span className="font-medium text-[#191B23] shrink-0">{c.label}:</span>
                               <span className="line-through text-[#737686]">{c.old_value}</span>
                               <span className="text-[#737686]">→</span>
-                              <span className="text-[#10B981] font-medium">{c.new_value}</span>
+                              <span className={`font-medium ${isApplied ? 'text-[#10B981]' : isPending ? 'text-[#D97706]' : 'text-[#10B981]'}`}>{c.new_value}</span>
                             </div>
                           ))}
                         </div>
+                        {isPending && (
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              className="h-7 px-3 text-xs bg-[#059669] hover:bg-[#047857] rounded-sm"
+                              disabled={applyingLog === log.id}
+                              onClick={() => handleApplyPending(log.id, 'apply')}
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Apply Change
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-3 text-xs rounded-sm text-[#737686] border-[#C3C5D7] hover:bg-[#F3F4F6]"
+                              disabled={applyingLog === log.id}
+                              onClick={() => handleApplyPending(log.id, 'dismiss')}
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              Dismiss
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
