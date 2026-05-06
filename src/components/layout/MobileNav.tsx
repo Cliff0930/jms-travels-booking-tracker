@@ -34,14 +34,10 @@ export function MobileNav() {
 
   return (
     <>
-      {/* More drawer */}
       {showMore && (
         <>
-          <div
-            className="md:hidden fixed inset-0 bg-black/20 z-40"
-            onClick={() => setShowMore(false)}
-          />
-          <div className="md:hidden fixed bottom-[57px] left-0 right-0 z-50 bg-white border-t border-[#C3C5D7] shadow-lg p-3">
+          <div className="md:hidden fixed inset-0 bg-black/20 z-40" onClick={() => setShowMore(false)} />
+          <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg p-3">
             <div className="grid grid-cols-3 gap-2">
               {moreNav.map(({ href, label, icon: Icon }) => {
                 const isActive = pathname.startsWith(href)
@@ -51,11 +47,11 @@ export function MobileNav() {
                     href={href}
                     onClick={() => setShowMore(false)}
                     className={cn(
-                      'flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-medium transition-colors',
-                      isActive ? 'bg-[#D4DCFF] text-[#1A56DB]' : 'text-[#434654] hover:bg-[#F3F3FE]'
+                      'flex flex-col items-center gap-1 py-3 rounded-lg text-xs font-semibold transition-colors',
+                      isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'
                     )}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className={cn('w-5 h-5', isActive ? 'text-blue-700' : 'text-gray-400')} />
                     {label}
                   </Link>
                 )
@@ -65,8 +61,7 @@ export function MobileNav() {
         </>
       )}
 
-      {/* Bottom bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#C3C5D7] z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="grid grid-cols-4">
           {PRIMARY_NAV.map(({ href, label, icon: Icon }) => {
             const isActive = pathname.startsWith(href)
@@ -76,14 +71,11 @@ export function MobileNav() {
                 href={href}
                 onClick={() => setShowMore(false)}
                 className={cn(
-                  'flex flex-col items-center gap-1 py-2 text-xs font-medium transition-colors relative',
-                  isActive ? 'text-[#1A56DB]' : 'text-[#737686]'
+                  'flex flex-col items-center gap-1 py-3 text-xs font-semibold transition-colors',
+                  isActive ? 'text-blue-700' : 'text-gray-400'
                 )}
               >
-                {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#1A56DB]" />
-                )}
-                <Icon className="w-5 h-5" />
+                <Icon className={cn('w-5 h-5', isActive ? 'text-blue-700' : 'text-gray-400')} />
                 {label}
               </Link>
             )
@@ -93,14 +85,14 @@ export function MobileNav() {
             type="button"
             onClick={() => setShowMore(v => !v)}
             className={cn(
-              'flex flex-col items-center gap-1 py-2 text-xs font-medium transition-colors relative',
-              (showMore || moreActive) ? 'text-[#1A56DB]' : 'text-[#737686]'
+              'flex flex-col items-center gap-1 py-3 text-xs font-semibold transition-colors',
+              (showMore || moreActive) ? 'text-blue-700' : 'text-gray-400'
             )}
           >
-            {(showMore || moreActive) && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#1A56DB]" />
-            )}
-            {showMore ? <X className="w-5 h-5" /> : <MoreHorizontal className="w-5 h-5" />}
+            {showMore
+              ? <X className="w-5 h-5" />
+              : <MoreHorizontal className={cn('w-5 h-5', (showMore || moreActive) ? 'text-blue-700' : 'text-gray-400')} />
+            }
             More
           </button>
         </div>

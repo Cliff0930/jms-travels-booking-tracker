@@ -42,64 +42,60 @@ export function Sidebar() {
     ? me.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : me?.email?.[0]?.toUpperCase() ?? '?'
 
+  const allNavItems = [
+    ...NAV_ITEMS,
+    ...(me?.role === 'admin' ? [{ href: '/users', label: 'Users', icon: ShieldCheck }] : []),
+  ]
+
   return (
-    <aside className="hidden md:flex flex-col w-[240px] min-h-screen bg-[#EDEDF8] border-r border-[#C3C5D7] shrink-0">
-      <div className="flex items-center px-4 h-14 border-b border-[#C3C5D7]">
-        <Image src="/icons/icon-512.png" alt="JMS Travels" width={120} height={120} className="h-9 w-auto object-contain rounded" priority />
+    <aside className="hidden md:flex flex-col w-64 min-h-screen fixed left-0 top-0 h-full z-40 bg-white border-r border-gray-200 shrink-0">
+      {/* Logo — same height as header */}
+      <div className="h-16 flex items-center px-5 border-b border-gray-200 gap-3">
+        <Image src="/icons/icon-512.png" alt="JMS Travels" width={120} height={120} className="h-8 w-auto object-contain rounded" priority />
+        <div>
+          <p className="text-sm font-black text-blue-700 leading-none">JMS Travels</p>
+          <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Fleet Ops</p>
+        </div>
       </div>
 
-      <nav className="flex-1 py-3 px-2 space-y-0.5">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
+        {allNavItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all',
                 isActive
-                  ? 'bg-[#D4DCFF] text-[#1A56DB]'
-                  : 'text-[#434654] hover:bg-[#D4DCFF]/60 hover:text-[#191B23]'
+                  ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               )}
             >
-              <Icon className="w-4 h-4 shrink-0" />
+              <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400')} />
               {label}
             </Link>
           )
         })}
-
-        {/* Admin-only: Users management */}
-        {me?.role === 'admin' && (
-          <Link
-            href="/users"
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-              pathname.startsWith('/users')
-                ? 'bg-[#D4DCFF] text-[#1A56DB]'
-                : 'text-[#434654] hover:bg-[#D4DCFF]/60 hover:text-[#191B23]'
-            )}
-          >
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            Users
-          </Link>
-        )}
       </nav>
 
-      <div className="px-2 pb-4 space-y-1 border-t border-[#C3C5D7] pt-3">
+      {/* Footer */}
+      <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-1">
         {me && (
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-md mb-1">
-            <div className="w-7 h-7 rounded-full bg-[#1A56DB] flex items-center justify-center text-xs font-semibold text-white shrink-0">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg mb-1">
+            <div className="w-7 h-7 rounded-full bg-blue-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-[#191B23] truncate">{me.name || me.email}</div>
-              <div className="text-[11px] text-[#737686]">{ROLE_LABELS[me.role] ?? me.role}</div>
+              <div className="text-xs font-semibold text-gray-900 truncate">{me.name || me.email}</div>
+              <div className="text-[11px] text-gray-400">{ROLE_LABELS[me.role] ?? me.role}</div>
             </div>
           </div>
         )}
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-[#434654] hover:bg-red-50 hover:text-red-600 transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           Sign out
