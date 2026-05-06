@@ -85,6 +85,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [editReason, setEditReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [applyingLog, setApplyingLog] = useState<string | null>(null)
+  const [chasingApproval, setChasingApproval] = useState(false)
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
@@ -179,6 +180,20 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       }
     } catch {
       toast.error('Failed to send approval request')
+    }
+  }
+
+  async function handleChaseApproval() {
+    setChasingApproval(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}/chase-approval`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Chase message sent to approvers')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send chase')
+    } finally {
+      setChasingApproval(false)
     }
   }
 
@@ -693,6 +708,17 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <Send className="w-4 h-4 mr-2" />
                   {sendApproval.isPending ? 'Sending…' : 'Send Approval Request'}
+                </Button>
+              )}
+              {booking.status === 'pending_approval' && booking.approval_status === 'pending' && (
+                <Button
+                  variant="outline"
+                  className="w-full rounded-sm text-[#D97706] border-[#FDE68A] hover:bg-[#FFFBEB]"
+                  onClick={handleChaseApproval}
+                  disabled={chasingApproval}
+                >
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  {chasingApproval ? 'Sending…' : 'Chase Approval'}
                 </Button>
               )}
               {booking.status === 'pending_approval' && (

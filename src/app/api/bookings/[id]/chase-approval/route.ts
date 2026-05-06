@@ -17,23 +17,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .single()
 
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (booking.status !== 'pending_approval') return NextResponse.json({ error: 'Booking is not pending approval' }, { status: 400 })
 
   const company = booking.company as Company | null
-  if (!company) return NextResponse.json({ error: 'No company linked to this booking' }, { status: 400 })
+  if (!company) return NextResponse.json({ error: 'No company linked' }, { status: 400 })
 
   const hasEmailApprovers = company.approver_emails?.length > 0
   const hasWAApprovers = company.approver_whatsapp?.length > 0
   if (!hasEmailApprovers && !hasWAApprovers) {
-    return NextResponse.json({ error: 'No approver contacts configured on company' }, { status: 400 })
+    return NextResponse.json({ error: 'No approver contacts configured' }, { status: 400 })
   }
 
   const { data: tmpl } = await supabase
     .from('message_templates')
     .select('body, subject')
-    .eq('template_key', TEMPLATE_KEYS.APPROVAL_REQUEST)
+    .eq('template_key', TEMPLATE_KEYS.APPROVAL_CHASE)
     .single()
 
-  if (!tmpl) return NextResponse.json({ error: 'Approval request template not found' }, { status: 500 })
+  if (!tmpl) return NextResponse.json({ error: 'Chase template not found' }, { status: 500 })
 
   const client = booking.client as Client | null
   const guestName = booking.guest_name || client?.name || 'Guest'
@@ -51,7 +52,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const channel = company.approval_channel || 'email'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://booking.jmstravels.net'
 
-  // Email gets clickable approve/reject links; WhatsApp keeps the text reply format
   const approveUrl = approvalLink(appUrl, id, 'approve')
   const rejectUrl = approvalLink(appUrl, id, 'reject')
   const emailBody = `${baseBody}\n\nQuick links:\n✅ Approve: ${approveUrl}\n❌ Reject: ${rejectUrl}`
@@ -60,7 +60,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if ((channel === 'email' || channel === 'both') && hasEmailApprovers) {
     for (const email of company.approver_emails) {
-      sends.push(sendEmail({ to: email, subject, body: emailBody }).catch(e => console.error('Email send error:', e)))
+      sends.push(sendEmail({ to: email, subject, body: emailBody }).catch(e => console.error('Chase email error:', e)))
     }
     await supabase.from('message_logs').insert({
       booking_id: id,
@@ -68,13 +68,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       direction: 'outbound',
       recipient: company.approver_emails.join(', '),
       content: emailBody,
-      template_used: TEMPLATE_KEYS.APPROVAL_REQUEST,
+      template_used: TEMPLATE_KEYS.APPROVAL_CHASE,
     })
   }
 
   if ((channel === 'whatsapp' || channel === 'both') && hasWAApprovers) {
     for (const phone of company.approver_whatsapp) {
-      sends.push(sendWhatsAppMessage({ to: phone, body: baseBody }).catch(e => console.error('WA send error:', e)))
+      sends.push(sendWhatsAppMessage({ to: phone, body: baseBody }).catch(e => console.error('Chase WA error:', e)))
     }
     await supabase.from('message_logs').insert({
       booking_id: id,
@@ -82,16 +82,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       direction: 'outbound',
       recipient: company.approver_whatsapp.join(', '),
       content: baseBody,
-      template_used: TEMPLATE_KEYS.APPROVAL_REQUEST,
+      template_used: TEMPLATE_KEYS.APPROVAL_CHASE,
     })
   }
 
   await Promise.allSettled(sends)
-
-  await supabase
-    .from('bookings')
-    .update({ approval_status: 'pending', updated_at: new Date().toISOString() })
-    .eq('id', id)
 
   return NextResponse.json({ ok: true })
 }
