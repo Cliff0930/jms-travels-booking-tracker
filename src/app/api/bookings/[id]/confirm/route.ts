@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import type { Client } from '@/types'
 
@@ -101,32 +101,30 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     lines.push(``, `We will share your driver details once assigned. Thank you!`, ``, `JMS Travels Team`)
     const body = lines.join('\n')
 
-    const phone = client?.primary_phone || booking.guest_phone || fallbackPhone
+    // Send to guest + admin (deduped — if same phone, sends once)
+    const guestPhone = booking.guest_phone || null
+    const adminPhone = client?.primary_phone || fallbackPhone || null
+    const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
     const email = client?.primary_email
-    const channel = phone ? 'whatsapp' : email ? 'email' : null
 
-    console.log(`[confirm] booking=${id} client_phone=${client?.primary_phone} guest_phone=${booking.guest_phone} fallback=${fallbackPhone} channel=${channel}`)
+    console.log(`[confirm] booking=${id} guest_phone=${guestPhone} admin_phone=${adminPhone}`)
 
-    let status = 'no_contact'
-    if (channel === 'whatsapp' && phone) {
-      const result = await sendWhatsAppMessage({ to: phone, body })
-      status = result.ok ? 'sent' : `failed: ${result.error}`
-    } else if (channel === 'email' && email) {
-      try {
-        await sendEmail({ to: email, subject: `Your booking is confirmed — ${booking.booking_ref}`, body })
-        status = 'sent'
-      } catch (e) { status = `failed: ${String(e)}` }
+    if (phones.length > 0) {
+      await sendToAll(phones, body)
+    } else if (email) {
+      await sendEmail({ to: email, subject: `Your booking is confirmed — ${booking.booking_ref}`, body }).catch(() => {})
     }
 
+    const recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
     await supabase.from('message_logs').insert({
       booking_id: id,
       client_id: client?.id || null,
-      channel: channel || 'whatsapp',
+      channel: phones.length > 0 ? 'whatsapp' : 'email',
       direction: 'outbound',
-      recipient: phone || email || 'unknown',
+      recipient,
       content: body,
       template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
-      status,
+      status: 'sent',
     })
   }
 

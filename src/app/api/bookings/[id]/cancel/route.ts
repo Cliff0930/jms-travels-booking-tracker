@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmail } from '@/lib/gmail/send'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -62,15 +62,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = fillTemplate(clientTmpl.body, { ...vars, client_name: clientName })
     const subject = fillTemplate(clientTmpl.subject || '', vars)
 
-    if (booking.guest_phone || client?.primary_phone) {
-      const phone = booking.guest_phone || client?.primary_phone!
-      await sendWhatsAppMessage({ to: phone, body }).catch(e => console.error('Cancel WA client error:', e))
+    const guestPhone = booking.guest_phone || null
+    const adminPhone = client?.primary_phone || null
+    const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+
+    if (phones.length > 0) {
+      await sendToAll(phones, body).catch(e => console.error('Cancel WA client error:', e))
       await supabase.from('message_logs').insert({
         booking_id: id,
         client_id: booking.client_id,
         channel: 'whatsapp',
         direction: 'outbound',
-        recipient: phone,
+        recipient: phones.join(', '),
         content: body,
         template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
       })

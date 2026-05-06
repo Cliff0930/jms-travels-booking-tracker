@@ -15,6 +15,16 @@ export interface SendResult {
   error?: string
 }
 
+// Send the same message to multiple phones (deduped). Returns array of results.
+export async function sendToAll(
+  phones: (string | null | undefined)[],
+  body: string,
+  log?: WhatsAppTextMessage['log']
+): Promise<SendResult[]> {
+  const unique = [...new Set(phones.filter((p): p is string => !!p))]
+  return Promise.all(unique.map(to => sendWhatsAppMessage({ to, body, log })))
+}
+
 export async function sendWhatsAppMessage({ to, body, log }: WhatsAppTextMessage): Promise<SendResult> {
   const normalizedTo = to.startsWith('+') ? to.slice(1) : to
   try {

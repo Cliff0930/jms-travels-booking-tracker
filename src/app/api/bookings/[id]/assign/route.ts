@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import type { Client } from '@/types'
 
@@ -92,13 +92,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  // Send driver details to client
+  // Send driver details to guest + admin (deduped)
   if (driver) {
     const client = booking.client as Client & { primary_email?: string } | null
-    const clientPhone = booking.guest_phone || client?.primary_phone || null
+    const guestPhone = booking.guest_phone || null
+    const adminPhone = client?.primary_phone || null
     const clientName = booking.guest_name || client?.name || 'there'
 
-    if (clientPhone && booking.pickup_date && booking.pickup_time) {
+    if (booking.pickup_date && booking.pickup_time) {
       const d = new Date(booking.pickup_date + 'T00:00:00Z')
       const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
       const [hh, mm] = booking.pickup_time.split(':').map(Number)
@@ -120,11 +121,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         `Please contact the driver directly if needed. — JMS Travels`,
       ].filter(l => l !== null).join('\n')
 
-      await sendWhatsAppMessage({
-        to: clientPhone,
-        body: clientBody,
-        log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
-      }).catch(e => console.error('Driver details to client WA error:', e))
+      await sendToAll([guestPhone, adminPhone], clientBody, {
+        booking_id: id,
+        client_id: client?.id || undefined,
+        template_used: 'driver_details_to_client',
+      }).catch(e => console.error('Driver details WA error:', e))
     }
   }
 

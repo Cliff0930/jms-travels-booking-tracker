@@ -367,6 +367,39 @@ async function createBookingFromResult(
 
   if (!booking) return null
 
+  // Auto-save guest as a client record linked to the same company
+  if (ext.guest_name && ext.guest_phone) {
+    try {
+      const { data: existingGuest } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('primary_phone', ext.guest_phone)
+        .maybeSingle()
+
+      let guestClientId = existingGuest?.id
+
+      if (!guestClientId) {
+        const { data: newGuest } = await supabase
+          .from('clients')
+          .insert({
+            name: ext.guest_name,
+            primary_phone: ext.guest_phone,
+            company_id: client.company_id ?? null,
+            client_type: 'guest',
+            is_verified: false,
+            is_vip: false,
+          })
+          .select('id')
+          .single()
+        guestClientId = newGuest?.id
+      }
+
+      if (guestClientId) {
+        await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)
+      }
+    } catch { /* non-critical — booking still created */ }
+  }
+
   // Create one leg per day for multi-day bookings
   if (totalDays > 1 && ext.pickup_date) {
     const legs = Array.from({ length: totalDays }, (_, i) => {

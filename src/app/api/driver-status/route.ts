@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyDriverToken } from '@/lib/utils/driver-token'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendToAll } from '@/lib/whatsapp/send'
 
 export async function POST(request: Request) {
   const { booking_id, status, token } = await request.json()
@@ -37,10 +37,11 @@ export async function POST(request: Request) {
   // Notify client
   const client = booking.client as { id?: string; name?: string; primary_phone?: string } | null
   const driver = booking.driver as { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string } | null
-  const clientPhone = booking.guest_phone || client?.primary_phone || null
+  const guestPhone = booking.guest_phone || null
+  const adminPhone = client?.primary_phone || null
   const clientName = booking.guest_name || client?.name || 'there'
 
-  if (clientPhone && driver) {
+  if ((guestPhone || adminPhone) && driver) {
     const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
 
     let body: string
@@ -70,15 +71,11 @@ export async function POST(request: Request) {
       ].filter(l => l !== null).join('\n')
     }
 
-    await sendWhatsAppMessage({
-      to: clientPhone,
-      body,
-      log: {
-        booking_id,
-        client_id: client?.id || undefined,
-        template_used: status === 'arrived' ? 'driver_arrived' : 'trip_completed',
-      },
-    }).catch(e => console.error(`Driver ${status} notify error:`, e))
+    await sendToAll([guestPhone, adminPhone], body, {
+      booking_id,
+      client_id: client?.id || undefined,
+      template_used: status === 'arrived' ? 'driver_arrived' : 'trip_completed',
+    }).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })
