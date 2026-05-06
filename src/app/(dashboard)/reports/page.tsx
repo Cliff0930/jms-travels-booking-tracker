@@ -64,7 +64,7 @@ export default function ReportsPage() {
 
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ['reports', filters],
-    queryFn: () => fetch(`/api/bookings?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
   })
 
   // --- Chart data ---

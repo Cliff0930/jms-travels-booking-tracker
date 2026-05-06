@@ -7,14 +7,14 @@ export function useClients(search?: string) {
   if (search) params.set('q', search)
   return useQuery<Client[]>({
     queryKey: ['clients', search],
-    queryFn: () => fetch(`/api/clients?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/clients?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
   })
 }
 
 export function useClient(id: string) {
   return useQuery<Client>({
     queryKey: ['clients', id],
-    queryFn: () => fetch(`/api/clients/${id}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/clients/${id}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
     enabled: !!id,
   })
 }

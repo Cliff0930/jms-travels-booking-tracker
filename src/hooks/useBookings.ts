@@ -8,14 +8,14 @@ export function useBookings(filters?: { status?: BookingStatus; date?: string })
   if (filters?.date) params.set('date', filters.date)
   return useQuery<Booking[]>({
     queryKey: ['bookings', filters],
-    queryFn: () => fetch(`/api/bookings?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
   })
 }
 
 export function useBooking(id: string) {
   return useQuery<Booking>({
     queryKey: ['bookings', id],
-    queryFn: () => fetch(`/api/bookings/${id}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings/${id}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
     enabled: !!id,
   })
 }
@@ -23,7 +23,7 @@ export function useBooking(id: string) {
 export function useClientBookings(clientId: string | undefined) {
   return useQuery<Booking[]>({
     queryKey: ['bookings', 'client', clientId],
-    queryFn: () => fetch(`/api/bookings?client_id=${clientId}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings?client_id=${clientId}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
     enabled: !!clientId,
   })
 }
@@ -31,7 +31,7 @@ export function useClientBookings(clientId: string | undefined) {
 export function useBookingMessages(bookingId: string) {
   return useQuery<MessageLog[]>({
     queryKey: ['booking-messages', bookingId],
-    queryFn: () => fetch(`/api/bookings/${bookingId}/messages`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings/${bookingId}/messages`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
     enabled: !!bookingId,
   })
 }

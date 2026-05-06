@@ -8,14 +8,14 @@ export function useDrivers(filters?: { status?: DriverStatus; vehicle_type?: str
   if (filters?.vehicle_type) params.set('vehicle_type', filters.vehicle_type)
   return useQuery<Driver[]>({
     queryKey: ['drivers', filters],
-    queryFn: () => fetch(`/api/drivers?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/drivers?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
   })
 }
 
 export function useDriver(id: string) {
   return useQuery<Driver>({
     queryKey: ['drivers', id],
-    queryFn: () => fetch(`/api/drivers/${id}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/drivers/${id}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
     enabled: !!id,
   })
 }
