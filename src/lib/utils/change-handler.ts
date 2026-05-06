@@ -17,6 +17,7 @@ export interface PendingAction {
   intent: 'cancel_request' | 'modify_request'
   modification_request: ModificationRequest | null
   cancel_reason: string | null
+  attempt_count?: number
   bookings: Array<{
     id: string
     booking_ref: string

@@ -156,35 +156,48 @@ async function processClientMessage(
   const pendingAction = (session.extracted as Record<string, unknown>)?.pending_action as PendingAction | undefined
   if (pendingAction) {
     const { reply, resolved } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
-    await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
+
     if (resolved) {
+      await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
       await supabase.from('conversation_sessions').delete().eq('id', session.id)
     } else {
-      // Refresh the bookings list from DB so next attempt reflects latest bookings
-      const { data: freshBookings } = await supabase
-        .from('bookings')
-        .select('id, booking_ref, guest_name, pickup_date, pickup_time, pickup_location, drop_location, trip_type, total_days, driver_id, status')
-        .eq('client_id', client.id)
-        .not('status', 'in', '("completed","cancelled")')
-        .order('pickup_date', { ascending: false })
-        .order('pickup_time', { ascending: false })
-        .limit(5)
-      if (freshBookings?.length) {
+      const attemptCount = (pendingAction.attempt_count ?? 0) + 1
+      if (attemptCount >= 2) {
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `We're sorry we couldn't resolve your query over chat. For immediate assistance, please call us at 9845572207 — our team will be happy to assist you directly.\n\n— JMS Travels`,
+          log: { client_id: client.id },
+        })
+        await supabase.from('conversation_sessions').delete().eq('id', session.id)
+      } else {
+        await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
+        // Refresh the bookings list from DB so next attempt reflects latest bookings
+        const { data: freshBookings } = await supabase
+          .from('bookings')
+          .select('id, booking_ref, guest_name, pickup_date, pickup_time, pickup_location, drop_location, trip_type, total_days, driver_id, status')
+          .eq('client_id', client.id)
+          .not('status', 'in', '("completed","cancelled")')
+          .order('pickup_date', { ascending: false })
+          .order('pickup_time', { ascending: false })
+          .limit(5)
         const updatedAction: PendingAction = {
           ...pendingAction,
-          bookings: freshBookings.map(b => ({
-            id: b.id as string,
-            booking_ref: b.booking_ref as string,
-            guest_name: (b.guest_name as string | null) ?? null,
-            pickup_date: (b.pickup_date as string | null) ?? null,
-            pickup_time: (b.pickup_time as string | null) ?? null,
-            pickup_location: (b.pickup_location as string | null) ?? null,
-            drop_location: (b.drop_location as string | null) ?? null,
-            trip_type: (b.trip_type as string | null) ?? null,
-            total_days: (b.total_days as number | null) ?? null,
-            driver_id: (b.driver_id as string | null) ?? null,
-            status: b.status as string,
-          })),
+          attempt_count: attemptCount,
+          bookings: freshBookings?.length
+            ? freshBookings.map(b => ({
+                id: b.id as string,
+                booking_ref: b.booking_ref as string,
+                guest_name: (b.guest_name as string | null) ?? null,
+                pickup_date: (b.pickup_date as string | null) ?? null,
+                pickup_time: (b.pickup_time as string | null) ?? null,
+                pickup_location: (b.pickup_location as string | null) ?? null,
+                drop_location: (b.drop_location as string | null) ?? null,
+                trip_type: (b.trip_type as string | null) ?? null,
+                total_days: (b.total_days as number | null) ?? null,
+                driver_id: (b.driver_id as string | null) ?? null,
+                status: b.status as string,
+              }))
+            : pendingAction.bookings,
         }
         await supabase.from('conversation_sessions').update({
           extracted: { pending_action: updatedAction },
@@ -249,11 +262,26 @@ async function processClientMessage(
   }
 
   if (result.intent === 'other') {
-    await sendWhatsAppMessage({
-      to: senderPhone,
-      body: 'For any queries or assistance regarding an existing booking, please call us at 9845572207.',
-      log: { client_id: client.id },
-    })
+    const extracted = (session.extracted as Record<string, unknown>) ?? {}
+    const otherCount = ((extracted.other_count as number) ?? 0) + 1
+    if (otherCount >= 2) {
+      await sendWhatsAppMessage({
+        to: senderPhone,
+        body: `We're sorry we couldn't resolve your query over chat. For immediate assistance, please call us at 9845572207 — our team will be happy to assist you directly.\n\n— JMS Travels`,
+        log: { client_id: client.id },
+      })
+      await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    } else {
+      await sendWhatsAppMessage({
+        to: senderPhone,
+        body: 'For any queries or assistance regarding an existing booking, please call us at 9845572207.',
+        log: { client_id: client.id },
+      })
+      await supabase.from('conversation_sessions').update({
+        extracted: { ...extracted, other_count: otherCount },
+        last_message_at: new Date().toISOString(),
+      }).eq('id', session.id)
+    }
     return
   }
 
