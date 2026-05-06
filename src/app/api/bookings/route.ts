@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('bookings')
-    .select('*, client:clients(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)')
+    .select('*, client:clients(id, name, primary_phone, primary_email, client_type, is_vip, is_verified), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)')
     .order('created_at', { ascending: false })
 
   if (status) query = query.eq('status', status)
