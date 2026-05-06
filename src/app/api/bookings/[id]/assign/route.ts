@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients(name, primary_phone, primary_email), driver:drivers(id)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email), driver:drivers(id)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('*, client:clients(name), company:companies(name), driver:drivers(name, vehicle_name, vehicle_number)')
+    .select('*, client:clients!client_id(name), company:companies(name), driver:drivers(name, vehicle_name, vehicle_number)')
     .gte('created_at', thirtyDaysAgo.toISOString())
     .order('created_at', { ascending: false })
 

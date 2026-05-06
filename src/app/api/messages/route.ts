@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
     let outQ = supabase
       .from('message_logs')
-      .select('id, booking_id, client_id, client:clients(name), channel, direction, sender, recipient, content, template_used, status, sent_at')
+      .select('id, booking_id, client_id, client:clients!client_id(name), channel, direction, sender, recipient, content, template_used, status, sent_at')
       .eq('client_id', client_id)
       .order('sent_at', { ascending: true })
       .limit(limit)
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
   // ── Default flat list mode (descending — newest first) ──────────────────
   let outQ = supabase
     .from('message_logs')
-    .select('id, booking_id, client_id, client:clients(name), channel, direction, sender, recipient, content, template_used, status, sent_at')
+    .select('id, booking_id, client_id, client:clients!client_id(name), channel, direction, sender, recipient, content, template_used, status, sent_at')
     .order('sent_at', { ascending: false })
     .limit(limit)
 
