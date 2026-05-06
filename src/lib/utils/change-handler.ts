@@ -290,8 +290,8 @@ export async function handleClientChange(
     .select('*, driver:drivers(name, phone, vehicle_name, vehicle_number)')
     .eq('client_id', client.id)
     .not('status', 'in', '("completed","cancelled")')
-    .order('pickup_date', { ascending: true })
-    .order('pickup_time', { ascending: true })
+    .order('pickup_date', { ascending: false })
+    .order('pickup_time', { ascending: false })
 
   if (!allBookings?.length) {
     return { reply: `I couldn't find any active booking for your account. Would you like to make a new booking?`, pendingAction: null }
@@ -450,12 +450,19 @@ export async function handleDisambiguationReply(
     if (found) booking = found
   }
 
-  // 5. Drop location / destination (e.g. "the Mysore trip", "Coorg booking")
+  // 5. Drop location / destination (e.g. "the Mysore trip", "Yelanka" → "Yelahanka")
   if (!booking) {
-    const found = bookings.find(b =>
-      b.drop_location &&
-      b.drop_location.toLowerCase().split(/[\s,]+/).some(part => part.length > 2 && text.includes(part))
-    )
+    const textWords = text.split(/[\s,]+/).filter(w => w.length > 2)
+    const found = bookings.find(b => {
+      if (!b.drop_location) return false
+      const locWords = b.drop_location.toLowerCase().split(/[\s,]+/).filter(p => p.length > 2)
+      return textWords.some(tw =>
+        locWords.some(lw =>
+          lw.includes(tw) || tw.includes(lw) ||
+          (tw.length >= 4 && lw.length >= 4 && lw.slice(0, 4) === tw.slice(0, 4))
+        )
+      )
+    })
     if (found) booking = found
   }
 
