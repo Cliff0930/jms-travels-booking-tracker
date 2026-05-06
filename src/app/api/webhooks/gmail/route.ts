@@ -28,7 +28,8 @@ export async function POST(request: Request) {
     const auth = getOAuthClient()
     const gmail = google.gmail({ version: 'v1', auth })
 
-    const { data: profile } = await gmail.users.getProfile({ userId: 'me' })
+    console.log('[gmail-webhook] historyId from pubsub:', historyId)
+
     const { data: history } = await gmail.users.history.list({
       userId: 'me',
       startHistoryId: String(parseInt(historyId) - 1),
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
     })
 
     const messageIds = history.history?.flatMap(h => h.messagesAdded?.map(m => m.message?.id) || []).filter(Boolean) || []
+    console.log('[gmail-webhook] messageIds found:', messageIds.length, messageIds)
 
     for (const messageId of messageIds) {
       if (!messageId) continue
@@ -45,6 +47,8 @@ export async function POST(request: Request) {
       const from = headers.find(h => h.name === 'From')?.value || ''
       const cc = headers.find(h => h.name === 'Cc')?.value || ''
       const replyTo = headers.find(h => h.name === 'Reply-To')?.value || ''
+
+      console.log('[gmail-webhook] processing message from:', from, '| mimeType:', msg.payload?.mimeType, '| parts:', msg.payload?.parts?.map(p => p.mimeType))
 
       const emailMatch = from.match(/([^\s<]+@[^\s>]+)/)
       const senderEmail = emailMatch?.[1] || from
@@ -63,7 +67,11 @@ export async function POST(request: Request) {
         }
       }
 
-      if (!rawContent) continue
+      console.log('[gmail-webhook] rawContent length:', rawContent.length)
+      if (!rawContent) {
+        console.log('[gmail-webhook] skipping — no text/plain content found')
+        continue
+      }
 
       const handled = await handleApprovalReply(supabase, rawContent, null, senderEmail)
       if (handled) continue
