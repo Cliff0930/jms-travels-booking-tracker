@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
+import { createAdminClient } from '@/lib/supabase/server'
 
 function getOAuthClient() {
   const oauth2 = new google.auth.OAuth2(
@@ -36,6 +37,16 @@ export async function GET(request: Request) {
     const expiresAt = data.expiration
       ? new Date(parseInt(data.expiration)).toISOString()
       : null
+
+    // Store historyId so the webhook uses it as startHistoryId on next notification
+    if (data.historyId) {
+      const supabase = createAdminClient()
+      await supabase.from('app_settings').upsert({
+        key: 'gmail_last_history_id',
+        value: String(data.historyId),
+        updated_at: new Date().toISOString(),
+      })
+    }
 
     console.log('[gmail-watch] Renewed. Expires:', expiresAt, '| historyId:', data.historyId)
 

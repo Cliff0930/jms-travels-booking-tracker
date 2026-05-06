@@ -28,14 +28,29 @@ export async function POST(request: Request) {
     const auth = getOAuthClient()
     const gmail = google.gmail({ version: 'v1', auth })
 
-    console.log('[gmail-webhook] historyId from pubsub:', historyId)
+    console.log('[gmail-webhook] notification historyId:', historyId)
+
+    // Read last stored historyId — this is the correct startHistoryId for the history.list call
+    const { data: setting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'gmail_last_history_id')
+      .single()
+
+    const startHistoryId = setting?.value || String(parseInt(historyId) - 1)
+    console.log('[gmail-webhook] using startHistoryId:', startHistoryId)
 
     const { data: history } = await gmail.users.history.list({
       userId: 'me',
-      startHistoryId: String(parseInt(historyId) - 1),
+      startHistoryId,
       historyTypes: ['messageAdded'],
       labelId: 'INBOX',
     })
+
+    // Update stored historyId to current notification's historyId for next call
+    await supabase
+      .from('app_settings')
+      .upsert({ key: 'gmail_last_history_id', value: String(historyId), updated_at: new Date().toISOString() })
 
     const messageIds = history.history?.flatMap(h => h.messagesAdded?.map(m => m.message?.id) || []).filter(Boolean) || []
     console.log('[gmail-webhook] messageIds found:', messageIds.length, messageIds)
