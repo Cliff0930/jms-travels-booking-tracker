@@ -155,6 +155,19 @@ async function processClientMessage(
   // If a disambiguation is pending, resolve it before running Gemini
   const pendingAction = (session.extracted as Record<string, unknown>)?.pending_action as PendingAction | undefined
   if (pendingAction) {
+    // If the user has abandoned the disambiguation and is requesting a new booking, clear the loop
+    const lc = rawContent.toLowerCase()
+    const isNewBookingRequest = (
+      /\b(book|want a cab|need a cab|i need|i want)\b/.test(lc) &&
+      /\b(tomorrow|today|morning|evening|\d+\s*(am|pm)|airport|from|going to|to )\b/.test(lc)
+    )
+    if (isNewBookingRequest) {
+      await supabase.from('conversation_sessions').update({
+        extracted: {},
+        last_message_at: new Date().toISOString(),
+      }).eq('id', session.id)
+      // Fall through to normal Gemini processing below
+    } else {
     const { reply, resolved } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
 
     if (resolved) {
@@ -206,7 +219,8 @@ async function processClientMessage(
       }
     }
     return
-  }
+    } // close else (disambiguation branch)
+  } // close if (pendingAction)
 
   // Add this message to the conversation
   const updatedMessages = [

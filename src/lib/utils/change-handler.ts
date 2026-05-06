@@ -431,14 +431,41 @@ export async function handleDisambiguationReply(
     if (idx !== -1 && idx < bookings.length) booking = bookings[idx]
   }
 
-  // 3. Booking ref (BK-XXXX or BK XXXX)
+  // 3. Booking ref (e.g. BK-2026-9321 or "BK 2026 9321")
   if (!booking) {
-    const refMatch = text.match(/bk[\s-]?(\d+)/i)
+    const refMatch = text.match(/\bbk[\s-]?\d+[\s-]\d+\b/i)
     if (refMatch) {
+      const normalizedInput = refMatch[0].replace(/[\s-]/g, '').toLowerCase()
       const found = bookings.find(b =>
-        b.booking_ref.replace('-', '').toLowerCase() === `bk${refMatch[1]}`.toLowerCase()
+        b.booking_ref.replace(/-/g, '').toLowerCase() === normalizedInput
       )
-      if (found) booking = found
+      if (found) {
+        booking = found
+      } else {
+        // Booking exists but wasn't in the cached top-5 — look up directly
+        const { data: dbBooking } = await supabase
+          .from('bookings')
+          .select('id, booking_ref, guest_name, pickup_date, pickup_time, pickup_location, drop_location, trip_type, total_days, driver_id, status')
+          .eq('client_id', client.id)
+          .ilike('booking_ref', refMatch[0].replace(/\s/g, '-').toUpperCase())
+          .not('status', 'in', '("completed","cancelled")')
+          .maybeSingle()
+        if (dbBooking) {
+          booking = {
+            id: dbBooking.id as string,
+            booking_ref: dbBooking.booking_ref as string,
+            guest_name: (dbBooking.guest_name as string | null) ?? null,
+            pickup_date: (dbBooking.pickup_date as string | null) ?? null,
+            pickup_time: (dbBooking.pickup_time as string | null) ?? null,
+            pickup_location: (dbBooking.pickup_location as string | null) ?? null,
+            drop_location: (dbBooking.drop_location as string | null) ?? null,
+            trip_type: (dbBooking.trip_type as string | null) ?? null,
+            total_days: (dbBooking.total_days as number | null) ?? null,
+            driver_id: (dbBooking.driver_id as string | null) ?? null,
+            status: dbBooking.status as string,
+          }
+        }
+      }
     }
   }
 
@@ -468,17 +495,35 @@ export async function handleDisambiguationReply(
   }
 
   // 6. Trip type keyword (e.g. "airport", "outstation", "local")
+  // Guard: skip if the message looks like a new booking request, not a disambiguation reply
   if (!booking) {
-    const tripKeywords: Record<string, string> = { airport: 'airport', outstation: 'outstation', local: 'local' }
-    for (const [keyword, type] of Object.entries(tripKeywords)) {
-      if (text.includes(keyword)) {
-        const matches = bookings.filter(b => b.trip_type === type)
-        if (matches.length === 1) { booking = matches[0]; break }
+    const looksLikeNewBooking = /\b(book|want a cab|need a cab)\b/.test(text) && /\b(tomorrow|next|from|going to)\b/.test(text)
+    if (!looksLikeNewBooking) {
+      const tripKeywords: Record<string, string> = { airport: 'airport', outstation: 'outstation', local: 'local' }
+      for (const [keyword, type] of Object.entries(tripKeywords)) {
+        if (text.includes(keyword)) {
+          const matches = bookings.filter(b => b.trip_type === type)
+          if (matches.length === 1) { booking = matches[0]; break }
+        }
       }
     }
   }
 
-  // 7. Time match (e.g. "9 am", "2 pm", "14:00")
+  // 7. Date keywords: "today", "recently booked", "latest"
+  if (!booking) {
+    const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
+    if (/\btoday\b/.test(text)) {
+      const matches = bookings.filter(b => b.pickup_date === todayStr)
+      if (matches.length === 1) booking = matches[0]
+    }
+    if (!booking && /\b(recent|latest|just|newly)\b/.test(text)) {
+      // bookings are sorted DESC by pickup_date — take the soonest upcoming one
+      const upcoming = bookings.find(b => b.pickup_date && b.pickup_date >= todayStr)
+      if (upcoming) booking = upcoming
+    }
+  }
+
+  // 8. Time match (e.g. "9 am", "2 pm", "14:00")
   if (!booking) {
     const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i)
     if (timeMatch) {
