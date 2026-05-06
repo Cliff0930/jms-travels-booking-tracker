@@ -190,6 +190,19 @@ async function processClientMessage(
   }
 
   if (result.intent === 'cancel_request' || result.intent === 'modify_request') {
+    if (client.client_type === 'guest') {
+      const guestBlock = [
+        `Hi ${client.name}, modifications and cancellations to bookings arranged on your behalf must be handled through your company administrator or by contacting us directly.`,
+        ``,
+        `Please reach out to your company admin or call JMS Travels at 9845572207 — our team will be happy to assist you.`,
+        ``,
+        `If you'd like to arrange a new trip for yourself, please share your travel details and we'll get it sorted right away.`,
+      ].join('\n')
+      await sendWhatsAppMessage({ to: senderPhone, body: guestBlock, log: { client_id: client.id } })
+      await supabase.from('conversation_sessions').delete().eq('id', session.id)
+      return
+    }
+
     const { reply: replyBody, pendingAction: newPending } = await handleClientChange(supabase, client, senderPhone, result)
     await sendWhatsAppMessage({ to: senderPhone, body: replyBody, log: { client_id: client.id } })
     if (newPending) {
