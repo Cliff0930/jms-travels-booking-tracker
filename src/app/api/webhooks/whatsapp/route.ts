@@ -159,6 +159,38 @@ async function processClientMessage(
     await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
     if (resolved) {
       await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    } else {
+      // Refresh the bookings list from DB so next attempt reflects latest bookings
+      const { data: freshBookings } = await supabase
+        .from('bookings')
+        .select('id, booking_ref, guest_name, pickup_date, pickup_time, pickup_location, drop_location, trip_type, total_days, driver_id, status')
+        .eq('client_id', client.id)
+        .not('status', 'in', '("completed","cancelled")')
+        .order('pickup_date', { ascending: false })
+        .order('pickup_time', { ascending: false })
+        .limit(5)
+      if (freshBookings?.length) {
+        const updatedAction: PendingAction = {
+          ...pendingAction,
+          bookings: freshBookings.map(b => ({
+            id: b.id as string,
+            booking_ref: b.booking_ref as string,
+            guest_name: (b.guest_name as string | null) ?? null,
+            pickup_date: (b.pickup_date as string | null) ?? null,
+            pickup_time: (b.pickup_time as string | null) ?? null,
+            pickup_location: (b.pickup_location as string | null) ?? null,
+            drop_location: (b.drop_location as string | null) ?? null,
+            trip_type: (b.trip_type as string | null) ?? null,
+            total_days: (b.total_days as number | null) ?? null,
+            driver_id: (b.driver_id as string | null) ?? null,
+            status: b.status as string,
+          })),
+        }
+        await supabase.from('conversation_sessions').update({
+          extracted: { pending_action: updatedAction },
+          last_message_at: new Date().toISOString(),
+        }).eq('id', session.id)
+      }
     }
     return
   }

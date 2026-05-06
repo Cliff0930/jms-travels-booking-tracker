@@ -20,7 +20,7 @@ function localDate(offset = 0) {
 }
 
 export default function BookingsPage() {
-  const { data: bookings = [], isLoading, isError, error } = useBookings()
+  const { data: bookings = [], isLoading, isError } = useBookings()
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
@@ -193,9 +193,7 @@ export default function BookingsPage() {
               {isLoading ? (
                 <div className="py-12 text-center text-[#737686]">Loading…</div>
               ) : isError ? (
-                <div className="py-12 text-center text-red-500 text-sm">
-                  Failed to load bookings: {(error as Error)?.message || 'Unknown error'}
-                </div>
+                <div className="py-12 text-center text-[#737686] text-sm">Unable to load bookings. Please refresh the page.</div>
               ) : filtered.length === 0 ? (
                 <div className="py-12 text-center text-[#737686]">
                   {hasFilters ? (
