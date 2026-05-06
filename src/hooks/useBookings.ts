@@ -8,7 +8,7 @@ export function useBookings(filters?: { status?: BookingStatus; date?: string })
   if (filters?.date) params.set('date', filters.date)
   return useQuery<Booking[]>({
     queryKey: ['bookings', filters],
-    queryFn: () => fetch(`/api/bookings?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),
+    queryFn: () => fetch(`/api/bookings?${params}`).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || `HTTP ${r.status}`) } return r.json() }),
   })
 }
 
