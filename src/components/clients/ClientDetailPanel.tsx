@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil } from 'lucide-react'
+import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2 } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
@@ -54,6 +54,13 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   const [locKeyword, setLocKeyword] = useState('')
   const [locAddress, setLocAddress] = useState('')
   const [savingLocation, setSavingLocation] = useState(false)
+
+  // Edit location dialog
+  const [editingLocation, setEditingLocation] = useState<{ id: string; keyword: string; address: string } | null>(null)
+  const [editLocKeyword, setEditLocKeyword] = useState('')
+  const [editLocAddress, setEditLocAddress] = useState('')
+  const [savingEditLocation, setSavingEditLocation] = useState(false)
+  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(null)
 
   // Promote to client dialog
   const [showPromote, setShowPromote] = useState(false)
@@ -123,7 +130,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
         body: JSON.stringify({ value: contactValue.trim(), contact_type: contactType }),
       })
       if (!res.ok) throw new Error()
-      qc.invalidateQueries({ queryKey: ['clients', client!.id] })
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
       toast.success(`${contactType === 'phone' ? 'Phone' : 'Email'} added`)
       setContactValue('')
       setShowAddContact(false)
@@ -147,7 +154,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
         const err = await res.json()
         throw new Error(err.error || 'Failed')
       }
-      qc.invalidateQueries({ queryKey: ['clients', client!.id] })
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
       toast.success('Location saved')
       setLocKeyword('')
       setLocAddress('')
@@ -156,6 +163,49 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       toast.error(err instanceof Error ? err.message : 'Failed to save location')
     } finally {
       setSavingLocation(false)
+    }
+  }
+
+  function openEditLocation(loc: { id: string; keyword: string; address: string }) {
+    setEditingLocation(loc)
+    setEditLocKeyword(loc.keyword)
+    setEditLocAddress(loc.address)
+  }
+
+  async function handleEditLocation() {
+    if (!editingLocation || !editLocKeyword.trim() || !editLocAddress.trim()) return
+    setSavingEditLocation(true)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/locations/${editingLocation.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: editLocKeyword, address: editLocAddress }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed')
+      }
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      toast.success('Location updated')
+      setEditingLocation(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update location')
+    } finally {
+      setSavingEditLocation(false)
+    }
+  }
+
+  async function handleDeleteLocation(locationId: string) {
+    setDeletingLocationId(locationId)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/locations/${locationId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      toast.success('Location removed')
+    } catch {
+      toast.error('Failed to remove location')
+    } finally {
+      setDeletingLocationId(null)
     }
   }
 
@@ -275,11 +325,28 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
               ) : (
                 <div className="space-y-2">
                   {liveLocations.map(loc => (
-                    <div key={loc.id} className="flex items-start gap-2.5 text-sm">
+                    <div key={loc.id} className="flex items-start gap-2 text-sm group">
                       <MapPin className="w-4 h-4 text-[#737686] mt-0.5 shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="font-medium text-[#191B23] capitalize">{loc.keyword}</span>
                         <p className="text-xs text-[#434654] mt-0.5 break-words">{loc.address}</p>
+                      </div>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                        <button
+                          onClick={() => openEditLocation(loc)}
+                          className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-[#EBF5FF] transition-colors"
+                          title="Edit location"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLocation(loc.id)}
+                          disabled={deletingLocationId === loc.id}
+                          className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                          title="Delete location"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -492,6 +559,29 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             <Button variant="outline" onClick={() => { setShowAddLocation(false); setLocKeyword(''); setLocAddress('') }}>Cancel</Button>
             <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleAddLocation} disabled={savingLocation || !locKeyword.trim() || !locAddress.trim()}>
               {savingLocation ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Location ── */}
+      <Dialog open={!!editingLocation} onOpenChange={o => { if (!o) setEditingLocation(null) }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle>Edit Location</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1 block">Label</Label>
+              <Input value={editLocKeyword} onChange={e => setEditLocKeyword(e.target.value)} placeholder="e.g. Home, Office, Hotel" className="border-[#C3C5D7]" autoFocus />
+            </div>
+            <div>
+              <Label className="mb-1 block">Address</Label>
+              <Input value={editLocAddress} onChange={e => setEditLocAddress(e.target.value)} placeholder="Full address" className="border-[#C3C5D7]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingLocation(null)} disabled={savingEditLocation}>Cancel</Button>
+            <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleEditLocation} disabled={savingEditLocation || !editLocKeyword.trim() || !editLocAddress.trim()}>
+              {savingEditLocation ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
