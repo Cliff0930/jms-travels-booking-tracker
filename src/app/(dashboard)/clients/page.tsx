@@ -32,7 +32,7 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
 
-  const { data: clients = [], isLoading } = useClients(search || undefined)
+  const { data: clients = [], isLoading, isError } = useClients(search || undefined)
   const createClient = useCreateClient()
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ClientFormData>({
@@ -94,6 +94,8 @@ export default function ClientsPage() {
 
       {isLoading ? (
         <div className="py-12 text-center text-[#737686]">Loading clients…</div>
+      ) : isError ? (
+        <div className="py-12 text-center text-[#737686] text-sm">Unable to load clients. Please refresh the page.</div>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center text-[#737686]">No clients found</div>
       ) : (
