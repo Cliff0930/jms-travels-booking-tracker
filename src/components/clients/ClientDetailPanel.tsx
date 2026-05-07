@@ -358,13 +358,20 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
               </div>
             </section>
 
-            {/* Company */}
-            {(client.company || client.designation) && (
+            {/* Company / Guest origin */}
+            {(client.company || client.designation || client.guest_of_company) && (
               <>
                 <Separator />
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-2">Company</h3>
-                  {client.company && <p className="text-sm font-medium text-[#191B23]">{client.company.name}</p>}
+                  {client.client_type === 'guest' && client.guest_of_company ? (
+                    <div>
+                      <p className="text-xs text-[#737686] mb-0.5">Guest of</p>
+                      <p className="text-sm font-medium text-[#92400E]">{client.guest_of_company.name}</p>
+                    </div>
+                  ) : (
+                    client.company && <p className="text-sm font-medium text-[#191B23]">{client.company.name}</p>
+                  )}
                   {client.designation && <p className="text-xs text-[#434654] mt-0.5">{client.designation}</p>}
                 </section>
               </>
