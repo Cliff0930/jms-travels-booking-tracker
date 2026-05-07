@@ -351,6 +351,16 @@ create table if not exists user_profiles (
 
 grant all on user_profiles to postgres, anon, authenticated, service_role;
 
+-- ─── APP SETTINGS ────────────────────────────────────────────
+create table if not exists app_settings (
+  key         text primary key,
+  value       text not null,
+  updated_at  timestamptz default now()
+);
+grant all on app_settings to postgres, anon, authenticated, service_role;
+-- Seed Gmail historyId after running renew-gmail-watch for the first time:
+-- INSERT INTO app_settings (key, value) VALUES ('gmail_last_history_id', '<historyId from curl response>');
+
 -- ─── BOOTSTRAP FIRST ADMIN ───────────────────────────────────
 -- After running this schema, promote your account to admin:
 -- insert into user_profiles (id, email, name, role)
