@@ -99,73 +99,110 @@ export default function ClientsPage() {
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center text-[#737686]">No clients found</div>
       ) : (
-        <div className="bg-white rounded-lg border border-[#C3C5D7] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#C3C5D7] bg-[#F3F3FE]">
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Client</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden sm:table-cell">Company</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden md:table-cell">Contact</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(client => {
-                const initials = client.name.split(' ').map(n => n[0]).slice(0, 2).join('')
-                return (
-                  <tr
-                    key={client.id}
-                    className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE] cursor-pointer transition-colors"
-                    onClick={() => setSelectedClient(client)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${client.client_type === 'guest' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#D4DCFF] text-[#1A56DB]'}`}>
-                          {initials}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-[#191B23]">{client.name}</div>
-                          {client.is_vip && <span className="text-xs text-yellow-700">VIP</span>}
-                          {client.client_type === 'guest' && client.guest_of_company && (
-                            <div className="text-xs text-[#92400E]">Guest of {client.guest_of_company.name}</div>
-                          )}
-                        </div>
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {filtered.map(client => {
+              const initials = client.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+              const companyName = client.company?.name || (client.client_type === 'guest' && client.guest_of_company ? client.guest_of_company.name : null)
+              return (
+                <div
+                  key={client.id}
+                  className="bg-white rounded-xl border border-[#E5E7EB] px-4 py-3 flex items-center gap-3 cursor-pointer active:bg-[#F3F3FE] transition-colors"
+                  onClick={() => setSelectedClient(client)}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${client.client_type === 'guest' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#D4DCFF] text-[#1A56DB]'}`}>
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-sm font-semibold text-[#191B23] truncate">{client.name}</span>
+                      {client.is_vip && <span className="text-xs font-medium text-yellow-700 bg-yellow-50 px-1.5 rounded">VIP</span>}
+                    </div>
+                    {companyName && (
+                      <div className="text-xs text-[#737686] truncate">{client.client_type === 'guest' ? `Guest of ${companyName}` : companyName}</div>
+                    )}
+                    {(client.primary_phone || client.primary_email) && (
+                      <div className="text-xs text-[#9CA3AF] truncate mt-0.5">
+                        {client.primary_phone || client.primary_email}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="text-sm text-[#434654]">{client.company?.name || (client.client_type === 'guest' && client.guest_of_company ? client.guest_of_company.name : '—')}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="space-y-0.5">
-                        {client.primary_phone && (
-                          <div className="flex items-center gap-1 text-xs text-[#434654]">
-                            <Phone className="w-3 h-3" />{client.primary_phone}
+                    )}
+                  </div>
+                  <Badge variant="secondary" className="text-xs capitalize shrink-0">{client.client_type}</Badge>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Client</th>
+                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Company</th>
+                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden lg:table-cell">Contact</th>
+                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(client => {
+                  const initials = client.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                  return (
+                    <tr
+                      key={client.id}
+                      className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors"
+                      onClick={() => setSelectedClient(client)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${client.client_type === 'guest' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#D4DCFF] text-[#1A56DB]'}`}>
+                            {initials}
                           </div>
-                        )}
-                        {client.primary_email && (
-                          <div className="flex items-center gap-1 text-xs text-[#434654]">
-                            <Mail className="w-3 h-3" />{client.primary_email}
+                          <div>
+                            <div className="text-sm font-medium text-[#191B23]">{client.name}</div>
+                            {client.is_vip && <span className="text-xs text-yellow-700">VIP</span>}
+                            {client.client_type === 'guest' && client.guest_of_company && (
+                              <div className="text-xs text-[#92400E]">Guest of {client.guest_of_company.name}</div>
+                            )}
                           </div>
-                        )}
-                        {(client as Client & { contacts?: Array<{ value: string; contact_type: string }> }).contacts
-                          ?.slice(0, 2)
-                          .map((ct, i) => (
-                            <div key={i} className="flex items-center gap-1 text-xs text-[#9CA3AF]">
-                              {ct.contact_type === 'phone' ? <Phone className="w-3 h-3" /> : <Mail className="w-3 h-3" />}
-                              {ct.value}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-[#434654]">{client.company?.name || (client.client_type === 'guest' && client.guest_of_company ? client.guest_of_company.name : '—')}</span>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        <div className="space-y-0.5">
+                          {client.primary_phone && (
+                            <div className="flex items-center gap-1 text-xs text-[#434654]">
+                              <Phone className="w-3 h-3" />{client.primary_phone}
                             </div>
-                          ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary" className="text-xs capitalize">{client.client_type}</Badge>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                          )}
+                          {client.primary_email && (
+                            <div className="flex items-center gap-1 text-xs text-[#434654]">
+                              <Mail className="w-3 h-3" />{client.primary_email}
+                            </div>
+                          )}
+                          {(client as Client & { contacts?: Array<{ value: string; contact_type: string }> }).contacts
+                            ?.slice(0, 2)
+                            .map((ct, i) => (
+                              <div key={i} className="flex items-center gap-1 text-xs text-[#9CA3AF]">
+                                {ct.contact_type === 'phone' ? <Phone className="w-3 h-3" /> : <Mail className="w-3 h-3" />}
+                                {ct.value}
+                              </div>
+                            ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="secondary" className="text-xs capitalize">{client.client_type}</Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <ClientDetailPanel

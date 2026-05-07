@@ -2,17 +2,18 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Users, Car, MoreHorizontal, BarChart3, Settings, Building2, X, MessageSquare, ShieldCheck } from 'lucide-react'
+import { BookOpen, Users, LayoutDashboard, MoreHorizontal, BarChart3, Settings, Building2, Car, X, MessageSquare, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const PRIMARY_NAV = [
-  { href: '/bookings', label: 'Bookings', icon: BookOpen },
-  { href: '/clients',  label: 'Clients',  icon: Users },
-  { href: '/drivers',  label: 'Drivers',  icon: Car },
+  { href: '/',         label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/bookings', label: 'Bookings',  icon: BookOpen },
+  { href: '/clients',  label: 'Clients',   icon: Users },
 ]
 
 const MORE_NAV = [
+  { href: '/drivers',   label: 'Drivers',   icon: Car },
   { href: '/messages',  label: 'Messages',  icon: MessageSquare },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/reports',   label: 'Reports',   icon: BarChart3 },
@@ -30,7 +31,7 @@ export function MobileNav() {
   const { data: me } = useCurrentUser()
 
   const moreNav = me?.role === 'admin' ? ADMIN_MORE_NAV : MORE_NAV
-  const moreActive = moreNav.some(({ href }) => pathname.startsWith(href))
+  const moreActive = moreNav.some(({ href }) => pathname === href || pathname.startsWith(href + '/'))
 
   return (
     <>
@@ -63,8 +64,8 @@ export function MobileNav() {
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="grid grid-cols-4">
-          {PRIMARY_NAV.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname.startsWith(href)
+          {PRIMARY_NAV.map(({ href, label, icon: Icon, exact }) => {
+            const isActive = exact ? pathname === href : pathname.startsWith(href)
             return (
               <Link
                 key={href}

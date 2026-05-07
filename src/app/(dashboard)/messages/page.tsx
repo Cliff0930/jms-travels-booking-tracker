@@ -6,6 +6,7 @@ import {
   CheckCircle, XCircle, Clock, RefreshCw, X, User, Search,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -280,31 +281,29 @@ export default function MessagesPage() {
     return items
   })()
 
+  const description = isLoading
+    ? 'Loading…'
+    : selectedClient
+      ? `${visible.length} message${visible.length !== 1 ? 's' : ''} with ${selectedClient.name}`
+      : searchQuery || channelFilter !== 'all' || dirFilter !== 'all'
+        ? `${visible.length} of ${rows.length} messages`
+        : `${visible.length} message${visible.length !== 1 ? 's' : ''}`
+
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-[#191B23]">Message Log</h1>
-          <p className="text-sm text-[#737686] mt-0.5">
-            {isLoading
-              ? 'Loading…'
-              : selectedClient
-                ? `${visible.length} message${visible.length !== 1 ? 's' : ''} with ${selectedClient.name}`
-                : searchQuery || channelFilter !== 'all' || dirFilter !== 'all'
-                  ? `${visible.length} of ${rows.length} messages`
-                  : `${visible.length} message${visible.length !== 1 ? 's' : ''}`
-            }
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="p-2 rounded-lg border border-[#C3C5D7] bg-white hover:bg-[#F3F3FE] transition-colors"
-          title="Refresh"
-        >
-          <RefreshCw className="w-4 h-4 text-[#434654]" />
-        </button>
-      </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="Message Log"
+        description={description}
+        actions={
+          <button
+            onClick={() => refetch()}
+            className="p-2 rounded-lg border border-[#C3C5D7] bg-white hover:bg-[#F3F3FE] transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4 text-[#434654]" />
+          </button>
+        }
+      />
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-[#C3C5D7] p-3 space-y-3">

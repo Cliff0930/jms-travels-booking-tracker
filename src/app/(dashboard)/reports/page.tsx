@@ -138,47 +138,53 @@ export default function ReportsPage() {
       />
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-[#C3C5D7] p-4 mb-5">
-        <div className="flex items-end gap-3 flex-wrap">
-          <div>
-            <Label className="text-xs">From Date</Label>
-            <Input
-              type="date"
-              value={filters.date_from}
-              onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
-              className="border-[#C3C5D7] h-8 text-sm w-36"
-            />
+      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 mb-5 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {QUICK_RANGES.map(r => (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => setFilters(quickRange(r.key))}
+              className={`px-3 h-8 rounded-lg text-xs font-medium border transition-colors ${
+                filters.date_from === quickRange(r.key).date_from && filters.date_to === quickRange(r.key).date_to
+                  ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                  : 'border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB] hover:bg-[#EEF2FF]'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div>
+              <Label className="text-xs text-[#737686]">From</Label>
+              <Input
+                type="date"
+                value={filters.date_from}
+                onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
+                className="border-[#C3C5D7] h-8 text-sm w-36 mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-[#737686]">To</Label>
+              <Input
+                type="date"
+                value={filters.date_to}
+                onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
+                className="border-[#C3C5D7] h-8 text-sm w-36 mt-1"
+              />
+            </div>
           </div>
-          <div>
-            <Label className="text-xs">To Date</Label>
-            <Input
-              type="date"
-              value={filters.date_to}
-              onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
-              className="border-[#C3C5D7] h-8 text-sm w-36"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
-            {QUICK_RANGES.map(r => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setFilters(quickRange(r.key))}
-                className="px-2.5 py-1 rounded text-xs font-medium border border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB] hover:bg-[#EEF2FF] transition-colors"
-              >
-                {r.label}
-              </button>
-            ))}
-            {(filters.date_from || filters.date_to) && (
-              <button
-                type="button"
-                onClick={() => setFilters({ date_from: '', date_to: '' })}
-                className="px-2.5 py-1 rounded text-xs text-[#737686] hover:text-red-600 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+          {(filters.date_from || filters.date_to) && (
+            <button
+              type="button"
+              onClick={() => setFilters({ date_from: '', date_to: '' })}
+              className="text-xs text-[#737686] hover:text-red-600 transition-colors mt-4"
+            >
+              Clear dates
+            </button>
+          )}
         </div>
       </div>
 

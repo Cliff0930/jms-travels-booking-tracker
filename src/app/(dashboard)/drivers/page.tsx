@@ -106,18 +106,18 @@ export default function DriversPage() {
         }
       />
 
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="mb-5 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">
         <Tabs value={statusFilter} onValueChange={v => setStatusFilter(v as DriverStatus | 'all')}>
-          <TabsList className="bg-[#EDEDF8]">
-            <TabsTrigger value="all" className="text-xs data-[state=active]:bg-white">All</TabsTrigger>
-            <TabsTrigger value="available" className="text-xs data-[state=active]:bg-white">Available</TabsTrigger>
-            <TabsTrigger value="on_duty" className="text-xs data-[state=active]:bg-white">On Duty</TabsTrigger>
-            <TabsTrigger value="off_duty" className="text-xs data-[state=active]:bg-white">Off Duty</TabsTrigger>
+          <TabsList className="bg-[#EDEDF8] h-8">
+            <TabsTrigger value="all" className="text-xs h-7 data-[state=active]:bg-white">All</TabsTrigger>
+            <TabsTrigger value="available" className="text-xs h-7 data-[state=active]:bg-white">Available</TabsTrigger>
+            <TabsTrigger value="on_duty" className="text-xs h-7 data-[state=active]:bg-white">On Duty</TabsTrigger>
+            <TabsTrigger value="off_duty" className="text-xs h-7 data-[state=active]:bg-white">Off Duty</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <Select value={vehicleFilter} onValueChange={v => v !== null && setVehicleFilter(v)}>
-          <SelectTrigger className="w-40 h-8 text-xs border-[#C3C5D7]">
+          <SelectTrigger className="w-36 h-8 text-xs border-[#C3C5D7]">
             <SelectValue placeholder="All Vehicles" />
           </SelectTrigger>
           <SelectContent>

@@ -124,7 +124,7 @@ export default function SettingsPage() {
     <div className="max-w-3xl">
       <PageHeader title="Settings" />
       <Tabs defaultValue="general">
-        <TabsList className="bg-[#EDEDF8] mb-5">
+        <TabsList className="bg-[#EDEDF8] mb-5 h-auto flex-wrap">
           <TabsTrigger value="general" className="data-[state=active]:bg-white">General</TabsTrigger>
           <TabsTrigger value="templates" className="data-[state=active]:bg-white">Message Templates</TabsTrigger>
         </TabsList>
@@ -184,8 +184,8 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="templates">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-1">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-1">
               <div className="bg-white rounded-lg border border-[#C3C5D7] overflow-hidden">
                 {templates.map(t => (
                   <button
@@ -202,7 +202,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="lg:col-span-2">
               {editingTemplate ? (
                 <div className="space-y-4">
                   <form onSubmit={handleSaveTemplate} className="bg-white rounded-lg border border-[#C3C5D7] p-5 space-y-4">

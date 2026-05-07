@@ -4,73 +4,102 @@ import { useBookings, useConfirmBooking, useCancelBooking } from '@/hooks/useBoo
 import { StatCards } from '@/components/dashboard/StatCards'
 import { BookingCard } from '@/components/dashboard/BookingCard'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
+
+function OpsSection({
+  title,
+  count,
+  emptyText,
+  viewHref,
+  children,
+}: {
+  title: string
+  count: number
+  emptyText: string
+  viewHref: string
+  children: React.ReactNode
+}) {
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[#737686]">{title}</h2>
+          {count > 0 && (
+            <span className="text-[11px] font-semibold bg-[#EDEDF8] text-[#434654] px-2 py-0.5 rounded-full">
+              {count}
+            </span>
+          )}
+        </div>
+        <ButtonLink
+          href={viewHref}
+          variant="ghost"
+          size="sm"
+          className="text-xs text-[#1A56DB] gap-1 h-7 px-2"
+        >
+          View all <ArrowRight className="w-3 h-3" />
+        </ButtonLink>
+      </div>
+      {count === 0 ? (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] px-4 py-6 text-center text-sm text-[#9CA3AF]">
+          {emptyText}
+        </div>
+      ) : (
+        <div className="space-y-3">{children}</div>
+      )}
+    </section>
+  )
+}
 
 export default function DashboardPage() {
   const { data: bookings = [], isLoading, refetch } = useBookings()
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
-
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
+
+  const today = new Date().toLocaleDateString('en-CA')
 
   const stats = {
     active: bookings.filter(b => b.status === 'in_progress').length,
     pending: bookings.filter(b => b.status === 'pending_approval').length,
-    completedToday: bookings.filter(b => b.status === 'completed').length,
+    completedToday: bookings.filter(b => b.status === 'completed' && b.pickup_date === today).length,
     flagged: bookings.filter(b => b.flags?.length > 0).length,
   }
 
-  const TABS = [
-    { value: 'all',     label: 'All',            items: bookings },
-    { value: 'draft',   label: 'Draft',          items: bookings.filter(b => b.status === 'draft') },
-    { value: 'pending', label: 'Pending',         items: bookings.filter(b => b.status === 'pending_approval') },
-    { value: 'confirmed', label: 'Confirmed',     items: bookings.filter(b => b.status === 'confirmed') },
-    { value: 'progress', label: 'In Progress',   items: bookings.filter(b => b.status === 'in_progress') },
-    { value: 'done',    label: 'Completed',       items: bookings.filter(b => b.status === 'completed') },
-    { value: 'cancelled', label: 'Cancelled',    items: bookings.filter(b => b.status === 'cancelled') },
-  ]
+  const inProgress = bookings.filter(b => b.status === 'in_progress')
+  const needsAction = bookings.filter(b => b.status === 'pending_approval' || b.status === 'draft')
+  const todayTrips = bookings.filter(
+    b => b.pickup_date === today && b.status === 'confirmed'
+  )
 
-  async function handleConfirm(id: string) {
-    try {
-      await confirmBooking.mutateAsync(id)
-      toast.success('Booking confirmed')
-    } catch {
-      toast.error('Failed to confirm booking')
-    }
-  }
-
-  async function handleCancel(reason: string) {
-    if (!cancelTarget) return
-    try {
-      await cancelBooking.mutateAsync({ id: cancelTarget, reason })
-      toast.success('Booking cancelled')
-    } catch {
-      toast.error('Failed to cancel booking')
-    } finally {
-      setCancelTarget(null)
-    }
+  const shared = {
+    onConfirm: async (id: string) => {
+      try { await confirmBooking.mutateAsync(id); toast.success('Booking confirmed') }
+      catch { toast.error('Failed to confirm booking') }
+    },
+    onCancel: (id: string) => setCancelTarget(id),
+    onAssign: (b: Booking) => setAssignTarget(b),
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Dashboard"
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 rounded-sm">
               <RefreshCw className="w-3.5 h-3.5" />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             <ButtonLink href="/bookings/new" size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5">
-              <Plus className="w-4 h-4" /> New Booking
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New Booking</span>
             </ButtonLink>
           </div>
         }
@@ -78,38 +107,40 @@ export default function DashboardPage() {
 
       <StatCards stats={stats} />
 
-      <Tabs defaultValue="all">
-        <TabsList className="mb-4 bg-[#EDEDF8]">
-          {TABS.map(t => (
-            <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs">
-              {t.label}
-              <span className="ml-1.5 text-[#737686]">({t.items.length})</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {isLoading ? (
+        <div className="py-16 text-center text-[#737686] text-sm">Loading…</div>
+      ) : (
+        <div className="space-y-6">
+          {inProgress.length > 0 && (
+            <OpsSection
+              title="In Progress"
+              count={inProgress.length}
+              emptyText=""
+              viewHref="/bookings"
+            >
+              {inProgress.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            </OpsSection>
+          )}
 
-        {TABS.map(t => (
-          <TabsContent key={t.value} value={t.value}>
-            {isLoading ? (
-              <div className="py-12 text-center text-[#737686]">Loading bookings…</div>
-            ) : t.items.length === 0 ? (
-              <div className="py-12 text-center text-[#737686]">No bookings in this category</div>
-            ) : (
-              <div className="space-y-3">
-                {t.items.map(booking => (
-                  <BookingCard
-                    key={booking.id}
-                    booking={booking}
-                    onConfirm={handleConfirm}
-                    onCancel={id => setCancelTarget(id)}
-                    onAssign={setAssignTarget}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+          <OpsSection
+            title="Needs Action"
+            count={needsAction.length}
+            emptyText="No pending approvals or drafts"
+            viewHref="/bookings"
+          >
+            {needsAction.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection
+            title="Today's Confirmed Pickups"
+            count={todayTrips.length}
+            emptyText="No confirmed pickups today"
+            viewHref="/bookings"
+          >
+            {todayTrips.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!cancelTarget}
@@ -118,7 +149,13 @@ export default function DashboardPage() {
         description="Are you sure you want to cancel this booking? This action cannot be undone."
         confirmLabel="Cancel Booking"
         variant="destructive"
-        onConfirm={() => handleCancel('Operator cancelled')}
+        onConfirm={async () => {
+          if (cancelTarget) {
+            await cancelBooking.mutateAsync({ id: cancelTarget, reason: 'Operator cancelled' })
+            toast.success('Booking cancelled')
+            setCancelTarget(null)
+          }
+        }}
         loading={cancelBooking.isPending}
       />
 
