@@ -75,7 +75,7 @@ async function logOutbound(
 }
 
 export async function POST(request: Request) {
-  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, skip_auto_reply } = await request.json()
+  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, skip_auto_reply, skip_approval } = await request.json()
   let client = clientFromReq
   const supabase = createAdminClient()
 
@@ -226,8 +226,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, booking_id: booking.id, missing: extraction.missing_mandatory })
       }
 
-      // Check if approval required
-      if ((client as Client)?.company_id) {
+      // Check if approval required (skip if sender is a whitelisted direct booking address)
+      if (!skip_approval && (client as Client)?.company_id) {
         const { data: company } = await supabase
           .from('companies')
           .select('*')

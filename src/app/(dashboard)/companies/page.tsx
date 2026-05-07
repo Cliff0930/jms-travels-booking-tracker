@@ -19,6 +19,52 @@ function useCompanies() {
   return useQuery<Company[]>({ queryKey: ['companies'], queryFn: () => fetch('/api/companies').then(r => r.json()) })
 }
 
+function DirectEmailPicker({ emails, onSave }: { emails: string[]; onSave: (list: string[]) => void }) {
+  const [input, setInput] = useState('')
+
+  function add() {
+    const val = input.trim().toLowerCase()
+    if (!val || emails.includes(val)) { setInput(''); return }
+    onSave([...emails, val])
+    setInput('')
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder="travel@company.com"
+          type="email"
+          className="flex-1 px-3 h-8 text-xs border border-[#C3C5D7] rounded-md outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF]"
+        />
+        <Button size="sm" variant="outline" className="h-8 px-3 text-xs rounded-sm" onClick={add} disabled={!input.trim()}>
+          Add
+        </Button>
+      </div>
+      {emails.length === 0 ? (
+        <p className="text-xs text-[#737686]">No direct booking emails yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {emails.map(e => (
+            <div key={e} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-[#F3F3FE] border border-[#C3C5D7]">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Mail className="w-3 h-3 text-[#737686] shrink-0" />
+                <span className="text-xs text-[#434654] truncate">{e}</span>
+              </div>
+              <button onClick={() => onSave(emails.filter(x => x !== e))} className="text-[#737686] hover:text-red-500 shrink-0">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ClientExclusionPicker({
   companyId,
   exclusions,
@@ -534,6 +580,82 @@ export default function CompaniesPage() {
                   ) : (
                     <p className="text-sm text-[#737686]">None configured</p>
                   )}
+                </section>
+
+                <Separator />
+
+                <Separator />
+
+                {/* Email Intake Rules */}
+                <section>
+                  <h3 className="text-label-caps text-[#737686] mb-3">Email Intake Rules</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm mb-1.5 block">Capture emails from</Label>
+                      <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
+                        {([
+                          { val: 'domain',           label: 'All senders' },
+                          { val: 'specific_senders', label: 'Specific senders' },
+                          { val: 'off',              label: 'Off' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.val}
+                            onClick={() => updateCompany(selectedCompany.id, { email_intake_mode: opt.val })}
+                            className={`flex-1 h-8 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
+                              (selectedCompany.email_intake_mode || 'domain') === opt.val
+                                ? 'bg-[#1A56DB] text-white'
+                                : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      {(selectedCompany.email_intake_mode || 'domain') === 'off' && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+                          Emails from this company&apos;s domains will be ignored.
+                        </p>
+                      )}
+                    </div>
+
+                    {(selectedCompany.email_intake_mode === 'specific_senders') && (
+                      <div>
+                        <Label className="text-sm mb-1.5 block">Direct booking emails</Label>
+                        <p className="text-xs text-[#737686] mb-2">Only these addresses can submit bookings. They skip the approval step.</p>
+                        <DirectEmailPicker
+                          emails={selectedCompany.direct_booking_emails ?? []}
+                          onSave={list => updateCompany(selectedCompany.id, { direct_booking_emails: list })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <Separator />
+
+                {/* Driver Notification */}
+                <section>
+                  <h3 className="text-label-caps text-[#737686] mb-1">Driver Details — Notify</h3>
+                  <p className="text-xs text-[#737686] mb-3">Who receives the driver&apos;s name, phone and vehicle details when a trip is assigned.</p>
+                  <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
+                    {([
+                      { val: 'booker', label: 'Booker only' },
+                      { val: 'guest',  label: 'Guest only' },
+                      { val: 'both',   label: 'Both' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.val}
+                        onClick={() => updateCompany(selectedCompany.id, { driver_notify_target: opt.val })}
+                        className={`flex-1 h-8 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
+                          (selectedCompany.driver_notify_target || 'both') === opt.val
+                            ? 'bg-[#1A56DB] text-white'
+                            : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </section>
 
                 <Separator />

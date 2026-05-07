@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
+import { sendEmail } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import type { Client } from '@/types'
 
@@ -92,11 +93,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  // Send driver details to guest + admin (deduped)
+  // Send driver details — respects company driver_notify_target setting
   if (driver) {
     const client = booking.client as Client & { primary_email?: string } | null
+
+    // Fetch company notification preference
+    let notifyTarget = 'both'
+    if (booking.company_id) {
+      const { data: co } = await supabase.from('companies').select('driver_notify_target').eq('id', booking.company_id).single()
+      if (co?.driver_notify_target) notifyTarget = co.driver_notify_target
+    }
+
     const guestPhone = booking.guest_phone || null
-    const adminPhone = client?.primary_phone || null
+    const bookerPhone = client?.primary_phone || null
+    const bookerEmail = client?.primary_email || null
     const clientName = booking.guest_name || client?.name || 'there'
 
     if (booking.pickup_date && booking.pickup_time) {
@@ -108,7 +118,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
 
-      const clientBody = [
+      const driverBody = [
         `Hi ${clientName}, your driver has been assigned for booking ${booking.booking_ref}.`,
         ``,
         `Driver: ${driver.name}`,
@@ -121,11 +131,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         `Please contact the driver directly if needed. — JMS Travels`,
       ].filter(l => l !== null).join('\n')
 
-      await sendToAll([guestPhone, adminPhone], clientBody, {
+      // WhatsApp — send to guest, booker, or both
+      const waRecipients: (string | null)[] =
+        notifyTarget === 'guest'  ? [guestPhone] :
+        notifyTarget === 'booker' ? [bookerPhone] :
+        [guestPhone, bookerPhone]
+
+      await sendToAll(waRecipients, driverBody, {
         booking_id: id,
         client_id: client?.id || undefined,
         template_used: 'driver_details_to_client',
       }).catch(e => console.error('Driver details WA error:', e))
+
+      // Email — send to booker when target is booker or both
+      if (bookerEmail && notifyTarget !== 'guest') {
+        await sendEmail({
+          to: bookerEmail,
+          subject: `Driver Assigned — ${booking.booking_ref}`,
+          body: driverBody,
+        }).catch(e => console.error('Driver details email error:', e))
+
+        await supabase.from('message_logs').insert({
+          booking_id: id,
+          client_id: client?.id || null,
+          channel: 'email',
+          direction: 'outbound',
+          recipient: bookerEmail,
+          content: driverBody,
+          template_used: 'driver_details_to_client',
+          status: 'sent',
+        })
+      }
     }
   }
 

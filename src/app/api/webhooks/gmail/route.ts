@@ -91,6 +91,36 @@ export async function POST(request: Request) {
       const handled = await handleApprovalReply(supabase, rawContent, null, senderEmail)
       if (handled) continue
 
+      // Apply per-company email intake rules based on sender domain
+      const senderDomain = senderEmail.split('@')[1]?.toLowerCase()
+      let skipApproval = false
+
+      if (senderDomain) {
+        const { data: domainCompanies } = await supabase
+          .from('companies')
+          .select('id, email_intake_mode, direct_booking_emails, email_domains')
+          .contains('email_domains', [senderDomain])
+          .limit(1)
+
+        const matchedCompany = domainCompanies?.[0]
+        if (matchedCompany) {
+          const mode = matchedCompany.email_intake_mode || 'domain'
+          if (mode === 'off') {
+            console.log('[gmail-webhook] skipping — email_intake_mode is off for domain:', senderDomain)
+            continue
+          }
+          if (mode === 'specific_senders') {
+            const allowed: string[] = matchedCompany.direct_booking_emails || []
+            if (!allowed.includes(senderEmail)) {
+              console.log('[gmail-webhook] skipping — sender not in direct_booking_emails:', senderEmail)
+              continue
+            }
+            skipApproval = true
+            console.log('[gmail-webhook] direct sender matched — skip_approval=true')
+          }
+        }
+      }
+
       const { data: rawMsg } = await supabase
         .from('raw_messages')
         .insert({
@@ -115,7 +145,7 @@ export async function POST(request: Request) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName }),
+        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, skip_auto_reply: false, skip_approval: skipApproval }),
       })
     }
   } catch (err) {

@@ -32,6 +32,9 @@ export interface Company {
   approval_timeout_hours: number
   approval_exclusions: string[]
   digest_mode: boolean
+  email_intake_mode: 'domain' | 'specific_senders' | 'off'
+  direct_booking_emails: string[]
+  driver_notify_target: 'booker' | 'guest' | 'both'
   created_at: string
   updated_at: string
 }
