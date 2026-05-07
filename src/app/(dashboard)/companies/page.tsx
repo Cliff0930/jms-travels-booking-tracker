@@ -340,10 +340,13 @@ export default function CompaniesPage() {
 
                   {/* Unified list */}
                   {(() => {
+                    // Classify by client_type, not by which query returned them.
+                    // Deduplicate by id in case someone appears in both lists (e.g. guest with company_id set).
+                    const seen = new Set<string>()
                     const allPeople = [
-                      ...companyClients.map(c => ({ ...c, _role: 'employee' as const })),
+                      ...companyClients.map(c => ({ ...c, _role: c.client_type === 'guest' ? 'guest' as const : 'employee' as const })),
                       ...companyGuests.map(c => ({ ...c, _role: 'guest' as const })),
-                    ]
+                    ].filter(p => seen.has(p.id) ? false : (seen.add(p.id), true))
                     const q = peopleSearch.toLowerCase()
                     const visible = allPeople.filter(p => {
                       if (peopleFilter === 'employee' && p._role !== 'employee') return false
