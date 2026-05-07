@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
-import { useUpdateClient } from '@/hooks/useClients'
+import { useClient, useUpdateClient } from '@/hooks/useClients'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { formatBookingDateTime } from '@/lib/utils/date'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ type ClientWithExtras = Client & {
 export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelProps) {
   const qc = useQueryClient()
   const { data: clientBookings = [] } = useClientBookings(client?.id)
+  const { data: fullClient } = useClient(client?.id ?? '')
   const updateClient = useUpdateClient()
 
   // Booking tab
@@ -66,14 +67,16 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
   if (!client) return null
 
-  const c = client as ClientWithExtras
+  // Use fullClient (detail endpoint) for contacts/locations — prop only has list-level data
+  const liveContacts = (fullClient as ClientWithExtras | undefined)?.contacts ?? []
+  const liveLocations = (fullClient as ClientWithExtras | undefined)?.locations ?? []
   const initials = client.name.split(' ').map(n => n[0]).slice(0, 2).join('')
 
-  const visibleBookings = clientBookings.filter((b: Booking) => {
-    if (bookingTab === 'company') return b.booking_type === 'company'
-    if (bookingTab === 'personal') return b.booking_type === 'personal'
-    return true
-  })
+  const companyBookings  = clientBookings.filter((b: Booking) => b.booking_type === 'company')
+  const personalBookings = clientBookings.filter((b: Booking) => b.booking_type === 'personal')
+  const visibleBookings  = bookingTab === 'company' ? companyBookings
+                         : bookingTab === 'personal' ? personalBookings
+                         : clientBookings
 
   function openEdit() {
     setEditForm({
@@ -226,7 +229,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <span className="text-xs text-[#9CA3AF] shrink-0">primary</span>
                   </a>
                 )}
-                {c.contacts?.map(ct => (
+                {liveContacts.map(ct => (
                   <div key={ct.id} className="flex items-center gap-2.5 text-sm text-[#434654] min-w-0">
                     {ct.contact_type === 'phone'
                       ? <Phone className="w-4 h-4 text-[#737686] shrink-0" />
@@ -235,7 +238,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <span className="text-xs text-[#737686] shrink-0">({ct.role})</span>
                   </div>
                 ))}
-                {!client.primary_phone && !client.primary_email && !c.contacts?.length && (
+                {!client.primary_phone && !client.primary_email && !liveContacts.length && (
                   <p className="text-xs text-[#737686]">No contacts on file</p>
                 )}
               </div>
@@ -267,11 +270,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                   <Plus className="w-3 h-3" /> Add
                 </Button>
               </div>
-              {!c.locations?.length ? (
+              {!liveLocations.length ? (
                 <p className="text-xs text-[#737686]">No saved locations</p>
               ) : (
                 <div className="space-y-2">
-                  {c.locations.map(loc => (
+                  {liveLocations.map(loc => (
                     <div key={loc.id} className="flex items-start gap-2.5 text-sm">
                       <MapPin className="w-4 h-4 text-[#737686] mt-0.5 shrink-0" />
                       <div className="min-w-0">
@@ -294,15 +297,19 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                 </h3>
                 {/* Booking type tabs */}
                 <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-[10px]">
-                  {(['all', 'company', 'personal'] as const).map(tab => (
+                  {([
+                    { key: 'all',      label: 'All',      count: clientBookings.length },
+                    { key: 'company',  label: 'Company',  count: companyBookings.length },
+                    { key: 'personal', label: 'Personal', count: personalBookings.length },
+                  ] as const).map(tab => (
                     <button
-                      key={tab}
-                      onClick={() => setBookingTab(tab)}
-                      className={`px-2.5 h-6 capitalize border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
-                        bookingTab === tab ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                      key={tab.key}
+                      onClick={() => setBookingTab(tab.key)}
+                      className={`px-2.5 h-6 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
+                        bookingTab === tab.key ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
                       }`}
                     >
-                      {tab}
+                      {tab.label} ({tab.count})
                     </button>
                   ))}
                 </div>
@@ -322,7 +329,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-medium text-[#191B23] group-hover:text-[#1A56DB]">{b.booking_ref}</span>
-                          {b.booking_type && (
+                          {b.booking_type ? (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                               b.booking_type === 'company'
                                 ? 'bg-[#EBF5FF] text-[#1A56DB]'
@@ -330,6 +337,8 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                             }`}>
                               {b.booking_type}
                             </span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F3F4F6] text-[#9CA3AF]">unclassified</span>
                           )}
                         </div>
                         <div className="text-xs text-[#737686] mt-0.5 truncate">

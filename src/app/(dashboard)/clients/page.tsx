@@ -147,6 +147,14 @@ export default function ClientsPage() {
                             <Mail className="w-3 h-3" />{client.primary_email}
                           </div>
                         )}
+                        {(client as Client & { contacts?: Array<{ value: string; contact_type: string }> }).contacts
+                          ?.slice(0, 2)
+                          .map((ct, i) => (
+                            <div key={i} className="flex items-center gap-1 text-xs text-[#9CA3AF]">
+                              {ct.contact_type === 'phone' ? <Phone className="w-3 h-3" /> : <Mail className="w-3 h-3" />}
+                              {ct.value}
+                            </div>
+                          ))}
                       </div>
                     </td>
                     <td className="px-4 py-3">

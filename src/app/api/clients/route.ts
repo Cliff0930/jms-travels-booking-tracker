@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('clients')
-    .select('*, company:companies!company_id(id, name), guest_of_company:companies!guest_of_company_id(id, name)')
+    .select('*, company:companies!company_id(id, name), guest_of_company:companies!guest_of_company_id(id, name), contacts:client_contacts(id, value, contact_type, role)')
     .order('name')
 
   if (q) {
