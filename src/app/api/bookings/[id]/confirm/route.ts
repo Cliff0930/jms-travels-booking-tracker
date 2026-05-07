@@ -73,15 +73,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const clientName = booking.guest_name || client?.name || 'there'
 
-    // Build dynamic body — only include fields that have values
     const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
-    const lines: string[] = [
-      `Hi ${clientName}, your booking is confirmed.`,
-      ``,
-      `Ref: ${booking.booking_ref}`,
-      `Pickup: ${booking.pickup_location || 'TBD'}`,
-    ]
-    if (booking.drop_location) lines.push(`Drop: ${booking.drop_location}`)
     const dateFormatted = booking.pickup_date
       ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
       : 'TBD'
@@ -91,15 +83,31 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       const ampm = hh >= 12 ? 'PM' : 'AM'
       return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
     })()
-    lines.push(`Date: ${dateFormatted}`)
-    lines.push(`Time: ${timeFormatted}`)
-    lines.push(`Trip: ${tripTypeLabel[booking.trip_type] ?? booking.trip_type}`)
-    if (booking.total_days > 1) lines.push(`Days: ${booking.total_days}`)
-    if (booking.pax_count) lines.push(`Passengers: ${booking.pax_count}`)
-    if (booking.vehicle_type) lines.push(`Vehicle: ${booking.vehicle_type}`)
-    if (booking.special_instructions) lines.push(`Notes: ${booking.special_instructions}`)
-    lines.push(``, `We will share your driver details once assigned. Thank you!`, ``, `JMS Travels Team`)
-    const body = lines.join('\n')
+
+    const detailLines = [
+      `Booking Reference : ${booking.booking_ref}`,
+      `Pickup            : ${booking.pickup_location || 'TBD'}`,
+      booking.drop_location ? `Drop              : ${booking.drop_location}` : null,
+      `Date              : ${dateFormatted}`,
+      `Time              : ${timeFormatted}`,
+      `Trip Type         : ${tripTypeLabel[booking.trip_type] ?? booking.trip_type}`,
+      booking.total_days > 1 ? `Duration          : ${booking.total_days} days` : null,
+      booking.pax_count ? `Passengers        : ${booking.pax_count}` : null,
+      booking.vehicle_type ? `Vehicle           : ${booking.vehicle_type}` : null,
+      booking.special_instructions ? `Special Note      : ${booking.special_instructions}` : null,
+    ].filter(Boolean).join('\n')
+
+    const body = [
+      `Dear ${clientName},`,
+      ``,
+      `We are delighted to confirm your booking with JMS Travels. Please find the details of your reservation below.`,
+      ``,
+      detailLines,
+      ``,
+      `Our team will send you your driver's details once they have been assigned. Should you have any questions or need to make changes to your booking, please do not hesitate to contact us.`,
+      ``,
+      `Thank you for choosing JMS Travels. We look forward to serving you.`,
+    ].join('\n')
 
     // Send to guest + admin (deduped — if same phone, sends once)
     const guestPhone = booking.guest_phone || null

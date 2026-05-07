@@ -118,18 +118,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
 
+      const driverDetails = [
+        `Driver Name : ${driver.name}`,
+        `Contact     : ${driver.phone}`,
+        vehicleLine ? `Vehicle     : ${vehicleLine}` : null,
+        driver.vehicle_number ? `Plate No.   : ${driver.vehicle_number}` : null,
+      ].filter(Boolean).join('\n')
+
       const driverBody = [
-        `Hi ${clientName}, your driver has been assigned for booking ${booking.booking_ref}.`,
+        `Dear ${clientName},`,
         ``,
-        `Driver: ${driver.name}`,
-        `Phone: ${driver.phone}`,
-        vehicleLine ? `Vehicle: ${vehicleLine}` : null,
-        driver.vehicle_number ? `Plate: ${driver.vehicle_number}` : null,
+        `We are pleased to inform you that a driver has been assigned for your upcoming trip (Ref: ${booking.booking_ref}).`,
         ``,
-        `Your pickup is on ${dateStr} at ${timeStr} from ${booking.pickup_location || 'your pickup point'}.`,
+        `Driver Details`,
+        `──────────────`,
+        driverDetails,
         ``,
-        `Please contact the driver directly if needed. — JMS Travels`,
-      ].filter(l => l !== null).join('\n')
+        `Your pickup is scheduled for ${dateStr} at ${timeStr} from ${booking.pickup_location || 'your confirmed pickup point'}.`,
+        ``,
+        `Please feel free to contact your driver directly for any assistance. For any other queries, we are always happy to help.`,
+      ].join('\n')
 
       // WhatsApp — send to guest, booker, or both
       const waRecipients: (string | null)[] =
