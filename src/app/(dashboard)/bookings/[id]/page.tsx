@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus } from 'lucide-react'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -77,6 +77,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showApproveByCall, setShowApproveByCall] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('Client Request')
+  const [savingGuest, setSavingGuest] = useState(false)
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -213,6 +214,41 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.error('Failed to update change request')
     } finally {
       setApplyingLog(null)
+    }
+  }
+
+  async function handleSaveGuest() {
+    if (!booking || !booking.guest_name) return
+    setSavingGuest(true)
+    try {
+      const clientRes = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: booking.guest_name,
+          primary_phone: booking.guest_phone || null,
+          client_type: 'guest',
+          company_id: booking.company_id || null,
+          guest_of_company_id: booking.company_id || null,
+        }),
+      })
+      if (!clientRes.ok) throw new Error('Failed to create guest record')
+      const newClient = await clientRes.json()
+
+      const newFlags = (booking.flags || []).filter((f: string) => f !== 'guest_booking')
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: newClient.id, flags: newFlags }),
+      })
+
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      toast.success(`${booking.guest_name} saved to Guest Directory`)
+    } catch {
+      toast.error('Failed to save guest')
+    } finally {
+      setSavingGuest(false)
     }
   }
 
@@ -484,7 +520,19 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <div className="font-medium text-[#191B23]">{clientName}</div>
                 {booking.company && <div className="text-sm text-[#434654]">{booking.company.name}</div>}
                 {booking.flags?.includes('guest_booking') && (
-                  <span className="text-xs text-amber-600">Guest booking — not linked to a client account</span>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-amber-600">Not linked to a client account</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2 rounded-sm text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
+                      onClick={handleSaveGuest}
+                      disabled={savingGuest}
+                    >
+                      <UserPlus className="w-3 h-3 mr-1" />
+                      {savingGuest ? 'Saving…' : 'Save to Guest Directory'}
+                    </Button>
+                  </div>
                 )}
                 {booking.guest_phone && (
                   <div className="flex items-center gap-1 text-xs text-[#737686] mt-0.5">

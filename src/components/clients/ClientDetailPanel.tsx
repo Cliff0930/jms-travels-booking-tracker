@@ -1,14 +1,20 @@
 'use client'
+import { useState } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Phone, Mail, MapPin, Plus, X } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Phone, Mail, MapPin, Plus, X, UserCheck } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
+import { useUpdateClient } from '@/hooks/useClients'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { formatBookingDateTime } from '@/lib/utils/date'
-import type { Client } from '@/types'
+import { toast } from 'sonner'
+import type { Client, ClientType } from '@/types'
 
 interface ClientDetailPanelProps {
   client: Client | null
@@ -18,6 +24,9 @@ interface ClientDetailPanelProps {
 
 export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelProps) {
   const { data: clientBookings = [] } = useClientBookings(client?.id)
+  const updateClient = useUpdateClient()
+  const [showPromote, setShowPromote] = useState(false)
+  const [promoteType, setPromoteType] = useState<'corporate' | 'walkin'>('corporate')
 
   if (!client) return null
   const initials = client.name.split(' ').map(n => n[0]).slice(0, 2).join('')
@@ -28,7 +37,19 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
   const recentBookings = clientBookings.slice(0, 5)
 
+  async function handlePromote() {
+    if (!client) return
+    try {
+      await updateClient.mutateAsync({ id: client.id, data: { client_type: promoteType as ClientType } })
+      toast.success(`${client.name} promoted to ${promoteType} client`)
+      setShowPromote(false)
+    } catch {
+      toast.error('Failed to promote client')
+    }
+  }
+
   return (
+    <>
     <Sheet open={open} onOpenChange={o => !o && onClose()}>
       <SheetContent className="w-full sm:w-[440px] px-6 py-0 gap-0" showCloseButton={false}>
         {/* Sticky Header */}
@@ -45,6 +66,9 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                   {client.is_verified && <Badge className="bg-green-100 text-green-700 text-xs">Verified</Badge>}
                   {client.is_vip && <Badge className="bg-yellow-100 text-yellow-700 text-xs">VIP</Badge>}
                 </div>
+                {client.client_type === 'guest' && client.guest_of_company && (
+                  <p className="text-xs text-[#92400E] mt-1">Guest of {client.guest_of_company.name}</p>
+                )}
               </div>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onClose} className="shrink-0 mt-0.5 text-[#737686] hover:text-[#191B23]">
@@ -156,7 +180,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
         </div>
 
         {/* Sticky Footer */}
-        <div className="flex-shrink-0 py-4 border-t border-[#EEEEF5] flex gap-2">
+        <div className="flex-shrink-0 py-4 border-t border-[#EEEEF5] flex gap-2 flex-wrap">
           <ButtonLink
             href={`/bookings/new?client_id=${client.id}`}
             size="sm"
@@ -164,9 +188,59 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
           >
             Book Cab
           </ButtonLink>
+          {client.client_type === 'guest' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-sm text-xs px-3 text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
+              onClick={() => setShowPromote(true)}
+            >
+              <UserCheck className="w-3.5 h-3.5 mr-1" /> Promote to Client
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="rounded-sm text-xs px-5">Edit</Button>
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Promote to Client dialog */}
+    <Dialog open={showPromote} onOpenChange={setShowPromote}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Promote {client.name} to Client</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {client.guest_of_company && (
+            <p className="text-sm text-[#737686]">
+              Originally a guest of <span className="font-medium text-[#434654]">{client.guest_of_company.name}</span>. This history is preserved.
+            </p>
+          )}
+          <div>
+            <Label className="mb-1 block">Client Type *</Label>
+            <Select value={promoteType} onValueChange={v => v && setPromoteType(v as 'corporate' | 'walkin')}>
+              <SelectTrigger className="border-[#C3C5D7]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="corporate">Corporate</SelectItem>
+                <SelectItem value="walkin">Walk-in</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-[#737686]">You can update their company and contact details after promoting.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowPromote(false)}>Cancel</Button>
+          <Button
+            className="bg-[#7E3AF2] hover:bg-[#6C2BD9] rounded-sm"
+            onClick={handlePromote}
+            disabled={updateClient.isPending}
+          >
+            {updateClient.isPending ? 'Promoting…' : 'Promote'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

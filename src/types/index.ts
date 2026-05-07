@@ -39,6 +39,7 @@ export interface Company {
 export interface Client {
   id: string
   company_id: string | null
+  guest_of_company_id: string | null
   name: string
   primary_phone: string | null
   primary_email: string | null
@@ -53,6 +54,7 @@ export interface Client {
   created_at: string
   updated_at: string
   company?: Company
+  guest_of_company?: { id: string; name: string }
 }
 
 export interface ClientContact {

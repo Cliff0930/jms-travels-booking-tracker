@@ -25,6 +25,7 @@ create table companies (
 create table clients (
   id                  uuid primary key default uuid_generate_v4(),
   company_id          uuid references companies(id),
+  guest_of_company_id uuid references companies(id),
   name                text not null,
   primary_phone       text,
   primary_email       text,
@@ -39,6 +40,7 @@ create table clients (
   created_at          timestamptz default now(),
   updated_at          timestamptz default now()
 );
+-- To apply to existing DB: ALTER TABLE clients ADD COLUMN IF NOT EXISTS guest_of_company_id uuid references companies(id);
 
 -- ─── CLIENT CONTACTS ──────────────────────────────────────────
 create table client_contacts (

@@ -87,6 +87,7 @@ export default function ClientsPage() {
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="corporate">Corporate</SelectItem>
             <SelectItem value="walkin">Walk-in</SelectItem>
+            <SelectItem value="guest">Guest</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -117,17 +118,20 @@ export default function ClientsPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${client.client_type === 'guest' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#D4DCFF] text-[#1A56DB]'}`}>
                           {initials}
                         </div>
                         <div>
                           <div className="text-sm font-medium text-[#191B23]">{client.name}</div>
                           {client.is_vip && <span className="text-xs text-yellow-700">VIP</span>}
+                          {client.client_type === 'guest' && client.guest_of_company && (
+                            <div className="text-xs text-[#92400E]">Guest of {client.guest_of_company.name}</div>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="text-sm text-[#434654]">{(client as Client & { company?: { name: string } }).company?.name || '—'}</span>
+                      <span className="text-sm text-[#434654]">{client.company?.name || (client.client_type === 'guest' && client.guest_of_company ? client.guest_of_company.name : '—')}</span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <div className="space-y-0.5">
