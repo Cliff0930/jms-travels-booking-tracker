@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Mail, MessageCircle, ArrowUpRight, ArrowDownLeft,
-  CheckCircle, XCircle, Clock, RefreshCw, X, User,
+  CheckCircle, XCircle, Clock, RefreshCw, X, User, Search,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -247,6 +247,8 @@ function ChatView({ messages, client }: { messages: MessageRow[]; client: Client
 export default function MessagesPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [dirFilter, setDirFilter]           = useState<'all' | 'inbound' | 'outbound'>('all')
+  const [channelFilter, setChannelFilter]   = useState<'all' | 'email' | 'whatsapp'>('all')
+  const [searchQuery, setSearchQuery]       = useState('')
   const [dateFrom, setDateFrom]             = useState('')
   const [dateTo, setDateTo]                 = useState('')
 
@@ -260,9 +262,23 @@ export default function MessagesPage() {
     queryFn: () => fetch(`/api/messages?${apiParams}`).then(r => r.json()),
   })
 
-  const visible = selectedClient
-    ? rows
-    : dirFilter === 'all' ? rows : rows.filter(r => r.type === dirFilter)
+  const visible = (() => {
+    let items = rows
+    if (!selectedClient) {
+      if (dirFilter !== 'all')     items = items.filter(r => r.type === dirFilter)
+      if (channelFilter !== 'all') items = items.filter(r => r.channel === channelFilter)
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      items = items.filter(r =>
+        r.content?.toLowerCase().includes(q) ||
+        r.contact?.toLowerCase().includes(q) ||
+        r.client_name?.toLowerCase().includes(q) ||
+        (r.template ? (TEMPLATE_LABELS[r.template] ?? r.template).toLowerCase().includes(q) : false)
+      )
+    }
+    return items
+  })()
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -275,7 +291,9 @@ export default function MessagesPage() {
               ? 'Loading…'
               : selectedClient
                 ? `${visible.length} message${visible.length !== 1 ? 's' : ''} with ${selectedClient.name}`
-                : `${visible.length} message${visible.length !== 1 ? 's' : ''}`
+                : searchQuery || channelFilter !== 'all' || dirFilter !== 'all'
+                  ? `${visible.length} of ${rows.length} messages`
+                  : `${visible.length} message${visible.length !== 1 ? 's' : ''}`
             }
           </p>
         </div>
@@ -293,10 +311,37 @@ export default function MessagesPage() {
         {/* Client picker */}
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-[#737686] mb-1 block">Client</label>
-          <ClientPicker value={selectedClient} onChange={c => { setSelectedClient(c); setDirFilter('all') }} />
+          <ClientPicker value={selectedClient} onChange={c => { setSelectedClient(c); setDirFilter('all'); setChannelFilter('all') }} />
         </div>
 
-        {/* Date range + direction tabs */}
+        {/* Search bar */}
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#737686] mb-1 block">Search</label>
+          <div className="relative flex items-center">
+            <Search className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by message content, name, phone, email…"
+              className={cn(
+                'w-full h-8 pl-8 pr-8 text-sm border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] transition-colors',
+                searchQuery ? 'border-[#1A56DB] text-[#191B23]' : 'border-[#C3C5D7] text-[#6B7280] placeholder:text-[#9CA3AF] hover:border-[#9CA3AF]'
+              )}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Date range + direction + channel tabs */}
         <div className="flex gap-2 flex-wrap items-end">
           <div className="flex items-end gap-2 flex-1 min-w-[260px]">
             <div className="flex-1">
@@ -310,20 +355,46 @@ export default function MessagesPage() {
           </div>
 
           {!selectedClient && (
-            <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm self-end">
-              {(['all', 'inbound', 'outbound'] as const).map(f => (
+            <>
+              {/* Channel filter */}
+              <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm self-end">
                 <button
-                  key={f}
-                  onClick={() => setDirFilter(f)}
-                  className={cn(
-                    'px-3 py-1.5 capitalize transition-colors h-8',
-                    dirFilter === f ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
-                  )}
+                  onClick={() => setChannelFilter('all')}
+                  className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7]', channelFilter === 'all' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
                 >
-                  {f}
+                  All
                 </button>
-              ))}
-            </div>
+                <button
+                  onClick={() => setChannelFilter('email')}
+                  className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7] flex items-center gap-1.5', channelFilter === 'email' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
+                >
+                  <Mail className="w-3.5 h-3.5" /> Email
+                </button>
+                <button
+                  onClick={() => setChannelFilter('whatsapp')}
+                  className={cn('px-3 h-8 transition-colors flex items-center gap-1.5', channelFilter === 'whatsapp' ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </button>
+              </div>
+
+              {/* Direction filter */}
+              <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm self-end">
+                {(['all', 'inbound', 'outbound'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setDirFilter(f)}
+                    className={cn(
+                      'px-3 py-1.5 capitalize transition-colors h-8',
+                      f !== 'outbound' ? 'border-r border-[#C3C5D7]' : '',
+                      dirFilter === f ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                    )}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {(dateFrom || dateTo) && (
@@ -344,7 +415,18 @@ export default function MessagesPage() {
         ) : selectedClient ? (
           <ChatView messages={visible} client={selectedClient} />
         ) : visible.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm text-[#737686]">No messages found.</div>
+          <div className="flex flex-col items-center justify-center py-16 text-sm text-[#737686] gap-2">
+            <MessageCircle className="w-7 h-7 opacity-30" />
+            <span>{searchQuery ? `No messages matching "${searchQuery}"` : 'No messages found.'}</span>
+            {(searchQuery || channelFilter !== 'all' || dirFilter !== 'all') && (
+              <button
+                onClick={() => { setSearchQuery(''); setChannelFilter('all'); setDirFilter('all') }}
+                className="text-xs text-[#1A56DB] hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         ) : (
           <div className="divide-y divide-[#EDEDF8]">
             {visible.map(msg => {
