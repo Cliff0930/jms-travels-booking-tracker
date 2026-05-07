@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Building2, Plus, X, Mail, Phone, Search } from 'lucide-react'
+import { Building2, Plus, X, Mail, Phone, Search, GitMerge } from 'lucide-react'
 import { toast } from 'sonner'
 import { ClientDetailPanel } from '@/components/clients/ClientDetailPanel'
 import type { Company, Client } from '@/types'
@@ -145,6 +145,13 @@ export default function CompaniesPage() {
   const [peopleSearch, setPeopleSearch] = useState('')
   const [peopleFilter, setPeopleFilter] = useState<'all' | 'employee' | 'guest'>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+
+  // Company merge
+  const [showCompanyMerge, setShowCompanyMerge] = useState(false)
+  const [companyMergeSearch, setCompanyMergeSearch] = useState('')
+  const [companyMergeResults, setCompanyMergeResults] = useState<Company[]>([])
+  const [selectedMergeCompany, setSelectedMergeCompany] = useState<Company | null>(null)
+  const [mergingCompany, setMergingCompany] = useState(false)
   const [form, setForm] = useState({ name: '', aliases: '', email_domains: '', approver_emails: '' })
 
   const { data: companies = [], isLoading } = useCompanies()
@@ -193,6 +200,43 @@ export default function CompaniesPage() {
     qc.invalidateQueries({ queryKey: ['companies'] })
     setSelectedCompany(prev => prev ? { ...prev, ...updates } : null)
     toast.success('Company updated')
+  }
+
+  async function searchCompaniesForMerge(q: string) {
+    setCompanyMergeSearch(q)
+    if (q.length < 2) { setCompanyMergeResults([]); return }
+    const res = await fetch(`/api/companies?q=${encodeURIComponent(q)}`)
+    if (!res.ok) return
+    const data: Company[] = await res.json()
+    setCompanyMergeResults(data.filter(c => c.id !== selectedCompany?.id))
+  }
+
+  function resetCompanyMerge() {
+    setShowCompanyMerge(false)
+    setCompanyMergeSearch('')
+    setCompanyMergeResults([])
+    setSelectedMergeCompany(null)
+  }
+
+  async function handleCompanyMerge() {
+    if (!selectedMergeCompany || !selectedCompany) return
+    setMergingCompany(true)
+    try {
+      const res = await fetch(`/api/companies/${selectedCompany.id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merge_from_id: selectedMergeCompany.id }),
+      })
+      if (!res.ok) throw new Error()
+      qc.invalidateQueries({ queryKey: ['companies'] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      toast.success(`Merged ${selectedMergeCompany.name} into ${selectedCompany.name}`)
+      resetCompanyMerge()
+    } catch {
+      toast.error('Failed to merge companies')
+    } finally {
+      setMergingCompany(false)
+    }
   }
 
   return (
@@ -504,6 +548,17 @@ export default function CompaniesPage() {
                   />
                 </section>
               </div>
+
+              {/* Sticky Footer */}
+              <div className="flex-shrink-0 py-4 border-t border-[#EEEEF5]">
+                <Button
+                  variant="outline" size="sm"
+                  className="rounded-sm text-xs px-4 gap-1.5 text-[#737686]"
+                  onClick={() => setShowCompanyMerge(true)}
+                >
+                  <GitMerge className="w-3 h-3" /> Merge Duplicate
+                </Button>
+              </div>
             </>
           )}
         </SheetContent>
@@ -514,6 +569,69 @@ export default function CompaniesPage() {
         open={!!selectedPerson}
         onClose={() => setSelectedPerson(null)}
       />
+
+      {/* ── Merge Company ── */}
+      <Dialog open={showCompanyMerge} onOpenChange={o => { if (!o) resetCompanyMerge() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Merge Companies</DialogTitle></DialogHeader>
+          {!selectedMergeCompany ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[#737686]">
+                Search for the duplicate company to merge into <span className="font-medium text-[#191B23]">{selectedCompany?.name}</span>. All clients, guests and bookings will move across.
+              </p>
+              <input
+                value={companyMergeSearch}
+                onChange={e => searchCompaniesForMerge(e.target.value)}
+                placeholder="Search company name…"
+                autoFocus
+                className="w-full px-3 h-9 text-sm border border-[#C3C5D7] rounded-md outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF]"
+              />
+              {companyMergeResults.length > 0 && (
+                <div className="border border-[#C3C5D7] rounded-md overflow-hidden max-h-48 overflow-y-auto">
+                  {companyMergeResults.map(co => (
+                    <button
+                      key={co.id}
+                      onClick={() => setSelectedMergeCompany(co)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-[#F3F3FE] border-b border-[#C3C5D7] last:border-0 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-[#191B23]">{co.name}</div>
+                      {co.aliases?.length > 0 && <div className="text-xs text-[#737686]">{co.aliases.join(', ')}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {companyMergeSearch.length >= 2 && companyMergeResults.length === 0 && (
+                <p className="text-xs text-[#737686]">No other companies found</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold text-amber-800 mb-1.5">The following company will be permanently deleted:</p>
+                <p className="text-sm font-medium text-amber-900">{selectedMergeCompany.name}</p>
+                {selectedMergeCompany.aliases?.length > 0 && (
+                  <p className="text-xs text-amber-700 mt-0.5">{selectedMergeCompany.aliases.join(', ')}</p>
+                )}
+              </div>
+              <p className="text-sm text-[#737686]">
+                All clients, guests and bookings from <span className="font-medium text-[#434654]">{selectedMergeCompany.name}</span> will move to <span className="font-medium text-[#191B23]">{selectedCompany?.name}</span>. Aliases and email domains will be combined. This cannot be undone.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            {!selectedMergeCompany ? (
+              <Button variant="outline" onClick={resetCompanyMerge}>Cancel</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setSelectedMergeCompany(null)} disabled={mergingCompany}>Back</Button>
+                <Button className="bg-red-600 hover:bg-red-700 rounded-sm" onClick={handleCompanyMerge} disabled={mergingCompany}>
+                  {mergingCompany ? 'Merging…' : 'Confirm Merge'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="max-w-md">
