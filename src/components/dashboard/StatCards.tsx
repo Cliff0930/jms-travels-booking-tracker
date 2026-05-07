@@ -1,37 +1,51 @@
 'use client'
-import { BookOpen, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-interface StatCardsProps {
-  stats: {
-    active: number
-    pending: number
-    completedToday: number
-    flagged: number
-  }
+export interface StatCardDef {
+  key: string
+  label: string
+  value: number
+  icon: LucideIcon
+  color: string
+  bg: string
+  onClick?: () => void
+  active?: boolean
 }
 
-const CARDS = [
-  { key: 'active' as const,        label: 'Active',          icon: BookOpen,      color: '#1A56DB', bg: '#DBEAFE' },
-  { key: 'pending' as const,       label: 'Pending Approval', icon: Clock,        color: '#7E3AF2', bg: '#EDE9FE' },
-  { key: 'completedToday' as const, label: 'Completed Today',  icon: CheckCircle,  color: '#059669', bg: '#D1FAE5' },
-  { key: 'flagged' as const,       label: 'Flagged',          icon: AlertTriangle, color: '#D97706', bg: '#FEF3C7' },
-]
+interface StatCardsProps {
+  cards: StatCardDef[]
+}
 
-export function StatCards({ stats }: StatCardsProps) {
+export function StatCards({ cards }: StatCardsProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      {CARDS.map(({ key, label, icon: Icon, color, bg }) => (
-        <div key={key} className="bg-white rounded-lg border border-[#C3C5D7] p-4 card-hover">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-label-caps text-[#737686]">{label}</p>
-              <p className="text-3xl font-bold text-[#191B23] mt-1">{stats[key]}</p>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      {cards.map(({ key, label, value, icon: Icon, color, bg, onClick, active }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={onClick}
+          className={cn(
+            'bg-white rounded-xl border p-4 text-left transition-all',
+            onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : 'cursor-default',
+            active
+              ? 'border-[#1A56DB] ring-2 ring-[#1A56DB]/20 shadow-sm'
+              : 'border-[#E5E7EB]'
+          )}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-label-caps text-[#737686] truncate">{label}</p>
+              <p className="text-2xl font-bold text-[#191B23] mt-1">{value}</p>
             </div>
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: bg }}>
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ backgroundColor: bg }}
+            >
               <Icon className="w-5 h-5" style={{ color }} />
             </div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   )

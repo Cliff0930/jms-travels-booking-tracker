@@ -9,9 +9,13 @@ import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
-import { Plus, RefreshCw, ArrowRight, Send, Car, MapPin } from 'lucide-react'
+import {
+  Plus, RefreshCw, ArrowRight, Send, Car, MapPin,
+  BookOpen, CheckCircle, AlertTriangle, Link2, UserCheck, ClipboardCheck,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
 import type { Booking, Driver } from '@/types'
 
 interface TodayLeg {
@@ -35,38 +39,50 @@ interface TodayLeg {
   }
 }
 
+// ── Section wrapper with highlight support ────────────────────────────────────
 function OpsSection({
+  id,
   title,
   count,
   emptyText,
   viewHref,
+  active,
   children,
 }: {
+  id: string
   title: string
   count: number
   emptyText: string
   viewHref: string
+  active: boolean
   children: React.ReactNode
 }) {
   return (
-    <section>
+    <section
+      id={id}
+      className={cn(
+        'rounded-xl p-4 transition-all scroll-mt-20',
+        active ? 'ring-2 ring-[#1A56DB]/30 bg-blue-50/40' : 'bg-transparent'
+      )}
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold uppercase tracking-wide text-[#737686]">{title}</h2>
           {count > 0 && (
-            <span className="text-[11px] font-semibold bg-[#EDEDF8] text-[#434654] px-2 py-0.5 rounded-full">
+            <span className={cn(
+              'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+              active ? 'bg-[#1A56DB] text-white' : 'bg-[#EDEDF8] text-[#434654]'
+            )}>
               {count}
             </span>
           )}
         </div>
-        <ButtonLink
+        <Link
           href={viewHref}
-          variant="ghost"
-          size="sm"
-          className="text-xs text-[#1A56DB] gap-1 h-7 px-2"
+          className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline"
         >
           View all <ArrowRight className="w-3 h-3" />
-        </ButtonLink>
+        </Link>
       </div>
       {count === 0 ? (
         <div className="bg-white rounded-xl border border-[#E5E7EB] px-4 py-6 text-center text-sm text-[#9CA3AF]">
@@ -79,6 +95,7 @@ function OpsSection({
   )
 }
 
+// ── Today's leg send card ─────────────────────────────────────────────────────
 function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
   const [sending, setSending] = useState(false)
   const clientName = leg.booking.client?.name || leg.booking.guest_name || 'Unknown'
@@ -100,21 +117,14 @@ function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
 
   return (
     <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-      {/* Day badge */}
       <div className="w-10 h-10 rounded-full bg-[#003fb1] flex items-center justify-center text-white text-sm font-bold shrink-0">
         D{leg.day_number}
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            href={`/bookings/${leg.booking_id}`}
-            className="text-sm font-bold text-[#003fb1] hover:underline"
-          >
+          <Link href={`/bookings/${leg.booking_id}`} className="text-sm font-bold text-[#003fb1] hover:underline">
             {leg.booking.booking_ref}
           </Link>
-          <span className="text-xs text-[#737686]">·</span>
           <span className="text-sm font-medium text-[#191B23]">{clientName}</span>
           <span className="text-xs px-1.5 py-0.5 rounded bg-[#EDEDF8] text-[#434654]">
             Day {leg.day_number} of {leg.booking.total_days}
@@ -123,8 +133,7 @@ function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
         <div className="flex items-center gap-1.5 text-xs text-[#434654]">
           <Car className="w-3.5 h-3.5 text-[#737686] shrink-0" />
           <span className="font-medium">{leg.driver.name}</span>
-          <span className="text-[#737686]">·</span>
-          <span className="text-[#737686]">{leg.driver.vehicle_name} · {leg.driver.vehicle_number}</span>
+          <span className="text-[#737686]">· {leg.driver.vehicle_name} · {leg.driver.vehicle_number}</span>
         </div>
         {leg.booking.pickup_location && (
           <div className="flex items-center gap-1.5 text-xs text-[#737686]">
@@ -133,8 +142,6 @@ function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
           </div>
         )}
       </div>
-
-      {/* Send button */}
       <Button
         size="sm"
         onClick={handleSend}
@@ -148,6 +155,7 @@ function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
   )
 }
 
+// ── Main dashboard ────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const qc = useQueryClient()
   const { data: bookings = [], isLoading, refetch } = useBookings()
@@ -155,6 +163,7 @@ export default function DashboardPage() {
   const cancelBooking = useCancelBooking()
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
+  const [activeSection, setActiveSection] = useState<string | null>(null)
 
   const today = new Date().toLocaleDateString('en-CA')
 
@@ -163,16 +172,31 @@ export default function DashboardPage() {
     queryFn: () => fetch(`/api/dashboard/today-links?date=${today}`).then(r => r.json()),
   })
 
-  const stats = {
-    active: bookings.filter(b => b.status === 'in_progress').length,
-    pending: bookings.filter(b => b.status === 'pending_approval').length,
-    completedToday: bookings.filter(b => b.status === 'completed' && b.pickup_date === today).length,
-    flagged: bookings.filter(b => b.flags?.length > 0).length,
-  }
+  // ── Computed sections ────────────────────────────────────────────────────
+  const inProgress     = bookings.filter(b => b.status === 'in_progress')
+  const pendingApproval = bookings.filter(b => b.status === 'pending_approval')
+  const needConfirm    = bookings.filter(b => b.status === 'draft')
+  const needDriver     = bookings.filter(b => b.status === 'confirmed' && !b.driver_id)
+  const todayPickups   = bookings.filter(b => b.pickup_date === today && b.status === 'confirmed' && !!b.driver_id)
+  const completedToday = bookings.filter(b => b.status === 'completed' && b.pickup_date === today)
+  const flagged        = bookings.filter(b => b.flags?.length > 0 && b.status !== 'completed' && b.status !== 'cancelled')
 
-  const inProgress = bookings.filter(b => b.status === 'in_progress')
-  const needsAction = bookings.filter(b => b.status === 'pending_approval' || b.status === 'draft')
-  const todayTrips = bookings.filter(b => b.pickup_date === today && b.status === 'confirmed')
+  // ── Stat cards ───────────────────────────────────────────────────────────
+  const cards = [
+    { key: 'in_progress',     label: 'Active',          value: inProgress.length,      icon: BookOpen,      color: '#1A56DB', bg: '#DBEAFE' },
+    { key: 'today_links',     label: "Today's Links",   value: todayLegs.length,        icon: Link2,         color: '#D97706', bg: '#FEF3C7' },
+    { key: 'need_driver',     label: 'Need Driver',     value: needDriver.length,       icon: Car,           color: '#7E3AF2', bg: '#EDE9FE' },
+    { key: 'need_confirm',    label: 'Need Confirm',    value: needConfirm.length,      icon: ClipboardCheck,color: '#0E9F6E', bg: '#DEF7EC' },
+    { key: 'pending_approval',label: 'Pending Approval',value: pendingApproval.length,  icon: UserCheck,     color: '#9333EA', bg: '#F3E8FF' },
+    { key: 'completed_today', label: 'Completed Today', value: completedToday.length,   icon: CheckCircle,   color: '#059669', bg: '#D1FAE5' },
+    { key: 'flagged',         label: 'Flagged',         value: flagged.length,          icon: AlertTriangle, color: '#DC2626', bg: '#FEE2E2' },
+  ]
+
+  function handleCardClick(key: string) {
+    setActiveSection(prev => prev === key ? null : key)
+    const el = document.getElementById(`section-${key}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const shared = {
     onConfirm: async (id: string) => {
@@ -190,8 +214,7 @@ export default function DashboardPage() {
         actions={
           <div className="flex gap-2">
             <Button
-              variant="outline"
-              size="sm"
+              variant="outline" size="sm"
               onClick={() => { refetch(); qc.invalidateQueries({ queryKey: ['today-links'] }) }}
               className="gap-1.5 rounded-sm"
             >
@@ -206,71 +229,61 @@ export default function DashboardPage() {
         }
       />
 
-      <StatCards stats={stats} />
+      <StatCards
+        cards={cards.map(c => ({
+          ...c,
+          active: activeSection === c.key,
+          onClick: () => handleCardClick(c.key),
+        }))}
+      />
 
-      {/* Today's multi-day driver links — shown even while bookings load */}
-      {!legsLoading && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-[#737686]">
-              Send Today&apos;s Driver Links
-            </h2>
-            {todayLegs.length > 0 && (
-              <span className="text-[11px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                {todayLegs.length} pending
-              </span>
-            )}
-          </div>
-          {todayLegs.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#E5E7EB] px-4 py-6 text-center text-sm text-[#9CA3AF]">
-              No multi-day local trips with legs scheduled for today
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {todayLegs.map(leg => (
-                <TodayLinkCard
-                  key={leg.id}
-                  leg={leg}
-                  onSent={() => qc.invalidateQueries({ queryKey: ['today-links'] })}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {isLoading ? (
+      {(isLoading && legsLoading) ? (
         <div className="py-16 text-center text-[#737686] text-sm">Loading…</div>
       ) : (
-        <div className="space-y-6">
-          {inProgress.length > 0 && (
-            <OpsSection
-              title="In Progress"
-              count={inProgress.length}
-              emptyText=""
-              viewHref="/bookings"
-            >
-              {inProgress.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
-            </OpsSection>
-          )}
+        <div className="space-y-2">
 
-          <OpsSection
-            title="Needs Action"
-            count={needsAction.length}
-            emptyText="No pending approvals or drafts"
-            viewHref="/bookings"
-          >
-            {needsAction.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          <OpsSection id="section-today_links" title="Send Today's Driver Links" count={todayLegs.length}
+            emptyText="No multi-day local trip legs for today" viewHref="/bookings" active={activeSection === 'today_links'}>
+            {todayLegs.map(leg => (
+              <TodayLinkCard key={leg.id} leg={leg} onSent={() => qc.invalidateQueries({ queryKey: ['today-links'] })} />
+            ))}
           </OpsSection>
 
-          <OpsSection
-            title="Today's Confirmed Pickups"
-            count={todayTrips.length}
-            emptyText="No confirmed pickups today"
-            viewHref="/bookings"
-          >
-            {todayTrips.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          <OpsSection id="section-in_progress" title="In Progress" count={inProgress.length}
+            emptyText="No active trips right now" viewHref="/bookings" active={activeSection === 'in_progress'}>
+            {inProgress.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
+
+          <OpsSection id="section-need_driver" title="Need Driver" count={needDriver.length}
+            emptyText="All confirmed bookings have a driver assigned" viewHref="/bookings" active={activeSection === 'need_driver'}>
+            {needDriver.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-need_confirm" title="Need Confirmation" count={needConfirm.length}
+            emptyText="No draft bookings waiting for confirmation" viewHref="/bookings" active={activeSection === 'need_confirm'}>
+            {needConfirm.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-pending_approval" title="Pending Approval" count={pendingApproval.length}
+            emptyText="No bookings awaiting company approval" viewHref="/bookings" active={activeSection === 'pending_approval'}>
+            {pendingApproval.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-completed_today" title="Completed Today" count={completedToday.length}
+            emptyText="No trips completed today yet" viewHref="/bookings" active={activeSection === 'completed_today'}>
+            {completedToday.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-flagged" title="Flagged" count={flagged.length}
+            emptyText="No flagged bookings" viewHref="/bookings" active={activeSection === 'flagged'}>
+            {flagged.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-today_pickups" title="Today's Confirmed Pickups" count={todayPickups.length}
+            emptyText="No confirmed pickups with driver today" viewHref="/bookings" active={activeSection === 'today_pickups'}>
+            {todayPickups.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
         </div>
       )}
 
@@ -292,11 +305,7 @@ export default function DashboardPage() {
       />
 
       {assignTarget && (
-        <AssignDriverModal
-          booking={assignTarget}
-          open={!!assignTarget}
-          onClose={() => setAssignTarget(null)}
-        />
+        <AssignDriverModal booking={assignTarget} open={!!assignTarget} onClose={() => setAssignTarget(null)} />
       )}
     </div>
   )
