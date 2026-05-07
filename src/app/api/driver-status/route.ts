@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   const {
     booking_id, status, token,
     tripsheet_number, opening_km, closing_km,
+    toll_amount, parking_amount,
     lat, lng,
   } = await request.json()
   const supabase = createAdminClient()
@@ -105,6 +106,8 @@ export async function POST(request: Request) {
         closing_time: new Date().toISOString(),
         office_to_pickup_km: officeToPickupKm,
         drop_to_office_km: dropToOfficeKm,
+        toll_amount: toll_amount ?? null,
+        parking_amount: parking_amount ?? null,
         updated_at: new Date().toISOString(),
       }).eq('id', sheet.id)
     } else {
@@ -117,6 +120,8 @@ export async function POST(request: Request) {
         closing_time: new Date().toISOString(),
         office_to_pickup_km: officeToPickupKm,
         drop_to_office_km: dropToOfficeKm,
+        toll_amount: toll_amount ?? null,
+        parking_amount: parking_amount ?? null,
       })
     }
   }

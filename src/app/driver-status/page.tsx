@@ -21,6 +21,8 @@ function DriverStatusContent() {
   const [tripsheetNumber, setTripsheetNumber] = useState('')
   const [openingKm, setOpeningKm] = useState('')
   const [closingKm, setClosingKm] = useState('')
+  const [tollAmount, setTollAmount] = useState('')
+  const [parkingAmount, setParkingAmount] = useState('')
 
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -57,6 +59,8 @@ function DriverStatusContent() {
         body.opening_km = parseFloat(openingKm)
       } else {
         body.closing_km = parseFloat(closingKm)
+        if (tollAmount) body.toll_amount = parseFloat(tollAmount)
+        if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
       }
       if (lat !== null) body.lat = lat
       if (lng !== null) body.lng = lng
@@ -134,18 +138,46 @@ function DriverStatusContent() {
           )}
 
           {status === 'completed' && (
-            <div>
-              <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
-              <Input
-                id="closing_km"
-                type="number"
-                inputMode="numeric"
-                value={closingKm}
-                onChange={e => setClosingKm(e.target.value)}
-                placeholder="e.g. 45385"
-                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-              />
-            </div>
+            <>
+              <div>
+                <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
+                <Input
+                  id="closing_km"
+                  type="number"
+                  inputMode="numeric"
+                  value={closingKm}
+                  onChange={e => setClosingKm(e.target.value)}
+                  placeholder="e.g. 45385"
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+                  <Input
+                    id="toll"
+                    type="number"
+                    inputMode="decimal"
+                    value={tollAmount}
+                    onChange={e => setTollAmount(e.target.value)}
+                    placeholder="0"
+                    className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
+                  <Input
+                    id="parking"
+                    type="number"
+                    inputMode="decimal"
+                    value={parkingAmount}
+                    onChange={e => setParkingAmount(e.target.value)}
+                    placeholder="0"
+                    className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           <div>

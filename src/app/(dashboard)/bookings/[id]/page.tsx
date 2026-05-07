@@ -76,6 +76,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     closing_time: string | null
     office_to_pickup_km: number | null
     drop_to_office_km: number | null
+    toll_amount: number | null
+    parking_amount: number | null
   }
 
   const { data: tripSheet } = useQuery<TripSheet | null>({
@@ -855,6 +857,23 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <dt className="text-[#737686]">Sheet No.</dt>
                     <dd className="font-medium text-[#191B23]">{tripSheet.tripsheet_number}</dd>
                   </div>
+                )}
+                {(tripSheet.toll_amount != null || tripSheet.parking_amount != null) && (
+                  <>
+                    {tripSheet.toll_amount != null && (
+                      <div className="flex justify-between">
+                        <dt className="text-[#737686]">Toll</dt>
+                        <dd className="text-[#434654]">₹{tripSheet.toll_amount}</dd>
+                      </div>
+                    )}
+                    {tripSheet.parking_amount != null && (
+                      <div className="flex justify-between">
+                        <dt className="text-[#737686]">Parking</dt>
+                        <dd className="text-[#434654]">₹{tripSheet.parking_amount}</dd>
+                      </div>
+                    )}
+                    <div className="border-b border-[#C3C5D7]" />
+                  </>
                 )}
                 <div className="flex justify-between">
                   <dt className="text-[#737686]">Opening KM</dt>
