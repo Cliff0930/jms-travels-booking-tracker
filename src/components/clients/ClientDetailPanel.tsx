@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2 } from 'lucide-react'
+import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
@@ -72,6 +72,13 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   // Promote to client dialog
   const [showPromote, setShowPromote] = useState(false)
   const [promoteType, setPromoteType] = useState<'corporate' | 'walkin'>('corporate')
+
+  // Merge dialog
+  const [showMerge, setShowMerge] = useState(false)
+  const [mergeSearch, setMergeSearch] = useState('')
+  const [mergeResults, setMergeResults] = useState<Client[]>([])
+  const [selectedMergeClient, setSelectedMergeClient] = useState<Client | null>(null)
+  const [merging, setMerging] = useState(false)
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies'],
@@ -253,6 +260,43 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       toast.error('Failed to remove location')
     } finally {
       setDeletingLocationId(null)
+    }
+  }
+
+  async function searchForMerge(q: string) {
+    setMergeSearch(q)
+    if (q.length < 2) { setMergeResults([]); return }
+    const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}`)
+    if (!res.ok) return
+    const data: Client[] = await res.json()
+    setMergeResults(data.filter(c => c.id !== client!.id))
+  }
+
+  function resetMergeDialog() {
+    setShowMerge(false)
+    setMergeSearch('')
+    setMergeResults([])
+    setSelectedMergeClient(null)
+  }
+
+  async function handleMerge() {
+    if (!selectedMergeClient) return
+    setMerging(true)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merge_from_id: selectedMergeClient.id }),
+      })
+      if (!res.ok) throw new Error()
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      toast.success(`Merged ${selectedMergeClient.name} into ${client!.name}`)
+      resetMergeDialog()
+    } catch {
+      toast.error('Failed to merge clients')
+    } finally {
+      setMerging(false)
     }
   }
 
@@ -514,6 +558,13 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             )}
             <Button
               variant="outline" size="sm"
+              className="rounded-sm text-xs px-3 gap-1 text-[#737686]"
+              onClick={() => setShowMerge(true)}
+            >
+              <GitMerge className="w-3 h-3" /> Merge
+            </Button>
+            <Button
+              variant="outline" size="sm"
               className="rounded-sm text-xs px-4 gap-1"
               onClick={openEdit}
             >
@@ -631,6 +682,71 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleAddLocation} disabled={savingLocation || !locKeyword.trim() || !locAddress.trim()}>
               {savingLocation ? 'Saving…' : 'Save'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Merge Clients ── */}
+      <Dialog open={showMerge} onOpenChange={o => { if (!o) resetMergeDialog() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Merge Clients</DialogTitle></DialogHeader>
+          {!selectedMergeClient ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[#737686]">
+                Search for the duplicate account to merge into <span className="font-medium text-[#191B23]">{client.name}</span>. Their bookings, contacts and locations will all move across.
+              </p>
+              <Input
+                value={mergeSearch}
+                onChange={e => searchForMerge(e.target.value)}
+                placeholder="Search by name, phone or email…"
+                className="border-[#C3C5D7]"
+                autoFocus
+              />
+              {mergeResults.length > 0 && (
+                <div className="border border-[#C3C5D7] rounded-md overflow-hidden max-h-48 overflow-y-auto">
+                  {mergeResults.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelectedMergeClient(r)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-[#F3F3FE] border-b border-[#C3C5D7] last:border-0 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-[#191B23]">{r.name}</div>
+                      <div className="text-xs text-[#737686]">
+                        {[r.primary_phone, r.primary_email].filter(Boolean).join(' · ')}
+                        {r.primary_phone || r.primary_email ? '' : 'No contact info'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mergeSearch.length >= 2 && mergeResults.length === 0 && (
+                <p className="text-xs text-[#737686]">No other clients found</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold text-amber-800 mb-1.5">The following account will be permanently deleted:</p>
+                <p className="text-sm font-medium text-amber-900">{selectedMergeClient.name}</p>
+                {selectedMergeClient.primary_phone && <p className="text-xs text-amber-700 mt-0.5">{selectedMergeClient.primary_phone}</p>}
+                {selectedMergeClient.primary_email && <p className="text-xs text-amber-700">{selectedMergeClient.primary_email}</p>}
+              </div>
+              <p className="text-sm text-[#737686]">
+                All bookings, contacts and saved locations from <span className="font-medium text-[#434654]">{selectedMergeClient.name}</span> will move to <span className="font-medium text-[#191B23]">{client.name}</span>. This cannot be undone.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            {!selectedMergeClient ? (
+              <Button variant="outline" onClick={resetMergeDialog}>Cancel</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setSelectedMergeClient(null)} disabled={merging}>Back</Button>
+                <Button className="bg-red-600 hover:bg-red-700 rounded-sm" onClick={handleMerge} disabled={merging}>
+                  {merging ? 'Merging…' : 'Confirm Merge'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

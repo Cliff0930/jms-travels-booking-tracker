@@ -75,7 +75,8 @@ async function logOutbound(
 }
 
 export async function POST(request: Request) {
-  const { raw_message_id, client, message, channel, sender_email, sender_phone, skip_auto_reply } = await request.json()
+  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, skip_auto_reply } = await request.json()
+  let client = clientFromReq
   const supabase = createAdminClient()
 
   try {
@@ -120,6 +121,20 @@ export async function POST(request: Request) {
       .from('raw_messages')
       .update({ ai_extracted_fields: extraction.extracted, ai_missing_fields: extraction.missing_mandatory })
       .eq('id', raw_message_id)
+
+    // Auto-create client from email if not found in database
+    if (!client && channel === 'email' && sender_email) {
+      const name = sender_name || sender_email.split('@')[0]
+      const { data: newClient } = await supabase
+        .from('clients')
+        .insert({ name, primary_email: sender_email, client_type: 'corporate' })
+        .select('*, company:companies!company_id(*), locations:client_locations(*)')
+        .single()
+      if (newClient) {
+        client = newClient
+        console.log('[parse-message] auto-created client:', newClient.id, name)
+      }
+    }
 
     const flags: string[] = []
     if (!extraction.extracted.pickup_location) flags.push('missing_pickup')
