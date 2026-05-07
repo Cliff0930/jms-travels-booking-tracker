@@ -80,6 +80,22 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     parking_amount: number | null
   }
 
+  function formatTripDuration(openingTime: string, closingTime: string, tripType: string): string {
+    const diff = new Date(closingTime).getTime() - new Date(openingTime).getTime()
+    if (diff <= 0) return '—'
+    const totalMinutes = Math.floor(diff / 60000)
+    const totalHours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (tripType === 'outstation') {
+      const days = Math.floor(totalHours / 24)
+      const hours = totalHours % 24
+      if (days === 0) return `${totalHours}h ${minutes}m`
+      if (hours === 0 && minutes === 0) return `${days} day${days > 1 ? 's' : ''}`
+      return `${days} day${days > 1 ? 's' : ''} ${hours}h`
+    }
+    return `${totalHours}h ${minutes}m`
+  }
+
   const { data: tripSheet } = useQuery<TripSheet | null>({
     queryKey: ['trip-sheet', id],
     queryFn: () => fetch(`/api/bookings/${id}/trip-sheet`).then(r => r.json()),
@@ -889,6 +905,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <dt className="text-[#737686]">Driver KM</dt>
                       <dd className="font-medium text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</dd>
                     </div>
+                    {tripSheet.opening_time && tripSheet.closing_time && (
+                      <div className="flex justify-between">
+                        <dt className="text-[#737686]">{booking.trip_type === 'outstation' ? 'Trip Duration' : 'Hours Used'}</dt>
+                        <dd className="text-[#434654]">{formatTripDuration(tripSheet.opening_time, tripSheet.closing_time, booking.trip_type)}</dd>
+                      </div>
+                    )}
                     {(tripSheet.office_to_pickup_km != null || tripSheet.drop_to_office_km != null) && (
                       <>
                         <div className="flex justify-between">

@@ -54,8 +54,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   // Email gets clickable approve/reject links; WhatsApp keeps the text reply format
   const [approveUrl, rejectUrl] = await Promise.all([
-    createShortLink(approvalLink(appUrl, id, 'approve'), 72),
-    createShortLink(approvalLink(appUrl, id, 'reject'), 72),
+    createShortLink(approvalLink(appUrl, id, 'approve'), id),
+    createShortLink(approvalLink(appUrl, id, 'reject'), id),
   ])
   const emailBody = `${baseBody}\n\nQuick links:\n✅ Approve: ${approveUrl}\n❌ Reject: ${rejectUrl}`
 

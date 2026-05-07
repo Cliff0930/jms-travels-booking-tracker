@@ -25,12 +25,12 @@ function usedPage() {
   )
 }
 
-function expiredPage() {
+function notFoundPage() {
   return new Response(
     `<!DOCTYPE html><html lang="en"><head>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta charset="utf-8">
-    <title>Link Expired — JMS Travels</title>
+    <title>Invalid Link — JMS Travels</title>
     <style>
       body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAF8FF;min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0;padding:24px;box-sizing:border-box}
       .card{background:#fff;border-radius:16px;padding:40px 32px;text-align:center;max-width:360px;width:100%;border:1px solid #E5E7EB}
@@ -40,9 +40,9 @@ function expiredPage() {
     </style>
     </head><body>
     <div class="card">
-      <div class="icon">⏰</div>
-      <h2>Link Expired</h2>
-      <p>This link has expired and is no longer valid.<br><br>Please contact JMS Travels for assistance.</p>
+      <div class="icon">❓</div>
+      <h2>Invalid Link</h2>
+      <p>This link is not valid. Please use the link sent to you by JMS Travels.</p>
     </div>
     </body></html>`,
     { headers: { 'Content-Type': 'text/html' } }
@@ -55,13 +55,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
 
   const { data: link } = await supabase
     .from('short_links')
-    .select('target_url, used_at, expires_at')
+    .select('target_url, used_at')
     .eq('code', code)
     .single()
 
-  if (!link) return usedPage()
+  if (!link) return notFoundPage()
   if (link.used_at) return usedPage()
-  if (new Date(link.expires_at) < new Date()) return expiredPage()
 
   const separator = link.target_url.includes('?') ? '&' : '?'
   return NextResponse.redirect(`${link.target_url}${separator}link_code=${code}`)

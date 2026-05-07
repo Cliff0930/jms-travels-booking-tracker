@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmail } from '@/lib/gmail/send'
 import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
+import { expireBookingLinks } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -42,6 +43,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (booking.driver_id) {
     await supabase.from('drivers').update({ status: 'available' }).eq('id', booking.driver_id)
   }
+
+  await expireBookingLinks(id).catch(() => {})
 
   const vars = {
     booking_ref: booking.booking_ref,

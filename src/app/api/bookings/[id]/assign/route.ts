@@ -76,8 +76,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         pickup_date: booking.pickup_date || 'TBD',
         pickup_time: booking.pickup_time || 'TBD',
         pax_count: booking.pax_count?.toString() || 'TBD',
-        arrived_link: await createShortLink(driverStatusLink(appUrl, id, 'arrived')),
-        completed_link: await createShortLink(driverStatusLink(appUrl, id, 'completed')),
+        arrived_link: await createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+        completed_link: await createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
       })
 
       await sendWhatsAppMessage({ to: driver.phone, body }).catch(e => console.error('Trip brief WA error:', e))
