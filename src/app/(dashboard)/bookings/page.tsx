@@ -9,7 +9,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -27,6 +27,7 @@ export default function BookingsPage() {
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [pickupDate, setPickupDate] = useState<string>('')   // 'today' | 'tomorrow' | 'YYYY-MM-DD' | ''
   const [newTodayOnly, setNewTodayOnly] = useState(false)
   const [companyFilter, setCompanyFilter] = useState<string>('')
@@ -39,9 +40,10 @@ export default function BookingsPage() {
     return [...new Set(names)].sort()
   }, [bookings])
 
-  const hasFilters = !!pickupDate || newTodayOnly || !!companyFilter
+  const hasFilters = !!searchQuery || !!pickupDate || newTodayOnly || !!companyFilter
 
   function clearFilters() {
+    setSearchQuery('')
     setPickupDate('')
     setNewTodayOnly(false)
     setCompanyFilter('')
@@ -54,6 +56,23 @@ export default function BookingsPage() {
       if (pickupDate !== 'today' && pickupDate !== 'tomorrow' && pickupDate && !b.pickup_date?.startsWith(pickupDate)) return false
       if (newTodayOnly && !b.created_at?.startsWith(today)) return false
       if (companyFilter && b.company?.name !== companyFilter) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const match =
+          b.booking_ref?.toLowerCase().includes(q) ||
+          b.guest_name?.toLowerCase().includes(q) ||
+          b.guest_phone?.toLowerCase().includes(q) ||
+          b.client?.name?.toLowerCase().includes(q) ||
+          b.client?.primary_phone?.toLowerCase().includes(q) ||
+          b.client?.primary_email?.toLowerCase().includes(q) ||
+          b.company?.name?.toLowerCase().includes(q) ||
+          b.driver?.name?.toLowerCase().includes(q) ||
+          b.driver?.phone?.toLowerCase().includes(q) ||
+          b.driver?.vehicle_number?.toLowerCase().includes(q) ||
+          b.pickup_location?.toLowerCase().includes(q) ||
+          b.drop_location?.toLowerCase().includes(q)
+        if (!match) return false
+      }
       return true
     })
   }
@@ -88,6 +107,34 @@ export default function BookingsPage() {
 
       {/* Filter Bar */}
       <div className="mb-4 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">
+        {/* Search input */}
+        <div className="relative flex items-center w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search bookings…"
+            className={`w-full h-8 pl-8 pr-8 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] transition-colors ${
+              searchQuery
+                ? 'border-[#1A56DB] text-[#191B23]'
+                : 'border-[#C3C5D7] text-[#6B7280] placeholder:text-[#9CA3AF] hover:border-[#9CA3AF]'
+            }`}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Vertical divider — desktop only */}
+        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+
         {/* Quick date button group — segmented control */}
         <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
           <button
