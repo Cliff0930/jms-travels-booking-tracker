@@ -608,7 +608,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 Trip Legs
                 <span className="ml-2 text-sm font-normal text-[#737686]">{booking.total_days} days</span>
               </h2>
-              <TripLegsPanel bookingId={booking.id} />
+              <TripLegsPanel bookingId={booking.id} driverAssigned={!!booking.driver_id} />
             </div>
           )}
 

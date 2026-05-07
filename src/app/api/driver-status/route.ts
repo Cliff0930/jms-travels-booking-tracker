@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     toll_amount, parking_amount,
     lat, lng,
     link_code,
+    leg_id,
   } = await request.json()
   const supabase = createAdminClient()
 
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
     await supabase.from('trip_sheets').insert({
       booking_id,
       driver_id: booking.driver_id || null,
+      booking_leg_id: leg_id || null,
       tripsheet_number: tripsheet_number || null,
       opening_km: opening_km ?? null,
       opening_lat: lat ?? null,
@@ -69,13 +71,21 @@ export async function POST(request: Request) {
       opening_time: new Date().toISOString(),
     }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
   } else {
-    const { data: sheet } = await supabase
+    // Find matching sheet: prefer leg-specific, fall back to booking-level
+    let sheetQuery = supabase
       .from('trip_sheets')
       .select('id, opening_lat, opening_lng')
       .eq('booking_id', booking_id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+
+    if (leg_id) {
+      sheetQuery = sheetQuery.eq('booking_leg_id', leg_id)
+    } else {
+      sheetQuery = sheetQuery.is('booking_leg_id', null)
+    }
+
+    const { data: sheet } = await sheetQuery.single()
 
     let officeToPickupKm: number | null = null
     let dropToOfficeKm: number | null = null
@@ -116,6 +126,7 @@ export async function POST(request: Request) {
       await supabase.from('trip_sheets').insert({
         booking_id,
         driver_id: booking.driver_id || null,
+        booking_leg_id: leg_id || null,
         closing_km: closing_km ?? null,
         closing_lat: lat ?? null,
         closing_lng: lng ?? null,

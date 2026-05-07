@@ -14,6 +14,7 @@ function DriverStatusContent() {
   const status = searchParams.get('status') as StatusType | null
   const token = searchParams.get('token')
   const linkCode = searchParams.get('link_code')
+  const legId = searchParams.get('leg_id')
 
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -54,7 +55,7 @@ function DriverStatusContent() {
 
     setLoading(true)
     try {
-      const body: Record<string, unknown> = { booking_id: bookingId, status, token, link_code: linkCode }
+      const body: Record<string, unknown> = { booking_id: bookingId, status, token, link_code: linkCode, leg_id: legId }
       if (status === 'arrived') {
         body.tripsheet_number = tripsheetNumber.trim()
         body.opening_km = parseFloat(openingKm)
