@@ -55,6 +55,13 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   const [locAddress, setLocAddress] = useState('')
   const [savingLocation, setSavingLocation] = useState(false)
 
+  // Edit / delete contact
+  const [editingContact, setEditingContact] = useState<{ id: string; value: string; contact_type: string; role: string } | null>(null)
+  const [editContactValue, setEditContactValue] = useState('')
+  const [editContactType, setEditContactType] = useState<'phone' | 'email'>('phone')
+  const [savingEditContact, setSavingEditContact] = useState(false)
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
+
   // Edit location dialog
   const [editingLocation, setEditingLocation] = useState<{ id: string; keyword: string; address: string } | null>(null)
   const [editLocKeyword, setEditLocKeyword] = useState('')
@@ -163,6 +170,46 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       toast.error(err instanceof Error ? err.message : 'Failed to save location')
     } finally {
       setSavingLocation(false)
+    }
+  }
+
+  function openEditContact(ct: { id: string; value: string; contact_type: string; role: string }) {
+    setEditingContact(ct)
+    setEditContactValue(ct.value)
+    setEditContactType(ct.contact_type as 'phone' | 'email')
+  }
+
+  async function handleEditContact() {
+    if (!editingContact || !editContactValue.trim()) return
+    setSavingEditContact(true)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/contacts/${editingContact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: editContactValue.trim(), contact_type: editContactType }),
+      })
+      if (!res.ok) throw new Error()
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      toast.success('Contact updated')
+      setEditingContact(null)
+    } catch {
+      toast.error('Failed to update contact')
+    } finally {
+      setSavingEditContact(false)
+    }
+  }
+
+  async function handleDeleteContact(contactId: string) {
+    setDeletingContactId(contactId)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/contacts/${contactId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      toast.success('Contact removed')
+    } catch {
+      toast.error('Failed to remove contact')
+    } finally {
+      setDeletingContactId(null)
     }
   }
 
@@ -280,12 +327,29 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                   </a>
                 )}
                 {liveContacts.map(ct => (
-                  <div key={ct.id} className="flex items-center gap-2.5 text-sm text-[#434654] min-w-0">
+                  <div key={ct.id} className="flex items-center gap-2 text-sm text-[#434654] group">
                     {ct.contact_type === 'phone'
                       ? <Phone className="w-4 h-4 text-[#737686] shrink-0" />
                       : <Mail className="w-4 h-4 text-[#737686] shrink-0" />}
-                    <span className="truncate">{ct.value}</span>
+                    <span className="truncate flex-1">{ct.value}</span>
                     <span className="text-xs text-[#737686] shrink-0">({ct.role})</span>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => openEditContact(ct)}
+                        className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-[#EBF5FF] transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteContact(ct.id)}
+                        disabled={deletingContactId === ct.id}
+                        className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {!client.primary_phone && !client.primary_email && !liveContacts.length && (
@@ -559,6 +623,39 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             <Button variant="outline" onClick={() => { setShowAddLocation(false); setLocKeyword(''); setLocAddress('') }}>Cancel</Button>
             <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleAddLocation} disabled={savingLocation || !locKeyword.trim() || !locAddress.trim()}>
               {savingLocation ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Contact ── */}
+      <Dialog open={!!editingContact} onOpenChange={o => { if (!o) setEditingContact(null) }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader><DialogTitle>Edit Contact</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1 block">Type</Label>
+              <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden">
+                <button onClick={() => setEditContactType('phone')} className={`flex-1 h-8 text-sm transition-colors ${editContactType === 'phone' ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'}`}>Phone</button>
+                <button onClick={() => setEditContactType('email')} className={`flex-1 h-8 text-sm border-l border-[#C3C5D7] transition-colors ${editContactType === 'email' ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'}`}>Email</button>
+              </div>
+            </div>
+            <div>
+              <Label className="mb-1 block">{editContactType === 'phone' ? 'Phone Number' : 'Email Address'}</Label>
+              <Input
+                value={editContactValue}
+                onChange={e => setEditContactValue(e.target.value)}
+                placeholder={editContactType === 'phone' ? '+91 98000 00000' : 'email@example.com'}
+                type={editContactType === 'email' ? 'email' : 'tel'}
+                className="border-[#C3C5D7]"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingContact(null)} disabled={savingEditContact}>Cancel</Button>
+            <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleEditContact} disabled={savingEditContact || !editContactValue.trim()}>
+              {savingEditContact ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>

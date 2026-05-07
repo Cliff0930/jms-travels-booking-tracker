@@ -6,7 +6,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('clients')
-    .select('*, company:companies(*), contacts:client_contacts(*), locations:client_locations(*)')
+    .select('*, company:companies!company_id(*), guest_of_company:companies!guest_of_company_id(id, name), contacts:client_contacts(*), locations:client_locations(*)')
     .eq('id', id)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
