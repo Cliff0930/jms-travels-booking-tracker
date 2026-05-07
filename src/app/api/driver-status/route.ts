@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyDriverToken } from '@/lib/utils/driver-token'
 import { sendToAll } from '@/lib/whatsapp/send'
+import { markShortLinkUsed } from '@/lib/utils/short-link'
 
 async function getDistanceKm(origin: string, destination: string): Promise<number | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     tripsheet_number, opening_km, closing_km,
     toll_amount, parking_amount,
     lat, lng,
+    link_code,
   } = await request.json()
   const supabase = createAdminClient()
 
@@ -166,6 +168,10 @@ export async function POST(request: Request) {
       client_id: client?.id || undefined,
       template_used: status === 'arrived' ? 'driver_arrived' : 'trip_completed',
     }).catch(() => {})
+  }
+
+  if (link_code) {
+    await markShortLinkUsed(link_code).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })

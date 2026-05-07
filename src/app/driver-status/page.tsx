@@ -13,6 +13,7 @@ function DriverStatusContent() {
   const bookingId = searchParams.get('booking')
   const status = searchParams.get('status') as StatusType | null
   const token = searchParams.get('token')
+  const linkCode = searchParams.get('link_code')
 
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -53,7 +54,7 @@ function DriverStatusContent() {
 
     setLoading(true)
     try {
-      const body: Record<string, unknown> = { booking_id: bookingId, status, token }
+      const body: Record<string, unknown> = { booking_id: bookingId, status, token, link_code: linkCode }
       if (status === 'arrived') {
         body.tripsheet_number = tripsheetNumber.trim()
         body.opening_km = parseFloat(openingKm)

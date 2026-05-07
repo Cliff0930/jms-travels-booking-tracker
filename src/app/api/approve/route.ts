@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyApprovalToken } from '@/lib/utils/approval-token'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { markShortLinkUsed } from '@/lib/utils/short-link'
 function html(title: string, color: string, heading: string, message: string) {
   return new Response(
     `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
   const bookingId = searchParams.get('booking')
   const action = searchParams.get('action')
   const token = searchParams.get('token')
+  const linkCode = searchParams.get('link_code')
 
   if (!bookingId || !action || !token || !verifyApprovalToken(bookingId, action, token)) {
     return html('Invalid Link', '#DC2626', '❌', 'This approval link is invalid or has expired. Please contact JMS Travels directly.')
@@ -63,6 +65,8 @@ export async function GET(request: Request) {
       updated_at: new Date().toISOString(),
     }).eq('id', bookingId)
   }
+
+  if (linkCode) await markShortLinkUsed(linkCode).catch(() => {})
 
   await Promise.all([
     supabase.from('approval_logs').insert({
