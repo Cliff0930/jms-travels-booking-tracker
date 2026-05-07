@@ -142,6 +142,8 @@ function ClientExclusionPicker({
 export default function CompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [selectedPerson, setSelectedPerson] = useState<Client | null>(null)
+  const [peopleSearch, setPeopleSearch] = useState('')
+  const [peopleFilter, setPeopleFilter] = useState<'all' | 'employee' | 'guest'>('all')
   const [showAddModal, setShowAddModal] = useState(false)
   const [form, setForm] = useState({ name: '', aliases: '', email_domains: '', approver_emails: '' })
 
@@ -229,7 +231,7 @@ export default function CompaniesPage() {
                 <tr
                   key={company.id}
                   className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE] cursor-pointer transition-colors"
-                  onClick={() => setSelectedCompany(company)}
+                  onClick={() => { setSelectedCompany(company); setPeopleSearch(''); setPeopleFilter('all') }}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
@@ -300,71 +302,100 @@ export default function CompaniesPage() {
 
                 {/* People */}
                 <section>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-label-caps text-[#737686]">People</h3>
-                    {(companyClients.length + companyGuests.length) > 0 && (
-                      <span className="text-[10px] font-semibold bg-[#EDEDF8] text-[#434654] px-1.5 py-0.5 rounded-full">
-                        {companyClients.length + companyGuests.length}
-                      </span>
-                    )}
-                  </div>
-                  {companyClients.length === 0 && companyGuests.length === 0 ? (
-                    <p className="text-xs text-[#737686]">No clients or guests yet</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {companyClients.map(person => {
-                        const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
-                        return (
-                          <button
-                            key={person.id}
-                            onClick={() => setSelectedPerson(person)}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#F3F3FE] transition-colors text-left group"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
-                              {initials}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-[#191B23] group-hover:text-[#1A56DB] truncate">{person.name}</div>
-                              <div className="text-xs text-[#737686] truncate">
-                                {person.primary_phone || person.primary_email || person.designation || 'No contact info'}
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      })}
-
-                      {companyGuests.length > 0 && (
-                        <>
-                          {companyClients.length > 0 && (
-                            <div className="pt-2 pb-1 px-2.5">
-                              <span className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider">Guests</span>
-                            </div>
-                          )}
-                          {companyGuests.map(person => {
-                            const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
-                            return (
-                              <button
-                                key={person.id}
-                                onClick={() => setSelectedPerson(person)}
-                                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#FEF3C7] transition-colors text-left group"
-                              >
-                                <div className="w-8 h-8 rounded-full bg-[#FEF3C7] flex items-center justify-center text-xs font-semibold text-[#92400E] shrink-0">
-                                  {initials}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium text-[#191B23] group-hover:text-[#92400E] truncate">{person.name}</div>
-                                  <div className="text-xs text-[#737686] truncate">
-                                    {person.primary_phone || person.primary_email || 'No contact info'}
-                                  </div>
-                                </div>
-                                <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] px-1.5 py-0.5 rounded-full shrink-0">Guest</span>
-                              </button>
-                            )
-                          })}
-                        </>
+                  {/* Header + filter pills */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-label-caps text-[#737686]">People</h3>
+                      {(companyClients.length + companyGuests.length) > 0 && (
+                        <span className="text-[10px] font-semibold bg-[#EDEDF8] text-[#434654] px-1.5 py-0.5 rounded-full">
+                          {companyClients.length + companyGuests.length}
+                        </span>
                       )}
                     </div>
-                  )}
+                    <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-[10px]">
+                      {(['all', 'employee', 'guest'] as const).map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setPeopleFilter(f)}
+                          className={`px-2.5 h-6 border-r last:border-r-0 border-[#C3C5D7] capitalize transition-colors ${
+                            peopleFilter === f ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                          }`}
+                        >
+                          {f === 'all' ? `All` : f === 'employee' ? 'Employees' : 'Guests'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search */}
+                  <div className="relative mb-3">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737686]" />
+                    <input
+                      value={peopleSearch}
+                      onChange={e => setPeopleSearch(e.target.value)}
+                      placeholder="Search by name, phone or email…"
+                      className="w-full pl-8 pr-3 h-8 text-xs border border-[#C3C5D7] rounded-md bg-white outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF]"
+                    />
+                  </div>
+
+                  {/* Unified list */}
+                  {(() => {
+                    const allPeople = [
+                      ...companyClients.map(c => ({ ...c, _role: 'employee' as const })),
+                      ...companyGuests.map(c => ({ ...c, _role: 'guest' as const })),
+                    ]
+                    const q = peopleSearch.toLowerCase()
+                    const visible = allPeople.filter(p => {
+                      if (peopleFilter === 'employee' && p._role !== 'employee') return false
+                      if (peopleFilter === 'guest' && p._role !== 'guest') return false
+                      if (!q) return true
+                      return (
+                        p.name.toLowerCase().includes(q) ||
+                        p.primary_phone?.includes(q) ||
+                        p.primary_email?.toLowerCase().includes(q)
+                      )
+                    })
+
+                    if (allPeople.length === 0) {
+                      return <p className="text-xs text-[#737686]">No clients or guests yet</p>
+                    }
+                    if (visible.length === 0) {
+                      return <p className="text-xs text-[#737686]">No matches found</p>
+                    }
+
+                    return (
+                      <div className="space-y-1">
+                        {visible.map(person => {
+                          const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                          const isGuest = person._role === 'guest'
+                          return (
+                            <button
+                              key={person.id}
+                              onClick={() => setSelectedPerson(person)}
+                              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#F3F3FE] transition-colors text-left group"
+                            >
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${isGuest ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#D4DCFF] text-[#1A56DB]'}`}>
+                                {initials}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-[#191B23] group-hover:text-[#1A56DB] truncate">{person.name}</div>
+                                <div className="text-xs text-[#737686] truncate">
+                                  {person.primary_phone || person.primary_email || person.designation || 'No contact info'}
+                                </div>
+                              </div>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${
+                                isGuest
+                                  ? 'text-[#92400E] bg-[#FEF3C7] border-[#FCD34D]'
+                                  : 'text-[#1A56DB] bg-[#EBF5FF] border-[#BFDBFE]'
+                              }`}>
+                                {isGuest ? 'Guest' : 'Employee'}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </section>
 
                 <Separator />
