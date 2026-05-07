@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge } from 'lucide-react'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -65,6 +65,24 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     queryKey: ['booking-edit-logs', id],
     queryFn: () => fetch(`/api/bookings/${id}/edit-logs`).then(r => r.json()),
     enabled: !!id,
+  })
+
+  interface TripSheet {
+    id: string
+    tripsheet_number: string | null
+    opening_km: number | null
+    closing_km: number | null
+    opening_time: string | null
+    closing_time: string | null
+    office_to_pickup_km: number | null
+    drop_to_office_km: number | null
+  }
+
+  const { data: tripSheet } = useQuery<TripSheet | null>({
+    queryKey: ['trip-sheet', id],
+    queryFn: () => fetch(`/api/bookings/${id}/trip-sheet`).then(r => r.json()),
+    enabled: !!id,
+    refetchInterval: booking?.status === 'in_progress' ? 15000 : false,
   })
 
   const updateBooking = useUpdateBooking()
@@ -824,6 +842,61 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Timeline</h2>
             <TripTimeline booking={booking} />
           </div>
+
+          {tripSheet && (
+            <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+              <h2 className="text-base font-semibold text-[#191B23] mb-3 flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-[#1A56DB]" />
+                Tripsheet
+              </h2>
+              <dl className="space-y-2 text-sm">
+                {tripSheet.tripsheet_number && (
+                  <div className="flex justify-between">
+                    <dt className="text-[#737686]">Sheet No.</dt>
+                    <dd className="font-medium text-[#191B23]">{tripSheet.tripsheet_number}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <dt className="text-[#737686]">Opening KM</dt>
+                  <dd className="text-[#434654]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-[#737686]">Closing KM</dt>
+                  <dd className="text-[#434654]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</dd>
+                </div>
+                {tripSheet.opening_km != null && tripSheet.closing_km != null && (
+                  <>
+                    <div className="flex justify-between border-t border-[#C3C5D7] pt-2 mt-2">
+                      <dt className="text-[#737686]">Driver KM</dt>
+                      <dd className="font-medium text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</dd>
+                    </div>
+                    {(tripSheet.office_to_pickup_km != null || tripSheet.drop_to_office_km != null) && (
+                      <>
+                        <div className="flex justify-between">
+                          <dt className="text-[#737686]">Office → Pickup</dt>
+                          <dd className="text-[#434654]">{tripSheet.office_to_pickup_km != null ? `${tripSheet.office_to_pickup_km} km` : '—'}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-[#737686]">Drop → Office</dt>
+                          <dd className="text-[#434654]">{tripSheet.drop_to_office_km != null ? `${tripSheet.drop_to_office_km} km` : '—'}</dd>
+                        </div>
+                        <div className="flex justify-between border-t border-[#C3C5D7] pt-2 mt-2">
+                          <dt className="font-medium text-[#191B23]">Grand Total</dt>
+                          <dd className="font-semibold text-[#1A56DB]">
+                            {(
+                              (tripSheet.closing_km - tripSheet.opening_km) +
+                              (tripSheet.office_to_pickup_km ?? 0) +
+                              (tripSheet.drop_to_office_km ?? 0)
+                            ).toFixed(1)} km
+                          </dd>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </dl>
+            </div>
+          )}
         </div>
       </div>
 
