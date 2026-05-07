@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   const q = searchParams.get('q')
   const client_type = searchParams.get('client_type')
   const company_id = searchParams.get('company_id')
+  const guest_of_company_id = searchParams.get('guest_of_company_id')
 
   let query = supabase
     .from('clients')
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
   }
   if (client_type) query = query.eq('client_type', client_type)
   if (company_id) query = query.eq('company_id', company_id)
+  if (guest_of_company_id) query = query.eq('guest_of_company_id', guest_of_company_id)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

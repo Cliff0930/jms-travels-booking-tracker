@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Building2, Plus, X, Mail, Phone, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import { ClientDetailPanel } from '@/components/clients/ClientDetailPanel'
 import type { Company, Client } from '@/types'
 
 function useCompanies() {
@@ -140,11 +141,24 @@ function ClientExclusionPicker({
 
 export default function CompaniesPage() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const [selectedPerson, setSelectedPerson] = useState<Client | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [form, setForm] = useState({ name: '', aliases: '', email_domains: '', approver_emails: '' })
 
   const { data: companies = [], isLoading } = useCompanies()
   const qc = useQueryClient()
+
+  const { data: companyClients = [] } = useQuery<Client[]>({
+    queryKey: ['clients', 'company', selectedCompany?.id],
+    queryFn: () => fetch(`/api/clients?company_id=${selectedCompany!.id}`).then(r => r.json()),
+    enabled: !!selectedCompany,
+  })
+
+  const { data: companyGuests = [] } = useQuery<Client[]>({
+    queryKey: ['clients', 'guests', selectedCompany?.id],
+    queryFn: () => fetch(`/api/clients?guest_of_company_id=${selectedCompany!.id}`).then(r => r.json()),
+    enabled: !!selectedCompany,
+  })
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -283,6 +297,78 @@ export default function CompaniesPage() {
 
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto py-4 space-y-5">
+
+                {/* People */}
+                <section>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-label-caps text-[#737686]">People</h3>
+                    {(companyClients.length + companyGuests.length) > 0 && (
+                      <span className="text-[10px] font-semibold bg-[#EDEDF8] text-[#434654] px-1.5 py-0.5 rounded-full">
+                        {companyClients.length + companyGuests.length}
+                      </span>
+                    )}
+                  </div>
+                  {companyClients.length === 0 && companyGuests.length === 0 ? (
+                    <p className="text-xs text-[#737686]">No clients or guests yet</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {companyClients.map(person => {
+                        const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                        return (
+                          <button
+                            key={person.id}
+                            onClick={() => setSelectedPerson(person)}
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#F3F3FE] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-[#191B23] group-hover:text-[#1A56DB] truncate">{person.name}</div>
+                              <div className="text-xs text-[#737686] truncate">
+                                {person.primary_phone || person.primary_email || person.designation || 'No contact info'}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+
+                      {companyGuests.length > 0 && (
+                        <>
+                          {companyClients.length > 0 && (
+                            <div className="pt-2 pb-1 px-2.5">
+                              <span className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider">Guests</span>
+                            </div>
+                          )}
+                          {companyGuests.map(person => {
+                            const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                            return (
+                              <button
+                                key={person.id}
+                                onClick={() => setSelectedPerson(person)}
+                                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#FEF3C7] transition-colors text-left group"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-[#FEF3C7] flex items-center justify-center text-xs font-semibold text-[#92400E] shrink-0">
+                                  {initials}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium text-[#191B23] group-hover:text-[#92400E] truncate">{person.name}</div>
+                                  <div className="text-xs text-[#737686] truncate">
+                                    {person.primary_phone || person.primary_email || 'No contact info'}
+                                  </div>
+                                </div>
+                                <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] px-1.5 py-0.5 rounded-full shrink-0">Guest</span>
+                              </button>
+                            )
+                          })}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <Separator />
+
                 <section>
                   <h3 className="text-label-caps text-[#737686] mb-3">Approval Settings</h3>
                   <div className="space-y-3">
@@ -388,6 +474,12 @@ export default function CompaniesPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      <ClientDetailPanel
+        client={selectedPerson}
+        open={!!selectedPerson}
+        onClose={() => setSelectedPerson(null)}
+      />
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="max-w-md">
