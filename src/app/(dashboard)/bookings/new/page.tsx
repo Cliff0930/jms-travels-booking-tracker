@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useCreateBooking } from '@/hooks/useBookings'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,26 +9,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
+import { cn } from '@/lib/utils'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle } from 'lucide-react'
+import Link from 'next/link'
 import type { Client, Company } from '@/types'
 import { Suspense } from 'react'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
 
 interface FormState {
+  booking_type: 'company' | 'personal'
+  client_id: string
+  company_id: string
+  guest_name: string
+  guest_phone: string
+  trip_type: 'local' | 'outstation' | 'airport'
+  service_type: 'one_way' | 'return'
+  total_days: string
   pickup_location: string
   drop_location: string
   pickup_date: string
   pickup_time: string
-  pax_count: string
   vehicle_type: string
-  trip_type: 'local' | 'outstation'
-  service_type: 'one_way' | 'return'
-  total_days: string
-  guest_name: string
-  guest_phone: string
+  pax_count: string
   special_instructions: string
-  client_id: string
-  company_id: string
+}
+
+function SectionHeader({ n, icon: Icon, title }: { n: number; icon: React.ElementType; title: string }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className="w-6 h-6 rounded-full bg-[#1A56DB] flex items-center justify-center text-[11px] font-bold text-white shrink-0">{n}</div>
+      <Icon className="w-4 h-4 text-[#737686]" />
+      <h2 className="text-sm font-semibold text-[#191B23] uppercase tracking-wide">{title}</h2>
+    </div>
+  )
+}
+
+function PillButton({ active, onClick, children, className }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'px-3 h-8 rounded-lg text-xs font-medium border transition-all',
+        active
+          ? 'bg-[#1A56DB] text-white border-[#1A56DB] shadow-sm'
+          : 'bg-white text-[#434654] border-[#C3C5D7] hover:border-[#1A56DB] hover:text-[#1A56DB]',
+        className
+      )}
+    >
+      {children}
+    </button>
+  )
 }
 
 function NewBookingForm() {
@@ -40,14 +71,31 @@ function NewBookingForm() {
   const [error, setError] = useState('')
 
   const [form, setForm] = useState<FormState>({
-    pickup_location: '', drop_location: '', pickup_date: '', pickup_time: '',
-    pax_count: '', vehicle_type: '', trip_type: 'local', service_type: 'one_way',
-    total_days: '1', guest_name: '', guest_phone: '', special_instructions: '',
-    client_id: prefillClientId, company_id: '',
+    booking_type: 'company',
+    client_id: prefillClientId,
+    company_id: '',
+    guest_name: '',
+    guest_phone: '',
+    trip_type: 'local',
+    service_type: 'one_way',
+    total_days: '1',
+    pickup_location: '',
+    drop_location: '',
+    pickup_date: '',
+    pickup_time: '',
+    vehicle_type: '',
+    pax_count: '',
+    special_instructions: '',
   })
 
-  const { data: clients = [] } = useQuery<Client[]>({ queryKey: ['clients'], queryFn: () => fetch('/api/clients').then(r => r.json()) })
-  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['companies'], queryFn: () => fetch('/api/companies').then(r => r.json()) })
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ['clients'],
+    queryFn: () => fetch('/api/clients').then(r => r.json()),
+  })
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ['companies'],
+    queryFn: () => fetch('/api/companies').then(r => r.json()),
+  })
 
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(f => ({ ...f, [key]: val }))
@@ -57,15 +105,15 @@ function NewBookingForm() {
     e.preventDefault()
     setError('')
     if (!form.pickup_location.trim()) { setError('Pickup location is required'); return }
-    if (!form.pickup_date) { setError('Pickup date is required'); return }
-    if (!form.pickup_time) { setError('Pickup time is required'); return }
+    if (!form.pickup_date)            { setError('Pickup date is required'); return }
+    if (!form.pickup_time)            { setError('Pickup time is required'); return }
 
     try {
       const booking = await createBooking.mutateAsync({
-        pickup_location: form.pickup_location || undefined,
+        pickup_location: form.pickup_location,
         drop_location: form.drop_location || undefined,
-        pickup_date: form.pickup_date || undefined,
-        pickup_time: form.pickup_time || undefined,
+        pickup_date: form.pickup_date,
+        pickup_time: form.pickup_time,
         pax_count: form.pax_count ? parseInt(form.pax_count) : undefined,
         vehicle_type: form.vehicle_type || undefined,
         trip_type: form.trip_type,
@@ -76,6 +124,7 @@ function NewBookingForm() {
         special_instructions: form.special_instructions || undefined,
         client_id: form.client_id || undefined,
         company_id: form.company_id || undefined,
+        booking_type: form.booking_type,
         source: 'manual',
       })
       toast.success(`Booking ${booking.booking_ref} created`)
@@ -85,122 +134,318 @@ function NewBookingForm() {
     }
   }
 
+  const selectedClient  = clients.find(c => c.id === form.client_id)
+  const selectedCompany = companies.find(c => c.id === form.company_id)
+
+  // Summary fields for the right panel
+  const summaryItems = [
+    { label: 'Type', value: `${form.booking_type.charAt(0).toUpperCase() + form.booking_type.slice(1)} · ${form.trip_type.charAt(0).toUpperCase() + form.trip_type.slice(1)}` },
+    { label: 'Client', value: selectedClient?.name || form.guest_name || null },
+    { label: 'Company', value: selectedCompany?.name || null },
+    { label: 'Pickup', value: form.pickup_location || null },
+    { label: 'Drop', value: form.drop_location || null },
+    { label: 'Date', value: form.pickup_date ? new Date(form.pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null },
+    { label: 'Time', value: form.pickup_time || null },
+    { label: 'Vehicle', value: form.vehicle_type || null },
+    { label: 'Pax', value: form.pax_count ? `${form.pax_count} passenger${parseInt(form.pax_count) !== 1 ? 's' : ''}` : null },
+    ...(form.trip_type === 'outstation' ? [{ label: 'Days', value: form.total_days }] : []),
+  ].filter(i => i.value)
+
+  const isReadyToSubmit = !!(form.pickup_location && form.pickup_date && form.pickup_time)
+
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="New Booking" description="Create a manual booking" />
+    <div>
+      {/* Back link */}
+      <div className="flex items-center gap-3 mb-5">
+        <Link href="/bookings" className="inline-flex items-center gap-1 text-sm text-[#434654] hover:text-[#191B23] -ml-1 py-1.5 px-2 rounded hover:bg-[#EDEDF8] transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Bookings
+        </Link>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {error && <div className="p-3 rounded bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>}
-
-        <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
-          <h2 className="text-base font-semibold text-[#191B23] mb-4">Client Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Client</Label>
-              <Select value={form.client_id} onValueChange={v => v !== null && setField('client_id', v)}>
-                <SelectTrigger className="border-[#C3C5D7]">
-                  <SelectValue placeholder="Select client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Company</Label>
-              <Select value={form.company_id} onValueChange={v => v !== null && setField('company_id', v)}>
-                <SelectTrigger className="border-[#C3C5D7]">
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Guest Name <span className="text-[#737686] text-xs">(if different from client)</span></Label>
-              <Input value={form.guest_name} onChange={e => setField('guest_name', e.target.value)} className="border-[#C3C5D7]" />
-            </div>
-            <div>
-              <Label>Guest Phone</Label>
-              <Input value={form.guest_phone} onChange={e => setField('guest_phone', e.target.value)} className="border-[#C3C5D7]" />
-            </div>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#191B23]">New Booking</h1>
+          <p className="text-sm text-[#737686] mt-0.5">Create a manual booking</p>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
-          <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Details</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label>
-                Pickup Location *
-                <span className="ml-1 text-xs text-red-500">(mandatory)</span>
-              </Label>
-              <Input value={form.pickup_location} onChange={e => setField('pickup_location', e.target.value)} placeholder="Full pickup address" className="border-[#C3C5D7]" required />
-            </div>
-            <div className="col-span-2">
-              <Label>Drop Location <span className="text-[#737686] text-xs">(optional)</span></Label>
-              <Input value={form.drop_location} onChange={e => setField('drop_location', e.target.value)} placeholder="Drop address (leave blank if unknown)" className="border-[#C3C5D7]" />
-            </div>
-            <div>
-              <Label>Pickup Date *</Label>
-              <Input value={form.pickup_date} onChange={e => setField('pickup_date', e.target.value)} type="date" className="border-[#C3C5D7]" required />
-            </div>
-            <div>
-              <Label>Pickup Time *</Label>
-              <Input value={form.pickup_time} onChange={e => setField('pickup_time', e.target.value)} type="time" className="border-[#C3C5D7]" required />
-            </div>
-            <div>
-              <Label>Trip Type</Label>
-              <Select value={form.trip_type} onValueChange={v => v !== null && setField('trip_type', v as 'local' | 'outstation')}>
-                <SelectTrigger className="border-[#C3C5D7]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="local">Local</SelectItem>
-                  <SelectItem value="outstation">Outstation</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Service Type</Label>
-              <Select value={form.service_type} onValueChange={v => v !== null && setField('service_type', v as 'one_way' | 'return')}>
-                <SelectTrigger className="border-[#C3C5D7]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="one_way">One Way</SelectItem>
-                  <SelectItem value="return">Return</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {form.trip_type === 'outstation' && (
-              <div>
-                <Label>Total Days</Label>
-                <Input value={form.total_days} onChange={e => setField('total_days', e.target.value)} type="number" min="1" className="border-[#C3C5D7]" />
+      {error && (
+        <div className="mb-5 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          {/* ── Left: Form ─────────────────────────────────────────── */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Section 1: Booking Type */}
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <SectionHeader n={1} icon={Building2} title="Booking Type" />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setField('booking_type', 'company')}
+                  className={cn(
+                    'flex-1 h-10 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-2',
+                    form.booking_type === 'company'
+                      ? 'border-[#1A56DB] bg-[#EEF2FF] text-[#1A56DB]'
+                      : 'border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB]/50'
+                  )}
+                >
+                  <Building2 className="w-4 h-4" /> Company
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setField('booking_type', 'personal')}
+                  className={cn(
+                    'flex-1 h-10 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-2',
+                    form.booking_type === 'personal'
+                      ? 'border-[#1A56DB] bg-[#EEF2FF] text-[#1A56DB]'
+                      : 'border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB]/50'
+                  )}
+                >
+                  <User className="w-4 h-4" /> Personal
+                </button>
               </div>
-            )}
-            <div>
-              <Label>Passengers</Label>
-              <Input value={form.pax_count} onChange={e => setField('pax_count', e.target.value)} type="number" min="1" className="border-[#C3C5D7]" />
             </div>
-            <div>
-              <Label>Vehicle Type</Label>
-              <Select value={form.vehicle_type} onValueChange={v => v !== null && setField('vehicle_type', v)}>
-                <SelectTrigger className="border-[#C3C5D7]"><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+            {/* Section 2: Who's Travelling */}
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <SectionHeader n={2} icon={User} title="Who's Travelling" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Client</Label>
+                  <Select value={form.client_id} onValueChange={v => v !== null && setField('client_id', v)}>
+                    <SelectTrigger className="border-[#C3C5D7] h-9">
+                      <SelectValue placeholder="Select client…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.booking_type === 'company' && (
+                  <div>
+                    <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
+                    <Select value={form.company_id} onValueChange={v => v !== null && setField('company_id', v)}>
+                      <SelectTrigger className="border-[#C3C5D7] h-9">
+                        <SelectValue placeholder="Select company…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Guest Name <span className="text-[#9CA3AF]">(if different)</span></Label>
+                  <Input
+                    value={form.guest_name}
+                    onChange={e => setField('guest_name', e.target.value)}
+                    placeholder="Traveller name"
+                    className="border-[#C3C5D7] h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Guest Phone</Label>
+                  <Input
+                    value={form.guest_phone}
+                    onChange={e => setField('guest_phone', e.target.value)}
+                    placeholder="91XXXXXXXXXX"
+                    className="border-[#C3C5D7] h-9"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="col-span-2">
-              <Label>Special Instructions</Label>
-              <Textarea value={form.special_instructions} onChange={e => setField('special_instructions', e.target.value)} rows={2} className="border-[#C3C5D7]" />
+
+            {/* Section 3: Trip Details */}
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <SectionHeader n={3} icon={MapPin} title="Trip Details" />
+
+              {/* Trip type pills */}
+              <div className="mb-4">
+                <Label className="text-xs text-[#737686] mb-2 block">Trip Type</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['local', 'outstation', 'airport'] as const).map(t => (
+                    <PillButton key={t} active={form.trip_type === t} onClick={() => setField('trip_type', t)}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </PillButton>
+                  ))}
+                </div>
+              </div>
+
+              {/* Locations */}
+              <div className="space-y-3 mb-4">
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    Pickup Location <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={form.pickup_location}
+                    onChange={e => setField('pickup_location', e.target.value)}
+                    placeholder="Full pickup address"
+                    className="border-[#C3C5D7] h-9"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-[#737686]" />
+                    Drop Location
+                    {form.trip_type !== 'local' && <span className="text-red-500 ml-0.5">*</span>}
+                    {form.trip_type === 'local' && <span className="text-[#9CA3AF] ml-1">(optional)</span>}
+                  </Label>
+                  <Input
+                    value={form.drop_location}
+                    onChange={e => setField('drop_location', e.target.value)}
+                    placeholder={form.trip_type === 'airport' ? 'Airport name' : 'Drop address'}
+                    className="border-[#C3C5D7] h-9"
+                  />
+                </div>
+              </div>
+
+              {/* Date + Time + optional days */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Date <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={form.pickup_date}
+                    onChange={e => setField('pickup_date', e.target.value)}
+                    type="date"
+                    className="border-[#C3C5D7] h-9"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" /> Time <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={form.pickup_time}
+                    onChange={e => setField('pickup_time', e.target.value)}
+                    type="time"
+                    className="border-[#C3C5D7] h-9"
+                    required
+                  />
+                </div>
+                {form.trip_type === 'outstation' && (
+                  <div>
+                    <Label className="text-xs text-[#737686] mb-1.5 block">Total Days</Label>
+                    <Input
+                      value={form.total_days}
+                      onChange={e => setField('total_days', e.target.value)}
+                      type="number"
+                      min="1"
+                      className="border-[#C3C5D7] h-9"
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Service</Label>
+                  <Select value={form.service_type} onValueChange={v => v !== null && setField('service_type', v as 'one_way' | 'return')}>
+                    <SelectTrigger className="border-[#C3C5D7] h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="one_way">One Way</SelectItem>
+                      <SelectItem value="return">Return</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Vehicle */}
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <SectionHeader n={4} icon={Car} title="Vehicle & Passengers" />
+
+              <div className="mb-4">
+                <Label className="text-xs text-[#737686] mb-2 block">Vehicle Type</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {VEHICLE_TYPES.map(v => (
+                    <PillButton key={v} active={form.vehicle_type === v} onClick={() => setField('vehicle_type', form.vehicle_type === v ? '' : v)}>
+                      {v}
+                    </PillButton>
+                  ))}
+                </div>
+              </div>
+
+              <div className="max-w-[140px]">
+                <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" /> Passengers
+                </Label>
+                <Input
+                  value={form.pax_count}
+                  onChange={e => setField('pax_count', e.target.value)}
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 2"
+                  className="border-[#C3C5D7] h-9"
+                />
+              </div>
+            </div>
+
+            {/* Section 5: Notes */}
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <SectionHeader n={5} icon={FileText} title="Notes" />
+              <Textarea
+                value={form.special_instructions}
+                onChange={e => setField('special_instructions', e.target.value)}
+                placeholder="Special instructions, notes for driver, flight details…"
+                rows={3}
+                className="border-[#C3C5D7] resize-none text-sm"
+              />
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" className="rounded-sm" onClick={() => router.back()}>Cancel</Button>
-          <Button type="submit" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" disabled={createBooking.isPending}>
-            {createBooking.isPending ? 'Creating…' : 'Create Booking'}
-          </Button>
+          {/* ── Right: Summary ──────────────────────────────────────── */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-20 bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <h3 className="text-sm font-semibold text-[#191B23] mb-4">Booking Summary</h3>
+
+              {summaryItems.length === 0 ? (
+                <p className="text-xs text-[#9CA3AF] mb-4">Fill in the form to see a preview here.</p>
+              ) : (
+                <dl className="space-y-2.5 mb-5">
+                  {summaryItems.map(item => (
+                    <div key={item.label} className="flex justify-between gap-2">
+                      <dt className="text-xs text-[#737686] shrink-0">{item.label}</dt>
+                      <dd className="text-xs font-medium text-[#191B23] text-right truncate max-w-[60%]">{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+
+              {isReadyToSubmit && (
+                <div className="flex items-center gap-1.5 text-xs text-green-600 mb-4 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                  Required fields complete
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Button
+                  type="submit"
+                  className="w-full bg-[#1A56DB] hover:bg-[#003FB1] rounded-lg"
+                  disabled={createBooking.isPending || !isReadyToSubmit}
+                  onClick={handleSubmit}
+                >
+                  {createBooking.isPending ? 'Creating…' : 'Create Booking'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full rounded-lg"
+                  onClick={() => router.back()}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </form>
     </div>
