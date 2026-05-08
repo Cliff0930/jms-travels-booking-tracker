@@ -71,7 +71,7 @@ Fields to extract:
 14. company_mentioned — any company name mentioned
 
 Location keyword resolution:
-If the sender uses words like "home", "office", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the saved address. If no saved address exists for that keyword, treat it as missing and ask.
+If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory. The driver or operator will confirm the exact address with the client.
 
 Saved locations for this client: {saved_locations}
 
@@ -293,6 +293,9 @@ JMS Travels is based in Bangalore. Classify every trip as:
 
 Apply rules in order: airport first, then outstation, then local.
 If drop_location is provided, use it to help determine the trip type.
+
+=== LOCATION KEYWORDS ===
+If the client uses a shorthand like "home", "office", "residence", "factory" check their saved_locations. If found → use the saved address. If not found → accept the shorthand as-is (e.g. "Home", "Residence") and proceed. Do NOT ask the client to clarify the address — the driver or operator will confirm it directly.
 
 === MANDATORY FIELDS BY TRIP TYPE ===
 
