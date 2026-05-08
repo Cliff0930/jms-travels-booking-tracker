@@ -100,6 +100,7 @@ create table bookings (
   total_days          int default 1,
   source              text default 'manual',
   requested_by        text,
+  cc_emails           text[] default '{}',
   special_instructions text,
   booking_type        text,
   missing_fields      text[] default '{}',

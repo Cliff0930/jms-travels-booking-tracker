@@ -102,6 +102,7 @@ export interface Booking {
   guest_name: string | null
   guest_phone: string | null
   requested_by: string | null
+  cc_emails: string[] | null
   status: BookingStatus
   trip_type: TripType
   service_type: ServiceType
