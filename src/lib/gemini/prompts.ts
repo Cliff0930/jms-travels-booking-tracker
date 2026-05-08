@@ -85,7 +85,7 @@ Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase betwe
 CONTINUATION SIGNALS — more detail is arriving in the next message. When any of these appear and pickup_location is still missing, do NOT add pickup_location to missing_mandatory and do NOT ask for it. Just acknowledge the details received so far:
 - Emojis: 👇 ⬇️ (pointing down — "address/details below")
 - Phrases: "below location", "below address", "below details", "see below", "pls find below", "as follows", "as under", "as below", "details below", "address below", "location below"
-- Location-share signals: "sharing location", "sending pin", "location pin", "sending address", "will share address", "sharing now"
+- Location-share signals: "sharing location", "sending pin", "location pin", "sending address", "will share address", "sharing now", "I am sending the location", "sending the location", "sharing the location"
 - Message ends with an empty field label like "Pickup Location:" or "Address:" with nothing after it — the value is coming in the next message
 A Google Maps link adjacent to a continuation signal should be stored as part of the pickup location field.
 Multi-line addresses (address split across several lines) should be concatenated into a single pickup_location or drop_location string.
