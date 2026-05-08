@@ -1,7 +1,5 @@
 'use client'
-import { MoreVertical } from 'lucide-react'
-import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Car, Phone, Users } from 'lucide-react'
 import type { Driver } from '@/types'
 
 interface DriverCardProps {
@@ -10,54 +8,56 @@ interface DriverCardProps {
   onDeactivate?: (id: string) => void
 }
 
-export function DriverCard({ driver, onSelect, onDeactivate }: DriverCardProps) {
+function statusConfig(status: Driver['status'], isActive: boolean) {
+  if (!isActive) return { gradient: 'from-gray-400 to-gray-500', pill: 'bg-red-50 text-red-600 border border-red-200', label: 'Inactive' }
+  if (status === 'available')  return { gradient: 'from-emerald-400 to-teal-500',   pill: 'bg-emerald-50 text-emerald-700 border border-emerald-200', label: 'Available' }
+  if (status === 'on_duty')    return { gradient: 'from-[#1A56DB] to-[#6366F1]',    pill: 'bg-blue-50 text-[#1A56DB] border border-blue-200',          label: 'On Duty' }
+  return                              { gradient: 'from-gray-400 to-slate-500',      pill: 'bg-gray-100 text-gray-600 border border-gray-200',           label: 'Off Duty' }
+}
+
+export function DriverCard({ driver, onSelect }: DriverCardProps) {
   const initials = driver.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+  const { gradient, pill, label } = statusConfig(driver.status, driver.is_active)
 
   return (
     <div
-      className="bg-white rounded-lg border border-[#C3C5D7] p-4 card-hover cursor-pointer"
+      className="bg-white rounded-2xl border border-[#E5E7EB] p-4 cursor-pointer hover:shadow-lg hover:border-[#7C3AED]/30 hover:-translate-y-0.5 transition-all group"
       onClick={() => onSelect(driver)}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#D4DCFF] flex items-center justify-center text-sm font-semibold text-[#1A56DB] shrink-0">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-base font-bold text-white shrink-0 shadow-sm`}>
             {initials}
           </div>
-          <div>
-            <div className="font-medium text-[#191B23] text-sm">{driver.name}</div>
-            <DriverStatusBadge status={driver.status} className="mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#191B23] group-hover:text-[#7C3AED] transition-colors truncate">{driver.name}</div>
+            <div className="text-xs text-[#737686] mt-0.5 truncate">{driver.phone}</div>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            onClick={e => e.stopPropagation()}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-[#EDEDF8] transition-colors text-[#434654] -mr-1"
-            aria-label="Driver actions"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={e => { e.stopPropagation(); onSelect(driver) }}>View Details</DropdownMenuItem>
-            {driver.is_active && onDeactivate && (
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={e => { e.stopPropagation(); onDeactivate(driver.id) }}
-              >
-                Deactivate
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${pill}`}>
+          {label}
+        </span>
       </div>
 
-      <div className="mt-3 space-y-1">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-[#434654]">{driver.vehicle_name}</span>
-          <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-[#EDEDF8] text-[#434654]">{driver.vehicle_type}</span>
+      <div className="border-t border-[#F3F4F6] pt-3 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-5 h-5 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
+              <Car className="w-3 h-3 text-[#7C3AED]" />
+            </div>
+            <span className="text-xs text-[#434654] truncate font-medium">{driver.vehicle_name}</span>
+          </div>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-[#7C3AED] border border-violet-100 shrink-0">{driver.vehicle_type}</span>
         </div>
-        <div className="text-xs text-[#737686]">{driver.vehicle_number}</div>
-        <div className="text-xs text-[#737686]">{driver.seating_capacity} passengers</div>
-        <div className="text-xs text-[#737686]">{driver.phone}</div>
+        <div className="flex items-center gap-2 text-xs text-[#737686]">
+          <div className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+            <Phone className="w-3 h-3 text-[#1A56DB]" />
+          </div>
+          <span className="truncate">{driver.vehicle_number}</span>
+          <span className="shrink-0 flex items-center gap-1 text-[#9CA3AF]">
+            <Users className="w-3 h-3" />{driver.seating_capacity}
+          </span>
+        </div>
       </div>
     </div>
   )
