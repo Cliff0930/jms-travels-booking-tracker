@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X, KeyRound } from 'lucide-react'
+import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X, KeyRound, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type { UserProfile, UserRole } from '@/types'
@@ -328,85 +328,114 @@ export default function UsersPage() {
       )}
 
       {/* Add User Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1A56DB] to-[#6366F1] flex items-center justify-center">
-                <Plus className="w-4 h-4 text-white" />
-              </div>
-              Add New User
-            </DialogTitle>
+      <Dialog open={showAdd} onOpenChange={open => { setShowAdd(open); if (!open) setForm({ name: '', email: '', role: 'operator', password: '' }) }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl gap-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Add New User</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-4 pt-1">
+
+          {/* Live gradient header — updates as role changes */}
+          <div className={`bg-gradient-to-br ${ROLE_CONFIG[form.role].gradient} px-5 pt-5 pb-6`}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="text-white">
+                <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">New User</p>
+                <h2 className="text-xl font-bold mt-0.5">Add to workspace</h2>
+              </div>
+              {/* Live avatar — shows initials as user types */}
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center shrink-0">
+                {form.name.trim()
+                  ? <span className="text-lg font-bold text-white">{form.name.trim().split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}</span>
+                  : <User className="w-6 h-6 text-white/60" />
+                }
+              </div>
+            </div>
+
+            {/* Role selector pills */}
+            <div className="flex gap-2">
+              {(Object.entries(ROLE_CONFIG) as [UserRole, typeof ROLE_CONFIG[UserRole]][]).map(([role, cfg]) => {
+                const RoleIcon = cfg.icon
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, role }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      form.role === role
+                        ? 'bg-white text-[#191B23] shadow-md'
+                        : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white'
+                    }`}
+                  >
+                    <RoleIcon className="w-3 h-3" />
+                    {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleAdd} className="px-5 py-4 space-y-4">
+            {/* Role description */}
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F8F9FF] border border-[#E5E7EB]">
+              {(() => { const RoleIcon = ROLE_CONFIG[form.role].icon; return <RoleIcon className="w-3.5 h-3.5 text-[#737686] mt-0.5 shrink-0" /> })()}
+              <p className="text-xs text-[#434654] leading-relaxed">{ROLE_CONFIG[form.role].desc}</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Full Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Ravi Kumar"
-                  className="border-[#C3C5D7] h-9"
-                />
-              </div>
-              <div>
-                <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Email Address *</Label>
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="user@company.com"
-                  required
-                  className="border-[#C3C5D7] h-9"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Role *</Label>
-              <Select value={form.role} onValueChange={v => v && setForm(f => ({ ...f, role: v as UserRole }))}>
-                <SelectTrigger className="border-[#C3C5D7]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin — full access</SelectItem>
-                  <SelectItem value="operator">Operator — manage bookings</SelectItem>
-                  <SelectItem value="viewer">Viewer — read only</SelectItem>
-                </SelectContent>
-              </Select>
-              {/* Role preview */}
-              <div className={`mt-2 flex items-start gap-2.5 p-2.5 rounded-lg bg-gradient-to-br ${ROLE_CONFIG[form.role].gradient} bg-opacity-10`}>
-                <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${ROLE_CONFIG[form.role].gradient} flex items-center justify-center shrink-0`}>
-                  {(() => { const Icon = ROLE_CONFIG[form.role].icon; return <Icon className="w-3.5 h-3.5 text-white" /> })()}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Ravi Kumar"
+                    className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                  />
                 </div>
-                <p className="text-xs text-[#434654] leading-snug pt-0.5">{ROLE_CONFIG[form.role].desc}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Email *</Label>
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input
+                    type="email"
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="user@co.com"
+                    required
+                    className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
-            <div>
-              <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Initial Password *</Label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                placeholder="Min 6 characters"
-                required
-                minLength={6}
-                className="border-[#C3C5D7] h-9"
-              />
-              <p className="text-xs text-[#737686] mt-1">Share this with the user — they can change it after first login.</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Initial Password *</Label>
+              <div className="relative">
+                <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Min. 6 characters"
+                  required
+                  minLength={6}
+                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-[#9CA3AF]">Share with the user — they can change it after signing in.</p>
             </div>
 
-            <DialogFooter className="pt-1">
-              <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">
+              <Button type="button" variant="outline" onClick={() => setShowAdd(false)} className="flex-1">Cancel</Button>
               <Button
                 type="submit"
                 disabled={saving || !form.email.trim() || !form.password.trim()}
-                className="bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm"
+                className={`flex-1 bg-gradient-to-r ${ROLE_CONFIG[form.role].gradient} hover:opacity-90 transition-opacity rounded-sm text-white border-0 shadow-sm`}
               >
                 {saving ? 'Adding…' : 'Add User'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
