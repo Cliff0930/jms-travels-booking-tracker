@@ -126,6 +126,7 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
               )}
               <Select
                 value={leg.driver_id || ''}
+                items={allDrivers.filter(d => d.is_active).map(d => ({ value: d.id, label: `${d.name} (${d.vehicle_type})` }))}
                 onValueChange={v => v !== null && v !== '' && handleAssign(leg.id, v)}
               >
                 <SelectTrigger className="w-36 h-7 text-xs border-[#C3C5D7]" disabled={assigning === leg.id}>

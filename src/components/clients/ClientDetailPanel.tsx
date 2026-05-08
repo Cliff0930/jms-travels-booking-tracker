@@ -612,7 +612,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             </div>
             <div>
               <Label className="mb-1 block">Company</Label>
-              <Select value={editForm.company_id || '__none__'} onValueChange={v => v !== null && setEditForm(p => ({ ...p, company_id: v === '__none__' ? '' : v }))}>
+              <Select
+                value={editForm.company_id || '__none__'}
+                items={[{ value: '__none__', label: 'No company' }, ...companies.map(co => ({ value: co.id, label: co.name }))]}
+                onValueChange={v => v !== null && setEditForm(p => ({ ...p, company_id: v === '__none__' ? '' : v }))}
+              >
                 <SelectTrigger className="border-[#C3C5D7]"><SelectValue placeholder="No company" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">No company</SelectItem>

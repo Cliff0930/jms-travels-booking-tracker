@@ -216,7 +216,7 @@ function NewBookingForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Client</Label>
-                  <Select value={form.client_id} onValueChange={v => v !== null && setField('client_id', v)}>
+                  <Select value={form.client_id} items={clients.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('client_id', v)}>
                     <SelectTrigger className="border-[#C3C5D7] h-9">
                       <SelectValue placeholder="Select client…" />
                     </SelectTrigger>
@@ -228,7 +228,7 @@ function NewBookingForm() {
                 {form.booking_type === 'company' && (
                   <div>
                     <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
-                    <Select value={form.company_id} onValueChange={v => v !== null && setField('company_id', v)}>
+                    <Select value={form.company_id} items={companies.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('company_id', v)}>
                       <SelectTrigger className="border-[#C3C5D7] h-9">
                         <SelectValue placeholder="Select company…" />
                       </SelectTrigger>
