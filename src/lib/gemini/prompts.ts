@@ -73,6 +73,8 @@ Fields to extract:
 Location keyword resolution:
 If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory. The driver or operator will confirm the exact address with the client.
 
+"Report [location]" means pickup_location — corporate language for where the driver should report to collect the traveler. E.g. "Report hotel MGM Mark Whitefield" → pickup_location = "Hotel MGM Mark, Whitefield".
+
 Saved locations for this client: {saved_locations}
 
 MULTIPLE BOOKINGS RULE:
@@ -296,6 +298,7 @@ If drop_location is provided, use it to help determine the trip type.
 
 === LOCATION KEYWORDS ===
 If the client uses a shorthand like "home", "office", "residence", "factory" check their saved_locations. If found → use the saved address. If not found → accept the shorthand as-is (e.g. "Home", "Residence") and proceed. Do NOT ask the client to clarify the address — the driver or operator will confirm it directly.
+"Report [location]" means pickup_location — corporate shorthand for where the driver should collect the traveler. E.g. "Report hotel MGM Mark Whitefield" → pickup_location = "Hotel MGM Mark, Whitefield".
 
 === MANDATORY FIELDS BY TRIP TYPE ===
 
