@@ -3,14 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Mail, MessageCircle, ArrowUpRight, ArrowDownLeft,
-  CheckCircle, XCircle, Clock, RefreshCw, X, User, Search,
+  CheckCircle, XCircle, Clock, RefreshCw, X, User, Search, Car,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import type { Client } from '@/types'
+import type { Client, Driver } from '@/types'
 
 interface MessageRow {
   id: string
@@ -30,10 +30,14 @@ const TEMPLATE_LABELS: Record<string, string> = {
   missing_info_request: 'Missing Info',
   approval_request: 'Approval Request',
   approval_chase: 'Approval Chase',
+  verbal_approval_ack: 'Verbal Approval',
   booking_confirmed: 'Confirmed',
   driver_details_to_client: 'Driver Details',
   trip_brief_to_driver: 'Trip Brief',
+  day_links: 'Day Links',
   cancellation_client: 'Cancellation',
+  cancellation_driver: 'Cancellation (Driver)',
+  substitute_vehicle_client: 'Substitute Vehicle',
 }
 
 function formatTs(ts: string) {
@@ -71,7 +75,7 @@ function StatusBadge({ status, type }: { status: string | null; type: 'inbound' 
   )
 }
 
-// ── Client picker dropdown ───────────────────────────────────────────────────
+// ── Client picker ────────────────────────────────────────────────────────────
 function ClientPicker({ value, onChange }: { value: Client | null; onChange: (c: Client | null) => void }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -108,10 +112,7 @@ function ClientPicker({ value, onChange }: { value: Client | null; onChange: (c:
           <span className="text-sm font-medium text-[#191B23] truncate block">{value.name}</span>
           {value.primary_phone && <span className="text-xs text-[#737686]">{value.primary_phone}</span>}
         </div>
-        <button
-          onClick={() => { onChange(null); setSearch('') }}
-          className="text-[#737686] hover:text-[#191B23] shrink-0"
-        >
+        <button onClick={() => { onChange(null); setSearch('') }} className="text-[#737686] hover:text-[#191B23] shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -132,46 +133,120 @@ function ClientPicker({ value, onChange }: { value: Client | null; onChange: (c:
           className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#737686]"
           onClick={e => { e.stopPropagation(); setOpen(true) }}
         />
-        {search && (
-          <button onClick={() => setSearch('')} className="text-[#737686] hover:text-[#191B23]">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
+        {search && <button onClick={() => setSearch('')} className="text-[#737686] hover:text-[#191B23]"><X className="w-3.5 h-3.5" /></button>}
       </div>
       {open && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-[#C3C5D7] rounded-lg shadow-lg max-h-56 overflow-y-auto">
           {filtered.length === 0 ? (
-            <p className="px-3 py-2.5 text-sm text-[#737686]">
-              {clients.length === 0 ? 'No clients found.' : 'No matching clients.'}
-            </p>
-          ) : (
-            filtered.map(client => (
-              <button
-                key={client.id}
-                onClick={() => { onChange(client); setOpen(false); setSearch('') }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#F3F3FE] text-left transition-colors"
-              >
-                <div className="w-7 h-7 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
-                  {client.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-[#191B23] truncate">{client.name}</div>
-                  <div className="text-xs text-[#737686]">
-                    {client.primary_phone || client.primary_email || 'No contact'}
-                  </div>
-                </div>
-              </button>
-            ))
-          )}
+            <p className="px-3 py-2.5 text-sm text-[#737686]">{clients.length === 0 ? 'No clients found.' : 'No matching clients.'}</p>
+          ) : filtered.map(client => (
+            <button
+              key={client.id}
+              onClick={() => { onChange(client); setOpen(false); setSearch('') }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#F3F3FE] text-left transition-colors"
+            >
+              <div className="w-7 h-7 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
+                {client.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-[#191B23] truncate">{client.name}</div>
+                <div className="text-xs text-[#737686]">{client.primary_phone || client.primary_email || 'No contact'}</div>
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// ── Chat bubble view ─────────────────────────────────────────────────────────
-function ChatView({ messages, client }: { messages: MessageRow[]; client: Client }) {
-  // Group by calendar date
+// ── Driver picker ────────────────────────────────────────────────────────────
+function DriverPicker({ value, onChange }: { value: Driver | null; onChange: (d: Driver | null) => void }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const { data: drivers = [] } = useQuery<Driver[]>({
+    queryKey: ['drivers', { activeOnly: undefined }],
+    queryFn: () => fetch('/api/drivers?active_only=false').then(r => r.json()),
+  })
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = drivers.filter(d =>
+    !search ||
+    d.name.toLowerCase().includes(search.toLowerCase()) ||
+    d.phone.includes(search) ||
+    (d.vehicle_number || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  if (value) {
+    const initials = value.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded border border-[#7E3AF2] bg-[#F5F3FF]">
+        <div className="w-6 h-6 rounded-full bg-[#7E3AF2] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-[#191B23] truncate block">{value.name}</span>
+          <span className="text-xs text-[#737686]">{value.phone} · {value.vehicle_name}</span>
+        </div>
+        <button onClick={() => { onChange(null); setSearch('') }} className="text-[#737686] hover:text-[#191B23] shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        className="flex items-center gap-2 px-3 py-2 rounded border border-[#C3C5D7] bg-white cursor-text"
+        onClick={() => setOpen(true)}
+      >
+        <Car className="w-3.5 h-3.5 text-[#737686] shrink-0" />
+        <input
+          value={search}
+          onChange={e => { setSearch(e.target.value); setOpen(true) }}
+          placeholder="Select driver to view messages…"
+          className="flex-1 text-sm bg-transparent outline-none placeholder:text-[#737686]"
+          onClick={e => { e.stopPropagation(); setOpen(true) }}
+        />
+        {search && <button onClick={() => setSearch('')} className="text-[#737686] hover:text-[#191B23]"><X className="w-3.5 h-3.5" /></button>}
+      </div>
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-[#C3C5D7] rounded-lg shadow-lg max-h-56 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2.5 text-sm text-[#737686]">{drivers.length === 0 ? 'No drivers found.' : 'No matching drivers.'}</p>
+          ) : filtered.map(driver => (
+            <button
+              key={driver.id}
+              onClick={() => { onChange(driver); setOpen(false); setSearch('') }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#F5F3FF] text-left transition-colors"
+            >
+              <div className="w-7 h-7 rounded-full bg-[#EDE9FE] flex items-center justify-center text-xs font-semibold text-[#7E3AF2] shrink-0">
+                {driver.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-[#191B23] truncate">{driver.name}</div>
+                <div className="text-xs text-[#737686]">{driver.phone} · {driver.vehicle_name} · {driver.vehicle_number}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Chat bubble view (shared for client + driver) ────────────────────────────
+function ChatView({ messages, name, accentClass }: { messages: MessageRow[]; name: string; accentClass?: string }) {
   const groups: { dateLabel: string; msgs: MessageRow[] }[] = []
   for (const msg of messages) {
     const dateLabel = format(new Date(msg.timestamp), 'd MMMM yyyy')
@@ -187,16 +262,17 @@ function ChatView({ messages, client }: { messages: MessageRow[]; client: Client
     return (
       <div className="flex flex-col items-center justify-center py-20 text-[#737686]">
         <MessageCircle className="w-8 h-8 mb-2 opacity-30" />
-        <p className="text-sm">No messages found for {client.name}.</p>
+        <p className="text-sm">No messages found for {name}.</p>
       </div>
     )
   }
+
+  const bubbleOut = accentClass ?? 'bg-[#1A56DB]'
 
   return (
     <div className="space-y-1 px-4 py-4">
       {groups.map(group => (
         <div key={group.dateLabel}>
-          {/* Date separator */}
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 h-px bg-[#EDEDF8]" />
             <span className="text-xs font-medium text-[#737686] px-2">{group.dateLabel}</span>
@@ -219,7 +295,7 @@ function ChatView({ messages, client }: { messages: MessageRow[]; client: Client
                     <div className={cn(
                       'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words',
                       isOutbound
-                        ? 'bg-[#1A56DB] text-white rounded-tr-sm'
+                        ? `${bubbleOut} text-white rounded-tr-sm`
                         : 'bg-[#F3F3FE] text-[#191B23] rounded-tl-sm border border-[#E5E5F0]'
                     )}>
                       {msg.content}
@@ -246,7 +322,9 @@ function ChatView({ messages, client }: { messages: MessageRow[]; client: Client
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function MessagesPage() {
+  const [viewMode, setViewMode]             = useState<'client' | 'driver'>('client')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
   const [dirFilter, setDirFilter]           = useState<'all' | 'inbound' | 'outbound'>('all')
   const [channelFilter, setChannelFilter]   = useState<'all' | 'email' | 'whatsapp'>('all')
   const [searchQuery, setSearchQuery]       = useState('')
@@ -254,18 +332,21 @@ export default function MessagesPage() {
   const [dateTo, setDateTo]                 = useState('')
 
   const apiParams = new URLSearchParams()
-  if (selectedClient) apiParams.set('client_id', selectedClient.id)
-  if (dateFrom)        apiParams.set('from', dateFrom)
-  if (dateTo)          apiParams.set('to', dateTo)
+  if (viewMode === 'client' && selectedClient) apiParams.set('client_id', selectedClient.id)
+  if (viewMode === 'driver' && selectedDriver) apiParams.set('driver_id', selectedDriver.id)
+  if (dateFrom) apiParams.set('from', dateFrom)
+  if (dateTo)   apiParams.set('to', dateTo)
+
+  const isConversationMode = (viewMode === 'client' && !!selectedClient) || (viewMode === 'driver' && !!selectedDriver)
 
   const { data: rows = [], isLoading, refetch } = useQuery<MessageRow[]>({
-    queryKey: ['messages', selectedClient?.id ?? null, dateFrom, dateTo],
+    queryKey: ['messages', viewMode, selectedClient?.id ?? null, selectedDriver?.id ?? null, dateFrom, dateTo],
     queryFn: () => fetch(`/api/messages?${apiParams}`).then(r => r.json()),
   })
 
   const visible = (() => {
     let items = rows
-    if (!selectedClient) {
+    if (!isConversationMode) {
       if (dirFilter !== 'all')     items = items.filter(r => r.type === dirFilter)
       if (channelFilter !== 'all') items = items.filter(r => r.channel === channelFilter)
     }
@@ -281,13 +362,24 @@ export default function MessagesPage() {
     return items
   })()
 
+  const conversationName = viewMode === 'client' ? selectedClient?.name : selectedDriver?.name
+
   const description = isLoading
     ? 'Loading…'
-    : selectedClient
-      ? `${visible.length} message${visible.length !== 1 ? 's' : ''} with ${selectedClient.name}`
+    : isConversationMode
+      ? `${visible.length} message${visible.length !== 1 ? 's' : ''} with ${conversationName}`
       : searchQuery || channelFilter !== 'all' || dirFilter !== 'all'
         ? `${visible.length} of ${rows.length} messages`
         : `${visible.length} message${visible.length !== 1 ? 's' : ''}`
+
+  function switchMode(mode: 'client' | 'driver') {
+    setViewMode(mode)
+    setSelectedClient(null)
+    setSelectedDriver(null)
+    setSearchQuery('')
+    setDirFilter('all')
+    setChannelFilter('all')
+  }
 
   return (
     <div className="space-y-4">
@@ -307,13 +399,41 @@ export default function MessagesPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-[#C3C5D7] p-3 space-y-3">
-        {/* Client picker */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#737686] mb-1 block">Client</label>
-          <ClientPicker value={selectedClient} onChange={c => { setSelectedClient(c); setDirFilter('all'); setChannelFilter('all') }} />
+
+        {/* View mode toggle */}
+        <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden w-fit text-sm">
+          <button
+            onClick={() => switchMode('client')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 h-8 border-r border-[#C3C5D7] transition-colors',
+              viewMode === 'client' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+            )}
+          >
+            <User className="w-3.5 h-3.5" /> Client Chat
+          </button>
+          <button
+            onClick={() => switchMode('driver')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 h-8 transition-colors',
+              viewMode === 'driver' ? 'bg-[#7E3AF2] text-white' : 'bg-white text-[#434654] hover:bg-[#F5F3FF]'
+            )}
+          >
+            <Car className="w-3.5 h-3.5" /> Driver Chat
+          </button>
         </div>
 
-        {/* Search bar */}
+        {/* Picker */}
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[#737686] mb-1 block">
+            {viewMode === 'client' ? 'Client' : 'Driver'}
+          </label>
+          {viewMode === 'client'
+            ? <ClientPicker value={selectedClient} onChange={c => { setSelectedClient(c); setDirFilter('all'); setChannelFilter('all') }} />
+            : <DriverPicker value={selectedDriver} onChange={d => setSelectedDriver(d)} />
+          }
+        </div>
+
+        {/* Search */}
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-[#737686] mb-1 block">Search</label>
           <div className="relative flex items-center">
@@ -322,25 +442,21 @@ export default function MessagesPage() {
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search by message content, name, phone, email…"
+              placeholder="Search by message content, name, phone…"
               className={cn(
                 'w-full h-8 pl-8 pr-8 text-sm border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] transition-colors',
                 searchQuery ? 'border-[#1A56DB] text-[#191B23]' : 'border-[#C3C5D7] text-[#6B7280] placeholder:text-[#9CA3AF] hover:border-[#9CA3AF]'
               )}
             />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors"
-                aria-label="Clear search"
-              >
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Date range + direction + channel tabs */}
+        {/* Date range + direction + channel (only in flat list mode) */}
         <div className="flex gap-2 flex-wrap items-end">
           <div className="flex items-end gap-2 flex-1 min-w-[260px]">
             <div className="flex-1">
@@ -353,31 +469,18 @@ export default function MessagesPage() {
             </div>
           </div>
 
-          {!selectedClient && (
+          {!isConversationMode && viewMode === 'client' && (
             <>
-              {/* Channel filter */}
               <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm self-end">
-                <button
-                  onClick={() => setChannelFilter('all')}
-                  className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7]', channelFilter === 'all' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setChannelFilter('email')}
-                  className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7] flex items-center gap-1.5', channelFilter === 'email' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
-                >
+                <button onClick={() => setChannelFilter('all')} className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7]', channelFilter === 'all' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}>All</button>
+                <button onClick={() => setChannelFilter('email')} className={cn('px-3 h-8 transition-colors border-r border-[#C3C5D7] flex items-center gap-1.5', channelFilter === 'email' ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}>
                   <Mail className="w-3.5 h-3.5" /> Email
                 </button>
-                <button
-                  onClick={() => setChannelFilter('whatsapp')}
-                  className={cn('px-3 h-8 transition-colors flex items-center gap-1.5', channelFilter === 'whatsapp' ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}
-                >
+                <button onClick={() => setChannelFilter('whatsapp')} className={cn('px-3 h-8 transition-colors flex items-center gap-1.5', channelFilter === 'whatsapp' ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]')}>
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                 </button>
               </div>
 
-              {/* Direction filter */}
               <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm self-end">
                 {(['all', 'inbound', 'outbound'] as const).map(f => (
                   <button
@@ -411,8 +514,12 @@ export default function MessagesPage() {
       <div className="bg-white rounded-xl border border-[#C3C5D7] overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-sm text-[#737686]">Loading…</div>
-        ) : selectedClient ? (
-          <ChatView messages={visible} client={selectedClient} />
+        ) : isConversationMode && conversationName ? (
+          <ChatView
+            messages={visible}
+            name={conversationName}
+            accentClass={viewMode === 'driver' ? 'bg-[#7E3AF2]' : 'bg-[#1A56DB]'}
+          />
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-sm text-[#737686] gap-2">
             <MessageCircle className="w-7 h-7 opacity-30" />
@@ -435,10 +542,7 @@ export default function MessagesPage() {
 
               return (
                 <div key={msg.id} className="flex gap-3 px-4 py-3 hover:bg-[#FAF8FF] transition-colors">
-                  <div className={cn(
-                    'w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5',
-                    isOutbound ? 'bg-[#D4DCFF]' : 'bg-[#D1FAE5]'
-                  )}>
+                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5', isOutbound ? 'bg-[#D4DCFF]' : 'bg-[#D1FAE5]')}>
                     {isEmail
                       ? <Mail className={cn('w-4 h-4', isOutbound ? 'text-[#1A56DB]' : 'text-green-700')} />
                       : <MessageCircle className={cn('w-4 h-4', isOutbound ? 'text-[#1A56DB]' : 'text-green-700')} />
@@ -450,9 +554,7 @@ export default function MessagesPage() {
                         ? <ArrowUpRight className="w-3.5 h-3.5 text-[#1A56DB] shrink-0" />
                         : <ArrowDownLeft className="w-3.5 h-3.5 text-green-600 shrink-0" />
                       }
-                      <span className="text-sm font-medium text-[#191B23] capitalize">
-                        {msg.channel} — {isOutbound ? 'Outbound' : 'Inbound'}
-                      </span>
+                      <span className="text-sm font-medium text-[#191B23] capitalize">{msg.channel} — {isOutbound ? 'Outbound' : 'Inbound'}</span>
                       {label && <span className="text-xs px-1.5 py-0.5 rounded bg-[#EDEDF8] text-[#434654]">{label}</span>}
                       <StatusBadge status={msg.status} type={msg.type} />
                       <span className="text-xs text-[#737686] ml-auto shrink-0">{formatTs(msg.timestamp)}</span>
@@ -461,9 +563,7 @@ export default function MessagesPage() {
                       <p className="text-xs text-[#737686] mb-1 flex items-center gap-1.5">
                         <span>{isOutbound ? 'To:' : 'From:'}</span>
                         {msg.client_name && <span className="font-medium text-[#434654]">{msg.client_name}</span>}
-                        {msg.contact && msg.contact !== msg.client_name && (
-                          <span className="text-[#9CA3AF]">{msg.contact}</span>
-                        )}
+                        {msg.contact && msg.contact !== msg.client_name && <span className="text-[#9CA3AF]">{msg.contact}</span>}
                       </p>
                     )}
                     <p className="text-sm text-[#434654] leading-relaxed line-clamp-2 break-words">{msg.content}</p>

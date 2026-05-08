@@ -3,13 +3,44 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const limit  = 100
+  const limit     = 100
   const from      = searchParams.get('from')
   const to        = searchParams.get('to')
   const q         = searchParams.get('q')?.trim()
   const client_id = searchParams.get('client_id')
+  const driver_id = searchParams.get('driver_id')
 
   const supabase = createAdminClient()
+
+  // ── Driver conversation mode (ascending — oldest first for chat view) ──
+  if (driver_id) {
+    let driverQ = supabase
+      .from('message_logs')
+      .select('id, booking_id, driver_id, channel, direction, recipient, content, template_used, status, sent_at')
+      .eq('driver_id', driver_id)
+      .order('sent_at', { ascending: true })
+      .limit(limit)
+
+    if (from) driverQ = driverQ.gte('sent_at', `${from}T00:00:00`)
+    if (to)   driverQ = driverQ.lte('sent_at', `${to}T23:59:59`)
+
+    const { data: outbound } = await driverQ
+
+    const rows = (outbound || []).map(m => ({
+      id: `out_${m.id}`,
+      type: 'outbound' as const,
+      channel: m.channel,
+      contact: m.recipient,
+      client_name: null,
+      content: m.content,
+      template: m.template_used,
+      status: m.status,
+      booking_id: m.booking_id,
+      timestamp: m.sent_at,
+    }))
+
+    return NextResponse.json(rows)
+  }
 
   // ── Client conversation mode (ascending — oldest first for chat view) ──
   if (client_id) {
