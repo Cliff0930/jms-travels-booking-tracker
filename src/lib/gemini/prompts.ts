@@ -61,11 +61,11 @@ Fields to extract:
 4. pickup_time — time of travel in HH:MM 24h format (MANDATORY — ask if missing)
 5. pax_count — number of passengers (OPTIONAL for known clients — use profile default if not mentioned)
 6. vehicle_type — type of vehicle needed (OPTIONAL for known clients — use profile default if not mentioned). Extract from parentheses too: "cab (Etios)" → "Etios"
-7. guest_name — if booking is for someone other than the sender
-8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
+7. guest_name — if booking is for someone other than the sender. When multiple guests are listed (each with a name + phone on separate lines), set guest_name to all names joined (e.g. "Dr Yogesh Singh, Dr Manesh Kale, Mr Sahidul Islam") and pax_count accordingly.
+8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way". Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
-11. total_days — number of days if outstation (default 1)
+11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned.
 12. special_instructions — any special notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
