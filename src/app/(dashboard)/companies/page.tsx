@@ -253,6 +253,7 @@ export default function CompaniesPage() {
   const [showAddModal, setShowAddModal] = useState(false)
 
   // Company merge
+  const [search, setSearch] = useState('')
   const [showCompanyMerge, setShowCompanyMerge] = useState(false)
   const [companyMergeSearch, setCompanyMergeSearch] = useState('')
   const [companyMergeResults, setCompanyMergeResults] = useState<Company[]>([])
@@ -361,13 +362,31 @@ export default function CompaniesPage() {
         }
       />
 
+      <div className="relative mb-5 max-w-sm">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]" />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search name, alias, domain…"
+          className="pl-9 border-[#C3C5D7] h-8 text-sm"
+        />
+      </div>
+
       {isLoading ? (
         <div className="py-12 text-center text-[#737686]">Loading companies…</div>
       ) : companies.length === 0 ? (
         <div className="py-12 text-center text-[#737686]">No companies yet. Add your first company.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {companies.map(company => (
+          {companies.filter(c => {
+            if (!search.trim()) return true
+            const q = search.toLowerCase()
+            return (
+              c.name.toLowerCase().includes(q) ||
+              c.aliases?.some(a => a.toLowerCase().includes(q)) ||
+              c.email_domains?.some(d => d.toLowerCase().includes(q))
+            )
+          }).map(company => (
             <div
               key={company.id}
               className="bg-white rounded-2xl border border-[#E5E7EB] p-4 cursor-pointer hover:shadow-lg hover:border-[#0284C7]/30 hover:-translate-y-0.5 transition-all group"
