@@ -56,7 +56,7 @@ Fields to extract:
 5. pax_count — number of passengers (OPTIONAL for known clients — use profile default if not mentioned)
 6. vehicle_type — type of vehicle needed (OPTIONAL for known clients — use profile default if not mentioned)
 7. guest_name — if booking is for someone other than the sender
-8. guest_phone — guest phone number if mentioned
+8. guest_phone — guest phone number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided)
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way")
 11. total_days — number of days if outstation (default 1)
@@ -316,6 +316,12 @@ AIRPORT trip (any mention of airport/flight/terminal):
     - "pick up from airport", "arriving", "flight lands", "coming from airport" → arrival (ask flight + terminal)
     - "drop to airport", "going to airport", "catch a flight", "departure" → departure (do not ask)
     - If unclear, treat as arrival and ask for flight + terminal
+
+GUEST BOOKINGS (applies to ALL trip types):
+  When the client is booking for a guest traveler (guest_name is present and the traveler is not the sender),
+  guest_phone is also REQUIRED — the driver needs a direct number to contact the traveler.
+  If guest_phone has not been provided, add "guest_phone" to missing_mandatory and ask alongside any
+  other missing fields: "Could you share [guest name]'s contact number?"
 
 === MULTI-DAY BOOKING RULES ===
 When total_days > 1:
