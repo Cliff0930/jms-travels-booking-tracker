@@ -64,7 +64,7 @@ Fields to extract:
 7. guest_name — if booking is for someone other than the sender. When multiple guests are listed (each with a name + phone on separate lines), set guest_name to all names joined (e.g. "Dr Yogesh Singh, Dr Manesh Kale, Mr Sahidul Islam") and pax_count accordingly.
 8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
-10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way". Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
+10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way". "Drop only" explicitly means one_way. Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
 11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
 12. special_instructions — any special notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
@@ -78,8 +78,12 @@ If the sender uses words like "home", "office", "residence", "airport", "factory
 Saved locations for this client: {saved_locations}
 
 MULTIPLE BOOKINGS RULE:
-If the email contains multiple clearly distinct trips (different dates, times, or pickup locations listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
+If the message contains multiple clearly distinct trips (different dates, times, or pickup locations listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
 If it is a single booking (even with multiple passengers), return one entry.
+Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
+"👆" emoji used as a pointer means "the text immediately above this line" — e.g. "Pick up from 👆residence" refers to the multi-line address written above it as the pickup location.
+Multi-line addresses (address split across several lines) should be concatenated into a single pickup_location or drop_location string.
+"Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
 
 Respond with ONLY a JSON object, no other text:
 {
