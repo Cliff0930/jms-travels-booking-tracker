@@ -155,19 +155,28 @@ async function processClientMessage(
 
       if (recentBooking) {
         const mapsUrl = rawContent.match(/https?:\/\/\S+/)?.[0] ?? ''
-        const addressText = rawContent.replace(/https?:\/\/\S+/g, '').trim()
-        const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
+        const addressText = rawContent.replace(/https?:\/\/\S+/g, '').replace(/👆|👇|⬇️/g, '').trim()
 
-        await supabase
-          .from('bookings')
-          .update({ pickup_location: newLocation, updated_at: new Date().toISOString() })
-          .eq('id', recentBooking.id)
-
-        await sendWhatsAppMessage({
-          to: senderPhone,
-          body: `Thanks! The pickup address for booking ${recentBooking.booking_ref} has been updated.`,
-          log: { client_id: client.id },
-        })
+        // If the message has actual address or maps content, update pickup_location
+        if (mapsUrl || addressText.length > 20) {
+          const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
+          await supabase
+            .from('bookings')
+            .update({ pickup_location: newLocation, updated_at: new Date().toISOString() })
+            .eq('id', recentBooking.id)
+          await sendWhatsAppMessage({
+            to: senderPhone,
+            body: `Thanks! The pickup address for booking ${recentBooking.booking_ref} has been updated.`,
+            log: { client_id: client.id },
+          })
+        } else {
+          // Short pointer/confirmation message ("Location 👆 check this") — just acknowledge
+          await sendWhatsAppMessage({
+            to: senderPhone,
+            body: `Got it, location noted for booking ${recentBooking.booking_ref}.`,
+            log: { client_id: client.id },
+          })
+        }
         return
       }
     }
