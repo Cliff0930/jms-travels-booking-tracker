@@ -329,7 +329,7 @@ async function processClientMessage(
     .eq('id', session.id)
 
   // All fields collected — create booking
-  const booking = await createBookingFromResult(supabase, client, result)
+  const booking = await createBookingFromResult(supabase, client, result, senderPhone)
   if (!booking) return
 
   // Determine if approval is needed: company billing + approval_required + client not excluded
@@ -415,7 +415,8 @@ async function processClientMessage(
 async function createBookingFromResult(
   supabase: ReturnType<typeof createAdminClient>,
   client: Client,
-  result: ConversationResult
+  result: ConversationResult,
+  senderPhone?: string
 ) {
   const ext = result.extracted
   const totalDays = Math.max(ext.total_days ?? 1, 1)
@@ -431,6 +432,7 @@ async function createBookingFromResult(
       company_id: client.company_id ?? null,
       status: 'draft',
       source: 'whatsapp',
+      requested_by: senderPhone ?? null,
       trip_type: ext.trip_type,
       service_type: ext.service_type,
       pickup_location: ext.pickup_location,

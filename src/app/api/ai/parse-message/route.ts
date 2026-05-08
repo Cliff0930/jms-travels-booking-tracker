@@ -150,6 +150,7 @@ export async function POST(request: Request) {
         company_id: (client as Client)?.company_id || null,
         status: 'draft',
         source: channel,
+        requested_by: sender_email || sender_phone || null,
         flags,
         cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
         pickup_location: extraction.extracted.pickup_location,

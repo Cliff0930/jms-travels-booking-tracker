@@ -99,6 +99,7 @@ create table bookings (
   vehicle_type        text,
   total_days          int default 1,
   source              text default 'manual',
+  requested_by        text,
   special_instructions text,
   booking_type        text,
   missing_fields      text[] default '{}',

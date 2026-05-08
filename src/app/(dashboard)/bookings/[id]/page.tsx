@@ -838,6 +838,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <dt className="text-[#737686]">Source</dt>
                 <dd className="capitalize text-[#434654]">{booking.source}</dd>
               </div>
+              {booking.requested_by && (
+                <div className="flex justify-between">
+                  <dt className="text-[#737686]">Requested by</dt>
+                  <dd className="text-[#434654] text-xs break-all text-right max-w-[60%]">{booking.requested_by}</dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-[#737686]">Service</dt>
                 <dd className="capitalize text-[#434654]">{booking.service_type.replace('_', ' ')}</dd>

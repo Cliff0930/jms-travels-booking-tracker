@@ -101,6 +101,7 @@ export interface Booking {
   driver_id: string | null
   guest_name: string | null
   guest_phone: string | null
+  requested_by: string | null
   status: BookingStatus
   trip_type: TripType
   service_type: ServiceType

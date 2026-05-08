@@ -78,6 +78,7 @@ export async function processConversationSession(
         company_id: client.company_id,
         status: 'draft',
         source: 'whatsapp',
+        requested_by: phone,
         flags,
         trip_type: result.extracted.trip_type,
         service_type: result.extracted.service_type,
