@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Search, Plus, Phone, Mail } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Search, Plus, Phone, Mail, User, Briefcase } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -34,10 +34,16 @@ export default function ClientsPage() {
   const { data: clients = [], isLoading, isError } = useClients(search || undefined)
   const createClient = useCreateClient()
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ClientFormData>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
     defaultValues: { client_type: 'corporate' },
   })
+  const watchedType = watch('client_type', 'corporate')
+
+  const CLIENT_TYPE_CONFIG = {
+    corporate: { gradient: 'from-[#1A56DB] to-[#6366F1]',    label: 'Corporate', desc: 'Company-linked with approval routing', icon: Briefcase },
+    walkin:    { gradient: 'from-emerald-500 to-teal-500',    label: 'Walk-in',   desc: 'One-time client, no company required', icon: User      },
+  }
 
   const filtered = typeFilter === 'all' ? clients : clients.filter(c => c.client_type === typeFilter)
 
@@ -174,51 +180,98 @@ export default function ClientsPage() {
         onClose={() => setSelectedClient(null)}
       />
 
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+      <Dialog open={showAddModal} onOpenChange={open => { setShowAddModal(open); if (!open) reset() }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl gap-0">
+          <DialogHeader className="sr-only">
             <DialogTitle>Add Client</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-            <div>
-              <Label>Name *</Label>
-              <Input {...register('name')} className="border-[#C3C5D7]" />
-              {errors.name && <p className="text-xs text-red-500 mt-0.5">{errors.name.message}</p>}
+
+          {/* Gradient header — changes with client type */}
+          <div className={`bg-gradient-to-br ${CLIENT_TYPE_CONFIG[watchedType as keyof typeof CLIENT_TYPE_CONFIG]?.gradient ?? 'from-[#1A56DB] to-[#6366F1]'} px-5 pt-5 pb-6`}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="text-white">
+                <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">New Client</p>
+                <h2 className="text-xl font-bold mt-0.5">Add to directory</h2>
+              </div>
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center shrink-0">
+                <User className="w-6 h-6 text-white/60" />
+              </div>
             </div>
+
+            {/* Type pills */}
+            <div className="flex gap-2">
+              {(Object.entries(CLIENT_TYPE_CONFIG) as [string, typeof CLIENT_TYPE_CONFIG[keyof typeof CLIENT_TYPE_CONFIG]][]).map(([type, cfg]) => {
+                const TypeIcon = cfg.icon
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setValue('client_type', type as 'corporate' | 'walkin')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      watchedType === type
+                        ? 'bg-white text-[#191B23] shadow-md'
+                        : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white'
+                    }`}
+                  >
+                    <TypeIcon className="w-3 h-3" />
+                    {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="px-5 py-4 space-y-4">
+            {/* Type description */}
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F8F9FF] border border-[#E5E7EB]">
+              {(() => { const TypeIcon = CLIENT_TYPE_CONFIG[watchedType as keyof typeof CLIENT_TYPE_CONFIG]?.icon ?? User; return <TypeIcon className="w-3.5 h-3.5 text-[#737686] mt-0.5 shrink-0" /> })()}
+              <p className="text-xs text-[#434654] leading-relaxed">{CLIENT_TYPE_CONFIG[watchedType as keyof typeof CLIENT_TYPE_CONFIG]?.desc}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Full Name *</Label>
+              <div className="relative">
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input {...register('name')} placeholder="Client name" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+              </div>
+              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Phone</Label>
-                <Input {...register('primary_phone')} className="border-[#C3C5D7]" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Phone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input {...register('primary_phone')} placeholder="+91 98765…" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                </div>
               </div>
-              <div>
-                <Label>Email</Label>
-                <Input {...register('primary_email')} type="email" className="border-[#C3C5D7]" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Type *</Label>
-                <Select defaultValue="corporate" onValueChange={v => setValue('client_type', v as 'corporate' | 'walkin')}>
-                  <SelectTrigger className="border-[#C3C5D7]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="corporate">Corporate</SelectItem>
-                    <SelectItem value="walkin">Walk-in</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Designation</Label>
-                <Input {...register('designation')} className="border-[#C3C5D7]" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input {...register('primary_email')} type="email" placeholder="client@co.com" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" disabled={createClient.isPending}>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Designation</Label>
+              <div className="relative">
+                <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input {...register('designation')} placeholder="e.g. Manager, Director" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">
+              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
+              <Button
+                type="submit"
+                disabled={createClient.isPending}
+                className={`flex-1 bg-gradient-to-r ${CLIENT_TYPE_CONFIG[watchedType as keyof typeof CLIENT_TYPE_CONFIG]?.gradient ?? 'from-[#1A56DB] to-[#6366F1]'} hover:opacity-90 transition-opacity rounded-sm text-white border-0 shadow-sm`}
+              >
                 {createClient.isPending ? 'Adding…' : 'Add Client'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

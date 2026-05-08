@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Car, Phone, Mail, User, Users, Paintbrush } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Driver, DriverStatus, VehicleType } from '@/types'
 
@@ -192,64 +192,112 @@ export default function DriversPage() {
         onReactivate={handleReactivate}
       />
 
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+      <Dialog open={showAddModal} onOpenChange={open => { setShowAddModal(open); if (!open) setForm(EMPTY_FORM) }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl gap-0">
+          <DialogHeader className="sr-only">
             <DialogTitle>Add Driver</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {formError && <p className="text-xs text-red-500">{formError}</p>}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Name *</Label>
-                <Input value={form.name} onChange={e => setField('name', e.target.value)} className="border-[#C3C5D7]" required />
+
+          {/* Gradient header */}
+          <div className="bg-gradient-to-br from-[#7C3AED] to-[#4F46E5] px-5 pt-5 pb-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-white">
+                <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">New Driver</p>
+                <h2 className="text-xl font-bold mt-0.5">Add to fleet</h2>
               </div>
-              <div>
-                <Label>Phone *</Label>
-                <Input value={form.phone} onChange={e => setField('phone', e.target.value)} className="border-[#C3C5D7]" required />
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center shrink-0">
+                {form.name.trim()
+                  ? <span className="text-lg font-bold text-white">{form.name.trim().split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}</span>
+                  : <Car className="w-6 h-6 text-white/60" />
+                }
               </div>
             </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4 max-h-[65vh] overflow-y-auto">
+            {formError && <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>}
+
             <div>
-              <Label>Email</Label>
-              <Input value={form.email} onChange={e => setField('email', e.target.value)} type="email" className="border-[#C3C5D7]" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Vehicle Type *</Label>
-                <Select value={form.vehicle_type} onValueChange={v => v !== null && setField('vehicle_type', v as VehicleType)}>
-                  <SelectTrigger className="border-[#C3C5D7]">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Capacity *</Label>
-                <Input value={form.seating_capacity} onChange={e => setField('seating_capacity', e.target.value)} type="number" min="1" className="border-[#C3C5D7]" required />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Vehicle Name *</Label>
-                <Input value={form.vehicle_name} onChange={e => setField('vehicle_name', e.target.value)} placeholder="Toyota Innova" className="border-[#C3C5D7]" required />
-              </div>
-              <div>
-                <Label>Plate Number *</Label>
-                <Input value={form.vehicle_number} onChange={e => setField('vehicle_number', e.target.value)} placeholder="KA 01 AB 1234" className="border-[#C3C5D7]" required />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#7C3AED] mb-2.5">Driver Info</p>
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Name *</Label>
+                    <div className="relative">
+                      <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                      <Input value={form.name} onChange={e => setField('name', e.target.value)} placeholder="Driver name" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Phone *</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                      <Input value={form.phone} onChange={e => setField('phone', e.target.value)} placeholder="+91 98765…" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-[#434654]">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                    <Input value={form.email} onChange={e => setField('email', e.target.value)} type="email" placeholder="driver@email.com" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                  </div>
+                </div>
               </div>
             </div>
+
             <div>
-              <Label>Vehicle Color</Label>
-              <Input value={form.vehicle_color} onChange={e => setField('vehicle_color', e.target.value)} placeholder="White" className="border-[#C3C5D7]" />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#4F46E5] mb-2.5">Vehicle Info</p>
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Type *</Label>
+                    <Select value={form.vehicle_type} onValueChange={v => v !== null && setField('vehicle_type', v as VehicleType)}>
+                      <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Capacity *</Label>
+                    <div className="relative">
+                      <Users className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                      <Input value={form.seating_capacity} onChange={e => setField('seating_capacity', e.target.value)} type="number" min="1" placeholder="4" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Vehicle Name *</Label>
+                    <div className="relative">
+                      <Car className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                      <Input value={form.vehicle_name} onChange={e => setField('vehicle_name', e.target.value)} placeholder="Toyota Innova" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-[#434654]">Plate Number *</Label>
+                    <Input value={form.vehicle_number} onChange={e => setField('vehicle_number', e.target.value)} placeholder="KA 01 AB 1234" className="border-[#C3C5D7] h-9 text-sm font-mono tracking-wider" required />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-[#434654]">Color</Label>
+                  <div className="relative">
+                    <Paintbrush className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                    <Input value={form.vehicle_color} onChange={e => setField('vehicle_color', e.target.value)} placeholder="White" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                  </div>
+                </div>
+              </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" disabled={createDriver.isPending}>
+
+            <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">
+              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
+              <Button type="submit" className="flex-1 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] hover:opacity-90 transition-opacity rounded-sm text-white border-0 shadow-sm" disabled={createDriver.isPending}>
                 {createDriver.isPending ? 'Adding…' : 'Add Driver'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

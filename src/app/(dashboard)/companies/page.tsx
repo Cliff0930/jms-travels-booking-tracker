@@ -830,31 +830,87 @@ export default function CompaniesPage() {
       </Dialog>
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl gap-0">
+          <DialogHeader className="sr-only">
             <DialogTitle>Add Company</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-3">
-            <div>
-              <Label>Company Name *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="border-[#C3C5D7]" />
+
+          {/* Gradient header */}
+          <div className="bg-gradient-to-br from-[#0284C7] to-[#6366F1] px-5 pt-5 pb-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-white">
+                <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">New Company</p>
+                <h2 className="text-xl font-bold mt-0.5">
+                  {form.name.trim() || 'Add company'}
+                </h2>
+              </div>
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center shrink-0">
+                {form.name.trim()
+                  ? <span className="text-lg font-bold text-white">{form.name.trim().split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}</span>
+                  : <Building2 className="w-6 h-6 text-white/60" />
+                }
+              </div>
             </div>
-            <div>
-              <Label>Aliases (comma-separated)</Label>
-              <Input value={form.aliases} onChange={e => setForm(f => ({ ...f, aliases: e.target.value }))} placeholder="Corp, Company Inc" className="border-[#C3C5D7]" />
+          </div>
+
+          <form onSubmit={handleAdd} className="px-5 py-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Company Name *</Label>
+              <div className="relative">
+                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Acme Corporation"
+                  required
+                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Email Domains (comma-separated)</Label>
-              <Input value={form.email_domains} onChange={e => setForm(f => ({ ...f, email_domains: e.target.value }))} placeholder="company.com, corp.net" className="border-[#C3C5D7]" />
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Aliases <span className="text-[#9CA3AF] font-normal">(comma-separated)</span></Label>
+              <Input
+                value={form.aliases}
+                onChange={e => setForm(f => ({ ...f, aliases: e.target.value }))}
+                placeholder="Acme, ACME Corp"
+                className="border-[#C3C5D7] h-9 text-sm"
+              />
             </div>
-            <div>
-              <Label>Approver Emails (comma-separated)</Label>
-              <Input value={form.approver_emails} onChange={e => setForm(f => ({ ...f, approver_emails: e.target.value }))} placeholder="approver@company.com" className="border-[#C3C5D7]" />
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Email Domains <span className="text-[#9CA3AF] font-normal">(comma-separated)</span></Label>
+              <div className="relative">
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input
+                  value={form.email_domains}
+                  onChange={e => setForm(f => ({ ...f, email_domains: e.target.value }))}
+                  placeholder="acme.com, acmecorp.net"
+                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-[#9CA3AF]">Used to auto-link inbound emails to this company.</p>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">Add Company</Button>
-            </DialogFooter>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Approver Emails <span className="text-[#9CA3AF] font-normal">(comma-separated)</span></Label>
+              <div className="relative">
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input
+                  value={form.approver_emails}
+                  onChange={e => setForm(f => ({ ...f, approver_emails: e.target.value }))}
+                  placeholder="manager@acme.com"
+                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">
+              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
+              <Button type="submit" className="flex-1 bg-gradient-to-r from-[#0284C7] to-[#6366F1] hover:opacity-90 transition-opacity rounded-sm text-white border-0 shadow-sm">
+                Add Company
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
