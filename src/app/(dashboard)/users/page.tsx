@@ -8,15 +8,21 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Plus, Trash2, UserCheck, UserX } from 'lucide-react'
+import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type { UserProfile, UserRole } from '@/types'
 
-const ROLE_CONFIG: Record<UserRole, { label: string; classes: string; desc: string }> = {
-  admin:    { label: 'Admin',    classes: 'bg-[#EDE9FE] text-[#7E3AF2]', desc: 'Full access — manage users, companies, all settings' },
-  operator: { label: 'Operator', classes: 'bg-[#D4DCFF] text-[#1A56DB]', desc: 'Create & manage bookings, clients, drivers' },
-  viewer:   { label: 'Viewer',   classes: 'bg-[#F3F4F6] text-[#6B7280]', desc: 'Read-only — cannot create or edit anything' },
+const ROLE_CONFIG: Record<UserRole, {
+  label: string
+  desc: string
+  gradient: string
+  pill: string
+  icon: React.ElementType
+}> = {
+  admin:    { label: 'Admin',    desc: 'Full access — manage users, companies, all settings', gradient: 'from-[#7C3AED] to-[#4F46E5]', pill: 'bg-violet-50 text-[#7C3AED] border border-violet-200',  icon: ShieldCheck },
+  operator: { label: 'Operator', desc: 'Create & manage bookings, clients, drivers',          gradient: 'from-[#1A56DB] to-[#6366F1]', pill: 'bg-blue-50 text-[#1A56DB] border border-blue-200',    icon: Briefcase   },
+  viewer:   { label: 'Viewer',   desc: 'Read-only — cannot create or edit anything',           gradient: 'from-gray-400 to-slate-500',  pill: 'bg-gray-100 text-gray-600 border border-gray-200',   icon: Eye         },
 }
 
 export default function UsersPage() {
@@ -109,7 +115,7 @@ export default function UsersPage() {
         actions={
           <Button
             size="sm"
-            className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5"
+            className="bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm gap-1.5 shadow-sm"
             onClick={() => setShowAdd(true)}
           >
             <Plus className="w-4 h-4" /> Add User
@@ -117,14 +123,22 @@ export default function UsersPage() {
         }
       />
 
-      {/* Role reference */}
-      <div className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-2">
-        {(Object.entries(ROLE_CONFIG) as [UserRole, typeof ROLE_CONFIG[UserRole]][]).map(([role, cfg]) => (
-          <div key={role} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-white border border-[#C3C5D7]">
-            <span className={`mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${cfg.classes}`}>{cfg.label}</span>
-            <span className="text-xs text-[#434654]">{cfg.desc}</span>
-          </div>
-        ))}
+      {/* Role legend */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {(Object.entries(ROLE_CONFIG) as [UserRole, typeof ROLE_CONFIG[UserRole]][]).map(([, cfg]) => {
+          const Icon = cfg.icon
+          return (
+            <div key={cfg.label} className="flex items-start gap-3 p-3 rounded-xl bg-white border border-[#E5E7EB] hover:shadow-sm transition-shadow">
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                <p className="text-xs text-[#737686] mt-1 leading-snug">{cfg.desc}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {isLoading ? (
@@ -132,85 +146,91 @@ export default function UsersPage() {
       ) : users.length === 0 ? (
         <div className="py-12 text-center text-[#737686]">No users yet. Add your first user above.</div>
       ) : (
-        <div className="bg-white rounded-lg border border-[#C3C5D7] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#C3C5D7] bg-[#F3F3FE]">
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">User</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Role</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden sm:table-cell">Status</th>
-                <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden md:table-cell">Added</th>
-                <th className="px-4 py-2.5 text-label-caps text-[#737686] text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(user => {
-                const cfg = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.viewer
-                const initials = user.name
-                  ? user.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
-                  : user.email[0].toUpperCase()
-                return (
-                  <tr key={user.id} className="border-b border-[#C3C5D7] last:border-0">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
-                          {initials}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-[#191B23] truncate">{user.name || '—'}</div>
-                          <div className="text-xs text-[#737686] truncate">{user.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Select
-                        value={user.role}
-                        onValueChange={v => v && updateRole(user.id, v as UserRole)}
-                      >
-                        <SelectTrigger className="h-7 w-28 border-[#C3C5D7] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="operator">Operator</SelectItem>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.is_active ? 'bg-[#D1FAE5] text-[#065F46]' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>
-                        {user.is_active ? 'Active' : 'Inactive'}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users.map(user => {
+            const cfg = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.viewer
+            const Icon = cfg.icon
+            const initials = user.name
+              ? user.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+              : user.email[0].toUpperCase()
+            return (
+              <div key={user.id} className={`bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all ${!user.is_active ? 'opacity-70' : ''}`}>
+                {/* Card header with gradient */}
+                <div className={`bg-gradient-to-br ${cfg.gradient} px-4 pt-4 pb-5`}>
+                  <div className="flex items-start justify-between">
+                    <div className="w-14 h-14 rounded-xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-xl font-bold text-white">
+                      {initials}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${user.is_active ? 'bg-white/20 text-white' : 'bg-white/10 text-white/60'}`}>
+                        {user.is_active ? '● Active' : '○ Inactive'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-sm text-[#737686]">
-                      {format(new Date(user.created_at), 'd MMM yyyy')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          title={user.is_active ? 'Deactivate user' : 'Activate user'}
-                          onClick={() => toggleActive(user)}
-                          className="p-1.5 rounded text-[#737686] hover:bg-[#F3F3FE] transition-colors"
-                        >
-                          {user.is_active
-                            ? <UserX className="w-4 h-4" />
-                            : <UserCheck className="w-4 h-4 text-[#10B981]" />
-                          }
-                        </button>
-                        <button
-                          title="Delete user"
-                          onClick={() => setDeleteTarget(user)}
-                          className="p-1.5 rounded text-[#737686] hover:bg-red-50 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card body */}
+                <div className="px-4 pt-3 pb-4 -mt-2">
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 mb-3 shadow-sm">
+                    <div className="text-sm font-semibold text-[#191B23] truncate">{user.name || '—'}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#737686]">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{user.email}</span>
+                    </div>
+                    {user.created_at && (
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#9CA3AF]">
+                        <CalendarDays className="w-3 h-3 shrink-0" />
+                        <span>Joined {format(new Date(user.created_at), 'd MMM yyyy')}</span>
                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+
+                  {/* Role selector */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon className="w-3.5 h-3.5 text-[#737686] shrink-0" />
+                    <Select
+                      value={user.role}
+                      onValueChange={v => v && updateRole(user.id, v as UserRole)}
+                    >
+                      <SelectTrigger className="h-7 flex-1 border-[#C3C5D7] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="operator">Operator</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      title={user.is_active ? 'Deactivate user' : 'Activate user'}
+                      onClick={() => toggleActive(user)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium border transition-colors ${
+                        user.is_active
+                          ? 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
+                          : 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                      }`}
+                    >
+                      {user.is_active
+                        ? <><UserX className="w-3.5 h-3.5" /> Deactivate</>
+                        : <><UserCheck className="w-3.5 h-3.5" /> Activate</>
+                      }
+                    </button>
+                    <button
+                      title="Delete user"
+                      onClick={() => setDeleteTarget(user)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -218,35 +238,40 @@ export default function UsersPage() {
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1A56DB] to-[#6366F1] flex items-center justify-center">
+                <Plus className="w-4 h-4 text-white" />
+              </div>
+              Add New User
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-3">
-            <div>
-              <Label className="mb-1.5 block">Full Name</Label>
-              <Input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Ravi Kumar"
-                className="border-[#C3C5D7]"
-              />
+          <form onSubmit={handleAdd} className="space-y-4 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Full Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Ravi Kumar"
+                  className="border-[#C3C5D7] h-9"
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Email Address *</Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="user@company.com"
+                  required
+                  className="border-[#C3C5D7] h-9"
+                />
+              </div>
             </div>
+
             <div>
-              <Label className="mb-1.5 block">Email Address *</Label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="user@company.com"
-                required
-                className="border-[#C3C5D7]"
-              />
-            </div>
-            <div>
-              <Label className="mb-1.5 block">Role *</Label>
-              <Select
-                value={form.role}
-                onValueChange={v => v && setForm(f => ({ ...f, role: v as UserRole }))}
-              >
+              <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Role *</Label>
+              <Select value={form.role} onValueChange={v => v && setForm(f => ({ ...f, role: v as UserRole }))}>
                 <SelectTrigger className="border-[#C3C5D7]">
                   <SelectValue />
                 </SelectTrigger>
@@ -256,9 +281,17 @@ export default function UsersPage() {
                   <SelectItem value="viewer">Viewer — read only</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Role preview */}
+              <div className={`mt-2 flex items-start gap-2.5 p-2.5 rounded-lg bg-gradient-to-br ${ROLE_CONFIG[form.role].gradient} bg-opacity-10`}>
+                <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${ROLE_CONFIG[form.role].gradient} flex items-center justify-center shrink-0`}>
+                  {(() => { const Icon = ROLE_CONFIG[form.role].icon; return <Icon className="w-3.5 h-3.5 text-white" /> })()}
+                </div>
+                <p className="text-xs text-[#434654] leading-snug pt-0.5">{ROLE_CONFIG[form.role].desc}</p>
+              </div>
             </div>
+
             <div>
-              <Label className="mb-1.5 block">Initial Password *</Label>
+              <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">Initial Password *</Label>
               <Input
                 type="password"
                 value={form.password}
@@ -266,13 +299,18 @@ export default function UsersPage() {
                 placeholder="Min 6 characters"
                 required
                 minLength={6}
-                className="border-[#C3C5D7]"
+                className="border-[#C3C5D7] h-9"
               />
-              <p className="text-xs text-[#737686] mt-1">Share this password with the user. They can change it later.</p>
+              <p className="text-xs text-[#737686] mt-1">Share this with the user — they can change it after first login.</p>
             </div>
-            <DialogFooter>
+
+            <DialogFooter className="pt-1">
               <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving} className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">
+              <Button
+                type="submit"
+                disabled={saving || !form.email.trim() || !form.password.trim()}
+                className="bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm"
+              >
                 {saving ? 'Adding…' : 'Add User'}
               </Button>
             </DialogFooter>
