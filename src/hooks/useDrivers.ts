@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Driver, DriverStatus } from '@/types'
 
-export function useDrivers(filters?: { status?: DriverStatus; vehicle_type?: string }) {
+export function useDrivers(filters?: { status?: DriverStatus; vehicle_type?: string; activeOnly?: boolean }) {
   const params = new URLSearchParams()
   if (filters?.status) params.set('status', filters.status)
   if (filters?.vehicle_type) params.set('vehicle_type', filters.vehicle_type)
+  if (filters?.activeOnly === false) params.set('active_only', 'false')
   return useQuery<Driver[]>({
     queryKey: ['drivers', filters],
     queryFn: () => fetch(`/api/drivers?${params}`).then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() }),

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Driver, DriverStatus, VehicleType } from '@/types'
 
@@ -35,18 +35,28 @@ const EMPTY_FORM: DriverFormState = {
 export default function DriversPage() {
   const [statusFilter, setStatusFilter] = useState<DriverStatus | 'all'>('all')
   const [vehicleFilter, setVehicleFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [form, setForm] = useState<DriverFormState>(EMPTY_FORM)
   const [formError, setFormError] = useState('')
 
-  const { data: drivers = [], isLoading } = useDrivers(
-    statusFilter !== 'all' ? { status: statusFilter } : undefined
-  )
+  const { data: drivers = [], isLoading } = useDrivers({
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    activeOnly: showInactive ? false : undefined,
+  })
   const createDriver = useCreateDriver()
   const updateDriver = useUpdateDriver()
 
-  const filtered = vehicleFilter === 'all' ? drivers : drivers.filter(d => d.vehicle_type === vehicleFilter)
+  const filtered = drivers.filter(d => {
+    if (vehicleFilter !== 'all' && d.vehicle_type !== vehicleFilter) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      if (!d.name.toLowerCase().includes(q) && !d.phone.includes(q) && !(d.vehicle_number || '').toLowerCase().includes(q)) return false
+    }
+    return true
+  })
 
   function setField<K extends keyof DriverFormState>(key: K, val: DriverFormState[K]) {
     setForm(f => ({ ...f, [key]: val }))
@@ -90,11 +100,21 @@ export default function DriversPage() {
     }
   }
 
+  async function handleReactivate(id: string) {
+    try {
+      await updateDriver.mutateAsync({ id, data: { is_active: true, status: 'available' } as Partial<Driver> })
+      toast.success('Driver reactivated')
+      setSelectedDriver(null)
+    } catch {
+      toast.error('Failed to reactivate driver')
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Drivers"
-        description={`${drivers.length} drivers`}
+        description={`${filtered.length} of ${drivers.length} drivers`}
         actions={
           <Button
             size="sm"
@@ -106,25 +126,45 @@ export default function DriversPage() {
         }
       />
 
-      <div className="mb-5 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">
-        <Tabs value={statusFilter} onValueChange={v => setStatusFilter(v as DriverStatus | 'all')}>
-          <TabsList className="bg-[#EDEDF8] h-8">
-            <TabsTrigger value="all" className="text-xs h-7 data-[state=active]:bg-white">All</TabsTrigger>
-            <TabsTrigger value="available" className="text-xs h-7 data-[state=active]:bg-white">Available</TabsTrigger>
-            <TabsTrigger value="on_duty" className="text-xs h-7 data-[state=active]:bg-white">On Duty</TabsTrigger>
-            <TabsTrigger value="off_duty" className="text-xs h-7 data-[state=active]:bg-white">Off Duty</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <div className="mb-5 bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Tabs value={statusFilter} onValueChange={v => setStatusFilter(v as DriverStatus | 'all')}>
+            <TabsList className="bg-[#EDEDF8] h-8">
+              <TabsTrigger value="all" className="text-xs h-7 data-[state=active]:bg-white">All</TabsTrigger>
+              <TabsTrigger value="available" className="text-xs h-7 data-[state=active]:bg-white">Available</TabsTrigger>
+              <TabsTrigger value="on_duty" className="text-xs h-7 data-[state=active]:bg-white">On Duty</TabsTrigger>
+              <TabsTrigger value="off_duty" className="text-xs h-7 data-[state=active]:bg-white">Off Duty</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        <Select value={vehicleFilter} onValueChange={v => v !== null && setVehicleFilter(v)}>
-          <SelectTrigger className="w-36 h-8 text-xs border-[#C3C5D7]">
-            <SelectValue placeholder="All Vehicles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Vehicles</SelectItem>
-            {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-          </SelectContent>
-        </Select>
+          <Select value={vehicleFilter} onValueChange={v => v !== null && setVehicleFilter(v)}>
+            <SelectTrigger className="w-36 h-8 text-xs border-[#C3C5D7]">
+              <SelectValue placeholder="All Vehicles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vehicles</SelectItem>
+              {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <button
+            type="button"
+            onClick={() => setShowInactive(v => !v)}
+            className={`ml-auto h-8 px-3 text-xs rounded-md border transition-colors ${showInactive ? 'bg-[#1A56DB] text-white border-[#1A56DB]' : 'border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB]'}`}
+          >
+            {showInactive ? 'Hide Inactive' : 'Show Inactive'}
+          </button>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737686] pointer-events-none" />
+          <Input
+            placeholder="Search by name, phone, or plate…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-8 text-xs border-[#C3C5D7]"
+          />
+        </div>
       </div>
 
       {isLoading ? (
@@ -149,6 +189,7 @@ export default function DriversPage() {
         open={!!selectedDriver}
         onClose={() => setSelectedDriver(null)}
         onDeactivate={handleDeactivate}
+        onReactivate={handleReactivate}
       />
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
