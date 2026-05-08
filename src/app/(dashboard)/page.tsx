@@ -178,18 +178,25 @@ export default function DashboardPage() {
   const pendingApproval     = bookings.filter(b => b.status === 'pending_approval')
   const needConfirm         = bookings.filter(b => b.status === 'draft')
   const needDriver          = bookings.filter(b => b.status === 'confirmed' && !b.driver_id)
-  const tomorrowNeedsDriver = bookings.filter(b => b.status === 'confirmed' && !b.driver_id && b.pickup_date === tomorrow)
+  const urgentNoDriver      = bookings.filter(b => b.status === 'confirmed' && !b.driver_id && (b.pickup_date === today || b.pickup_date === tomorrow))
   const approvalUrgent      = bookings.filter(b => b.status === 'pending_approval' && (b.pickup_date === today || b.pickup_date === tomorrow))
   const todayPickups        = bookings.filter(b => b.pickup_date === today && b.status === 'confirmed' && !!b.driver_id)
   const completedToday      = bookings.filter(b => b.status === 'completed' && b.pickup_date === today)
   const flagged             = bookings.filter(b => b.flags?.length > 0 && b.status !== 'completed' && b.status !== 'cancelled')
+
+  // Sort by pickup date + time ascending (most urgent first)
+  function byPickupAsc(a: Booking, b: Booking) {
+    const ka = `${a.pickup_date ?? '9999'} ${a.pickup_time ?? '99:99'}`
+    const kb = `${b.pickup_date ?? '9999'} ${b.pickup_time ?? '99:99'}`
+    return ka.localeCompare(kb)
+  }
 
   // ── Stat cards ───────────────────────────────────────────────────────────
   const cards = [
     { key: 'in_progress',     label: 'Active',          value: inProgress.length,      icon: BookOpen,      color: '#1A56DB', bg: '#DBEAFE' },
     { key: 'today_links',     label: "Today's Links",   value: todayLegs.length,        icon: Link2,         color: '#D97706', bg: '#FEF3C7' },
     { key: 'need_driver',          label: 'Need Driver',      value: needDriver.length,          icon: Car,           color: '#7E3AF2', bg: '#EDE9FE' },
-    { key: 'tomorrow_needs_driver',label: "Tomorrow No Driver",value: tomorrowNeedsDriver.length, icon: CalendarX,     color: '#C2410C', bg: '#FFEDD5' },
+    { key: 'urgent_no_driver',     label: 'No Driver Today/Tmrw', value: urgentNoDriver.length,     icon: CalendarX,     color: '#C2410C', bg: '#FFEDD5' },
     { key: 'approval_urgent',      label: 'Approval Urgent',  value: approvalUrgent.length,      icon: BellRing,      color: '#B91C1C', bg: '#FECACA' },
     { key: 'need_confirm',         label: 'Need Confirm',     value: needConfirm.length,         icon: ClipboardCheck,color: '#0E9F6E', bg: '#DEF7EC' },
     { key: 'pending_approval',     label: 'Pending Approval', value: pendingApproval.length,     icon: UserCheck,     color: '#9333EA', bg: '#F3E8FF' },
@@ -256,47 +263,47 @@ export default function DashboardPage() {
 
           <OpsSection id="section-in_progress" title="In Progress" count={inProgress.length}
             emptyText="No active trips right now" viewHref="/bookings" active={activeSection === 'in_progress'}>
-            {inProgress.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...inProgress].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
-          <OpsSection id="section-need_driver" title="Need Driver" count={needDriver.length}
+          <OpsSection id="section-urgent_no_driver" title="Need Driver — Today & Tomorrow" count={urgentNoDriver.length}
+            emptyText="Today's and tomorrow's confirmed bookings all have a driver" viewHref="/bookings" active={activeSection === 'urgent_no_driver'}>
+            {[...urgentNoDriver].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-need_driver" title="Need Driver (All Upcoming)" count={needDriver.length}
             emptyText="All confirmed bookings have a driver assigned" viewHref="/bookings" active={activeSection === 'need_driver'}>
-            {needDriver.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
-          </OpsSection>
-
-          <OpsSection id="section-tomorrow_needs_driver" title="Tomorrow — No Driver Assigned" count={tomorrowNeedsDriver.length}
-            emptyText="All of tomorrow's confirmed bookings have a driver" viewHref="/bookings" active={activeSection === 'tomorrow_needs_driver'}>
-            {tomorrowNeedsDriver.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...needDriver].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
           <OpsSection id="section-approval_urgent" title="Approval Urgent — Today / Tomorrow" count={approvalUrgent.length}
             emptyText="No urgent pending approvals" viewHref="/bookings" active={activeSection === 'approval_urgent'}>
-            {approvalUrgent.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...approvalUrgent].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
           <OpsSection id="section-need_confirm" title="Need Confirmation" count={needConfirm.length}
             emptyText="No draft bookings waiting for confirmation" viewHref="/bookings" active={activeSection === 'need_confirm'}>
-            {needConfirm.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...needConfirm].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
           <OpsSection id="section-pending_approval" title="Pending Approval" count={pendingApproval.length}
             emptyText="No bookings awaiting company approval" viewHref="/bookings" active={activeSection === 'pending_approval'}>
-            {pendingApproval.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
-          </OpsSection>
-
-          <OpsSection id="section-completed_today" title="Completed Today" count={completedToday.length}
-            emptyText="No trips completed today yet" viewHref="/bookings" active={activeSection === 'completed_today'}>
-            {completedToday.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
-          </OpsSection>
-
-          <OpsSection id="section-flagged" title="Flagged" count={flagged.length}
-            emptyText="No flagged bookings" viewHref="/bookings" active={activeSection === 'flagged'}>
-            {flagged.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...pendingApproval].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
           <OpsSection id="section-today_pickups" title="Today's Confirmed Pickups" count={todayPickups.length}
             emptyText="No confirmed pickups with driver today" viewHref="/bookings" active={activeSection === 'today_pickups'}>
-            {todayPickups.map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+            {[...todayPickups].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-completed_today" title="Completed Today" count={completedToday.length}
+            emptyText="No trips completed today yet" viewHref="/bookings" active={activeSection === 'completed_today'}>
+            {[...completedToday].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
+          </OpsSection>
+
+          <OpsSection id="section-flagged" title="Flagged" count={flagged.length}
+            emptyText="No flagged bookings" viewHref="/bookings" active={activeSection === 'flagged'}>
+            {[...flagged].sort(byPickupAsc).map(b => <BookingCard key={b.id} booking={b} {...shared} />)}
           </OpsSection>
 
         </div>
