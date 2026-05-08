@@ -122,7 +122,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                       driver.status === 'available' ? 'bg-emerald-400/30 text-emerald-100'
-                      : driver.status === 'on_trip' ? 'bg-blue-300/30 text-blue-100'
+                      : driver.status === 'on_duty' ? 'bg-blue-300/30 text-blue-100'
                       : 'bg-white/20 text-white/80'
                     }`}>
                       {driver.status.replace('_', ' ')}
