@@ -1,5 +1,3 @@
-export function generateBookingRef(): string {
-  const year = new Date().getFullYear()
-  const num = Math.floor(1000 + Math.random() * 9000)
-  return `BK-${year}-${num}`
-}
+// booking_ref is now generated server-side by the PostgreSQL function next_booking_ref()
+// See: booking_counters table + next_booking_ref() function in Supabase
+export {}

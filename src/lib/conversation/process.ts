@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseConversation } from '@/lib/gemini/conversation'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
-import { generateBookingRef } from '@/lib/utils/booking-ref'
 import type { ConversationMessage } from '@/types'
 
 // ─── ENTRY POINT ─────────────────────────────────────────────────────────────
@@ -66,7 +65,6 @@ export async function processConversationSession(
 
   if (isComplete) {
     // ── Create booking ─────────────────────────────────────────────────────
-    const bookingRef = generateBookingRef()
     const flags: string[] = []
     if (!result.extracted.pickup_location) flags.push('missing_pickup')
     if (!result.extracted.drop_location)   flags.push('missing_drop')
@@ -76,7 +74,6 @@ export async function processConversationSession(
     const { data: booking } = await supabase
       .from('bookings')
       .insert({
-        booking_ref: bookingRef,
         client_id: client.id,
         company_id: client.company_id,
         status: 'draft',

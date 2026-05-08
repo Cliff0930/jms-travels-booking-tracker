@@ -4,7 +4,6 @@ import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { handleClientChange, handleDisambiguationReply, type PendingAction } from '@/lib/utils/change-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
-import { generateBookingRef } from '@/lib/utils/booking-ref'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import type { Client, ClientLocation } from '@/types'
 
@@ -418,7 +417,6 @@ async function createBookingFromResult(
   client: Client,
   result: ConversationResult
 ) {
-  const bookingRef = generateBookingRef()
   const ext = result.extracted
   const totalDays = Math.max(ext.total_days ?? 1, 1)
 
@@ -429,7 +427,6 @@ async function createBookingFromResult(
   const { data: booking } = await supabase
     .from('bookings')
     .insert({
-      booking_ref: bookingRef,
       client_id: client.id,
       company_id: client.company_id ?? null,
       status: 'draft',

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { generateBookingRef } from '@/lib/utils/booking-ref'
 import type { TripType } from '@/types'
 
 interface BulkRow {
@@ -73,10 +72,7 @@ export async function POST(request: Request) {
     if (trip_type === 'outstation' && total_days <= 1) flags.push('missing_days')
     if (row.company_name && !company_id) flags.push('company_not_found')
 
-    const booking_ref = generateBookingRef()
-
-    const { error } = await supabase.from('bookings').insert({
-      booking_ref,
+    const { data: newBooking, error } = await supabase.from('bookings').insert({
       guest_name: row.guest_name || null,
       guest_phone: row.guest_phone || null,
       company_id,
@@ -93,12 +89,12 @@ export async function POST(request: Request) {
       status: 'draft',
       source: 'bulk',
       flags,
-    })
+    }).select('booking_ref').single()
 
     if (error) {
-      results.push({ ref: booking_ref, status: 'error', error: error.message })
+      results.push({ ref: row.guest_name || 'unknown', status: 'error', error: error.message })
     } else {
-      results.push({ ref: booking_ref, status: 'created' })
+      results.push({ ref: newBooking?.booking_ref ?? 'unknown', status: 'created' })
     }
   }
 

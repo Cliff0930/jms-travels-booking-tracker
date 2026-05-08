@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { classifyMessage } from '@/lib/gemini/classify'
 import { extractBookingFields } from '@/lib/gemini/extract'
-import { generateBookingRef } from '@/lib/utils/booking-ref'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
@@ -144,11 +143,9 @@ export async function POST(request: Request) {
     if (!extraction.extracted.drop_location) flags.push('missing_drop')
     if (extraction.is_guest_booking && !(client as Client)?.id) flags.push('guest_booking')
 
-    const bookingRef = generateBookingRef()
     const { data: booking } = await supabase
       .from('bookings')
       .insert({
-        booking_ref: bookingRef,
         client_id: (client as Client)?.id || null,
         company_id: (client as Client)?.company_id || null,
         status: 'draft',
@@ -209,14 +206,14 @@ export async function POST(request: Request) {
           const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email
 
           if (tmpl) {
-            const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: bookingRef })
+            const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: booking?.booking_ref })
             let status = 'failed'
             if (channel === 'whatsapp' && recipient) {
               const result = await sendWhatsAppMessage({ to: recipient, body })
               status = result.ok ? 'sent' : `failed: ${result.error}`
             } else if (channel === 'email' && recipient) {
               try {
-                await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+                await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref }), body })
                 status = 'sent'
               } catch (e) { status = `failed: ${String(e)}` }
             }
@@ -253,16 +250,16 @@ export async function POST(request: Request) {
       const clientName = (client as Client)?.name || 'there'
 
       if (channel === 'whatsapp' && recipient) {
-        const body = buildWhatsAppConfirmation(clientName, bookingRef, extraction.extracted)
+        const body = buildWhatsAppConfirmation(clientName, booking?.booking_ref, extraction.extracted)
         const result = await sendWhatsAppMessage({ to: recipient, body })
         await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
       } else if (channel === 'email' && recipient) {
         const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED).single()
         if (tmpl) {
-          const body = fillTemplate(tmpl.body, { client_name: clientName, booking_ref: bookingRef })
+          const body = fillTemplate(tmpl.body, { client_name: clientName, booking_ref: booking?.booking_ref })
           let status = 'failed'
           try {
-            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: bookingRef }), body })
+            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref }), body })
             status = 'sent'
           } catch (e) { status = `failed: ${String(e)}` }
           await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
