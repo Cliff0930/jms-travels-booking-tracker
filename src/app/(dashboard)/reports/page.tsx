@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
-import { Download } from 'lucide-react'
+import { Download, Search, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { Booking } from '@/types'
 
@@ -55,8 +55,13 @@ function quickRange(preset: string): { date_from: string; date_to: string } {
   return { date_from: '', date_to: '' }
 }
 
+const STATUS_OPTIONS = ['draft', 'pending_approval', 'confirmed', 'in_progress', 'completed', 'cancelled']
+const TRIP_OPTIONS   = ['local', 'outstation', 'airport']
+const SOURCE_OPTIONS = ['manual', 'whatsapp', 'email', 'bulk']
+
 export default function ReportsPage() {
   const [filters, setFilters] = useState({ date_from: '', date_to: '' })
+  const [tableFilters, setTableFilters] = useState({ search: '', status: '', trip_type: '', source: '' })
 
   const params = new URLSearchParams()
   if (filters.date_from) params.set('date_from', filters.date_from)
@@ -92,8 +97,32 @@ export default function ReportsPage() {
     cancelled: bookings.filter(b => b.status === 'cancelled').length,
   }
 
+  const filteredBookings = useMemo(() => {
+    const q = tableFilters.search.toLowerCase().trim()
+    return bookings.filter(b => {
+      if (tableFilters.status   && b.status    !== tableFilters.status)    return false
+      if (tableFilters.trip_type && b.trip_type !== tableFilters.trip_type) return false
+      if (tableFilters.source   && b.source    !== tableFilters.source)    return false
+      if (q) {
+        const hay = [
+          b.booking_ref,
+          b.guest_name,
+          b.client?.name,
+          b.company?.name,
+          b.driver?.name,
+          b.pickup_location,
+          b.drop_location,
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [bookings, tableFilters])
+
+  const hasTableFilter = tableFilters.search || tableFilters.status || tableFilters.trip_type || tableFilters.source
+
   function exportToExcel() {
-    const rows = bookings.map(b => ({
+    const rows = filteredBookings.map(b => ({
       'Booking Ref': b.booking_ref,
       'Client': b.client?.name || b.guest_name || '',
       'Company': b.company?.name || '',
@@ -208,6 +237,55 @@ export default function ReportsPage() {
         <ReportsCharts statusCounts={statusCounts} sourceCounts={sourceCounts} byDate={byDate} />
       )}
 
+      {/* Table filters */}
+      <div className="bg-white rounded-lg border border-[#C3C5D7] p-3 mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737686] pointer-events-none" />
+          <Input
+            placeholder="Search ref, client, driver, location…"
+            value={tableFilters.search}
+            onChange={e => setTableFilters(f => ({ ...f, search: e.target.value }))}
+            className="pl-8 h-8 text-xs border-[#C3C5D7]"
+          />
+        </div>
+        <select
+          value={tableFilters.status}
+          onChange={e => setTableFilters(f => ({ ...f, status: e.target.value }))}
+          className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none ${tableFilters.status ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
+        >
+          <option value="">All Statuses</option>
+          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+        </select>
+        <select
+          value={tableFilters.trip_type}
+          onChange={e => setTableFilters(f => ({ ...f, trip_type: e.target.value }))}
+          className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none ${tableFilters.trip_type ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
+        >
+          <option value="">All Trip Types</option>
+          {TRIP_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select
+          value={tableFilters.source}
+          onChange={e => setTableFilters(f => ({ ...f, source: e.target.value }))}
+          className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none ${tableFilters.source ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
+        >
+          <option value="">All Sources</option>
+          {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {hasTableFilter && (
+          <button
+            type="button"
+            onClick={() => setTableFilters({ search: '', status: '', trip_type: '', source: '' })}
+            className="flex items-center gap-1 h-8 px-2 text-xs text-[#737686] hover:text-red-600 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" /> Clear
+          </button>
+        )}
+        <span className="text-xs text-[#737686] ml-auto shrink-0">
+          {filteredBookings.length} of {bookings.length}
+        </span>
+      </div>
+
       {/* Table */}
       {isLoading ? (
         <div className="py-12 text-center text-[#737686]">Loading report…</div>
@@ -222,9 +300,9 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {bookings.length === 0 ? (
+              {filteredBookings.length === 0 ? (
                 <tr><td colSpan={10} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
-              ) : bookings.map(b => (
+              ) : filteredBookings.map(b => (
                 <tr key={b.id} className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE]">
                   <td className="px-3 py-2.5 font-medium text-[#1A56DB]">{b.booking_ref}</td>
                   <td className="px-3 py-2.5 text-[#191B23]">{b.client?.name || b.guest_name || '—'}</td>
