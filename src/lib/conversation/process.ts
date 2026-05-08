@@ -104,6 +104,29 @@ export async function processConversationSession(
       changed_by: 'system',
     })
 
+    // Auto-create guest client profile if not already in system
+    if (result.extracted.guest_name) {
+      try {
+        const guestPhone = result.extracted.guest_phone || null
+        let existingGuest = null
+        if (guestPhone) {
+          const { data } = await supabase.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
+          existingGuest = data
+        }
+        if (!existingGuest) {
+          await supabase.from('clients').insert({
+            name: result.extracted.guest_name,
+            primary_phone: guestPhone,
+            company_id: client.company_id ?? null,
+            guest_of_company_id: client.company_id ?? null,
+            client_type: 'guest',
+            is_verified: false,
+            is_vip: false,
+          })
+        }
+      } catch { /* non-critical */ }
+    }
+
     if ((result.extracted.total_days ?? 1) > 1) {
       await createBookingLegs(supabase, booking.id, result.extracted.pickup_date!, result.extracted.total_days, result.extracted.day_legs)
     }

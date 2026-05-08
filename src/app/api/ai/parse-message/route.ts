@@ -188,6 +188,29 @@ export async function POST(request: Request) {
         changed_by: 'system',
       })
 
+      // Auto-create guest client profile if not already in system
+      if (extraction.extracted.guest_name) {
+        try {
+          const guestPhone = extraction.extracted.guest_phone || null
+          let existingGuest = null
+          if (guestPhone) {
+            const { data } = await supabase.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
+            existingGuest = data
+          }
+          if (!existingGuest) {
+            await supabase.from('clients').insert({
+              name: extraction.extracted.guest_name,
+              primary_phone: guestPhone,
+              company_id: (client as Client)?.company_id ?? null,
+              guest_of_company_id: (client as Client)?.company_id ?? null,
+              client_type: 'guest',
+              is_verified: false,
+              is_vip: false,
+            })
+          }
+        } catch { /* non-critical */ }
+      }
+
       // If mandatory fields missing, send one auto-reply (unless suppressed for onboarding)
       if (extraction.missing_mandatory.length > 0) {
         if (!skip_auto_reply) {
