@@ -32,6 +32,8 @@ You are a booking data extractor for a professional cab service company in India
 
 Extract booking details from the message below. The sender's phone number and email are already known — do NOT ask for them.
 
+IMPORTANT — READ THE SUBJECT LINE: The email subject often contains critical booking information that does not appear in the body — including the pickup date, destination, guest name, or trip purpose. Always extract from the subject line first, then fill in from the body. Example: subject "Cab for Vendor Visit - Hebbal on 08th March 24" gives drop_location=Hebbal and pickup_date=2024-03-08 even if the body omits them.
+
 TODAY'S DATE (IST): {today}
 
 DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as words:
