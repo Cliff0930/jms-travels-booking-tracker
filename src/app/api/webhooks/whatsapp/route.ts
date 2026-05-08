@@ -133,6 +133,45 @@ async function processClientMessage(
   // Get or create session
   let session = activeSession
   if (!session) {
+    // Location follow-up check: if no active session but message looks like an address
+    // or maps link, check if there's a recent booking to update the pickup_location on.
+    const hasMapsUrl = /https?:\/\/(maps\.(app\.goo\.gl|google\.com)|goo\.gl\/maps)/i.test(rawContent)
+    const noBookingSignals = !rawContent.match(
+      /\b(book|cab|drop|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/i
+    )
+    const isLocationFollowUp = hasMapsUrl || (noBookingSignals && rawContent.trim().split('\n').length <= 5)
+
+    if (isLocationFollowUp) {
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const { data: recentBooking } = await supabase
+        .from('bookings')
+        .select('id, booking_ref, pickup_location')
+        .eq('client_id', client.id)
+        .gt('created_at', tenMinsAgo)
+        .in('status', ['pending', 'draft', 'pending_approval'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (recentBooking) {
+        const mapsUrl = rawContent.match(/https?:\/\/\S+/)?.[0] ?? ''
+        const addressText = rawContent.replace(/https?:\/\/\S+/g, '').trim()
+        const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
+
+        await supabase
+          .from('bookings')
+          .update({ pickup_location: newLocation, updated_at: new Date().toISOString() })
+          .eq('id', recentBooking.id)
+
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Thanks! The pickup address for booking ${recentBooking.booking_ref} has been updated.`,
+          log: { client_id: client.id },
+        })
+        return
+      }
+    }
+
     const { data: newSession } = await supabase
       .from('conversation_sessions')
       .insert({
