@@ -366,84 +366,53 @@ export default function CompaniesPage() {
       ) : companies.length === 0 ? (
         <div className="py-12 text-center text-[#737686]">No companies yet. Add your first company.</div>
       ) : (
-        <>
-          {/* Mobile card list */}
-          <div className="md:hidden space-y-2">
-            {companies.map(company => (
-              <div
-                key={company.id}
-                className="bg-white rounded-xl border border-[#E5E7EB] px-4 py-3 flex items-center gap-3 cursor-pointer active:bg-[#F3F3FE] transition-colors"
-                onClick={() => { setSelectedCompany(company); setPeopleSearch(''); setPeopleFilter('all') }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-[#EDEDF8] flex items-center justify-center shrink-0">
-                  <Building2 className="w-5 h-5 text-[#434654]" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {companies.map(company => (
+            <div
+              key={company.id}
+              className="bg-white rounded-2xl border border-[#E5E7EB] p-4 cursor-pointer hover:shadow-lg hover:border-[#0284C7]/30 hover:-translate-y-0.5 transition-all group"
+              onClick={() => { setSelectedCompany(company); setPeopleSearch(''); setPeopleFilter('all') }}
+            >
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0284C7] to-[#6366F1] flex items-center justify-center shrink-0 shadow-sm">
+                    <Building2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[#191B23] group-hover:text-[#0284C7] transition-colors truncate">{company.name}</div>
+                    {company.aliases?.length > 0 && (
+                      <div className="text-xs text-[#737686] truncate mt-0.5">{company.aliases.join(', ')}</div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[#191B23] truncate">{company.name}</div>
-                  {company.aliases?.length > 0 && (
-                    <div className="text-xs text-[#737686] truncate">{company.aliases.join(', ')}</div>
-                  )}
-                  {company.email_domains?.length > 0 && (
-                    <div className="text-xs text-[#9CA3AF] truncate mt-0.5">{company.email_domains.join(', ')}</div>
-                  )}
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${company.approval_required ? 'bg-[#EDE9FE] text-[#7E3AF2]' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>
-                  {company.approval_required ? 'Approval' : 'No approval'}
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${company.approval_required ? 'bg-[#EDE9FE] text-[#7E3AF2] border border-violet-200' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>
+                  {company.approval_required ? '✓ Approval' : 'No approval'}
                 </span>
               </div>
-            ))}
-          </div>
 
-          {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Company</th>
-                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Email Domains</th>
-                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686]">Approval</th>
-                  <th className="text-left px-4 py-2.5 text-label-caps text-[#737686] hidden lg:table-cell">Channel</th>
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map(company => (
-                  <tr
-                    key={company.id}
-                    className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors"
-                    onClick={() => { setSelectedCompany(company); setPeopleSearch(''); setPeopleFilter('all') }}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[#EDEDF8] flex items-center justify-center">
-                          <Building2 className="w-4 h-4 text-[#434654]" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-[#191B23]">{company.name}</div>
-                          {company.aliases?.length > 0 && (
-                            <div className="text-xs text-[#737686]">{company.aliases.join(', ')}</div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-[#434654]">
-                        {company.email_domains?.join(', ') || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${company.approval_required ? 'bg-[#EDE9FE] text-[#7E3AF2]' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>
-                        {company.approval_required ? 'Required' : 'None'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className="text-sm text-[#434654] capitalize">{company.approval_channel}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+              {(company.email_domains?.length > 0 || company.approval_channel) && (
+                <div className="border-t border-[#F3F4F6] pt-3 space-y-2">
+                  {company.email_domains?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {company.email_domains.slice(0, 3).map(d => (
+                        <span key={d} className="text-[10px] bg-blue-50 border border-blue-100 text-[#1A56DB] px-1.5 py-0.5 rounded-full font-medium">{d}</span>
+                      ))}
+                      {company.email_domains.length > 3 && (
+                        <span className="text-[10px] text-[#9CA3AF]">+{company.email_domains.length - 3} more</span>
+                      )}
+                    </div>
+                  )}
+                  {company.approval_channel && company.approval_required && (
+                    <div className="text-xs text-[#737686] capitalize">
+                      via <span className="font-medium text-[#434654]">{company.approval_channel}</span>
+                      {company.approval_timeout_hours && <span className="text-[#9CA3AF]"> · {company.approval_timeout_hours}h timeout</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Company Detail Panel */}
