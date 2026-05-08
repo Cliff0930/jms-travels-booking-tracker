@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays } from 'lucide-react'
+import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type { UserProfile, UserRole } from '@/types'
@@ -32,6 +32,9 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' as UserRole, password: '' })
   const [saving, setSaving] = useState(false)
+  const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
 
   const { data: users = [], isLoading } = useQuery<UserProfile[]>({
     queryKey: ['users'],
@@ -87,6 +90,26 @@ export default function UsersPage() {
       toast.success(user.is_active ? 'User deactivated' : 'User activated')
     } catch {
       toast.error('Failed to update status')
+    }
+  }
+
+  async function saveNameEdit(id: string) {
+    if (!nameInput.trim()) { setEditingNameId(null); return }
+    setSavingName(true)
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nameInput.trim() }),
+      })
+      if (!res.ok) throw new Error()
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Name updated')
+      setEditingNameId(null)
+    } catch {
+      toast.error('Failed to update name')
+    } finally {
+      setSavingName(false)
     }
   }
 
@@ -172,7 +195,45 @@ export default function UsersPage() {
                 {/* Card body */}
                 <div className="px-4 pt-3 pb-4 -mt-2">
                   <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 mb-3 shadow-sm">
-                    <div className="text-sm font-semibold text-[#191B23] truncate">{user.name || '—'}</div>
+                    {editingNameId === user.id ? (
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <input
+                          autoFocus
+                          value={nameInput}
+                          onChange={e => setNameInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveNameEdit(user.id)
+                            if (e.key === 'Escape') setEditingNameId(null)
+                          }}
+                          className="flex-1 text-sm font-semibold text-[#191B23] border border-[#1A56DB] rounded-md px-2 py-0.5 outline-none min-w-0"
+                          placeholder="Enter name"
+                        />
+                        <button
+                          onClick={() => saveNameEdit(user.id)}
+                          disabled={savingName}
+                          className="w-6 h-6 flex items-center justify-center rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors shrink-0"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setEditingNameId(null)}
+                          className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mb-0.5 group/name">
+                        <span className="text-sm font-semibold text-[#191B23] truncate flex-1">{user.name || <span className="text-[#9CA3AF] font-normal italic">No name set</span>}</span>
+                        <button
+                          onClick={() => { setEditingNameId(user.id); setNameInput(user.name || '') }}
+                          className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded hover:bg-blue-50 text-[#737686] hover:text-[#1A56DB] shrink-0"
+                          title="Edit name"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#737686]">
                       <Mail className="w-3 h-3 shrink-0" />
                       <span className="truncate">{user.email}</span>
