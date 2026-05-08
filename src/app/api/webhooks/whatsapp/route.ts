@@ -526,17 +526,20 @@ async function handleOnboardingReply(
   senderPhone: string,
   senderName: string | undefined,
   replyText: string,
-  rawMsgId: string,
+  _rawMsgId: string,
 ) {
   const clientInfo = await extractClientInfo(replyText)
   const resolvedName = clientInfo.name || senderName || 'Unknown'
 
   await createClientFromInfo(supabase, senderPhone, resolvedName, clientInfo)
 
+  // Mark ALL awaiting_client_info messages from this sender as done (not just the
+  // current reply) — prevents stale records from re-triggering onboarding on next message
   await supabase
     .from('raw_messages')
     .update({ ai_classification: 'onboarding_complete', processed: true })
-    .eq('id', rawMsgId)
+    .eq('sender_phone', senderPhone)
+    .in('ai_classification', ['awaiting_client_info', 'onboarding_complete'])
 
   const companyLine =
     clientInfo.company_name && !clientInfo.is_personal ? ` (${clientInfo.company_name})` : ''
@@ -585,6 +588,15 @@ async function createClientFromInfo(
       companyId = newCompany?.id || null
     }
   }
+
+  // Check if client already exists (e.g. from a webhook retry or prior partial run)
+  const { data: existingClient } = await supabase
+    .from('clients')
+    .select('*, company:companies(*), locations:client_locations(*)')
+    .eq('primary_phone', senderPhone)
+    .single()
+
+  if (existingClient) return existingClient
 
   const { data: newClient } = await supabase
     .from('clients')
