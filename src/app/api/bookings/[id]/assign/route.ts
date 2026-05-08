@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email), driver:drivers(id)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email), driver:drivers(id), cc_emails, source')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -127,12 +127,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ].filter(Boolean).join('\n')
 
       const driverBody = [
-        `Dear ${clientName},`,
+        `Hi ${clientName},`,
         ``,
         `We are pleased to inform you that a driver has been assigned for your upcoming trip (Ref: ${booking.booking_ref}).`,
         ``,
         `Driver Details`,
-        `──────────────`,
+        `--------------`,
         driverDetails,
         ``,
         `Your pickup is scheduled for ${dateStr} at ${timeStr} from ${booking.pickup_location || 'your confirmed pickup point'}.`,
@@ -140,36 +140,68 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         `Please feel free to contact your driver directly for any assistance. For any other queries, we are always happy to help.`,
       ].join('\n')
 
-      // WhatsApp — send to guest, booker, or both
-      const waRecipients: (string | null)[] =
-        notifyTarget === 'guest'  ? [guestPhone] :
-        notifyTarget === 'booker' ? [bookerPhone] :
-        [guestPhone, bookerPhone]
+      const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
+      const isEmailSource = booking.source === 'email'
 
-      await sendToAll(waRecipients, driverBody, {
-        booking_id: id,
-        client_id: client?.id || undefined,
-        template_used: 'driver_details_to_client',
-      }).catch(e => console.error('Driver details WA error:', e))
+      if (isEmailSource) {
+        // Email-source bookings: send email to booker + WhatsApp to guest (if phone available)
+        if (bookerEmail) {
+          await sendEmail({
+            to: bookerEmail,
+            subject: `Driver Assigned - ${booking.booking_ref}`,
+            body: driverBody,
+            cc: bookingCc.length > 0 ? bookingCc : undefined,
+          }).catch(e => console.error('Driver details email error:', e))
 
-      // Email — send to booker when target is booker or both
-      if (bookerEmail && notifyTarget !== 'guest') {
-        await sendEmail({
-          to: bookerEmail,
-          subject: `Driver Assigned — ${booking.booking_ref}`,
-          body: driverBody,
-        }).catch(e => console.error('Driver details email error:', e))
+          await supabase.from('message_logs').insert({
+            booking_id: id,
+            client_id: client?.id || null,
+            channel: 'email',
+            direction: 'outbound',
+            recipient: bookerEmail,
+            content: driverBody,
+            template_used: 'driver_details_to_client',
+            status: 'sent',
+          })
+        }
+        if (guestPhone) {
+          await sendToAll([guestPhone], driverBody, {
+            booking_id: id,
+            client_id: client?.id || undefined,
+            template_used: 'driver_details_to_client',
+          }).catch(e => console.error('Driver details WA error:', e))
+        }
+      } else {
+        // WhatsApp-source bookings: use company notify target preference
+        const waRecipients: (string | null)[] =
+          notifyTarget === 'guest'  ? [guestPhone] :
+          notifyTarget === 'booker' ? [bookerPhone] :
+          [guestPhone, bookerPhone]
 
-        await supabase.from('message_logs').insert({
+        await sendToAll(waRecipients, driverBody, {
           booking_id: id,
-          client_id: client?.id || null,
-          channel: 'email',
-          direction: 'outbound',
-          recipient: bookerEmail,
-          content: driverBody,
+          client_id: client?.id || undefined,
           template_used: 'driver_details_to_client',
-          status: 'sent',
-        })
+        }).catch(e => console.error('Driver details WA error:', e))
+
+        if (bookerEmail && notifyTarget !== 'guest') {
+          await sendEmail({
+            to: bookerEmail,
+            subject: `Driver Assigned - ${booking.booking_ref}`,
+            body: driverBody,
+          }).catch(e => console.error('Driver details email error:', e))
+
+          await supabase.from('message_logs').insert({
+            booking_id: id,
+            client_id: client?.id || null,
+            channel: 'email',
+            direction: 'outbound',
+            recipient: bookerEmail,
+            content: driverBody,
+            template_used: 'driver_details_to_client',
+            status: 'sent',
+          })
+        }
       }
     }
   }

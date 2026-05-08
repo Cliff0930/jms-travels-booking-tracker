@@ -74,7 +74,7 @@ async function logOutbound(
 }
 
 export async function POST(request: Request) {
-  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, skip_auto_reply, skip_approval } = await request.json()
+  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, skip_auto_reply, skip_approval } = await request.json()
   let client = clientFromReq
   const supabase = createAdminClient()
 
@@ -151,6 +151,7 @@ export async function POST(request: Request) {
         status: 'draft',
         source: channel,
         flags,
+        cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
         pickup_location: extraction.extracted.pickup_location,
         drop_location: extraction.extracted.drop_location,
         pickup_date: extraction.extracted.pickup_date,
@@ -256,10 +257,23 @@ export async function POST(request: Request) {
       } else if (channel === 'email' && recipient) {
         const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED).single()
         if (tmpl) {
-          const body = fillTemplate(tmpl.body, { client_name: clientName, booking_ref: booking?.booking_ref })
+          const guestName = extraction.extracted.guest_name || clientName
+          const travelDate = extraction.extracted.pickup_date || ''
+          const templateVars = {
+            client_name: clientName,
+            name: clientName,
+            booking_ref: booking?.booking_ref,
+            reference_number: booking?.booking_ref,
+            guest_name: guestName,
+            traveler_name: guestName,
+            pickup_date: travelDate,
+            travel_date: travelDate,
+          }
+          const body = fillTemplate(tmpl.body, templateVars)
+          const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
           let status = 'failed'
           try {
-            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref }), body })
+            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref, reference_number: booking?.booking_ref }), body, cc: emailCc })
             status = 'sent'
           } catch (e) { status = `failed: ${String(e)}` }
           await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })

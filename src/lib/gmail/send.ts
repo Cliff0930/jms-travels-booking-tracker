@@ -25,6 +25,13 @@ function getOAuthClient() {
   return oauth2
 }
 
+function encodeSubject(subject: string): string {
+  if (/[^\x00-\x7F]/.test(subject)) {
+    return `=?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`
+  }
+  return subject
+}
+
 interface EmailMessage {
   to: string
   subject: string
@@ -43,7 +50,7 @@ export async function sendEmail({ to, subject, body, cc, skipSignature = false }
 
   const ccLine = cc?.length ? `Cc: ${cc.join(', ')}\r\n` : ''
   const raw = Buffer.from(
-    `From: ${from}\r\nTo: ${to}\r\n${ccLine}Subject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${fullBody}`
+    `From: ${from}\r\nTo: ${to}\r\n${ccLine}Subject: ${encodeSubject(subject)}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${fullBody}`
   ).toString('base64url')
   await gmail.users.messages.send({ userId: 'me', requestBody: { raw } })
 }

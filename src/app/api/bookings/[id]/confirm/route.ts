@@ -11,7 +11,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(*), company:companies(*)')
+    .select('*, client:clients!client_id(*), company:companies(*), cc_emails')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -98,7 +98,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     ].filter(Boolean).join('\n')
 
     const body = [
-      `Dear ${clientName},`,
+      `Hi ${clientName},`,
       ``,
       `We are delighted to confirm your booking with JMS Travels. Please find the details of your reservation below.`,
       ``,
@@ -109,31 +109,53 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       `Thank you for choosing JMS Travels. We look forward to serving you.`,
     ].join('\n')
 
-    // Send to guest + admin (deduped — if same phone, sends once)
     const guestPhone = booking.guest_phone || null
     const adminPhone = client?.primary_phone || fallbackPhone || null
     const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
     const email = client?.primary_email
+    const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
 
-    console.log(`[confirm] booking=${id} guest_phone=${guestPhone} admin_phone=${adminPhone}`)
+    console.log(`[confirm] booking=${id} source=${booking.source} guest_phone=${guestPhone} admin_phone=${adminPhone}`)
 
-    if (phones.length > 0) {
-      await sendToAll(phones, body)
-    } else if (email) {
-      await sendEmail({ to: email, subject: `Your booking is confirmed — ${booking.booking_ref}`, body }).catch(() => {})
+    if (booking.source === 'email') {
+      // Email-source bookings: notify via email only
+      if (email) {
+        await sendEmail({
+          to: email,
+          subject: `Your booking is confirmed - ${booking.booking_ref}`,
+          body,
+          cc: bookingCc.length > 0 ? bookingCc : undefined,
+        }).catch(() => {})
+      }
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        client_id: client?.id || null,
+        channel: 'email',
+        direction: 'outbound',
+        recipient: email || 'unknown',
+        content: body,
+        template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
+        status: email ? 'sent' : 'skipped',
+      })
+    } else {
+      // WhatsApp-source bookings: send via WhatsApp, fall back to email
+      if (phones.length > 0) {
+        await sendToAll(phones, body)
+      } else if (email) {
+        await sendEmail({ to: email, subject: `Your booking is confirmed - ${booking.booking_ref}`, body }).catch(() => {})
+      }
+      const recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        client_id: client?.id || null,
+        channel: phones.length > 0 ? 'whatsapp' : 'email',
+        direction: 'outbound',
+        recipient,
+        content: body,
+        template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
+        status: 'sent',
+      })
     }
-
-    const recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
-    await supabase.from('message_logs').insert({
-      booking_id: id,
-      client_id: client?.id || null,
-      channel: phones.length > 0 ? 'whatsapp' : 'email',
-      direction: 'outbound',
-      recipient,
-      content: body,
-      template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
-      status: 'sent',
-    })
   }
 
   return NextResponse.json(data)
