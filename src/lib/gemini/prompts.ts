@@ -82,7 +82,12 @@ If the message contains multiple clearly distinct trips (different dates, times,
 If it is a single booking (even with multiple passengers), return one entry.
 Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
 "👆" emoji used as a pointer means "the text immediately above this line" — e.g. "Pick up from 👆residence" refers to the multi-line address written above it as the pickup location.
-"👇" emoji means "the address/detail is coming below or in the next message" — if pickup_location is missing but a 👇 is present, do NOT add pickup_location to missing_mandatory. It will arrive in the next message. A Google Maps link adjacent to 👇 should be treated as part of the pickup location.
+CONTINUATION SIGNALS — more detail is arriving in the next message. When any of these appear and pickup_location is still missing, do NOT add pickup_location to missing_mandatory and do NOT ask for it. Just acknowledge the details received so far:
+- Emojis: 👇 ⬇️ (pointing down — "address/details below")
+- Phrases: "below location", "below address", "below details", "see below", "pls find below", "as follows", "as under", "as below", "details below", "address below", "location below"
+- Location-share signals: "sharing location", "sending pin", "location pin", "sending address", "will share address", "sharing now"
+- Message ends with an empty field label like "Pickup Location:" or "Address:" with nothing after it — the value is coming in the next message
+A Google Maps link adjacent to a continuation signal should be stored as part of the pickup location field.
 Multi-line addresses (address split across several lines) should be concatenated into a single pickup_location or drop_location string.
 "Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
 Text and URL run together without a space (e.g. "Thank youhttps://maps...") → separate them; the URL belongs to the location field it was sent alongside.
@@ -305,7 +310,11 @@ If drop_location is provided, use it to help determine the trip type.
 === LOCATION KEYWORDS ===
 If the client uses a shorthand like "home", "office", "residence", "factory" check their saved_locations. If found → use the saved address. If not found → accept the shorthand as-is (e.g. "Home", "Residence") and proceed. Do NOT ask the client to clarify the address — the driver or operator will confirm it directly.
 "Report [location]" means pickup_location — corporate shorthand for where the driver should collect the traveler. E.g. "Report hotel MGM Mark Whitefield" → pickup_location = "Hotel MGM Mark, Whitefield".
-"👆" = the address/text immediately above that line is the location. "👇" = the address is coming below or in the next message — do NOT add pickup_location to missing_mandatory; just acknowledge and wait.
+"👆" = the address/text immediately above that line is the location.
+CONTINUATION SIGNALS — when any of these appear and pickup_location is missing, do NOT ask for it and do NOT add to missing_mandatory. Acknowledge what was received and wait for the next message:
+  Emojis: 👇 ⬇️
+  Phrases: "below location/address/details", "see below", "pls find below", "as follows/under/below", "sharing location", "sending pin", "location pin", "sending address", "will share address"
+  Empty field label at end: message ends with "Pickup Location:" or "Address:" with no value after it
 
 === MANDATORY FIELDS BY TRIP TYPE ===
 
