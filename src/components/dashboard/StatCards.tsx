@@ -19,7 +19,7 @@ interface StatCardsProps {
 
 export function StatCards({ cards }: StatCardsProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {cards.map(({ key, label, value, icon: Icon, color, bg, onClick, active }) => (
         <button
           key={key}
