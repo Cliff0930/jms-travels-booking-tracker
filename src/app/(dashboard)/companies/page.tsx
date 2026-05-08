@@ -388,28 +388,31 @@ export default function CompaniesPage() {
 
       {/* Company Detail Panel */}
       <Sheet open={!!selectedCompany} onOpenChange={o => !o && setSelectedCompany(null)}>
-        <SheetContent className="w-full sm:w-[440px] px-6 py-0 gap-0" showCloseButton={false}>
+        <SheetContent className="w-full md:w-3/4 lg:w-1/2 px-0 py-0 gap-0" showCloseButton={false}>
           {selectedCompany && (
             <>
-              {/* Sticky Header */}
-              <div className="flex-shrink-0 pt-5 pb-4 border-b border-[#EEEEF5]">
+              {/* Gradient Header */}
+              <div className="flex-shrink-0 bg-gradient-to-br from-[#0284C7] to-[#6366F1] pt-5 pb-5 px-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl bg-[#EDEDF8] flex items-center justify-center shrink-0">
-                      <Building2 className="w-6 h-6 text-[#434654]" />
+                    <div className="w-14 h-14 rounded-xl bg-white/20 border-2 border-white/30 flex items-center justify-center shrink-0">
+                      <Building2 className="w-7 h-7 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-base font-semibold text-[#191B23] leading-tight truncate">{selectedCompany.name}</h2>
+                      <h2 className="text-base font-bold text-white leading-tight truncate">{selectedCompany.name}</h2>
                       {selectedCompany.aliases?.length > 0 && (
-                        <p className="text-xs text-[#737686] mt-0.5 truncate">{selectedCompany.aliases.join(', ')}</p>
+                        <p className="text-xs text-white/70 mt-0.5 truncate">{selectedCompany.aliases.join(', ')}</p>
                       )}
+                      <span className={`inline-block mt-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full ${selectedCompany.approval_required ? 'bg-violet-400/30 text-violet-100' : 'bg-white/20 text-white/80'}`}>
+                        {selectedCompany.approval_required ? '✓ Approval required' : 'No approval'}
+                      </span>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setSelectedCompany(null)}
-                    className="shrink-0 mt-0.5 text-[#737686] hover:text-[#191B23]"
+                    className="shrink-0 mt-0.5 text-white/80 hover:text-white hover:bg-white/20"
                   >
                     <X className="w-4 h-4" />
                     <span className="sr-only">Close</span>
@@ -418,14 +421,14 @@ export default function CompaniesPage() {
               </div>
 
               {/* Scrollable Body */}
-              <div className="flex-1 overflow-y-auto py-4 space-y-5">
+              <div className="flex-1 overflow-y-auto py-4 px-6 space-y-5">
 
                 {/* People */}
                 <section>
                   {/* Header + filter pills */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-label-caps text-[#737686]">People</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7]">People</h3>
                       {(companyClients.length + companyGuests.length) > 0 && (
                         <span className="text-[10px] font-semibold bg-[#EDEDF8] text-[#434654] px-1.5 py-0.5 rounded-full">
                           {companyClients.length + companyGuests.length}
@@ -524,7 +527,7 @@ export default function CompaniesPage() {
                 <Separator />
 
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-3">Approval Settings</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-3">Approval Settings</h3>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between py-1">
                       <Label className="text-sm">Require Approval</Label>
@@ -568,7 +571,7 @@ export default function CompaniesPage() {
                 <Separator />
 
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-2">Email Domains</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#6366F1] mb-2">Email Domains</h3>
                   {selectedCompany.email_domains?.length ? (
                     <div className="flex flex-wrap gap-1.5">
                       {selectedCompany.email_domains.map(d => (
@@ -581,7 +584,7 @@ export default function CompaniesPage() {
                 </section>
 
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-2">Approver Emails</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-2">Approver Emails</h3>
                   {selectedCompany.approver_emails?.length ? (
                     <div className="space-y-1.5">
                       {selectedCompany.approver_emails.map(e => (
@@ -597,7 +600,7 @@ export default function CompaniesPage() {
                 </section>
 
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-2">Approver WhatsApp</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-2">Approver WhatsApp</h3>
                   {selectedCompany.approver_whatsapp?.length ? (
                     <div className="space-y-1.5">
                       {selectedCompany.approver_whatsapp.map(w => (
@@ -618,7 +621,7 @@ export default function CompaniesPage() {
 
                 {/* Email Intake Rules */}
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-3">Email Intake Rules</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-3">Email Intake Rules</h3>
                   <div className="space-y-3">
                     <div>
                       <Label className="text-sm mb-1.5 block">Capture emails from</Label>
@@ -665,7 +668,7 @@ export default function CompaniesPage() {
 
                 {/* Driver Notification */}
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-1">Driver Details — Notify</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED] mb-1">Driver Details — Notify</h3>
                   <p className="text-xs text-[#737686] mb-3">Who receives the driver&apos;s name, phone and vehicle details when a trip is assigned.</p>
                   <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
                     {([
@@ -691,7 +694,7 @@ export default function CompaniesPage() {
                 <Separator />
 
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-1">Approval Exclusions</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#D97706] mb-1">Approval Exclusions</h3>
                   <p className="text-xs text-[#737686] mb-3">Clients on this list bypass approval and are confirmed directly.</p>
                   <ClientExclusionPicker
                     companyId={selectedCompany.id}
@@ -702,7 +705,7 @@ export default function CompaniesPage() {
               </div>
 
               {/* Sticky Footer */}
-              <div className="flex-shrink-0 py-4 border-t border-[#EEEEF5]">
+              <div className="flex-shrink-0 py-4 px-6 border-t border-[#EEEEF5]">
                 <Button
                   variant="outline" size="sm"
                   className="rounded-sm text-xs px-4 gap-1.5 text-[#737686]"

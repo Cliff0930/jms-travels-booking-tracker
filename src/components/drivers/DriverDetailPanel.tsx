@@ -108,35 +108,46 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
 
   return (
     <Sheet open={open} onOpenChange={o => { if (!o) { setEditing(false); onClose() } }}>
-      <SheetContent className="w-full sm:w-[440px] overflow-y-auto p-0">
-        {/* Header */}
-        <div className="p-5 border-b border-[#E5E7EB]">
+      <SheetContent className="w-full md:w-3/4 lg:w-1/2 p-0 flex flex-col" showCloseButton={false}>
+        {/* Gradient Header */}
+        <div className="bg-gradient-to-br from-[#7C3AED] to-[#4F46E5] p-5 flex-shrink-0">
           <SheetHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#D4DCFF] flex items-center justify-center text-lg font-semibold text-[#1A56DB] shrink-0">
+                <div className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-xl font-bold text-white shrink-0">
                   {initials}
                 </div>
                 <div>
-                  <SheetTitle className="text-[#191B23]">{driver.name}</SheetTitle>
-                  <div className="flex items-center gap-2 mt-1">
-                    <DriverStatusBadge status={driver.status} />
+                  <SheetTitle className="text-white text-lg font-bold">{driver.name}</SheetTitle>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
+                      driver.status === 'available' ? 'bg-emerald-400/30 text-emerald-100'
+                      : driver.status === 'on_trip' ? 'bg-blue-300/30 text-blue-100'
+                      : 'bg-white/20 text-white/80'
+                    }`}>
+                      {driver.status.replace('_', ' ')}
+                    </span>
                     {!driver.is_active && (
-                      <span className="text-xs font-medium text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">Inactive</span>
+                      <span className="text-[11px] font-semibold bg-red-400/30 text-red-100 px-2 py-0.5 rounded-full">Inactive</span>
                     )}
                   </div>
                 </div>
               </div>
-              {!editing && (
-                <Button size="sm" variant="outline" className="rounded-sm gap-1.5 shrink-0" onClick={startEdit}>
-                  <Pencil className="w-3.5 h-3.5" /> Edit
+              <div className="flex items-center gap-2 shrink-0">
+                {!editing && (
+                  <Button size="sm" variant="ghost" className="rounded-sm gap-1.5 text-white/80 hover:text-white hover:bg-white/20 border border-white/30 h-8 text-xs" onClick={startEdit}>
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon-sm" onClick={() => { setEditing(false); onClose() }} className="text-white/80 hover:text-white hover:bg-white/20">
+                  <X className="w-4 h-4" />
                 </Button>
-              )}
+              </div>
             </div>
           </SheetHeader>
         </div>
 
-        <div className="p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
           {/* Edit Form */}
           {editing ? (
@@ -203,17 +214,17 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
             <>
               {/* Trip Stats */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#F3F3FE] rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-[#1A56DB]">
+                <div className="bg-gradient-to-br from-[#1A56DB] to-[#4F46E5] rounded-xl p-4 text-center shadow-sm">
+                  <p className="text-3xl font-bold text-white">
                     {statsLoading ? '…' : (stats?.total_trips ?? 0)}
                   </p>
-                  <p className="text-xs text-[#737686] mt-0.5">Total Trips</p>
+                  <p className="text-xs text-blue-100 mt-1 font-medium">Total Trips</p>
                 </div>
-                <div className="bg-[#F3F3FE] rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-[#1A56DB]">
+                <div className="bg-gradient-to-br from-[#7C3AED] to-[#9333EA] rounded-xl p-4 text-center shadow-sm">
+                  <p className="text-3xl font-bold text-white">
                     {statsLoading ? '…' : (stats?.this_month_trips ?? 0)}
                   </p>
-                  <p className="text-xs text-[#737686] mt-0.5">This Month</p>
+                  <p className="text-xs text-purple-100 mt-1 font-medium">This Month</p>
                 </div>
               </div>
 
@@ -248,45 +259,52 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
 
               {/* Contact */}
               <section>
-                <h3 className="text-label-caps text-[#737686] mb-2">Contact</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-[#191B23]">
-                    <Phone className="w-4 h-4 text-[#737686] shrink-0" />
-                    {driver.phone}
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED] mb-3">Contact</h3>
+                <div className="p-3 rounded-xl bg-violet-50 border border-violet-100 space-y-2.5">
+                  <div className="flex items-center gap-2.5 text-sm text-[#191B23]">
+                    <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                      <Phone className="w-3.5 h-3.5 text-[#7C3AED]" />
+                    </div>
+                    <span className="font-medium">{driver.phone}</span>
                   </div>
                   {driver.email ? (
-                    <div className="flex items-center gap-2 text-sm text-[#191B23]">
-                      <Mail className="w-4 h-4 text-[#737686] shrink-0" />
-                      {driver.email}
+                    <div className="flex items-center gap-2.5 text-sm text-[#191B23]">
+                      <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                        <Mail className="w-3.5 h-3.5 text-[#7C3AED]" />
+                      </div>
+                      <span className="font-medium">{driver.email}</span>
                     </div>
                   ) : (
-                    <p className="text-xs text-[#737686] pl-6">No email on file</p>
+                    <p className="text-xs text-[#737686] pl-9">No email on file</p>
                   )}
                 </div>
               </section>
 
-              <Separator />
-
               {/* Vehicle */}
               <section>
-                <h3 className="text-label-caps text-[#737686] mb-2">Vehicle</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-[#191B23]">
-                    <Car className="w-4 h-4 text-[#737686] shrink-0" />
-                    {driver.vehicle_name}
-                    <span className="px-1.5 py-0.5 bg-[#EDEDF8] rounded text-xs text-[#434654]">{driver.vehicle_type}</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1A56DB] mb-3">Vehicle</h3>
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 space-y-2.5">
+                  <div className="flex items-center gap-2.5 text-sm text-[#191B23]">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Car className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    </div>
+                    <span className="font-semibold">{driver.vehicle_name}</span>
+                    <span className="px-2 py-0.5 bg-blue-200 rounded-full text-xs font-medium text-[#1A56DB]">{driver.vehicle_type}</span>
                   </div>
-                  <div className="text-sm text-[#434654]">
-                    Plate: <span className="font-medium text-[#191B23]">{driver.vehicle_number}</span>
+                  <div className="flex items-center gap-2 pl-9 text-sm text-[#434654]">
+                    <span>Plate:</span>
+                    <span className="font-bold text-[#191B23] tracking-wider">{driver.vehicle_number}</span>
                   </div>
                   {driver.vehicle_color && (
-                    <div className="text-sm text-[#434654]">
+                    <div className="text-sm text-[#434654] pl-9">
                       Color: <span className="font-medium text-[#191B23]">{driver.vehicle_color}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-sm text-[#434654]">
-                    <Users className="w-4 h-4 text-[#737686] shrink-0" />
-                    {driver.seating_capacity} passengers
+                  <div className="flex items-center gap-2.5 text-sm text-[#434654]">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Users className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    </div>
+                    <span className="font-medium">{driver.seating_capacity} passengers</span>
                   </div>
                 </div>
               </section>
@@ -294,18 +312,17 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
               {/* Recent Trips */}
               {!statsLoading && stats?.recent_trips && stats.recent_trips.length > 0 && (
                 <>
-                  <Separator />
                   <section>
-                    <h3 className="text-label-caps text-[#737686] mb-2">Recent Trips</h3>
-                    <div className="space-y-2.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-3">Recent Trips</h3>
+                    <div className="space-y-2">
                       {stats.recent_trips.map(trip => (
-                        <div key={trip.booking_ref} className="flex items-start gap-2">
-                          <Link href={`/bookings/${trip.id}`} className="text-xs font-semibold text-[#1A56DB] hover:underline shrink-0 pt-0.5">{trip.booking_ref}</Link>
-                          <div className="min-w-0">
+                        <div key={trip.booking_ref} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 hover:border-emerald-300 transition-all group">
+                          <Link href={`/bookings/${trip.id}`} className="text-xs font-bold text-[#059669] hover:underline shrink-0 pt-0.5 group-hover:text-[#047857]">{trip.booking_ref}</Link>
+                          <div className="min-w-0 flex-1">
                             {trip.pickup_location && (
-                              <p className="text-xs text-[#191B23] truncate">
+                              <p className="text-xs text-[#191B23] truncate font-medium">
                                 {trip.pickup_location}
-                                {trip.drop_location && <span className="text-[#737686]"> → {trip.drop_location}</span>}
+                                {trip.drop_location && <span className="text-[#737686] font-normal"> → {trip.drop_location}</span>}
                               </p>
                             )}
                             {trip.pickup_date && (

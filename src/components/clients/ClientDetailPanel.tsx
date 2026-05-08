@@ -313,27 +313,27 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   return (
     <>
       <Sheet open={open} onOpenChange={o => !o && onClose()}>
-        <SheetContent className="w-full sm:w-[440px] px-6 py-0 gap-0" showCloseButton={false}>
-          {/* Sticky Header */}
-          <div className="flex-shrink-0 pt-5 pb-4 border-b border-[#EEEEF5]">
+        <SheetContent className="w-full md:w-3/4 lg:w-1/2 px-0 py-0 gap-0" showCloseButton={false}>
+          {/* Gradient Header */}
+          <div className="flex-shrink-0 bg-gradient-to-br from-[#1A56DB] to-[#6366F1] pt-5 pb-5 px-6">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-full bg-[#D4DCFF] flex items-center justify-center text-lg font-semibold text-[#1A56DB] shrink-0">
+                <div className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-xl font-bold text-white shrink-0">
                   {initials}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-[#191B23] leading-tight truncate">{client.name}</h2>
+                  <h2 className="text-base font-bold text-white leading-tight truncate">{client.name}</h2>
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <Badge variant="secondary" className="text-xs capitalize">{client.client_type}</Badge>
-                    {client.is_verified && <Badge className="bg-green-100 text-green-700 text-xs">Verified</Badge>}
-                    {client.is_vip && <Badge className="bg-yellow-100 text-yellow-700 text-xs">VIP</Badge>}
+                    <span className="text-[11px] font-medium bg-white/20 text-white px-2 py-0.5 rounded-full capitalize">{client.client_type}</span>
+                    {client.is_verified && <span className="text-[11px] font-medium bg-emerald-400/30 text-emerald-100 px-2 py-0.5 rounded-full">✓ Verified</span>}
+                    {client.is_vip && <span className="text-[11px] font-medium bg-amber-400/30 text-amber-100 px-2 py-0.5 rounded-full">★ VIP</span>}
                   </div>
                   {client.client_type === 'guest' && client.guest_of_company && (
-                    <p className="text-xs text-[#92400E] mt-1">Guest of {client.guest_of_company.name}</p>
+                    <p className="text-xs text-white/70 mt-1">Guest of {client.guest_of_company.name}</p>
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="icon-sm" onClick={onClose} className="shrink-0 mt-0.5 text-[#737686] hover:text-[#191B23]">
+              <Button variant="ghost" size="icon-sm" onClick={onClose} className="shrink-0 mt-0.5 text-white/80 hover:text-white hover:bg-white/20">
                 <X className="w-4 h-4" />
                 <span className="sr-only">Close</span>
               </Button>
@@ -341,46 +341,52 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
           </div>
 
           {/* Scrollable Body */}
-          <div className="flex-1 overflow-y-auto py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto py-4 px-6 space-y-4">
 
             {/* Contact Details */}
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-label-caps text-[#737686]">Contact Details</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1A56DB]">Contact Details</h3>
                 <Button
                   variant="ghost" size="sm"
-                  className="h-6 text-xs text-[#1A56DB] gap-1 -mr-1"
+                  className="h-6 text-xs text-[#1A56DB] gap-1 -mr-1 hover:bg-blue-50"
                   onClick={() => setShowAddContact(true)}
                 >
                   <Plus className="w-3 h-3" /> Add
                 </Button>
               </div>
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {client.primary_phone && (
-                  <a href={`tel:${client.primary_phone}`} className="flex items-center gap-2.5 text-sm text-[#191B23] hover:text-[#1A56DB] transition-colors">
-                    <Phone className="w-4 h-4 text-[#737686] shrink-0" />
-                    <span>{client.primary_phone}</span>
-                    <span className="text-xs text-[#9CA3AF]">primary</span>
+                  <a href={`tel:${client.primary_phone}`} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 text-sm text-[#191B23] hover:text-[#1A56DB] transition-all group">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Phone className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    </div>
+                    <span className="flex-1 font-medium">{client.primary_phone}</span>
+                    <span className="text-[10px] font-semibold text-blue-400 bg-blue-100 px-1.5 py-0.5 rounded-full">primary</span>
                   </a>
                 )}
                 {client.primary_email && (
-                  <a href={`mailto:${client.primary_email}`} className="flex items-center gap-2.5 text-sm text-[#191B23] hover:text-[#1A56DB] transition-colors min-w-0">
-                    <Mail className="w-4 h-4 text-[#737686] shrink-0" />
-                    <span className="truncate">{client.primary_email}</span>
-                    <span className="text-xs text-[#9CA3AF] shrink-0">primary</span>
+                  <a href={`mailto:${client.primary_email}`} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 text-sm text-[#191B23] hover:text-[#1A56DB] transition-all min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Mail className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    </div>
+                    <span className="truncate flex-1 font-medium">{client.primary_email}</span>
+                    <span className="text-[10px] font-semibold text-blue-400 bg-blue-100 px-1.5 py-0.5 rounded-full shrink-0">primary</span>
                   </a>
                 )}
                 {liveContacts.map(ct => (
-                  <div key={ct.id} className="flex items-center gap-2 text-sm text-[#434654] group">
-                    {ct.contact_type === 'phone'
-                      ? <Phone className="w-4 h-4 text-[#737686] shrink-0" />
-                      : <Mail className="w-4 h-4 text-[#737686] shrink-0" />}
-                    <span className="truncate flex-1">{ct.value}</span>
-                    <span className="text-xs text-[#737686] shrink-0">({ct.role})</span>
+                  <div key={ct.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-200 text-sm text-[#434654] group transition-all">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      {ct.contact_type === 'phone'
+                        ? <Phone className="w-3.5 h-3.5 text-[#1A56DB]" />
+                        : <Mail className="w-3.5 h-3.5 text-[#1A56DB]" />}
+                    </div>
+                    <span className="truncate flex-1 font-medium">{ct.value}</span>
+                    <span className="text-[10px] text-[#737686] shrink-0">({ct.role})</span>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         onClick={() => openEditContact(ct)}
-                        className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-[#EBF5FF] transition-colors"
+                        className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-white transition-colors"
                         title="Edit"
                       >
                         <Pencil className="w-3 h-3" />
@@ -388,7 +394,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                       <button
                         onClick={() => handleDeleteContact(ct.id)}
                         disabled={deletingContactId === ct.id}
-                        className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                        className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-white transition-colors disabled:opacity-40"
                         title="Delete"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -407,7 +413,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
               <>
                 <Separator />
                 <section>
-                  <h3 className="text-label-caps text-[#737686] mb-2">Company</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#6366F1] mb-2">Company</h3>
                   {client.client_type === 'guest' && client.guest_of_company ? (
                     <div>
                       <p className="text-xs text-[#737686] mb-0.5">Guest of</p>
@@ -425,11 +431,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
             {/* Saved Locations */}
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-label-caps text-[#737686]">Saved Locations</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED]">Saved Locations</h3>
                 <Button
                   variant="ghost" size="sm"
-                  className="h-6 text-xs text-[#1A56DB] gap-1 -mr-1"
+                  className="h-6 text-xs text-[#7C3AED] gap-1 -mr-1 hover:bg-violet-50"
                   onClick={() => setShowAddLocation(true)}
                 >
                   <Plus className="w-3 h-3" /> Add
@@ -440,16 +446,18 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
               ) : (
                 <div className="space-y-2">
                   {liveLocations.map(loc => (
-                    <div key={loc.id} className="flex items-start gap-2 text-sm group">
-                      <MapPin className="w-4 h-4 text-[#737686] mt-0.5 shrink-0" />
+                    <div key={loc.id} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-violet-50 border border-violet-100 hover:border-violet-300 text-sm group transition-all">
+                      <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#7C3AED]" />
+                      </div>
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-[#191B23] capitalize">{loc.keyword}</span>
+                        <span className="font-semibold text-[#191B23] capitalize">{loc.keyword}</span>
                         <p className="text-xs text-[#434654] mt-0.5 break-words">{loc.address}</p>
                       </div>
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
                         <button
                           onClick={() => openEditLocation(loc)}
-                          className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-[#EBF5FF] transition-colors"
+                          className="p-1 rounded text-[#737686] hover:text-[#7C3AED] hover:bg-white transition-colors"
                           title="Edit location"
                         >
                           <Pencil className="w-3 h-3" />
@@ -457,7 +465,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                         <button
                           onClick={() => handleDeleteLocation(loc.id)}
                           disabled={deletingLocationId === loc.id}
-                          className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                          className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-white transition-colors disabled:opacity-40"
                           title="Delete location"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -474,7 +482,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             {/* Bookings */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-label-caps text-[#737686]">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669]">
                   Bookings {clientBookings.length > 0 && `(${clientBookings.length})`}
                 </h3>
                 {/* Booking type tabs */}
@@ -506,7 +514,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <a
                       key={b.id}
                       href={`/bookings/${b.id}`}
-                      className="flex items-center justify-between p-3 rounded-lg border border-[#C3C5D7] hover:bg-[#F3F3FE] hover:border-[#1A56DB]/30 transition-colors group"
+                      className="flex items-center justify-between p-3 rounded-xl border border-[#E5E7EB] hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:border-[#1A56DB]/40 hover:shadow-sm transition-all group"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
@@ -539,11 +547,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
           </div>
 
           {/* Sticky Footer */}
-          <div className="flex-shrink-0 py-4 border-t border-[#EEEEF5] flex gap-2 flex-wrap">
+          <div className="flex-shrink-0 py-4 px-6 border-t border-[#EEEEF5] flex gap-2 flex-wrap">
             <ButtonLink
               href={`/bookings/new?client_id=${client.id}`}
               size="sm"
-              className="flex-1 bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm text-xs text-center"
+              className="flex-1 bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm text-xs text-center shadow-sm"
             >
               Book Cab
             </ButtonLink>
