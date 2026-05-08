@@ -65,7 +65,7 @@ Fields to extract:
 8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way". Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
-11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned.
+11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
 12. special_instructions — any special notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
@@ -342,6 +342,7 @@ When total_days > 1:
 - pickup_location is the same for all days (the client's regular pickup point on day 1)
 - Do NOT ask the client for per-day details — just confirm total_days
 - Set total_days to the correct number; the system will auto-generate daily legs
+- "Attached" or "attached vehicle" bookings: pickup_location and pickup_time are NOT mandatory — if absent, create the booking anyway. The driver and operator will coordinate daily details on-ground.
 
 === BOOKING TYPE — PERSONAL VS COMPANY ===
 This field is ONLY relevant when client_profile.has_company = true.
