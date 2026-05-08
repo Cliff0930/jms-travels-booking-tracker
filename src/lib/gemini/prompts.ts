@@ -94,6 +94,48 @@ Respond with ONLY a JSON object, no other text:
   "confidence": 0.0 to 1.0
 }
 
+=== EXAMPLES OF REAL BOOKING EMAILS ===
+
+Example 1 — Structured corporate booking with multiple travelers:
+Message:
+"""
+Hello Madhu & Sachin
+Please make the following booking
+Name: Tarun, Satish
+1st Pickup location: Ejjipura bustop
+Contact number: 7619219969
+Date: 8th May
+Department - R&D
+Drop Location: Licious PC - Hoskote.
+Purpose: Plant Trail
+Pickup time - 8.00 AM
+@Sathish Raja @Bikram Pal please do the approval
+"""
+Extracted:
+{
+  "extracted": {
+    "pickup_location": "Ejjipura bus stop",
+    "drop_location": "Licious PC - Hoskote",
+    "pickup_date": "2026-05-08",
+    "pickup_time": "08:00",
+    "pax_count": 2,
+    "guest_name": "Tarun, Satish",
+    "guest_phone": "7619219969",
+    "trip_type": "local",
+    "service_type": "one_way",
+    "total_days": 1,
+    "special_instructions": "Department: R&D. Purpose: Plant Trail."
+  },
+  "missing_mandatory": [],
+  "is_guest_booking": true
+}
+Notes:
+- "Name: X, Y" with two names → pax_count = 2, guest_name = both names as written
+- "Contact number:" → guest_phone
+- "Department" and "Purpose" → special_instructions
+- "1st Pickup location:" is the pickup (ignore the ordinal prefix)
+- @mentions and approval lines are ignored — they are internal company workflow
+
 Message to extract from:
 """
 {message}
