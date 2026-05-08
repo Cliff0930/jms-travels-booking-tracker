@@ -43,6 +43,7 @@ DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as word
 - Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day (if today is that day, use next week's occurrence)
 - Partial dates ("1st May", "May 1", "1/5", "01-05") → resolve to the correct YYYY-MM-DD using the current or next year as appropriate
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
+- DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26", "09-05-26") → expand YY to 20YY; "09.05.26" = 2026-05-09
 - Full dates ("1st May 2026", "2026-05-01") → use exactly as given
 - Time with period instead of colon ("8.40PM", "9.00 am", "11.30 AM") → convert to HH:MM 24h ("20:40", "09:00", "11:30")
 - Pipe character in addresses ("Hotel Name | 68, Street") → replace "|" with "," when cleaning addresses
@@ -268,6 +269,7 @@ TODAY (IST): {today}
 - "tomorrow" → {tomorrow}
 - Day names ("Monday" etc.) → next upcoming occurrence of that day
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
+- DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26") → expand to 20YY; "09.05.26" = 2026-05-09
 - Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.
 - Dates before {today} → set pickup_date to null, add "pickup_date" to missing_mandatory
 - In next_question text: when referencing the date, always write it in readable format (e.g. "3 May 2026") — NEVER write "today" or "tomorrow" in your replies
