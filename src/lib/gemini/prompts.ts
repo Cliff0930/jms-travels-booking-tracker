@@ -40,9 +40,9 @@ DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as word
 - "day after tomorrow" → 2 days after {today}
 - Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day (if today is that day, use next week's occurrence)
 - Partial dates ("1st May", "May 1", "1/5", "01-05") → resolve to the correct YYYY-MM-DD using the current or next year as appropriate
-- DD-MM-YYYY ("07-02-2026", "07/02/2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
+- DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - Full dates ("1st May 2026", "2026-05-01") → use exactly as given
-- Time with period instead of colon ("8.40PM", "11.30 AM") → convert to HH:MM 24h ("20:40", "11:30")
+- Time with period instead of colon ("8.40PM", "9.00 am", "11.30 AM") → convert to HH:MM 24h ("20:40", "09:00", "11:30")
 - Pipe character in addresses ("Hotel Name | 68, Street") → replace "|" with "," when cleaning addresses
 - NEVER output the word "today", "tomorrow", or a weekday name as the pickup_date value — always convert to YYYY-MM-DD
 
@@ -61,7 +61,7 @@ Fields to extract:
 7. guest_name — if booking is for someone other than the sender
 8. guest_phone — guest phone number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
-10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip". Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
+10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way". Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
 11. total_days — number of days if outstation (default 1)
 12. special_instructions — any special notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
@@ -265,7 +265,7 @@ TODAY (IST): {today}
 - "today" → {today}
 - "tomorrow" → {tomorrow}
 - Day names ("Monday" etc.) → next upcoming occurrence of that day
-- DD-MM-YYYY or DD/MM/YYYY ("07-02-2026", "07/02/2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
+- DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.
 - Dates before {today} → set pickup_date to null, add "pickup_date" to missing_mandatory
 - In next_question text: when referencing the date, always write it in readable format (e.g. "3 May 2026") — NEVER write "today" or "tomorrow" in your replies
