@@ -82,8 +82,10 @@ If the message contains multiple clearly distinct trips (different dates, times,
 If it is a single booking (even with multiple passengers), return one entry.
 Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
 "👆" emoji used as a pointer means "the text immediately above this line" — e.g. "Pick up from 👆residence" refers to the multi-line address written above it as the pickup location.
+"👇" emoji means "the address/detail is coming below or in the next message" — if pickup_location is missing but a 👇 is present, do NOT add pickup_location to missing_mandatory. It will arrive in the next message. A Google Maps link adjacent to 👇 should be treated as part of the pickup location.
 Multi-line addresses (address split across several lines) should be concatenated into a single pickup_location or drop_location string.
 "Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
+Text and URL run together without a space (e.g. "Thank youhttps://maps...") → separate them; the URL belongs to the location field it was sent alongside.
 
 Respond with ONLY a JSON object, no other text:
 {
@@ -303,6 +305,7 @@ If drop_location is provided, use it to help determine the trip type.
 === LOCATION KEYWORDS ===
 If the client uses a shorthand like "home", "office", "residence", "factory" check their saved_locations. If found → use the saved address. If not found → accept the shorthand as-is (e.g. "Home", "Residence") and proceed. Do NOT ask the client to clarify the address — the driver or operator will confirm it directly.
 "Report [location]" means pickup_location — corporate shorthand for where the driver should collect the traveler. E.g. "Report hotel MGM Mark Whitefield" → pickup_location = "Hotel MGM Mark, Whitefield".
+"👆" = the address/text immediately above that line is the location. "👇" = the address is coming below or in the next message — do NOT add pickup_location to missing_mandatory; just acknowledge and wait.
 
 === MANDATORY FIELDS BY TRIP TYPE ===
 
