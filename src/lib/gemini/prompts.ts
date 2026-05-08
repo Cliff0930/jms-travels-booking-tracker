@@ -69,34 +69,42 @@ If the sender uses words like "home", "office", "airport", "factory" check if th
 
 Saved locations for this client: {saved_locations}
 
+MULTIPLE BOOKINGS RULE:
+If the email contains multiple clearly distinct trips (different dates, times, or pickup locations listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
+If it is a single booking (even with multiple passengers), return one entry.
+
 Respond with ONLY a JSON object, no other text:
 {
-  "extracted": {
-    "pickup_location": "full address or resolved nickname or null",
-    "drop_location": "full address or null",
-    "pickup_date": "YYYY-MM-DD or null",
-    "pickup_time": "HH:MM or null",
-    "pax_count": number or null,
-    "vehicle_type": "type or null",
-    "guest_name": "name or null",
-    "guest_phone": "phone or null",
-    "trip_type": "local|outstation",
-    "service_type": "one_way|return",
-    "total_days": number,
-    "special_instructions": "text or null",
-    "additional_phones": [],
-    "company_mentioned": "name or null"
-  },
-  "missing_mandatory": ["list of mandatory fields that are missing"],
+  "bookings": [
+    {
+      "extracted": {
+        "pickup_location": "full address or null",
+        "drop_location": "full address or null",
+        "pickup_date": "YYYY-MM-DD or null",
+        "pickup_time": "HH:MM or null",
+        "pax_count": number or null,
+        "vehicle_type": "type or null",
+        "guest_name": "name or null",
+        "guest_phone": "phone or null",
+        "trip_type": "local|outstation|airport",
+        "service_type": "one_way|return",
+        "total_days": number,
+        "special_instructions": "text or null",
+        "additional_phones": [],
+        "company_mentioned": "name or null"
+      },
+      "missing_mandatory": ["list of mandatory fields missing for THIS booking"],
+      "is_guest_booking": true or false
+    }
+  ],
   "resolved_keywords": {"home": "resolved address if applicable"},
   "new_keyword_detected": "keyword if a new location keyword should be saved",
-  "is_guest_booking": true or false,
   "confidence": 0.0 to 1.0
 }
 
 === EXAMPLES OF REAL BOOKING EMAILS ===
 
-Example 1 — Structured corporate booking with multiple travelers:
+Example 1 — Single booking, multiple travelers (same trip):
 Message:
 """
 Hello Madhu & Sachin
@@ -111,30 +119,115 @@ Purpose: Plant Trail
 Pickup time - 8.00 AM
 @Sathish Raja @Bikram Pal please do the approval
 """
-Extracted:
+Output:
 {
-  "extracted": {
-    "pickup_location": "Ejjipura bus stop",
-    "drop_location": "Licious PC - Hoskote",
-    "pickup_date": "2026-05-08",
-    "pickup_time": "08:00",
-    "pax_count": 2,
-    "guest_name": "Tarun, Satish",
-    "guest_phone": "7619219969",
-    "trip_type": "local",
-    "service_type": "one_way",
-    "total_days": 1,
-    "special_instructions": "Department: R&D. Purpose: Plant Trail."
-  },
-  "missing_mandatory": [],
-  "is_guest_booking": true
+  "bookings": [
+    {
+      "extracted": {
+        "pickup_location": "Ejjipura bus stop",
+        "drop_location": "Licious PC - Hoskote",
+        "pickup_date": "2026-05-08",
+        "pickup_time": "08:00",
+        "pax_count": 2,
+        "vehicle_type": null,
+        "guest_name": "Tarun, Satish",
+        "guest_phone": "7619219969",
+        "trip_type": "local",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Department: R&D. Purpose: Plant Trail.",
+        "additional_phones": [],
+        "company_mentioned": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    }
+  ],
+  "resolved_keywords": {},
+  "new_keyword_detected": null,
+  "confidence": 0.95
 }
 Notes:
-- "Name: X, Y" with two names → pax_count = 2, guest_name = both names as written
+- "Name: X, Y" two names = same trip → ONE booking, pax_count=2, guest_name=both
 - "Contact number:" → guest_phone
-- "Department" and "Purpose" → special_instructions
-- "1st Pickup location:" is the pickup (ignore the ordinal prefix)
-- @mentions and approval lines are ignored — they are internal company workflow
+- "Department" / "Purpose" → special_instructions
+- @mentions and approval lines → ignored
+
+Example 2 — Two separate bookings in one email (different dates/times):
+Message:
+"""
+Vehicle type: Innova
+Date: 7th May 2026
+Pick up location: 69, Ramakrishnappa Road, Cox Town, Bangalore 560005
+Flight No.:
+Time: 8:15 am
+Destination: Need the cab to the airport Terminal 1
+
+Vehicle type: Innova
+Date: 8th May 2026
+Pick up location: BIAL Terminal 1
+Flight No: 6E 5032
+Time: 08:05 pm
+Destination: Airport to Home drop
+
+Name: Joseph Manavalan
+Contact No: 9880222264
+"""
+Output:
+{
+  "bookings": [
+    {
+      "extracted": {
+        "pickup_location": "69, Ramakrishnappa Road, Cox Town, Bangalore 560005",
+        "drop_location": "Kempegowda International Airport, Terminal 1",
+        "pickup_date": "2026-05-07",
+        "pickup_time": "08:15",
+        "pax_count": null,
+        "vehicle_type": "Innova",
+        "guest_name": "Joseph Manavalan",
+        "guest_phone": "9880222264",
+        "trip_type": "airport",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Airport departure.",
+        "additional_phones": [],
+        "company_mentioned": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    },
+    {
+      "extracted": {
+        "pickup_location": "BIAL Terminal 1",
+        "drop_location": null,
+        "pickup_date": "2026-05-08",
+        "pickup_time": "20:05",
+        "pax_count": null,
+        "vehicle_type": "Innova",
+        "guest_name": "Joseph Manavalan",
+        "guest_phone": "9880222264",
+        "trip_type": "airport",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Airport arrival. Flight: 6E 5032. Terminal: T1.",
+        "additional_phones": [],
+        "company_mentioned": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    }
+  ],
+  "resolved_keywords": {},
+  "new_keyword_detected": null,
+  "confidence": 0.95
+}
+Notes:
+- Two separate date/time/pickup blocks → TWO bookings
+- "Flight No.:" blank on first = departure → special_instructions: "Airport departure." (don't ask for flight)
+- "Flight No: 6E 5032" on second = arrival → special_instructions: "Airport arrival. Flight: 6E 5032. Terminal: T1."
+- Name/Contact at the bottom applies to BOTH bookings
+- "Home drop" is not a specific address → drop_location = null (acceptable, not mandatory for airport)
+- 08:05 pm → "20:05" in 24h format
 
 Message to extract from:
 """

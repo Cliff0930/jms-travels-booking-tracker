@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { classifyMessage } from '@/lib/gemini/classify'
 import { extractBookingFields } from '@/lib/gemini/extract'
+import type { ExtractedFields } from '@/lib/gemini/extract'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
@@ -19,25 +20,19 @@ function formatTime12h(time: string): string {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
+function formatDate(date: string): string {
+  return new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
+  })
+}
+
 function buildWhatsAppConfirmation(
   clientName: string,
   bookingRef: string,
-  extracted: {
-    pickup_location: string | null
-    drop_location: string | null
-    pickup_date: string | null
-    pickup_time: string | null
-    trip_type: string
-    total_days: number
-    special_instructions: string | null
-  }
+  extracted: ExtractedFields,
 ): string {
   const tripLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
-  const lines = [
-    `Hi ${clientName}, your booking is confirmed.`,
-    ``,
-    `Ref: ${bookingRef}`,
-  ]
+  const lines = [`Hi ${clientName}, your booking is confirmed.`, ``, `Ref: ${bookingRef}`]
   if (extracted.pickup_location) lines.push(`Pickup: ${extracted.pickup_location}`)
   if (extracted.drop_location)   lines.push(`Drop: ${extracted.drop_location}`)
   if (extracted.pickup_date)     lines.push(`Date: ${extracted.pickup_date}`)
@@ -46,6 +41,26 @@ function buildWhatsAppConfirmation(
   if ((extracted.total_days ?? 1) > 1) lines.push(`Days: ${extracted.total_days}`)
   if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
   lines.push(``, `We will share your driver details once assigned. Thank you!`, ``, `JMS Travels Team`)
+  return lines.join('\n')
+}
+
+function buildMultiBookingEmailBody(clientName: string, bookings: Array<{ ref: string; extracted: ExtractedFields }>): string {
+  const lines = [
+    `Hi ${clientName},`,
+    ``,
+    `We have received your ${bookings.length} booking requests. Here is a summary:`,
+    ``,
+  ]
+  bookings.forEach(({ ref, extracted }, i) => {
+    lines.push(`${i + 1}. Ref: ${ref}`)
+    if (extracted.pickup_date) lines.push(`   Date    : ${formatDate(extracted.pickup_date)}${extracted.pickup_time ? ` at ${formatTime12h(extracted.pickup_time)}` : ''}`)
+    if (extracted.pickup_location) lines.push(`   Pickup  : ${extracted.pickup_location}`)
+    if (extracted.drop_location)   lines.push(`   Drop    : ${extracted.drop_location}`)
+    if (extracted.guest_name)      lines.push(`   Guest   : ${extracted.guest_name}`)
+    if (extracted.special_instructions) lines.push(`   Note    : ${extracted.special_instructions}`)
+    lines.push(``)
+  })
+  lines.push(`We will share driver details once assigned. Thank you for choosing JMS Travels.`)
   return lines.join('\n')
 }
 
@@ -104,21 +119,21 @@ export async function POST(request: Request) {
     // Booking flow
     const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
     const extraction = await extractBookingFields(message, client, savedLocations)
-
-    // Check for past date
     const today = getTodayIST()
-    const isPastDate = extraction.extracted.pickup_date && extraction.extracted.pickup_date < today
 
-    if (isPastDate) {
-      extraction.extracted.pickup_date = null
-      if (!extraction.missing_mandatory.includes('pickup_date')) {
-        extraction.missing_mandatory.push('pickup_date')
+    // Sanitise past dates in all bookings
+    for (const bk of extraction.bookings) {
+      if (bk.extracted.pickup_date && bk.extracted.pickup_date < today) {
+        bk.extracted.pickup_date = null
+        if (!bk.missing_mandatory.includes('pickup_date')) bk.missing_mandatory.push('pickup_date')
       }
     }
 
+    const allMissing = extraction.bookings.flatMap(b => b.missing_mandatory)
+
     await supabase
       .from('raw_messages')
-      .update({ ai_extracted_fields: extraction.extracted, ai_missing_fields: extraction.missing_mandatory })
+      .update({ ai_extracted_fields: extraction.bookings[0]?.extracted, ai_missing_fields: allMissing })
       .eq('id', raw_message_id)
 
     // Auto-create client from email if not found in database
@@ -135,64 +150,72 @@ export async function POST(request: Request) {
       }
     }
 
-    const flags: string[] = []
-    if (!extraction.extracted.pickup_location) flags.push('missing_pickup')
-    if (!extraction.extracted.pickup_date) flags.push('missing_date')
-    if (!extraction.extracted.pickup_time) flags.push('missing_time')
-    if (!(client as Client)?.company_id) flags.push('unknown_company')
-    if (!extraction.extracted.drop_location) flags.push('missing_drop')
-    if (extraction.is_guest_booking && !(client as Client)?.id) flags.push('guest_booking')
+    // Create one booking per extracted entry
+    const createdBookings: Array<{ booking: { id: string; booking_ref: string }; extracted: ExtractedFields }> = []
 
-    const { data: booking } = await supabase
-      .from('bookings')
-      .insert({
-        client_id: (client as Client)?.id || null,
-        company_id: (client as Client)?.company_id || null,
-        status: 'draft',
-        source: channel,
-        requested_by: sender_email || sender_phone || null,
-        flags,
-        cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
-        pickup_location: extraction.extracted.pickup_location,
-        drop_location: extraction.extracted.drop_location,
-        pickup_date: extraction.extracted.pickup_date,
-        pickup_time: extraction.extracted.pickup_time,
-        pax_count: extraction.extracted.pax_count,
-        vehicle_type: extraction.extracted.vehicle_type,
-        guest_name: extraction.extracted.guest_name,
-        guest_phone: extraction.extracted.guest_phone,
-        trip_type: extraction.extracted.trip_type,
-        service_type: extraction.extracted.service_type,
-        total_days: extraction.extracted.total_days,
-        special_instructions: extraction.extracted.special_instructions,
-      })
-      .select()
-      .single()
+    for (let i = 0; i < extraction.bookings.length; i++) {
+      const bk = extraction.bookings[i]
+      const flags: string[] = []
+      if (!bk.extracted.pickup_location) flags.push('missing_pickup')
+      if (!bk.extracted.pickup_date)     flags.push('missing_date')
+      if (!bk.extracted.pickup_time)     flags.push('missing_time')
+      if (!(client as Client)?.company_id) flags.push('unknown_company')
+      if (!bk.extracted.drop_location)   flags.push('missing_drop')
+      if (bk.is_guest_booking && !(client as Client)?.id) flags.push('guest_booking')
 
-    if (booking) {
-      await supabase.from('raw_messages').update({ booking_id: booking.id }).eq('id', raw_message_id)
+      const { data: booking } = await supabase
+        .from('bookings')
+        .insert({
+          client_id: (client as Client)?.id || null,
+          company_id: (client as Client)?.company_id || null,
+          status: 'draft',
+          source: channel,
+          requested_by: sender_email || sender_phone || null,
+          flags,
+          cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
+          pickup_location: bk.extracted.pickup_location,
+          drop_location: bk.extracted.drop_location,
+          pickup_date: bk.extracted.pickup_date,
+          pickup_time: bk.extracted.pickup_time,
+          pax_count: bk.extracted.pax_count,
+          vehicle_type: bk.extracted.vehicle_type,
+          guest_name: bk.extracted.guest_name,
+          guest_phone: bk.extracted.guest_phone,
+          trip_type: bk.extracted.trip_type,
+          service_type: bk.extracted.service_type,
+          total_days: bk.extracted.total_days,
+          special_instructions: bk.extracted.special_instructions,
+        })
+        .select('id, booking_ref')
+        .single()
 
-      if (extraction.new_keyword_detected && booking.client_id) {
+      if (!booking) continue
+
+      createdBookings.push({ booking, extracted: bk.extracted })
+
+      // Link first booking to the raw message
+      if (i === 0) {
+        await supabase.from('raw_messages').update({ booking_id: booking.id }).eq('id', raw_message_id)
+      }
+
+      // Save new client location keyword (first booking only — per-client)
+      if (i === 0 && extraction.new_keyword_detected && booking && (client as Client)?.id) {
         const keyword = extraction.new_keyword_detected
         const resolvedAddress = extraction.resolved_keywords?.[keyword]
         if (resolvedAddress) {
           try {
             await supabase.from('client_locations')
-              .upsert({ client_id: booking.client_id, keyword, address: resolvedAddress }, { onConflict: 'client_id,keyword' })
+              .upsert({ client_id: (client as Client)!.id, keyword, address: resolvedAddress }, { onConflict: 'client_id,keyword' })
           } catch { /* non-critical */ }
         }
       }
 
-      await supabase.from('booking_status_history').insert({
-        booking_id: booking.id,
-        new_status: 'draft',
-        changed_by: 'system',
-      })
+      await supabase.from('booking_status_history').insert({ booking_id: booking.id, new_status: 'draft', changed_by: 'system' })
 
-      // Auto-create guest client profile if not already in system
-      if (extraction.extracted.guest_name) {
+      // Auto-create guest client profile
+      if (bk.extracted.guest_name) {
         try {
-          const guestPhone = extraction.extracted.guest_phone || null
+          const guestPhone = bk.extracted.guest_phone || null
           let existingGuest = null
           if (guestPhone) {
             const { data } = await supabase.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
@@ -200,7 +223,7 @@ export async function POST(request: Request) {
           }
           if (!existingGuest) {
             await supabase.from('clients').insert({
-              name: extraction.extracted.guest_name,
+              name: bk.extracted.guest_name,
               primary_phone: guestPhone,
               company_id: (client as Client)?.company_id ?? null,
               guest_of_company_id: (client as Client)?.company_id ?? null,
@@ -211,101 +234,114 @@ export async function POST(request: Request) {
           }
         } catch { /* non-critical */ }
       }
+    }
 
-      // If mandatory fields missing, send one auto-reply (unless suppressed for onboarding)
-      if (extraction.missing_mandatory.length > 0) {
-        if (!skip_auto_reply) {
-          // Use specific past-date message if that's the only issue
-          const pastDateOnly = isPastDate && extraction.missing_mandatory.length === 1 && extraction.missing_mandatory[0] === 'pickup_date'
-          const templateKey = TEMPLATE_KEYS.MISSING_INFO_REQUEST
-          const { data: tmpl } = await supabase
-            .from('message_templates')
-            .select('body, subject')
-            .eq('template_key', templateKey)
-            .single()
+    if (createdBookings.length === 0) {
+      return NextResponse.json({ ok: true, booking_id: null })
+    }
 
-          const clientName = (client as Client)?.name || 'there'
-          const missingList = pastDateOnly
-            ? 'pickup date (the date provided appears to be in the past — please provide a future date)'
-            : extraction.missing_mandatory.map(f => f.replace(/_/g, ' ')).join(', ')
-          const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email
+    const firstBookingId = createdBookings[0].booking.id
+    const clientName = (client as Client)?.name || 'there'
+    const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
 
-          if (tmpl) {
-            const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: booking?.booking_ref })
-            let status = 'failed'
-            if (channel === 'whatsapp' && recipient) {
-              const result = await sendWhatsAppMessage({ to: recipient, body })
-              status = result.ok ? 'sent' : `failed: ${result.error}`
-            } else if (channel === 'email' && recipient) {
-              try {
-                await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref }), body })
-                status = 'sent'
-              } catch (e) { status = `failed: ${String(e)}` }
-            }
-            await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey, status })
-          }
-        }
-        return NextResponse.json({ ok: true, booking_id: booking.id, missing: extraction.missing_mandatory })
-      }
+    // If any mandatory fields are missing, send one combined reply
+    if (allMissing.length > 0) {
+      if (!skip_auto_reply) {
+        const templateKey = TEMPLATE_KEYS.MISSING_INFO_REQUEST
+        const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', templateKey).single()
+        const isPastDateOnly = allMissing.length === 1 && allMissing[0] === 'pickup_date'
+        const missingList = isPastDateOnly
+          ? 'pickup date (the date provided appears to be in the past — please provide a future date)'
+          : allMissing.map(f => f.replace(/_/g, ' ')).join(', ')
+        const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : sender_email
 
-      // Check if approval required (skip if sender is a whitelisted direct booking address)
-      if (!skip_approval && (client as Client)?.company_id) {
-        const { data: company } = await supabase
-          .from('companies')
-          .select('*')
-          .eq('id', (client as Client).company_id!)
-          .single()
-
-        if (company?.approval_required) {
-          await supabase.from('bookings').update({ status: 'pending_approval', approval_status: 'pending' }).eq('id', booking.id)
-          await supabase.from('booking_status_history').insert({
-            booking_id: booking.id,
-            old_status: 'draft',
-            new_status: 'pending_approval',
-            changed_by: 'system',
-          })
-          return NextResponse.json({ ok: true, booking_id: booking.id, requires_approval: true })
-        }
-      }
-
-      if (skip_auto_reply) return NextResponse.json({ ok: true, booking_id: booking.id })
-
-      // Send booking confirmation
-      const recipient = channel === 'whatsapp' ? ((client as Client)?.primary_phone || sender_phone) : (sender_email || (client as Client)?.primary_email)
-      const clientName = (client as Client)?.name || 'there'
-
-      if (channel === 'whatsapp' && recipient) {
-        const body = buildWhatsAppConfirmation(clientName, booking?.booking_ref, extraction.extracted)
-        const result = await sendWhatsAppMessage({ to: recipient, body })
-        await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
-      } else if (channel === 'email' && recipient) {
-        const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED).single()
-        if (tmpl) {
-          const guestName = extraction.extracted.guest_name || clientName
-          const travelDate = extraction.extracted.pickup_date || ''
-          const templateVars = {
-            client_name: clientName,
-            name: clientName,
-            booking_ref: booking?.booking_ref,
-            reference_number: booking?.booking_ref,
-            guest_name: guestName,
-            traveler_name: guestName,
-            pickup_date: travelDate,
-            travel_date: travelDate,
-          }
-          const body = fillTemplate(tmpl.body, templateVars)
-          const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
+        if (tmpl && recipient) {
+          const body = fillTemplate(tmpl.body, { client_name: clientName, missing_fields_list: missingList, booking_ref: createdBookings[0].booking.booking_ref })
           let status = 'failed'
-          try {
-            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: booking?.booking_ref, reference_number: booking?.booking_ref }), body, cc: emailCc })
-            status = 'sent'
-          } catch (e) { status = `failed: ${String(e)}` }
-          await logOutbound(supabase, { bookingId: booking.id, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
+          if (channel === 'whatsapp') {
+            const result = await sendWhatsAppMessage({ to: recipient, body })
+            status = result.ok ? 'sent' : `failed: ${result.error}`
+          } else if (channel === 'email') {
+            try {
+              await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref }), body, cc: emailCc })
+              status = 'sent'
+            } catch (e) { status = `failed: ${String(e)}` }
+          }
+          await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey, status })
         }
+      }
+      return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id), missing: allMissing })
+    }
+
+    // Check if approval required
+    if (!skip_approval && (client as Client)?.company_id) {
+      const { data: company } = await supabase.from('companies').select('approval_required').eq('id', (client as Client).company_id!).single()
+      if (company?.approval_required) {
+        for (const { booking } of createdBookings) {
+          await supabase.from('bookings').update({ status: 'pending_approval', approval_status: 'pending' }).eq('id', booking.id)
+          await supabase.from('booking_status_history').insert({ booking_id: booking.id, old_status: 'draft', new_status: 'pending_approval', changed_by: 'system' })
+        }
+        return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id), requires_approval: true })
       }
     }
 
-    return NextResponse.json({ ok: true, booking_id: booking?.id })
+    if (skip_auto_reply) return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
+
+    // Send confirmation
+    const recipient = channel === 'whatsapp'
+      ? ((client as Client)?.primary_phone || sender_phone)
+      : (sender_email || (client as Client)?.primary_email)
+
+    if (channel === 'whatsapp' && recipient) {
+      if (createdBookings.length === 1) {
+        const body = buildWhatsAppConfirmation(clientName, createdBookings[0].booking.booking_ref, createdBookings[0].extracted)
+        const result = await sendWhatsAppMessage({ to: recipient, body })
+        await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
+      } else {
+        const lines = [`Hi ${clientName}, your ${createdBookings.length} bookings are confirmed.`, ``]
+        createdBookings.forEach(({ booking, extracted }, i) => {
+          lines.push(`${i + 1}. Ref: ${booking.booking_ref} — ${extracted.pickup_date || 'TBD'} ${extracted.pickup_time ? formatTime12h(extracted.pickup_time) : ''}`)
+        })
+        lines.push(``, `Driver details will follow. Thank you! — JMS Travels`)
+        const body = lines.join('\n')
+        const result = await sendWhatsAppMessage({ to: recipient, body })
+        await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
+      }
+    } else if (channel === 'email' && recipient) {
+      if (createdBookings.length === 1) {
+        const { data: tmpl } = await supabase.from('message_templates').select('body, subject').eq('template_key', TEMPLATE_KEYS.BOOKING_RECEIVED).single()
+        if (tmpl) {
+          const { extracted } = createdBookings[0]
+          const templateVars = {
+            client_name: clientName, name: clientName,
+            booking_ref: createdBookings[0].booking.booking_ref,
+            reference_number: createdBookings[0].booking.booking_ref,
+            guest_name: extracted.guest_name || clientName,
+            traveler_name: extracted.guest_name || clientName,
+            pickup_date: extracted.pickup_date || '',
+            travel_date: extracted.pickup_date || '',
+          }
+          const body = fillTemplate(tmpl.body, templateVars)
+          let status = 'failed'
+          try {
+            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref, reference_number: createdBookings[0].booking.booking_ref }), body, cc: emailCc })
+            status = 'sent'
+          } catch (e) { status = `failed: ${String(e)}` }
+          await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
+        }
+      } else {
+        // Multi-booking email confirmation
+        const body = buildMultiBookingEmailBody(clientName, createdBookings.map(cb => ({ ref: cb.booking.booking_ref, extracted: cb.extracted })))
+        let status = 'failed'
+        try {
+          await sendEmail({ to: recipient, subject: `${createdBookings.length} bookings received - JMS Travels`, body, cc: emailCc })
+          status = 'sent'
+        } catch (e) { status = `failed: ${String(e)}` }
+        await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
+      }
+    }
+
+    return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
   } catch (err) {
     console.error('[parse-message] Error:', String(err))
     return NextResponse.json({ error: String(err) }, { status: 500 })
