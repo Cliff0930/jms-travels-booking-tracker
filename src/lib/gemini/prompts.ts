@@ -56,12 +56,12 @@ Fields to extract:
 5. pax_count — number of passengers (OPTIONAL for known clients — use profile default if not mentioned)
 6. vehicle_type — type of vehicle needed (OPTIONAL for known clients — use profile default if not mentioned)
 7. guest_name — if booking is for someone other than the sender
-8. guest_phone — guest phone number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided)
+8. guest_phone — guest phone number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way")
 11. total_days — number of days if outstation (default 1)
 12. special_instructions — any special notes
-13. additional_phones — any extra phone numbers mentioned in the message
+13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
 
 Location keyword resolution:
