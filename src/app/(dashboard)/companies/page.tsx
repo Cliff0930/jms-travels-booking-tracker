@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -55,6 +55,66 @@ function DirectEmailPicker({ emails, onSave }: { emails: string[]; onSave: (list
                 <span className="text-xs text-[#434654] truncate">{e}</span>
               </div>
               <button onClick={() => onSave(emails.filter(x => x !== e))} className="text-[#737686] hover:text-red-500 shrink-0">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TagInput({
+  values,
+  onSave,
+  placeholder,
+  inputType = 'text',
+  emptyLabel,
+  icon: Icon,
+}: {
+  values: string[]
+  onSave: (list: string[]) => void
+  placeholder: string
+  inputType?: string
+  emptyLabel: string
+  icon: React.ElementType
+}) {
+  const [input, setInput] = useState('')
+
+  function add() {
+    const val = input.trim().toLowerCase()
+    if (!val || values.includes(val)) { setInput(''); return }
+    onSave([...values, val])
+    setInput('')
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder={placeholder}
+          type={inputType}
+          className="flex-1 px-3 h-8 text-xs border border-[#C3C5D7] rounded-md outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF]"
+        />
+        <Button size="sm" variant="outline" className="h-8 px-3 text-xs rounded-sm" onClick={add} disabled={!input.trim()}>
+          Add
+        </Button>
+      </div>
+      {values.length === 0 ? (
+        <p className="text-xs text-[#737686]">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-1">
+          {values.map(v => (
+            <div key={v} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-[#F3F3FE] border border-[#C3C5D7]">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Icon className="w-3 h-3 text-[#737686] shrink-0" />
+                <span className="text-xs text-[#434654] truncate">{v}</span>
+              </div>
+              <button onClick={() => onSave(values.filter(x => x !== v))} className="text-[#737686] hover:text-red-500 shrink-0">
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -572,47 +632,40 @@ export default function CompaniesPage() {
 
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#6366F1] mb-2">Email Domains</h3>
-                  {selectedCompany.email_domains?.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedCompany.email_domains.map(d => (
-                        <span key={d} className="text-xs bg-[#F3F3FE] border border-[#C3C5D7] text-[#434654] px-2 py-0.5 rounded-md">{d}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#737686]">None configured</p>
-                  )}
+                  <p className="text-xs text-[#737686] mb-2">Emails from these domains are auto-matched to this company.</p>
+                  <TagInput
+                    values={selectedCompany.email_domains ?? []}
+                    onSave={list => updateCompany(selectedCompany.id, { email_domains: list })}
+                    placeholder="company.com"
+                    emptyLabel="No domains configured"
+                    icon={Mail}
+                  />
                 </section>
 
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-2">Approver Emails</h3>
-                  {selectedCompany.approver_emails?.length ? (
-                    <div className="space-y-1.5">
-                      {selectedCompany.approver_emails.map(e => (
-                        <div key={e} className="flex items-center gap-2 text-sm text-[#434654]">
-                          <Mail className="w-4 h-4 text-[#737686] shrink-0" />
-                          <span className="truncate">{e}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#737686]">None configured</p>
-                  )}
+                  <p className="text-xs text-[#737686] mb-2">Approval requests are sent to these email addresses.</p>
+                  <TagInput
+                    values={selectedCompany.approver_emails ?? []}
+                    onSave={list => updateCompany(selectedCompany.id, { approver_emails: list })}
+                    placeholder="approver@company.com"
+                    inputType="email"
+                    emptyLabel="No approver emails configured"
+                    icon={Mail}
+                  />
                 </section>
 
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-2">Approver WhatsApp</h3>
-                  {selectedCompany.approver_whatsapp?.length ? (
-                    <div className="space-y-1.5">
-                      {selectedCompany.approver_whatsapp.map(w => (
-                        <div key={w} className="flex items-center gap-2 text-sm text-[#434654]">
-                          <Phone className="w-4 h-4 text-[#737686] shrink-0" />
-                          <span className="truncate">{w}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#737686]">None configured</p>
-                  )}
+                  <p className="text-xs text-[#737686] mb-2">Approval requests are sent to these WhatsApp numbers.</p>
+                  <TagInput
+                    values={selectedCompany.approver_whatsapp ?? []}
+                    onSave={list => updateCompany(selectedCompany.id, { approver_whatsapp: list })}
+                    placeholder="+91 98000 00000"
+                    inputType="tel"
+                    emptyLabel="No WhatsApp numbers configured"
+                    icon={Phone}
+                  />
                 </section>
 
                 <Separator />
