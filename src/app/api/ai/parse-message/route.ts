@@ -89,7 +89,7 @@ async function logOutbound(
 }
 
 export async function POST(request: Request) {
-  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, skip_auto_reply, skip_approval } = await request.json()
+  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, gmail_thread_id, original_message_id, skip_auto_reply, skip_approval } = await request.json()
   let client = clientFromReq
   const supabase = createAdminClient()
 
@@ -173,6 +173,7 @@ export async function POST(request: Request) {
           requested_by: sender_email || sender_phone || null,
           flags,
           cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
+          gmail_thread_id: (channel === 'email' && allMissing.length > 0 && gmail_thread_id) ? gmail_thread_id : null,
           pickup_location: bk.extracted.pickup_location,
           drop_location: bk.extracted.drop_location,
           pickup_date: bk.extracted.pickup_date,
@@ -263,7 +264,14 @@ export async function POST(request: Request) {
             status = result.ok ? 'sent' : `failed: ${result.error}`
           } else if (channel === 'email') {
             try {
-              await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref }), body, cc: emailCc })
+              await sendEmail({
+                to: recipient,
+                subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref }),
+                body,
+                cc: emailCc,
+                replyToThreadId: gmail_thread_id || undefined,
+                inReplyToMessageId: original_message_id || undefined,
+              })
               status = 'sent'
             } catch (e) { status = `failed: ${String(e)}` }
           }
@@ -324,7 +332,7 @@ export async function POST(request: Request) {
           const body = fillTemplate(tmpl.body, templateVars)
           let status = 'failed'
           try {
-            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref, reference_number: createdBookings[0].booking.booking_ref }), body, cc: emailCc })
+            await sendEmail({ to: recipient, subject: fillTemplate(tmpl.subject || '', { booking_ref: createdBookings[0].booking.booking_ref, reference_number: createdBookings[0].booking.booking_ref }), body, cc: emailCc, replyToThreadId: gmail_thread_id || undefined, inReplyToMessageId: original_message_id || undefined })
             status = 'sent'
           } catch (e) { status = `failed: ${String(e)}` }
           await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })

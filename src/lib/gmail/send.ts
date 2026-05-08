@@ -38,9 +38,11 @@ interface EmailMessage {
   body: string
   cc?: string[]
   skipSignature?: boolean
+  replyToThreadId?: string
+  inReplyToMessageId?: string
 }
 
-export async function sendEmail({ to, subject, body, cc, skipSignature = false }: EmailMessage): Promise<void> {
+export async function sendEmail({ to, subject, body, cc, skipSignature = false, replyToThreadId, inReplyToMessageId }: EmailMessage): Promise<string | null> {
   const auth = getOAuthClient()
   const gmail = google.gmail({ version: 'v1', auth })
   const from = process.env.GMAIL_USER_EMAIL!
@@ -49,8 +51,15 @@ export async function sendEmail({ to, subject, body, cc, skipSignature = false }
   const fullBody = skipSignature ? body : `${body}\n\n${signature}`
 
   const ccLine = cc?.length ? `Cc: ${cc.join(', ')}\r\n` : ''
+  const threadingLines = inReplyToMessageId
+    ? `In-Reply-To: ${inReplyToMessageId}\r\nReferences: ${inReplyToMessageId}\r\n`
+    : ''
   const raw = Buffer.from(
-    `From: ${from}\r\nTo: ${to}\r\n${ccLine}Subject: ${encodeSubject(subject)}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${fullBody}`
+    `From: ${from}\r\nTo: ${to}\r\n${ccLine}Subject: ${encodeSubject(subject)}\r\n${threadingLines}Content-Type: text/plain; charset=utf-8\r\n\r\n${fullBody}`
   ).toString('base64url')
-  await gmail.users.messages.send({ userId: 'me', requestBody: { raw } })
+  const result = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw, ...(replyToThreadId ? { threadId: replyToThreadId } : {}) },
+  })
+  return result.data.id || null
 }

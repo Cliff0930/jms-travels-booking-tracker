@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
+import { fillMissingFromReply } from '@/lib/email/fill-missing'
 
 function getOAuthClient() {
   const oauth2 = new google.auth.OAuth2(
@@ -62,8 +63,10 @@ export async function POST(request: Request) {
       const from = headers.find(h => h.name === 'From')?.value || ''
       const cc = headers.find(h => h.name === 'Cc')?.value || ''
       const replyTo = headers.find(h => h.name === 'Reply-To')?.value || ''
+      const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value || ''
+      const gmailThreadId = (msg as Record<string, unknown>).threadId as string || ''
 
-      console.log('[gmail-webhook] processing message from:', from, '| mimeType:', msg.payload?.mimeType, '| parts:', msg.payload?.parts?.map(p => p.mimeType))
+      console.log('[gmail-webhook] processing message from:', from, '| mimeType:', msg.payload?.mimeType, '| threadId:', gmailThreadId)
 
       const emailMatch = from.match(/([^\s<]+@[^\s>]+)/)
       const senderEmail = emailMatch?.[1] || from
@@ -90,6 +93,22 @@ export async function POST(request: Request) {
 
       const handled = await handleApprovalReply(supabase, rawContent, null, senderEmail)
       if (handled) continue
+
+      // Check if this email is a reply to an existing draft booking awaiting missing info
+      if (gmailThreadId) {
+        const { data: draftBooking } = await supabase
+          .from('bookings')
+          .select('*, client:clients!client_id(*, locations:client_locations(*))')
+          .eq('gmail_thread_id', gmailThreadId)
+          .eq('status', 'draft')
+          .maybeSingle()
+
+        if (draftBooking) {
+          console.log('[gmail-webhook] reply matched draft booking:', draftBooking.booking_ref)
+          await fillMissingFromReply(supabase, draftBooking, rawContent, senderEmail, ccEmails, gmailThreadId, rfcMessageId)
+          continue
+        }
+      }
 
       // Apply per-company email intake rules based on sender domain
       const senderDomain = senderEmail.split('@')[1]?.toLowerCase()
@@ -145,7 +164,7 @@ export async function POST(request: Request) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: ccEmails, skip_auto_reply: false, skip_approval: skipApproval }),
+        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: ccEmails, gmail_thread_id: gmailThreadId || null, original_message_id: rfcMessageId || null, skip_auto_reply: false, skip_approval: skipApproval }),
       })
     }
   } catch (err) {

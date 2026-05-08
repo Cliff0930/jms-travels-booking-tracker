@@ -101,6 +101,7 @@ create table bookings (
   source              text default 'manual',
   requested_by        text,
   cc_emails           text[] default '{}',
+  gmail_thread_id     text,
   special_instructions text,
   booking_type        text,
   missing_fields      text[] default '{}',
