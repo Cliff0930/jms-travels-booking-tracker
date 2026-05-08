@@ -61,15 +61,20 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const result = await sendWhatsAppMessage({ to: driver.phone, body })
   if (!result.ok) return NextResponse.json({ error: result.error || 'WhatsApp send failed' }, { status: 500 })
 
-  await supabase.from('message_logs').insert({
-    booking_id: id,
-    driver_id: driverId,
-    channel: 'whatsapp',
-    direction: 'outbound',
-    recipient: driver.phone,
-    content: body,
-    template_used: 'day_links',
-  })
+  await Promise.all([
+    supabase.from('message_logs').insert({
+      booking_id: id,
+      driver_id: driverId,
+      channel: 'whatsapp',
+      direction: 'outbound',
+      recipient: driver.phone,
+      content: body,
+      template_used: 'day_links',
+    }),
+    supabase.from('booking_legs')
+      .update({ link_sent_at: new Date().toISOString() })
+      .eq('id', legId),
+  ])
 
   return NextResponse.json({ ok: true, day: leg.day_number })
 }

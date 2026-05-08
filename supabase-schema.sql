@@ -122,6 +122,7 @@ create table booking_legs (
   day_number          int not null,
   leg_date            date not null,
   leg_status          text default 'upcoming',
+  link_sent_at        timestamptz,
   created_at          timestamptz default now()
 );
 

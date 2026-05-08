@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useDrivers } from '@/hooks/useDrivers'
-import { Calendar, User, Send } from 'lucide-react'
+import { Calendar, User, Send, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BookingLeg, Driver } from '@/types'
 
@@ -59,6 +59,7 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       toast.success(`Day ${leg.day_number} links sent to driver`)
+      qc.invalidateQueries({ queryKey: ['booking-legs', bookingId] })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send links')
     } finally {
@@ -74,13 +75,19 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
       {legs.map(leg => {
         const hasDriver = !!(leg.driver_id || driverAssigned)
         const isCompleted = leg.leg_status === 'completed'
+        const linkSentAt = leg.link_sent_at
+          ? new Date(leg.link_sent_at).toLocaleString('en-IN', {
+              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+              timeZone: 'Asia/Kolkata',
+            })
+          : null
         return (
-          <div key={leg.id} className="flex items-center gap-3 p-3 rounded-lg border border-[#C3C5D7] bg-[#F9F9FE]">
-            <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-bold text-[#1A56DB] shrink-0">
+          <div key={leg.id} className="flex items-start gap-3 p-3 rounded-lg border border-[#C3C5D7] bg-[#F9F9FE]">
+            <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-bold text-[#1A56DB] shrink-0 mt-0.5">
               {leg.day_number}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <Calendar className="w-3.5 h-3.5 text-[#737686]" />
                 <span className="text-sm font-medium text-[#191B23]">
                   {new Date(leg.leg_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -88,6 +95,12 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
                 <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
                   {leg.leg_status.replace('_', ' ')}
                 </Badge>
+                {linkSentAt && (
+                  <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Link sent · {linkSentAt}
+                  </span>
+                )}
               </div>
               {leg.driver ? (
                 <div className="flex items-center gap-1 text-xs text-[#434654]">
@@ -103,12 +116,12 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs px-2 rounded-sm gap-1 border-[#1A56DB] text-[#1A56DB] hover:bg-[#EEF2FF]"
+                  className={`h-7 text-xs px-2 rounded-sm gap-1 ${linkSentAt ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-[#1A56DB] text-[#1A56DB] hover:bg-[#EEF2FF]'}`}
                   onClick={() => handleSendLinks(leg)}
                   disabled={sendingLinks === leg.id}
                 >
                   <Send className="w-3 h-3" />
-                  {sendingLinks === leg.id ? 'Sending…' : `Day ${leg.day_number} Links`}
+                  {sendingLinks === leg.id ? 'Sending…' : linkSentAt ? 'Resend' : `Day ${leg.day_number} Links`}
                 </Button>
               )}
               <Select
