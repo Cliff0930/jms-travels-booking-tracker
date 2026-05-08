@@ -22,14 +22,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .gte('pickup_date', monthStart),
     supabase
       .from('bookings')
-      .select('booking_ref, pickup_date, pickup_location, drop_location, trip_type')
+      .select('id, booking_ref, pickup_date, pickup_location, drop_location, trip_type')
       .eq('driver_id', id)
       .eq('status', 'completed')
       .order('pickup_date', { ascending: false })
       .limit(5),
     supabase
       .from('bookings')
-      .select('booking_ref, pickup_date, pickup_time, pickup_location, drop_location, trip_type, status')
+      .select('id, booking_ref, pickup_date, pickup_time, pickup_location, drop_location, trip_type, status')
       .eq('driver_id', id)
       .in('status', ['confirmed', 'in_progress'])
       .order('pickup_date', { ascending: true })

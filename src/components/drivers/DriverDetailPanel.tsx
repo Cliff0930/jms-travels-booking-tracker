@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
 import { Phone, Mail, Car, Users, Pencil, X, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import type { Driver, VehicleType } from '@/types'
 
 const VEHICLE_TYPES: VehicleType[] = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
@@ -19,6 +20,7 @@ interface DriverStats {
   total_trips: number
   this_month_trips: number
   recent_trips: Array<{
+    id: string
     booking_ref: string
     pickup_date: string | null
     pickup_location: string | null
@@ -26,6 +28,7 @@ interface DriverStats {
     trip_type: string
   }>
   current_booking: {
+    id: string
     booking_ref: string
     pickup_date: string | null
     pickup_time: string | null
@@ -218,7 +221,9 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
               {stats?.current_booking && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-2">Current Assignment</p>
-                  <p className="text-sm font-semibold text-[#191B23]">{stats.current_booking.booking_ref}</p>
+                  <Link href={`/bookings/${stats.current_booking.id}`} className="text-sm font-semibold text-[#1A56DB] hover:underline">
+                    {stats.current_booking.booking_ref}
+                  </Link>
                   <div className="mt-1.5 space-y-1">
                     {stats.current_booking.pickup_location && (
                       <p className="text-xs text-[#434654] flex items-start gap-1.5">
@@ -295,7 +300,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                     <div className="space-y-2.5">
                       {stats.recent_trips.map(trip => (
                         <div key={trip.booking_ref} className="flex items-start gap-2">
-                          <span className="text-xs font-semibold text-[#1A56DB] shrink-0 pt-0.5">{trip.booking_ref}</span>
+                          <Link href={`/bookings/${trip.id}`} className="text-xs font-semibold text-[#1A56DB] hover:underline shrink-0 pt-0.5">{trip.booking_ref}</Link>
                           <div className="min-w-0">
                             {trip.pickup_location && (
                               <p className="text-xs text-[#191B23] truncate">
