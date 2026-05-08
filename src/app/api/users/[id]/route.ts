@@ -15,12 +15,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const requestingUser = await requireAdmin()
   if (!requestingUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body = await request.json()
+  const raw = await request.json()
   const admin = createAdminClient()
+
+  // Password is stored in Supabase Auth, not user_profiles
+  if ('password' in raw) {
+    const { password, ...rest } = raw
+    const { error: authError } = await admin.auth.admin.updateUserById(id, { password })
+    if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })
+    if (Object.keys(rest).length === 0) return NextResponse.json({ ok: true })
+    // Fall through to update remaining fields in user_profiles
+    const { data, error } = await admin
+      .from('user_profiles')
+      .update({ ...rest, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
 
   const { data, error } = await admin
     .from('user_profiles')
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update({ ...raw, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()

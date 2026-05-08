@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X } from 'lucide-react'
+import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type { UserProfile, UserRole } from '@/types'
@@ -35,6 +35,9 @@ export default function UsersPage() {
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
   const [savingName, setSavingName] = useState(false)
+  const [pwTarget, setPwTarget] = useState<UserProfile | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [settingPw, setSettingPw] = useState(false)
 
   const { data: users = [], isLoading } = useQuery<UserProfile[]>({
     queryKey: ['users'],
@@ -110,6 +113,28 @@ export default function UsersPage() {
       toast.error('Failed to update name')
     } finally {
       setSavingName(false)
+    }
+  }
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!pwTarget || newPassword.length < 8) return
+    setSettingPw(true)
+    try {
+      const res = await fetch(`/api/users/${pwTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Password updated')
+      setPwTarget(null)
+      setNewPassword('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set password')
+    } finally {
+      setSettingPw(false)
     }
   }
 
@@ -281,6 +306,13 @@ export default function UsersPage() {
                       }
                     </button>
                     <button
+                      title="Set password"
+                      onClick={() => { setPwTarget(user); setNewPassword('') }}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-blue-200 text-[#1A56DB] bg-blue-50 hover:bg-blue-100 transition-colors"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       title="Delete user"
                       onClick={() => setDeleteTarget(user)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
@@ -389,6 +421,48 @@ export default function UsersPage() {
         onConfirm={handleDelete}
         loading={deleting}
       />
+
+      {/* Set Password Dialog */}
+      <Dialog open={!!pwTarget} onOpenChange={o => !o && setPwTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1A56DB] to-[#6366F1] flex items-center justify-center">
+                <KeyRound className="w-4 h-4 text-white" />
+              </div>
+              Set Password
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSetPassword} className="space-y-4 pt-1">
+            <p className="text-xs text-[#737686]">
+              Setting a new password for <span className="font-semibold text-[#434654]">{pwTarget?.name || pwTarget?.email}</span>. They will need to use this password on their next sign in.
+            </p>
+            <div>
+              <Label className="mb-1.5 block text-xs font-semibold text-[#434654]">New Password</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Min. 8 characters"
+                required
+                minLength={8}
+                autoFocus
+                className="border-[#C3C5D7] h-9"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPwTarget(null)}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={settingPw || newPassword.length < 8}
+                className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
+              >
+                {settingPw ? 'Saving…' : 'Set Password'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
