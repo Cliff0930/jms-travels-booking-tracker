@@ -43,11 +43,6 @@ interface EmailMessage {
 }
 
 export async function sendEmail({ to, subject, body, cc, skipSignature = false, replyToThreadId, inReplyToMessageId }: EmailMessage): Promise<string | null> {
-  // Kill switch — set EMAIL_KILL_SWITCH=true in Vercel env to block all outgoing email
-  if (process.env.EMAIL_KILL_SWITCH === 'true') {
-    console.log('[sendEmail] kill switch active — skipping send to:', to, '| subject:', subject)
-    return null
-  }
   const auth = getOAuthClient()
   const gmail = google.gmail({ version: 'v1', auth })
   const from = process.env.GMAIL_USER_EMAIL!
