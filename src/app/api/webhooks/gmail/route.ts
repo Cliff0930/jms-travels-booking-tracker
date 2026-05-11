@@ -76,7 +76,19 @@ export async function POST(request: Request) {
       const nameMatch = from.match(/^([^<]+)</)
       const senderName = nameMatch?.[1]?.trim()
 
-      const ccEmails = cc ? cc.split(',').map(e => e.trim()).filter(Boolean) : []
+      // Skip emails sent FROM our own address — these are our own outgoing replies
+      // landing back in the inbox via CC, which would create an infinite loop.
+      const ownEmail = (process.env.GMAIL_USER_EMAIL || '').toLowerCase()
+      if (ownEmail && senderEmail.toLowerCase() === ownEmail) {
+        console.log('[gmail-webhook] skipping — email is from our own address:', senderEmail)
+        continue
+      }
+
+      const ownEmailLower = ownEmail
+      const ccEmails = cc ? cc.split(',').map(e => e.trim()).filter(e => {
+        const m = e.match(/([^\s<]+@[^\s>]+)/)
+        return m ? m[1].toLowerCase() !== ownEmailLower : e.toLowerCase() !== ownEmailLower
+      }).filter(Boolean) : []
       const replyToEmails = replyTo ? replyTo.split(',').map(e => e.trim()).filter(Boolean) : []
 
       function extractPlainText(payload: typeof msg.payload): string {
