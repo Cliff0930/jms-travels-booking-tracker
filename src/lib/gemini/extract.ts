@@ -58,16 +58,28 @@ export async function extractBookingFields(
   const result = await model.generateContent(prompt)
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
-  const parsed = JSON.parse(cleaned)
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(cleaned)
+  } catch {
+    console.error('[extract] Gemini returned invalid JSON:', cleaned.slice(0, 200))
+    return {
+      bookings: [{ extracted: { pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null, pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null, trip_type: 'local' as const, service_type: 'one_way' as const, total_days: 1, special_instructions: null, additional_phones: [], company_mentioned: null }, missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'], is_guest_booking: false }],
+      resolved_keywords: {},
+      new_keyword_detected: null,
+      confidence: 0,
+    }
+  }
 
   // Normalise: if Gemini returns old flat format, wrap it
   if (!parsed.bookings && parsed.extracted) {
     return {
-      bookings: [{ extracted: parsed.extracted, missing_mandatory: parsed.missing_mandatory ?? [], is_guest_booking: parsed.is_guest_booking ?? false }],
-      resolved_keywords: parsed.resolved_keywords ?? {},
-      new_keyword_detected: parsed.new_keyword_detected ?? null,
-      confidence: parsed.confidence ?? 0.9,
-    }
+      bookings: [{ extracted: parsed.extracted, missing_mandatory: (parsed.missing_mandatory as string[]) ?? [], is_guest_booking: (parsed.is_guest_booking as boolean) ?? false }],
+      resolved_keywords: (parsed.resolved_keywords as Record<string, string>) ?? {},
+      new_keyword_detected: (parsed.new_keyword_detected as string | null) ?? null,
+      confidence: (parsed.confidence as number) ?? 0.9,
+    } as ExtractionResult
   }
-  return parsed
+  return parsed as unknown as ExtractionResult
 }

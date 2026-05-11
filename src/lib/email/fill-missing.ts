@@ -87,13 +87,13 @@ export async function fillMissingFromReply(
       ``,
       `Please reply with these details and we will confirm your booking right away.`,
     ].join('\n')
-    await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading }).catch(() => {})
+    await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading }).catch(e => console.error('[fill-missing] still-missing email failed for', bookingRef, e))
     return
   }
 
   // All fields complete — check if approval required
   if (booking.company_id) {
-    const { data: company } = await supabase.from('companies').select('approval_required').eq('id', booking.company_id).single()
+    const { data: company } = await supabase.from('companies').select('approval_required').eq('id', booking.company_id).maybeSingle()
     if (company?.approval_required) {
       await supabase.from('bookings').update({ status: 'pending_approval', approval_status: 'pending' }).eq('id', booking.id)
       await supabase.from('booking_status_history').insert({
@@ -128,7 +128,7 @@ export async function fillMissingFromReply(
     `Thank you for choosing JMS Travels.`,
   ].join('\n')
 
-  await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading }).catch(() => {})
+  await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading }).catch(e => console.error('[fill-missing] confirmation email failed for', bookingRef, e))
 
   await supabase.from('message_logs').insert({
     booking_id: booking.id,

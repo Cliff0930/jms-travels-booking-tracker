@@ -139,14 +139,26 @@ export async function POST(request: Request) {
     // Auto-create client from email if not found in database
     if (!client && channel === 'email' && sender_email) {
       const name = sender_name || sender_email.split('@')[0]
+      // Try to match company by email domain so the new client gets company_id
+      // (required for approval routing to work on the very first booking)
+      const senderDomain = sender_email.split('@')[1]?.toLowerCase()
+      let autoCompanyId: string | null = null
+      if (senderDomain) {
+        const { data: domainMatch } = await supabase
+          .from('companies')
+          .select('id')
+          .contains('email_domains', [senderDomain])
+          .limit(1)
+        autoCompanyId = domainMatch?.[0]?.id ?? null
+      }
       const { data: newClient } = await supabase
         .from('clients')
-        .insert({ name, primary_email: sender_email, client_type: 'corporate' })
+        .insert({ name, primary_email: sender_email, client_type: autoCompanyId ? 'corporate' : 'walkin', company_id: autoCompanyId })
         .select('*, company:companies!company_id(*), locations:client_locations(*)')
         .single()
       if (newClient) {
         client = newClient
-        console.log('[parse-message] auto-created client:', newClient.id, name)
+        console.log('[parse-message] auto-created client:', newClient.id, name, 'company:', autoCompanyId)
       }
     }
 

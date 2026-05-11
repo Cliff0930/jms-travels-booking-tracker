@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     .eq('id', session_id)
     .single()
 
-  if (!session || session.status !== 'awaiting_ack') {
+  if (!session || session.status !== 'complete') {
     return NextResponse.json({ ok: true, skipped: true })
   }
 

@@ -17,7 +17,7 @@ export async function handleApprovalReply(
     .from('bookings')
     .select('id, booking_ref, status, approval_status, pickup_date, pickup_location, client:clients(name, primary_phone)')
     .eq('booking_ref', bookingRef)
-    .single()
+    .maybeSingle()
 
   if (!booking || booking.status !== 'pending_approval') return false
 
@@ -75,7 +75,7 @@ export async function handleApprovalReply(
         ``,
         `Our team will confirm the final details and share your driver information shortly. Thank you for choosing JMS Travels!`,
       ].filter(Boolean).join('\n')
-      await sendWhatsAppMessage({ to: client.primary_phone, body: msg, log: { booking_id: booking.id } }).catch(() => {})
+      await sendWhatsAppMessage({ to: client.primary_phone, body: msg, log: { booking_id: booking.id } }).catch(e => console.error('[approval-handler] WhatsApp notify failed for', booking.booking_ref, e))
     }
   }
 
