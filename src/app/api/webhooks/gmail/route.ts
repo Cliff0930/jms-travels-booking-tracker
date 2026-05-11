@@ -41,17 +41,20 @@ export async function POST(request: Request) {
     const startHistoryId = setting?.value || String(parseInt(historyId) - 1)
     console.log('[gmail-webhook] using startHistoryId:', startHistoryId)
 
+    // Advance the stored historyId BEFORE any async work so a second webhook call
+    // triggered by our own outgoing email (which also advances Gmail history) reads
+    // the updated ID and gets an empty history.list result rather than reprocessing
+    // the same incoming email.
+    await supabase
+      .from('app_settings')
+      .upsert({ key: 'gmail_last_history_id', value: String(historyId), updated_at: new Date().toISOString() })
+
     const { data: history } = await gmail.users.history.list({
       userId: 'me',
       startHistoryId,
       historyTypes: ['messageAdded'],
       labelId: 'INBOX',
     })
-
-    // Update stored historyId to current notification's historyId for next call
-    await supabase
-      .from('app_settings')
-      .upsert({ key: 'gmail_last_history_id', value: String(historyId), updated_at: new Date().toISOString() })
 
     const messageIds = history.history?.flatMap(h => h.messagesAdded?.map(m => m.message?.id) || []).filter(Boolean) || []
     console.log('[gmail-webhook] messageIds found:', messageIds.length, messageIds)
