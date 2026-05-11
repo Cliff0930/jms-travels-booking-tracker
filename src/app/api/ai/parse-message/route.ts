@@ -6,7 +6,18 @@ import type { ExtractedFields } from '@/lib/gemini/extract'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
+import { notifyOperator } from '@/lib/utils/notify-operator'
 import type { Client, ClientLocation } from '@/types'
+
+// Fast regex pre-filter — skips Gemini for obvious system/automated emails
+function isObviousJunk(content: string, senderEmail?: string): boolean {
+  if (/\b(out of office|automatic reply|auto.?reply|away from|vacation response)\b/i.test(content)) return true
+  if (/\b(mail delivery (failed|failure)|mailer-daemon|undeliverable|delivery status notification)\b/i.test(content)) return true
+  if (/\b(otp|one.time.password|verification code)\b/i.test(content) && content.length < 400) return true
+  if (/\b(neft|imps|rtgs|credited|debited|transaction alert)\b/i.test(content) && !/\b(cab|travel|book|pickup|drop)\b/i.test(content)) return true
+  if (/unsubscribe|newsletter|no-reply@|noreply@/i.test(senderEmail || '') || /unsubscribe from/i.test(content)) return true
+  return false
+}
 
 function getTodayIST(): string {
   const istOffset = 5.5 * 60 * 60 * 1000
@@ -94,6 +105,12 @@ export async function POST(request: Request) {
   const supabase = createAdminClient()
 
   try {
+    // Free regex pre-filter before Gemini — catches auto-replies, bank alerts, newsletters
+    if (channel === 'email' && isObviousJunk(message, sender_email)) {
+      await supabase.from('raw_messages').update({ ai_classification: 'junk', processed: true }).eq('id', raw_message_id)
+      return NextResponse.json({ ok: true, classification: 'junk' })
+    }
+
     const classification = await classifyMessage(message)
 
     await supabase
@@ -257,6 +274,22 @@ export async function POST(request: Request) {
     const clientName = (client as Client)?.name || 'there'
     const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
 
+    // Notify operator of every new booking — fire and forget
+    {
+      const refs = createdBookings.map(b => b.booking.booking_ref).join(', ')
+      const firstExt = createdBookings[0].extracted
+      const statusNote = allMissing.length > 0 ? `⚠️ Missing: ${allMissing.map(f => f.replace(/_/g, ' ')).join(', ')}` : '✅ All fields complete'
+      const lines = [
+        `📩 New ${createdBookings.length > 1 ? `${createdBookings.length} bookings` : 'booking'} via ${channel}`,
+        `From: ${sender_email || sender_phone || 'unknown'}`,
+        `Ref: ${refs}`,
+        firstExt.pickup_date ? `Date: ${firstExt.pickup_date}${firstExt.pickup_time ? ` ${firstExt.pickup_time}` : ''}` : null,
+        firstExt.pickup_location ? `Pickup: ${firstExt.pickup_location}` : null,
+        statusNote,
+      ].filter(Boolean).join('\n')
+      notifyOperator(lines).catch(() => {})
+    }
+
     // If any mandatory fields are missing, send one combined reply
     if (allMissing.length > 0) {
       if (!skip_auto_reply) {
@@ -364,6 +397,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
   } catch (err) {
     console.error('[parse-message] Error:', String(err))
+    // Mark raw message as failed so it's visible for manual recovery
+    try {
+      await supabase.from('raw_messages')
+        .update({ ai_classification: 'processing_failed', processed: false })
+        .eq('id', raw_message_id)
+    } catch { /* best effort */ }
+    // Alert operator — include enough info to manually create the booking
+    await notifyOperator(
+      `🔴 Booking processing failed!\n\nFrom: ${sender_email || sender_phone || 'unknown'}\nChannel: ${channel}\nError: ${String(err).slice(0, 200)}\n\nRaw message ID: ${raw_message_id}\nAction: Check raw_messages table and create booking manually.`
+    ).catch(() => {})
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

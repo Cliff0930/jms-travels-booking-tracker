@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { fillMissingFromReply } from '@/lib/email/fill-missing'
+import { notifyOperator } from '@/lib/utils/notify-operator'
 
 function getOAuthClient() {
   const oauth2 = new google.auth.OAuth2(
@@ -208,6 +209,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error('Gmail webhook error:', err)
+    await notifyOperator(`🔴 Gmail webhook crashed!\n\nError: ${String(err).slice(0, 300)}\n\nCheck Vercel logs. Incoming email may not have been processed.`).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })

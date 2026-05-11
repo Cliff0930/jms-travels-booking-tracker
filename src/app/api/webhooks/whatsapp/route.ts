@@ -5,6 +5,7 @@ import { handleClientChange, handleDisambiguationReply, type PendingAction } fro
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { notifyOperator } from '@/lib/utils/notify-operator'
 import type { Client, ClientLocation } from '@/types'
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error('WhatsApp webhook error:', err)
+    await notifyOperator(`🔴 WhatsApp webhook crashed!\n\nError: ${String(err).slice(0, 300)}\n\nCheck Vercel logs. Incoming message may not have been processed.`).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })
@@ -157,9 +159,10 @@ async function processClientMessage(
         const mapsUrl = rawContent.match(/https?:\/\/\S+/)?.[0] ?? ''
         const addressText = rawContent.replace(/https?:\/\/\S+/g, '').replace(/👆|👇|⬇️/g, '').trim()
 
-        // Name + 👆 pattern: "Dr Kishore Subbiah 👆" — update guest_name on the booking
+        // Name + up-pointer pattern: "Dr Kishore Subbiah 👆" or "see above" — update guest_name on the booking
+        const UP_POINTER = /👆|as above|refer above|see above|check above|above location|location above|above address|that location|that address|same as above|\^/i
         const nameMatch = addressText.match(/^(Dr|Mr|Mrs|Ms|Prof)\.?\s+[A-Za-z ]{2,40}$/i)
-        if (nameMatch && rawContent.includes('👆')) {
+        if (nameMatch && UP_POINTER.test(rawContent)) {
           await supabase
             .from('bookings')
             .update({ guest_name: addressText, updated_at: new Date().toISOString() })
@@ -286,6 +289,21 @@ async function processClientMessage(
     ...(session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>),
     { role: 'client' as const, content: rawContent, timestamp: new Date().toISOString() },
   ]
+
+  // Bulk booking detection: if 3+ distinct guest phones appear in the conversation,
+  // this is a coordinator bulk request — acknowledge and hand off to admin
+  const fullText = updatedMessages.map(m => m.content).join('\n')
+  const allPhones = fullText.match(/\b[6-9]\d{9}\b/g) ?? []
+  const uniqueGuestPhones = new Set(allPhones.filter(p => !senderPhone.endsWith(p)))
+  if (uniqueGuestPhones.size >= 3) {
+    await sendWhatsAppMessage({
+      to: senderPhone,
+      body: `Hi ${client.name}, we've received multiple booking requests — thank you! Our team will review each one and confirm individually.\n\nFor urgent assistance, please call 9845572207.\n\n— JMS Travels`,
+      log: { client_id: client.id },
+    })
+    await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    return
+  }
 
   // Run conversation LLM with full history
   const savedLocations = client.locations || []
@@ -469,6 +487,14 @@ async function processClientMessage(
       .gte('sent_at', sessionCreatedAt)
       .is('booking_id', null),
     sendWhatsAppMessage({ to: senderPhone, body: ackBody, log: { client_id: client.id, booking_id: booking.id, template_used: 'booking_received' } }),
+    notifyOperator([
+      `📱 New booking via WhatsApp`,
+      `From: ${client.name} (${senderPhone})`,
+      `Ref: ${booking.booking_ref}`,
+      result.extracted.pickup_date ? `Date: ${result.extracted.pickup_date}${result.extracted.pickup_time ? ` ${result.extracted.pickup_time}` : ''}` : null,
+      result.extracted.pickup_location ? `Pickup: ${result.extracted.pickup_location}` : null,
+      needsApproval ? '⏳ Pending approval' : '✅ Ready to confirm',
+    ].filter(Boolean).join('\n')),
   ])
 }
 
