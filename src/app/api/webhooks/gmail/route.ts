@@ -14,6 +14,10 @@ function getOAuthClient() {
 }
 
 export async function POST(request: Request) {
+  // EMERGENCY KILL SWITCH — remove when loop is resolved
+  return NextResponse.json({ ok: true })
+
+  // eslint-disable-next-line no-unreachable
   const body = await request.json()
   const supabase = createAdminClient()
 
