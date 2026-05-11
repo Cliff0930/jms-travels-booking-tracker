@@ -76,14 +76,38 @@ export async function POST(request: Request) {
       const ccEmails = cc ? cc.split(',').map(e => e.trim()).filter(Boolean) : []
       const replyToEmails = replyTo ? replyTo.split(',').map(e => e.trim()).filter(Boolean) : []
 
-      let rawContent = ''
-      const parts = msg.payload?.parts || [msg.payload]
-      for (const part of parts) {
-        if (part?.mimeType === 'text/plain' && part.body?.data) {
-          rawContent = Buffer.from(part.body.data, 'base64').toString()
-          break
+      function extractPlainText(payload: typeof msg.payload): string {
+        if (!payload) return ''
+        if (payload.mimeType === 'text/plain' && payload.body?.data) {
+          return Buffer.from(payload.body.data, 'base64').toString()
         }
+        for (const part of payload.parts || []) {
+          const found = extractPlainText(part)
+          if (found) return found
+        }
+        return ''
       }
+
+      function extractHtmlText(payload: typeof msg.payload): string {
+        if (!payload) return ''
+        if (payload.mimeType === 'text/html' && payload.body?.data) {
+          return Buffer.from(payload.body.data, 'base64').toString()
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+        }
+        for (const part of payload.parts || []) {
+          const found = extractHtmlText(part)
+          if (found) return found
+        }
+        return ''
+      }
+
+      let rawContent = extractPlainText(msg.payload) || extractHtmlText(msg.payload)
 
       console.log('[gmail-webhook] rawContent length:', rawContent.length)
       if (!rawContent) {
