@@ -43,6 +43,11 @@ interface EmailMessage {
 }
 
 export async function sendEmail({ to, subject, body, cc, skipSignature = false, replyToThreadId, inReplyToMessageId }: EmailMessage): Promise<string | null> {
+  // KILL SWITCH — remove this block when ready to re-enable
+  if (process.env.EMAIL_KILL_SWITCH !== 'false') {
+    console.log('[sendEmail] KILL SWITCH active — skipping send to:', to, '| subject:', subject)
+    return null
+  }
   const auth = getOAuthClient()
   const gmail = google.gmail({ version: 'v1', auth })
   const from = process.env.GMAIL_USER_EMAIL!
