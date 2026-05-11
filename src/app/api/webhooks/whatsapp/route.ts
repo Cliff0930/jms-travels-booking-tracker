@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { handleClientChange, handleDisambiguationReply, type PendingAction } from '@/lib/utils/change-handler'
@@ -23,27 +23,45 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json()
+  // Parse body synchronously — must happen before response is sent
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ ok: true })
+  }
+
+  // Defer all processing so Meta gets 200 immediately (avoids 20s webhook timeout)
+  after(async () => {
+    await processWebhook(body)
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
+async function processWebhook(body: unknown) {
   const supabase = createAdminClient()
 
   try {
-    const entry = body?.entry?.[0]
-    const changes = entry?.changes?.[0]
-    const value = changes?.value
-    const messages = value?.messages
+    const b = body as Record<string, unknown>
+    const entry = ((b?.entry as unknown[]) ?? [])[0] as Record<string, unknown> | undefined
+    const changes = ((entry?.changes as unknown[]) ?? [])[0] as Record<string, unknown> | undefined
+    const value = changes?.value as Record<string, unknown> | undefined
+    const messages = value?.messages as Array<Record<string, unknown>> | undefined
 
-    if (!messages?.length) return NextResponse.json({ ok: true })
+    if (!messages?.length) return
 
     for (const message of messages) {
       if (message.type !== 'text') continue
 
-      const senderPhone = message.from
-      const rawContent = message.text?.body || ''
-      const senderName = value?.contacts?.[0]?.profile?.name
+      const senderPhone = message.from as string
+      const rawContent = (message.text as Record<string, unknown>)?.body as string || ''
+      const contacts = value?.contacts as Array<Record<string, unknown>> | undefined
+      const senderDisplayName = (contacts?.[0]?.profile as Record<string, unknown> | undefined)?.name as string | undefined
 
       const { data: rawMsg } = await supabase
         .from('raw_messages')
-        .insert({ channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderName, raw_content: rawContent })
+        .insert({ channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderDisplayName, raw_content: rawContent })
         .select()
         .single()
 
@@ -76,7 +94,7 @@ export async function POST(request: Request) {
         .single()
 
       if (pendingOnboarding) {
-        await handleOnboardingReply(supabase, senderPhone, senderName, rawContent, rawMsg.id)
+        await handleOnboardingReply(supabase, senderPhone, senderDisplayName, rawContent, rawMsg.id)
         continue
       }
 
@@ -84,7 +102,7 @@ export async function POST(request: Request) {
       const clientInfo = await extractClientInfo(rawContent)
 
       if (clientInfo.name) {
-        const newClient = await createClientFromInfo(supabase, senderPhone, senderName, clientInfo)
+        const newClient = await createClientFromInfo(supabase, senderPhone, senderDisplayName, clientInfo)
         if (newClient) {
           await processClientMessage(supabase, newClient, senderPhone, rawContent, rawMsg.id)
         }
@@ -106,8 +124,6 @@ export async function POST(request: Request) {
     console.error('WhatsApp webhook error:', err)
     await notifyOperator(`🔴 WhatsApp webhook crashed!\n\nError: ${String(err).slice(0, 300)}\n\nCheck Vercel logs. Incoming message may not have been processed.`).catch(() => {})
   }
-
-  return NextResponse.json({ ok: true })
 }
 
 async function processClientMessage(
