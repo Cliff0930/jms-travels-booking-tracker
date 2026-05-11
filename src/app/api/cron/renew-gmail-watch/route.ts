@@ -133,7 +133,7 @@ export async function GET(request: Request) {
 
     if (!renewalOk) lines.push(`\n⚠️ Gmail watch renewal FAILED — see earlier alert.`)
 
-    await notifyOperator(lines.join('\n'))
+    await notifyOperator(lines.join('\n'), 'ops')
   } catch (err) {
     console.error('[gmail-watch] Morning digest failed:', err)
   }
