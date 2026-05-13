@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Settings } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PushSubscribeButton } from './PushSubscribeButton'
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -37,6 +38,7 @@ export function Header() {
 
       <div className="flex items-center gap-1">
         <div className="flex items-center gap-1 pr-3 border-r border-gray-200">
+          <PushSubscribeButton />
           <Link href="/settings" className="p-2 text-gray-500 hover:bg-gray-50 rounded-lg transition-colors" title="Settings">
             <Settings className="w-5 h-5" />
           </Link>
