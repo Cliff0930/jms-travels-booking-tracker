@@ -378,6 +378,17 @@ grant all on app_settings to postgres, anon, authenticated, service_role;
 -- from auth.users where email = 'your@email.com'
 -- on conflict (id) do update set role = 'admin';
 
+-- ─── PUSH SUBSCRIPTIONS ──────────────────────────────────────
+create table if not exists push_subscriptions (
+  id          uuid primary key default uuid_generate_v4(),
+  endpoint    text not null unique,
+  p256dh      text not null,
+  auth        text not null,
+  user_label  text,
+  created_at  timestamptz default now()
+);
+grant all on push_subscriptions to postgres, anon, authenticated, service_role;
+
 -- ─── MIGRATIONS (run if tables already exist) ────────────────
 -- ALTER TABLE conversation_sessions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_type text;

@@ -4,6 +4,7 @@ import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmail } from '@/lib/gmail/send'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
+import { createShortLink } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -109,6 +110,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
       const guestName = booking.guest_name || client?.name || 'Guest'
       const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+      const [arrivedLink, completedLink] = await Promise.all([
+        createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+        createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+      ])
       const body = fillTemplate(tmpl.body, {
         driver_name: newDriver.name,
         booking_ref: booking.booking_ref,
@@ -119,8 +124,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         pickup_date: booking.pickup_date || 'TBD',
         pickup_time: booking.pickup_time || 'TBD',
         pax_count: booking.pax_count?.toString() || 'TBD',
-        arrived_link: driverStatusLink(appUrl, id, 'arrived'),
-        completed_link: driverStatusLink(appUrl, id, 'completed'),
+        arrived_link: arrivedLink,
+        completed_link: completedLink,
       })
       await sendWhatsAppMessage({ to: newDriver.phone, body }).catch(e => console.error('Substitute trip brief error:', e))
       await supabase.from('message_logs').insert({

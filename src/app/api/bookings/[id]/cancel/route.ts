@@ -64,33 +64,44 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (clientTmpl) {
     const body = fillTemplate(clientTmpl.body, { ...vars, client_name: clientName })
     const subject = fillTemplate(clientTmpl.subject || '', vars)
+    const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
 
-    const guestPhone = booking.guest_phone || null
-    const adminPhone = client?.primary_phone || null
-    const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
-
-    if (phones.length > 0) {
-      await sendToAll(phones, body).catch(e => console.error('Cancel WA client error:', e))
+    if (booking.source === 'email' && client?.primary_email) {
+      // Email-source bookings: notify via email (same channel they used to book)
+      await sendEmail({ to: client.primary_email, subject, body, cc: bookingCc.length > 0 ? bookingCc : undefined }).catch(e => console.error('Cancel email client error:', e))
       await supabase.from('message_logs').insert({
-        booking_id: id,
-        client_id: booking.client_id,
-        channel: 'whatsapp',
-        direction: 'outbound',
-        recipient: phones.join(', '),
-        content: body,
+        booking_id: id, client_id: booking.client_id,
+        channel: 'email', direction: 'outbound',
+        recipient: client.primary_email, content: body,
         template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
       })
-    } else if (client?.primary_email) {
-      await sendEmail({ to: client.primary_email, subject, body }).catch(e => console.error('Cancel email client error:', e))
-      await supabase.from('message_logs').insert({
-        booking_id: id,
-        client_id: booking.client_id,
-        channel: 'email',
-        direction: 'outbound',
-        recipient: client.primary_email,
-        content: body,
-        template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
-      })
+      // Also WhatsApp the guest if they have a separate phone
+      if (booking.guest_phone) {
+        await sendWhatsAppMessage({ to: booking.guest_phone, body }).catch(() => {})
+      }
+    } else {
+      // WhatsApp-source bookings: notify via WhatsApp
+      const guestPhone = booking.guest_phone || null
+      const adminPhone = client?.primary_phone || null
+      const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+
+      if (phones.length > 0) {
+        await sendToAll(phones, body).catch(e => console.error('Cancel WA client error:', e))
+        await supabase.from('message_logs').insert({
+          booking_id: id, client_id: booking.client_id,
+          channel: 'whatsapp', direction: 'outbound',
+          recipient: phones.join(', '), content: body,
+          template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
+        })
+      } else if (client?.primary_email) {
+        await sendEmail({ to: client.primary_email, subject, body }).catch(e => console.error('Cancel email client error:', e))
+        await supabase.from('message_logs').insert({
+          booking_id: id, client_id: booking.client_id,
+          channel: 'email', direction: 'outbound',
+          recipient: client.primary_email, content: body,
+          template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
+        })
+      }
     }
   }
 
