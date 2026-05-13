@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { notifyOperator as globalNotifyOperator } from '@/lib/utils/notify-operator'
 import type { ConversationResult, ModificationRequest } from '@/lib/gemini/converse'
 import type { Client } from '@/types'
 
@@ -68,10 +68,8 @@ function pickupSummary(b: { pickup_date?: string | null; pickup_time?: string | 
 }
 
 async function notifyOperator(message: string, bookingId?: string): Promise<void> {
-  const phone = process.env.OPERATOR_WHATSAPP_NUMBER
-  if (!phone) return
   const link = bookingId ? `\n\nView: ${process.env.NEXT_PUBLIC_APP_URL}/bookings/${bookingId}` : ''
-  await sendWhatsAppMessage({ to: phone, body: message + link }).catch(() => {})
+  await globalNotifyOperator(message + link, 'ops').catch(() => {})
 }
 
 // ── Shared action helpers ──────────────────────────────────────────────────────
