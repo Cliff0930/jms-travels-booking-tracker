@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { formatBookingDateTime } from '@/lib/utils/date'
 import { toast } from 'sonner'
@@ -85,6 +86,8 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
     queryFn: () => fetch('/api/companies').then(r => r.json()),
     enabled: showEdit,
   })
+
+  const canEdit = useCanEdit()
 
   if (!client) return null
 
@@ -347,13 +350,15 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#1A56DB]">Contact Details</h3>
-                <Button
-                  variant="ghost" size="sm"
-                  className="h-6 text-xs text-[#1A56DB] gap-1 -mr-1 hover:bg-blue-50"
-                  onClick={() => setShowAddContact(true)}
-                >
-                  <Plus className="w-3 h-3" /> Add
-                </Button>
+                {canEdit && (
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-6 text-xs text-[#1A56DB] gap-1 -mr-1 hover:bg-blue-50"
+                    onClick={() => setShowAddContact(true)}
+                  >
+                    <Plus className="w-3 h-3" /> Add
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 {client.primary_phone && (
@@ -383,6 +388,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     </div>
                     <span className="truncate flex-1 font-medium">{ct.value}</span>
                     <span className="text-[10px] text-[#737686] shrink-0">({ct.role})</span>
+                    {canEdit && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         onClick={() => openEditContact(ct)}
@@ -400,6 +406,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
+                    )}
                   </div>
                 ))}
                 {!client.primary_phone && !client.primary_email && !liveContacts.length && (
@@ -433,13 +440,15 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED]">Saved Locations</h3>
-                <Button
-                  variant="ghost" size="sm"
-                  className="h-6 text-xs text-[#7C3AED] gap-1 -mr-1 hover:bg-violet-50"
-                  onClick={() => setShowAddLocation(true)}
-                >
-                  <Plus className="w-3 h-3" /> Add
-                </Button>
+                {canEdit && (
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-6 text-xs text-[#7C3AED] gap-1 -mr-1 hover:bg-violet-50"
+                    onClick={() => setShowAddLocation(true)}
+                  >
+                    <Plus className="w-3 h-3" /> Add
+                  </Button>
+                )}
               </div>
               {!liveLocations.length ? (
                 <p className="text-xs text-[#737686]">No saved locations</p>
@@ -454,6 +463,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                         <span className="font-semibold text-[#191B23] capitalize">{loc.keyword}</span>
                         <p className="text-xs text-[#434654] mt-0.5 break-words">{loc.address}</p>
                       </div>
+                      {canEdit && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
                         <button
                           onClick={() => openEditLocation(loc)}
@@ -471,6 +481,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -548,14 +559,16 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
           {/* Sticky Footer */}
           <div className="flex-shrink-0 py-4 px-6 border-t border-[#EEEEF5] flex gap-2 flex-wrap">
-            <ButtonLink
-              href={`/bookings/new?client_id=${client.id}`}
-              size="sm"
-              className="flex-1 bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm text-xs text-center shadow-sm"
-            >
-              Book Cab
-            </ButtonLink>
-            {client.client_type === 'guest' && (
+            {canEdit && (
+              <ButtonLink
+                href={`/bookings/new?client_id=${client.id}`}
+                size="sm"
+                className="flex-1 bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm text-xs text-center shadow-sm"
+              >
+                Book Cab
+              </ButtonLink>
+            )}
+            {canEdit && client.client_type === 'guest' && (
               <Button
                 size="sm" variant="outline"
                 className="rounded-sm text-xs px-3 text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
@@ -564,20 +577,24 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                 <UserCheck className="w-3.5 h-3.5 mr-1" /> Promote
               </Button>
             )}
-            <Button
-              variant="outline" size="sm"
-              className="rounded-sm text-xs px-3 gap-1 text-[#737686]"
-              onClick={() => setShowMerge(true)}
-            >
-              <GitMerge className="w-3 h-3" /> Merge
-            </Button>
-            <Button
-              variant="outline" size="sm"
-              className="rounded-sm text-xs px-4 gap-1"
-              onClick={openEdit}
-            >
-              <Pencil className="w-3 h-3" /> Edit
-            </Button>
+            {canEdit && (
+              <Button
+                variant="outline" size="sm"
+                className="rounded-sm text-xs px-3 gap-1 text-[#737686]"
+                onClick={() => setShowMerge(true)}
+              >
+                <GitMerge className="w-3 h-3" /> Merge
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="outline" size="sm"
+                className="rounded-sm text-xs px-4 gap-1"
+                onClick={openEdit}
+              >
+                <Pencil className="w-3 h-3" /> Edit
+              </Button>
+            )}
           </div>
         </SheetContent>
       </Sheet>

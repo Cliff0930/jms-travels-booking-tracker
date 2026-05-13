@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge } from 'lucide-react'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -123,6 +124,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false)
   const [applyingLog, setApplyingLog] = useState<string | null>(null)
   const [chasingApproval, setChasingApproval] = useState(false)
+  const canEdit = useCanEdit()
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
@@ -318,7 +320,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-[#191B23]">Trip Details</h2>
-              {!isEditing ? (
+              {canEdit && !isEditing ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -327,7 +329,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <Pencil className="w-3 h-3" /> Edit
                 </Button>
-              ) : (
+              ) : isEditing ? (
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -345,7 +347,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     Save Changes
                   </Button>
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -558,16 +560,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 {booking.flags?.includes('guest_booking') && (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs text-amber-600">Not linked to a client account</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 text-xs px-2 rounded-sm text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
-                      onClick={handleSaveGuest}
-                      disabled={savingGuest}
-                    >
-                      <UserPlus className="w-3 h-3 mr-1" />
-                      {savingGuest ? 'Saving…' : 'Save to Guest Directory'}
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-xs px-2 rounded-sm text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
+                        onClick={handleSaveGuest}
+                        disabled={savingGuest}
+                      >
+                        <UserPlus className="w-3 h-3 mr-1" />
+                        {savingGuest ? 'Saving…' : 'Save to Guest Directory'}
+                      </Button>
+                    )}
                   </div>
                 )}
                 {booking.guest_phone && (
@@ -714,7 +718,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                           ))}
                         </div>
-                        {isPending && (
+                        {isPending && canEdit && (
                           <div className="flex gap-2 mt-2">
                             <Button
                               size="sm"
@@ -748,6 +752,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Right: Actions + Info */}
         <div className="space-y-4">
+          {canEdit && (
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <h2 className="text-base font-semibold text-[#191B23] mb-3">Actions</h2>
             <div className="space-y-2">
@@ -826,6 +831,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           </div>
+          )}
 
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <h2 className="text-base font-semibold text-[#191B23] mb-3">Booking Info</h2>

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useUpdateDriver } from '@/hooks/useDrivers'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +58,8 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
     queryFn: () => fetch(`/api/drivers/${driver!.id}/stats`).then(r => r.json()),
     enabled: open && !!driver,
   })
+
+  const canEdit = useCanEdit()
 
   if (!driver) return null
   const initials = driver.name.split(' ').map(n => n[0]).slice(0, 2).join('')
@@ -134,7 +137,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {!editing && (
+                {!editing && canEdit && (
                   <Button size="sm" variant="ghost" className="rounded-sm gap-1.5 text-white/80 hover:text-white hover:bg-white/20 border border-white/30 h-8 text-xs" onClick={startEdit}>
                     <Pencil className="w-3.5 h-3.5" /> Edit
                   </Button>

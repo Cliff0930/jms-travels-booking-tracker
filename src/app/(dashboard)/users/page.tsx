@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Plus, Trash2, UserCheck, UserX, ShieldCheck, Briefcase, Eye, Mail, CalendarDays, Pencil, Check, X, KeyRound, User } from 'lucide-react'
+import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import type { UserProfile, UserRole } from '@/types'
@@ -38,6 +39,8 @@ export default function UsersPage() {
   const [pwTarget, setPwTarget] = useState<UserProfile | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [settingPw, setSettingPw] = useState(false)
+
+  const isAdmin = useIsAdmin()
 
   const { data: users = [], isLoading } = useQuery<UserProfile[]>({
     queryKey: ['users'],
@@ -160,7 +163,7 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         description={`${users.length} user${users.length === 1 ? '' : 's'}`}
-        actions={
+        actions={isAdmin ? (
           <Button
             size="sm"
             className="bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:from-[#1648c5] hover:to-[#4F46E5] rounded-sm gap-1.5 shadow-sm"
@@ -168,7 +171,7 @@ export default function UsersPage() {
           >
             <Plus className="w-4 h-4" /> Add User
           </Button>
-        }
+        ) : undefined}
       />
 
       {/* Role legend */}
@@ -250,13 +253,15 @@ export default function UsersPage() {
                     ) : (
                       <div className="flex items-center gap-1.5 mb-0.5 group/name">
                         <span className="text-sm font-semibold text-[#191B23] truncate flex-1">{user.name || <span className="text-[#9CA3AF] font-normal italic">No name set</span>}</span>
-                        <button
-                          onClick={() => { setEditingNameId(user.id); setNameInput(user.name || '') }}
-                          className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded hover:bg-blue-50 text-[#737686] hover:text-[#1A56DB] shrink-0"
-                          title="Edit name"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => { setEditingNameId(user.id); setNameInput(user.name || '') }}
+                            className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded hover:bg-blue-50 text-[#737686] hover:text-[#1A56DB] shrink-0"
+                            title="Edit name"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#737686]">
@@ -276,7 +281,8 @@ export default function UsersPage() {
                     <Icon className="w-3.5 h-3.5 text-[#737686] shrink-0" />
                     <Select
                       value={user.role}
-                      onValueChange={v => v && updateRole(user.id, v as UserRole)}
+                      onValueChange={isAdmin ? v => v && updateRole(user.id, v as UserRole) : undefined}
+                      disabled={!isAdmin}
                     >
                       <SelectTrigger className="h-7 flex-1 border-[#C3C5D7] text-xs">
                         <SelectValue />
@@ -290,6 +296,7 @@ export default function UsersPage() {
                   </div>
 
                   {/* Actions */}
+                  {isAdmin && (
                   <div className="flex gap-2">
                     <button
                       title={user.is_active ? 'Deactivate user' : 'Activate user'}
@@ -320,6 +327,7 @@ export default function UsersPage() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             )

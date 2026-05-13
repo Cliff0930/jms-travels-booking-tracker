@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useDrivers, useCreateDriver, useUpdateDriver } from '@/hooks/useDrivers'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { DriverCard } from '@/components/drivers/DriverCard'
 import { DriverDetailPanel } from '@/components/drivers/DriverDetailPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -48,6 +49,7 @@ export default function DriversPage() {
   })
   const createDriver = useCreateDriver()
   const updateDriver = useUpdateDriver()
+  const canEdit = useCanEdit()
 
   const filtered = drivers.filter(d => {
     if (vehicleFilter !== 'all' && d.vehicle_type !== vehicleFilter) return false
@@ -115,7 +117,7 @@ export default function DriversPage() {
       <PageHeader
         title="Drivers"
         description={`${filtered.length} of ${drivers.length} drivers`}
-        actions={
+        actions={canEdit ? (
           <Button
             size="sm"
             className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5"
@@ -123,7 +125,7 @@ export default function DriversPage() {
           >
             <Plus className="w-4 h-4" /> Add Driver
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="mb-5 bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2.5">
@@ -188,8 +190,8 @@ export default function DriversPage() {
         driver={selectedDriver}
         open={!!selectedDriver}
         onClose={() => setSelectedDriver(null)}
-        onDeactivate={handleDeactivate}
-        onReactivate={handleReactivate}
+        onDeactivate={canEdit ? handleDeactivate : undefined}
+        onReactivate={canEdit ? handleReactivate : undefined}
       />
 
       <Dialog open={showAddModal} onOpenChange={open => { setShowAddModal(open); if (!open) setForm(EMPTY_FORM) }}>

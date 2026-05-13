@@ -10,11 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Send, Building2, Route } from 'lucide-react'
+import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import type { MessageTemplate } from '@/types'
 
 export default function SettingsPage() {
   const qc = useQueryClient()
+  const isAdmin = useIsAdmin()
   const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null)
   const [testPhone, setTestPhone] = useState('')
   const [testEmail, setTestEmail] = useState('')
@@ -156,7 +158,7 @@ export default function SettingsPage() {
                 />
                 <p className="text-xs text-[#737686] mt-1">Enter the full address including city and state for accurate distance calculation.</p>
               </div>
-              <Button onClick={handleSaveGeneral} disabled={savingGeneral} className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">
+              <Button onClick={handleSaveGeneral} disabled={savingGeneral || !isAdmin} className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">
                 {savingGeneral ? 'Saving…' : 'Save Office Location'}
               </Button>
             </div>
@@ -175,7 +177,8 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={distanceEnabled}
-                  onCheckedChange={handleToggleDistance}
+                  onCheckedChange={isAdmin ? handleToggleDistance : undefined}
+                  disabled={!isAdmin}
                   className="ml-4 shrink-0"
                 />
               </div>
@@ -229,7 +232,7 @@ export default function SettingsPage() {
                         Use {'{'}{'}'} placeholders e.g. {'{client_name}'}, {'{booking_ref}'}
                       </p>
                     </div>
-                    <Button type="submit" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">Save Template</Button>
+                    <Button type="submit" disabled={!isAdmin} className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm">Save Template</Button>
                   </form>
 
                   {/* Test Send */}
@@ -267,7 +270,7 @@ export default function SettingsPage() {
                       variant="outline"
                       className="rounded-sm gap-1.5"
                       onClick={handleTestSend}
-                      disabled={testSending}
+                      disabled={testSending || !isAdmin}
                     >
                       <Send className="w-3.5 h-3.5" />
                       {testSending ? 'Sending…' : 'Send Test'}

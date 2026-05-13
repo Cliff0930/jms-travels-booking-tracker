@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useClients, useCreateClient } from '@/hooks/useClients'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { ClientDetailPanel } from '@/components/clients/ClientDetailPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ export default function ClientsPage() {
 
   const { data: clients = [], isLoading, isError } = useClients(search || undefined)
   const createClient = useCreateClient()
+  const canEdit = useCanEdit()
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
@@ -63,7 +65,7 @@ export default function ClientsPage() {
       <PageHeader
         title="Clients"
         description={`${filtered.length} clients`}
-        actions={
+        actions={canEdit ? (
           <Button
             size="sm"
             className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5"
@@ -71,7 +73,7 @@ export default function ClientsPage() {
           >
             <Plus className="w-4 h-4" /> Add Client
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">

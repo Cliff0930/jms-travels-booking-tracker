@@ -11,6 +11,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Building2, Plus, X, Mail, Phone, Search, GitMerge } from 'lucide-react'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import { ClientDetailPanel } from '@/components/clients/ClientDetailPanel'
 import type { Company, Client } from '@/types'
@@ -263,6 +264,7 @@ export default function CompaniesPage() {
 
   const { data: companies = [], isLoading } = useCompanies()
   const qc = useQueryClient()
+  const canEdit = useCanEdit()
 
   const { data: companyClients = [] } = useQuery<Client[]>({
     queryKey: ['clients', 'company', selectedCompany?.id],
@@ -351,7 +353,7 @@ export default function CompaniesPage() {
       <PageHeader
         title="Companies"
         description={`${companies.length} companies`}
-        actions={
+        actions={canEdit ? (
           <Button
             size="sm"
             className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5"
@@ -359,7 +361,7 @@ export default function CompaniesPage() {
           >
             <Plus className="w-4 h-4" /> Add Company
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="relative mb-5 max-w-sm">
@@ -574,6 +576,8 @@ export default function CompaniesPage() {
 
                 <Separator />
 
+                <div className={!canEdit ? 'pointer-events-none opacity-60' : ''}>
+
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-3">Approval Settings</h3>
                   <div className="space-y-3">
@@ -743,9 +747,12 @@ export default function CompaniesPage() {
                     onSave={(list: string[]) => updateCompany(selectedCompany.id, { approval_exclusions: list })}
                   />
                 </section>
+
+                </div>
               </div>
 
               {/* Sticky Footer */}
+              {canEdit && (
               <div className="flex-shrink-0 py-4 px-6 border-t border-[#EEEEF5]">
                 <Button
                   variant="outline" size="sm"
@@ -755,6 +762,7 @@ export default function CompaniesPage() {
                   <GitMerge className="w-3 h-3" /> Merge Duplicate
                 </Button>
               </div>
+              )}
             </>
           )}
         </SheetContent>

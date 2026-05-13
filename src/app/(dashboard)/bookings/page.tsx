@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useBookings, useConfirmBooking, useCancelBooking } from '@/hooks/useBookings'
+import { useCanEdit } from '@/hooks/useCurrentUser'
 import { BookingCard } from '@/components/dashboard/BookingCard'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -23,6 +24,7 @@ export default function BookingsPage() {
   const { data: bookings = [], isLoading, isError } = useBookings()
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
+  const canEdit = useCanEdit()
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
 
@@ -93,7 +95,7 @@ export default function BookingsPage() {
     <div>
       <PageHeader
         title="Bookings"
-        actions={
+        actions={canEdit ? (
           <div className="flex items-center gap-2">
             <ButtonLink href="/bookings/upload" size="sm" variant="outline" className="rounded-sm gap-1.5">
               <Upload className="w-4 h-4" /> Upload
@@ -102,7 +104,7 @@ export default function BookingsPage() {
               <Plus className="w-4 h-4" /> New Booking
             </ButtonLink>
           </div>
-        }
+        ) : undefined}
       />
 
       {/* Filter Bar */}
@@ -255,9 +257,9 @@ export default function BookingsPage() {
                     <BookingCard
                       key={b.id}
                       booking={b}
-                      onConfirm={async id => { await confirmBooking.mutateAsync(id); toast.success('Confirmed') }}
-                      onCancel={id => setCancelTarget(id)}
-                      onAssign={setAssignTarget}
+                      onConfirm={canEdit ? async id => { await confirmBooking.mutateAsync(id); toast.success('Confirmed') } : undefined}
+                      onCancel={canEdit ? id => setCancelTarget(id) : undefined}
+                      onAssign={canEdit ? setAssignTarget : undefined}
                     />
                   ))}
                 </div>
