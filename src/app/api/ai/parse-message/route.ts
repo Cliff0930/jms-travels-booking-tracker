@@ -140,7 +140,8 @@ export async function POST(request: Request) {
       if ((senderCount ?? 0) >= 10) {
         await supabase.from('raw_messages').update({ ai_classification: 'rate_limited', processed: true }).eq('id', raw_message_id)
         notifyOperator(
-          `⚠️ Rate limit hit!\n\nSender: ${senderKey} has sent 10+ messages in the last hour on ${channel}. Gemini call skipped.\n\nCheck raw_messages if a real booking was missed.`
+          `⚠️ Rate limit hit!\n\nSender: ${senderKey} has sent 10+ messages in the last hour on ${channel}. Gemini call skipped.\n\nCheck raw_messages if a real booking was missed.`,
+          'ops'
         ).catch(() => {})
         console.log('[parse-message] rate limit hit for sender:', senderKey, 'count:', senderCount)
         return NextResponse.json({ ok: true, classification: 'rate_limited' })
@@ -239,7 +240,8 @@ export async function POST(request: Request) {
             .update({ ai_classification: 'duplicate', processed: true })
             .eq('id', raw_message_id)
           notifyOperator(
-            `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`
+            `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
+            'ops'
           ).catch(() => {})
           continue
         }
