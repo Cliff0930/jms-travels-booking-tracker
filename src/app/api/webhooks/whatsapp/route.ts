@@ -351,7 +351,18 @@ async function processClientMessage(
 
   // Run conversation LLM with full history
   const savedLocations = client.locations || []
-  const result = await converseBooking(updatedMessages, client, savedLocations)
+  let result
+  try {
+    result = await converseBooking(updatedMessages, client, savedLocations)
+  } catch (err) {
+    console.error('[whatsapp] converseBooking error:', String(err))
+    await sendWhatsAppMessage({
+      to: senderPhone,
+      body: 'We had a technical issue processing your message. Please try again in a moment, or call us at 9845572207.',
+      log: { client_id: client.id },
+    })
+    return
+  }
 
   await supabase
     .from('raw_messages')

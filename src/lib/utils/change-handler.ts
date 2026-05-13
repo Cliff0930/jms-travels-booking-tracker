@@ -177,6 +177,14 @@ async function performModify(
   const driver = booking.driver as { name?: string; phone?: string } | null
   const summary = pickupSummary(booking)
 
+  // Validate date changes — reject past dates before applying anything
+  const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  for (const change of modReq.changes) {
+    if (change.field === 'pickup_date' && change.new_value < todayStr) {
+      return `The date ${fmtDate(change.new_value)} is in the past. Please provide a future date for booking ${booking.booking_ref}.`
+    }
+  }
+
   // Build update payload and change log entries for all requested changes
   const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
   const changeEntries: Array<{ field: string; label: string; old_value: string; new_value: string }> = []

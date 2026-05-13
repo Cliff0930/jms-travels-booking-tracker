@@ -108,11 +108,38 @@ export async function converseBooking(
   const result = await model.generateContent(prompt)
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
-  const parsed: ConversationResult = JSON.parse(cleaned)
+
+  let parsed: ConversationResult
+  try {
+    parsed = JSON.parse(cleaned)
+  } catch {
+    console.error('[converse] invalid JSON from Gemini:', cleaned.slice(0, 200))
+    return {
+      intent: 'booking',
+      extracted: {
+        pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null,
+        pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null,
+        trip_type: 'local', service_type: 'one_way', total_days: 1,
+        special_instructions: null, company_mentioned: null, booking_type: null,
+      },
+      modification_request: null, cancel_reason: null, target_booking_ref: null,
+      missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'],
+      is_complete: false, is_new_booking_request: false,
+      next_question: 'Sorry, I had trouble understanding that. Could you please share your pickup location, date, and time again?',
+      is_guest_booking: false, new_keyword_detected: null, resolved_keywords: {}, confidence: 0,
+    }
+  }
 
   // Safety net: resolve any relative date words the LLM may have slipped through
   if (parsed.extracted?.pickup_date) {
     parsed.extracted.pickup_date = sanitizePickupDate(parsed.extracted.pickup_date, today)
+    // Reject past dates — force client to give a future date
+    if (parsed.extracted.pickup_date && parsed.extracted.pickup_date < today) {
+      parsed.extracted.pickup_date = null
+      if (!parsed.missing_mandatory.includes('pickup_date')) parsed.missing_mandatory.push('pickup_date')
+      parsed.is_complete = false
+      if (!parsed.next_question) parsed.next_question = 'The date you mentioned appears to be in the past. Could you share a future date for your booking?'
+    }
   }
   if (parsed.modification_request?.changes) {
     for (const change of parsed.modification_request.changes) {
