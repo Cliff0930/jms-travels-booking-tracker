@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { classifyMessage } from '@/lib/gemini/classify'
-import { extractBookingFields } from '@/lib/gemini/extract'
+import { classifyAndExtract } from '@/lib/gemini/classify-and-extract'
 import type { ExtractedFields } from '@/lib/gemini/extract'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
@@ -111,31 +110,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, classification: 'junk' })
     }
 
-    const classification = await classifyMessage(message)
+    const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
+    const result = await classifyAndExtract(message, client, savedLocations)
 
     await supabase
       .from('raw_messages')
-      .update({ ai_classification: classification.classification, ai_confidence: classification.confidence, processed: true })
+      .update({ ai_classification: result.classification, ai_confidence: result.confidence, processed: true })
       .eq('id', raw_message_id)
 
-    if (classification.classification === 'junk') {
+    if (result.classification === 'junk') {
       return NextResponse.json({ ok: true, classification: 'junk' })
     }
 
-    if (classification.classification === 'enquiry' || classification.classification === 'unclassified') {
+    if (result.classification === 'enquiry' || result.classification === 'unclassified') {
       const replyTo = channel === 'whatsapp' ? (sender_phone || (client as Client)?.primary_phone) : null
       if (channel === 'whatsapp' && replyTo) {
-        const reply = classification.classification === 'enquiry'
+        const reply = result.classification === 'enquiry'
           ? 'For rates and pricing information, please call us at 9845572207. We are happy to help!'
           : 'For any queries or assistance, please call us at 9845572207.'
         await sendWhatsAppMessage({ to: replyTo, body: reply })
       }
-      return NextResponse.json({ ok: true, classification: classification.classification })
+      return NextResponse.json({ ok: true, classification: result.classification })
     }
 
     // Booking flow
-    const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
-    const extraction = await extractBookingFields(message, client, savedLocations)
+    const extraction = result
     const today = getTodayIST()
 
     // Sanitise past dates in all bookings

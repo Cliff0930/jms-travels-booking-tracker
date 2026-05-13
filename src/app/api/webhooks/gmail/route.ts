@@ -180,20 +180,24 @@ export async function POST(request: Request) {
         }
       }
 
-      const { data: rawMsg } = await supabase
+      const { data: rawMsg, error: insertError } = await supabase
         .from('raw_messages')
-        .insert({
+        .upsert({
           channel: 'email',
           sender_email: senderEmail,
           sender_name: senderName,
           cc_emails: ccEmails,
           reply_to_emails: replyToEmails,
           raw_content: rawContent,
-        })
+          gmail_message_id: messageId,
+        }, { onConflict: 'gmail_message_id', ignoreDuplicates: true })
         .select()
         .single()
 
-      if (!rawMsg) continue
+      if (!rawMsg) {
+        if (insertError) console.log('[gmail-webhook] skipping duplicate messageId:', messageId)
+        continue
+      }
 
       const { data: client } = await supabase
         .from('clients')

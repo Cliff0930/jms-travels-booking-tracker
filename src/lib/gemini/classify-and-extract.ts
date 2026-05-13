@@ -1,0 +1,94 @@
+import { getGeminiModel } from './client'
+import { CLASSIFY_AND_EXTRACT_PROMPT } from './prompts'
+import type { ExtractedBooking, ExtractionResult } from './extract'
+import type { Client, ClientLocation } from '@/types'
+
+export interface ClassifyAndExtractResult extends ExtractionResult {
+  classification: 'booking' | 'enquiry' | 'junk' | 'unclassified'
+  reason: string
+}
+
+function getTodayIST(): string {
+  const istOffset = 5.5 * 60 * 60 * 1000
+  return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
+}
+
+const SAFE_EMPTY_BOOKING: ExtractedBooking = {
+  extracted: {
+    pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null,
+    pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null,
+    trip_type: 'local', service_type: 'one_way', total_days: 1,
+    special_instructions: null, additional_phones: [], company_mentioned: null,
+  },
+  missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'],
+  is_guest_booking: false,
+}
+
+function safeNonBookingResult(classification: ClassifyAndExtractResult['classification'], reason: string): ClassifyAndExtractResult {
+  return { classification, confidence: 0.9, reason, bookings: [], resolved_keywords: {}, new_keyword_detected: null }
+}
+
+export async function classifyAndExtract(
+  message: string,
+  client: Client | null,
+  savedLocations: ClientLocation[]
+): Promise<ClassifyAndExtractResult> {
+  const model = getGeminiModel()
+  const clientProfile = client
+    ? JSON.stringify({ name: client.name, default_pax: client.default_pax, default_vehicle_type: client.default_vehicle_type })
+    : '{}'
+  const locationsJson = JSON.stringify(savedLocations.map(l => ({ keyword: l.keyword, address: l.address })))
+  const today = getTodayIST()
+  const prompt = CLASSIFY_AND_EXTRACT_PROMPT
+    .replace(/{today}/g, today)
+    .replace('{message}', message)
+    .replace('{client_profile}', clientProfile)
+    .replace('{saved_locations}', locationsJson)
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text().trim()
+  const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(cleaned)
+  } catch {
+    console.error('[classify-and-extract] invalid JSON:', cleaned.slice(0, 200))
+    return safeNonBookingResult('unclassified', 'invalid JSON from model')
+  }
+
+  const validClasses = ['booking', 'enquiry', 'junk', 'unclassified']
+  const classification = parsed.classification as string
+  if (!validClasses.includes(classification)) {
+    console.error('[classify-and-extract] unexpected classification:', classification)
+    return safeNonBookingResult('unclassified', 'unexpected classification value')
+  }
+
+  if (classification !== 'booking') {
+    return safeNonBookingResult(
+      classification as ClassifyAndExtractResult['classification'],
+      (parsed.reason as string) ?? ''
+    )
+  }
+
+  // Booking — normalise bookings array (same backwards-compat logic as extract.ts)
+  let bookings: ExtractedBooking[]
+  if (!parsed.bookings && parsed.extracted) {
+    bookings = [{
+      extracted: parsed.extracted as ExtractedBooking['extracted'],
+      missing_mandatory: (parsed.missing_mandatory as string[]) ?? [],
+      is_guest_booking: (parsed.is_guest_booking as boolean) ?? false,
+    }]
+  } else {
+    bookings = (parsed.bookings as ExtractedBooking[]) ?? [SAFE_EMPTY_BOOKING]
+  }
+
+  return {
+    classification: 'booking',
+    confidence: (parsed.confidence as number) ?? 0.9,
+    reason: (parsed.reason as string) ?? '',
+    bookings,
+    resolved_keywords: (parsed.resolved_keywords as Record<string, string>) ?? {},
+    new_keyword_detected: (parsed.new_keyword_detected as string | null) ?? null,
+  }
+}
