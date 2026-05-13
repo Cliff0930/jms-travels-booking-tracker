@@ -99,7 +99,7 @@ export async function GET(request: Request) {
       { count: newCount },
       { data: pendingApprovals },
       { data: unassignedToday },
-      { data: failedMessages },
+      { count: failedCount },
     ] = await Promise.all([
       supabase.from('bookings').select('id', { count: 'exact', head: true }).gte('created_at', yesterday),
       supabase.from('bookings').select('booking_ref, pickup_date, guest_name').eq('status', 'pending_approval').order('created_at').limit(5),
@@ -126,8 +126,8 @@ export async function GET(request: Request) {
       }
     }
 
-    if ((failedMessages as unknown as { count: number } | null)?.count ?? 0 > 0) {
-      lines.push(`\n🔴 Failed messages needing manual review: ${(failedMessages as unknown as { count: number }).count}`)
+    if ((failedCount ?? 0) > 0) {
+      lines.push(`\n🔴 Failed messages needing manual review: ${failedCount}`)
       lines.push(`   Check raw_messages where ai_classification = 'processing_failed'`)
     }
 

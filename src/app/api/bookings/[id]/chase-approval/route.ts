@@ -4,6 +4,7 @@ import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmail } from '@/lib/gmail/send'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { approvalLink } from '@/lib/utils/approval-token'
+import { createShortLink } from '@/lib/utils/short-link'
 import type { Company, Client } from '@/types'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -52,8 +53,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const channel = company.approval_channel || 'email'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://booking.jmstravels.net'
 
-  const approveUrl = approvalLink(appUrl, id, 'approve')
-  const rejectUrl = approvalLink(appUrl, id, 'reject')
+  const [approveUrl, rejectUrl] = await Promise.all([
+    createShortLink(approvalLink(appUrl, id, 'approve'), id),
+    createShortLink(approvalLink(appUrl, id, 'reject'), id),
+  ])
   const emailBody = `${baseBody}\n\nQuick links:\n✅ Approve: ${approveUrl}\n❌ Reject: ${rejectUrl}`
 
   const sends: Promise<unknown>[] = []
