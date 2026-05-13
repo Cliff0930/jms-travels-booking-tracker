@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
+import { notifyOperator } from '@/lib/utils/notify-operator'
+
+const CANCELLABLE_STATUSES = ['draft', 'confirmed', 'pending_approval', 'pending']
 
 export async function handleApprovalReply(
   supabase: SupabaseClient,
@@ -8,11 +11,12 @@ export async function handleApprovalReply(
   senderPhone: string | null,
   senderEmail: string | null
 ): Promise<boolean> {
-  const match = rawContent.trim().match(/^(APPROVE|CONFIRM|REJECT)\s+(BK-\d{4}-\d+)\b/i)
+  const match = rawContent.trim().match(/^(APPROVE|CONFIRM|REJECT|CANCEL)\s+(BK-\d{4}-\d+)(?:\s+(.+))?/i)
   if (!match) return false
 
   const action = match[1].toUpperCase()
   const bookingRef = match[2].toUpperCase()
+  const extraText = match[3]?.trim() || null
 
   const { data: booking } = await supabase
     .from('bookings')
@@ -20,17 +24,74 @@ export async function handleApprovalReply(
     .eq('booking_ref', bookingRef)
     .maybeSingle()
 
-  if (!booking || booking.status !== 'pending_approval') return false
+  if (!booking) return false
+
+  const senderContact = senderPhone || senderEmail || 'unknown'
+  const channel = senderPhone ? 'whatsapp' : 'email'
+
+  // ── CANCEL path ────────────────────────────────────────────────────────────
+  if (action === 'CANCEL') {
+    if (!CANCELLABLE_STATUSES.includes(booking.status)) return false
+
+    const cancelReason = extraText || 'Cancelled by client via reply message'
+
+    await supabase.from('bookings').update({
+      status: 'cancelled',
+      cancelled_reason: cancelReason,
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', booking.id)
+
+    await Promise.all([
+      supabase.from('booking_status_history').insert({
+        booking_id: booking.id,
+        old_status: booking.status,
+        new_status: 'cancelled',
+        changed_by: senderContact,
+        note: `Cancelled via ${channel} reply: ${cancelReason}`,
+      }),
+    ])
+
+    notifyOperator(
+      `❌ Booking cancelled by client\n\nRef: ${booking.booking_ref}\nBy: ${senderContact} via ${channel}\nReason: ${cancelReason}\nPrev status: ${booking.status}\n\nVerify if intentional.`
+    ).catch(() => {})
+
+    // Acknowledge the cancellation back to sender
+    if (senderEmail) {
+      const pickupDate = booking.pickup_date
+        ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+        : null
+      const body = [
+        `Hi,`,
+        ``,
+        `Your booking ${booking.booking_ref} has been cancelled as requested.`,
+        pickupDate ? `\nOriginal pickup: ${pickupDate}${booking.pickup_location ? ` from ${booking.pickup_location}` : ''}` : null,
+        ``,
+        `If this was a mistake, please contact us at 9845572207 and we will reinstate the booking.`,
+        ``,
+        `Thank you for choosing JMS Travels.`,
+      ].filter(Boolean).join('\n')
+      await sendEmail({ to: senderEmail, subject: `Booking Cancelled - ${booking.booking_ref}`, body }).catch(e => console.error('[approval-handler] cancel ack email failed for', booking.booking_ref, e))
+    }
+
+    if (senderPhone) {
+      const body = `Your booking ${booking.booking_ref} has been cancelled as requested. If this was a mistake, please call us at 9845572207. — JMS Travels`
+      await sendWhatsAppMessage({ to: senderPhone, body, log: { booking_id: booking.id } }).catch(e => console.error('[approval-handler] cancel ack WA failed for', booking.booking_ref, e))
+    }
+
+    return true
+  }
+
+  // ── APPROVE / REJECT path ──────────────────────────────────────────────────
+  if (booking.status !== 'pending_approval') return false
 
   const approved = action === 'APPROVE' || action === 'CONFIRM'
-  const approverContact = senderPhone || senderEmail || 'unknown'
-  const channel = senderPhone ? 'whatsapp' : 'email'
 
   if (approved) {
     await supabase.from('bookings').update({
       status: 'draft',
       approval_status: 'approved',
-      approved_by: approverContact,
+      approved_by: senderContact,
       approved_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', booking.id)
@@ -47,17 +108,17 @@ export async function handleApprovalReply(
   await Promise.all([
     supabase.from('approval_logs').insert({
       booking_id: booking.id,
-      approver_contact: approverContact,
+      approver_contact: senderContact,
       method: channel,
       note: approved ? 'Approved via reply message' : 'Rejected via reply message',
-      actioned_by: approverContact,
+      actioned_by: senderContact,
     }),
     supabase.from('booking_status_history').insert({
       booking_id: booking.id,
       old_status: booking.status,
       new_status: approved ? 'draft' : 'cancelled',
-      changed_by: approverContact,
-      note: approved ? `Approval received from ${approverContact}` : `Rejected by ${approverContact}`,
+      changed_by: senderContact,
+      note: approved ? `Approval received from ${senderContact}` : `Rejected by ${senderContact}`,
     }),
   ])
 
