@@ -59,13 +59,20 @@ async function processWebhook(body: unknown) {
       const contacts = value?.contacts as Array<Record<string, unknown>> | undefined
       const senderDisplayName = (contacts?.[0]?.profile as Record<string, unknown> | undefined)?.name as string | undefined
 
+      const whatsappMessageId = message.id as string | undefined
       const { data: rawMsg } = await supabase
         .from('raw_messages')
-        .insert({ channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderDisplayName, raw_content: rawContent })
+        .upsert(
+          { channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderDisplayName, raw_content: rawContent, whatsapp_message_id: whatsappMessageId },
+          { onConflict: 'whatsapp_message_id', ignoreDuplicates: true }
+        )
         .select()
         .single()
 
-      if (!rawMsg) continue
+      if (!rawMsg) {
+        console.log('[whatsapp-webhook] skipping duplicate messageId:', whatsappMessageId)
+        continue
+      }
 
       // Run approval check and client lookup in parallel
       const [handled, { data: client }] = await Promise.all([
@@ -526,6 +533,27 @@ async function createBookingFromResult(
   const flags: string[] = []
   if (result.is_guest_booking) flags.push('guest_booking')
   if (ext.booking_type === 'personal' && client.company_id) flags.push('personal_trip')
+
+  // Cross-channel duplicate guard: same client + same date + same time within 2 hours
+  if (ext.pickup_date && ext.pickup_time) {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    const { data: dupBooking } = await supabase
+      .from('bookings')
+      .select('id, booking_ref, source')
+      .eq('client_id', client.id)
+      .eq('pickup_date', ext.pickup_date)
+      .eq('pickup_time', ext.pickup_time)
+      .in('status', ['draft', 'pending', 'pending_approval'])
+      .gt('created_at', twoHoursAgo)
+      .maybeSingle()
+
+    if (dupBooking) {
+      notifyOperator(
+        `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via whatsapp from ${senderPhone}\nDate: ${ext.pickup_date} at ${ext.pickup_time}\n\nNo new booking created. Review if intentional.`
+      ).catch(() => {})
+      return null
+    }
+  }
 
   const { data: booking } = await supabase
     .from('bookings')

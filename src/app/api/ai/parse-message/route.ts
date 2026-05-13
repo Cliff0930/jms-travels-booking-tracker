@@ -183,6 +183,31 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < extraction.bookings.length; i++) {
       const bk = extraction.bookings[i]
+
+      // Cross-channel duplicate guard: same client + same date + same time within 2 hours
+      if ((client as Client)?.id && bk.extracted.pickup_date && bk.extracted.pickup_time) {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+        const { data: dupBooking } = await supabase
+          .from('bookings')
+          .select('id, booking_ref, source')
+          .eq('client_id', (client as Client).id)
+          .eq('pickup_date', bk.extracted.pickup_date)
+          .eq('pickup_time', bk.extracted.pickup_time)
+          .in('status', ['draft', 'pending', 'pending_approval'])
+          .gt('created_at', twoHoursAgo)
+          .maybeSingle()
+
+        if (dupBooking) {
+          await supabase.from('raw_messages')
+            .update({ ai_classification: 'duplicate', processed: true })
+            .eq('id', raw_message_id)
+          notifyOperator(
+            `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`
+          ).catch(() => {})
+          continue
+        }
+      }
+
       const flags: string[] = []
       if (!bk.extracted.pickup_location) flags.push('missing_pickup')
       if (!bk.extracted.pickup_date)     flags.push('missing_date')

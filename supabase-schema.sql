@@ -195,8 +195,9 @@ create table raw_messages (
   ai_missing_fields   text[],
   booking_id          uuid references bookings(id),
   processed           boolean default false,
-  gmail_message_id    text,
-  received_at         timestamptz default now()
+  gmail_message_id      text,
+  whatsapp_message_id   text,
+  received_at           timestamptz default now()
 );
 
 -- ─── MESSAGE TEMPLATES ───────────────────────────────────────
@@ -225,6 +226,7 @@ create index on message_logs(client_id);
 create index on raw_messages(sender_phone);
 create index on raw_messages(sender_email);
 create unique index on raw_messages(gmail_message_id) where gmail_message_id is not null;
+create unique index on raw_messages(whatsapp_message_id) where whatsapp_message_id is not null;
 
 -- ─── REALTIME ────────────────────────────────────────────────
 alter publication supabase_realtime add table bookings;
