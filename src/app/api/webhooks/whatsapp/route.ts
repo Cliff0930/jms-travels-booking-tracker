@@ -328,6 +328,27 @@ async function processClientMessage(
     return
   }
 
+  // ── Cost protection: per-sender rate limit ───────────────────────────────
+  // 15 messages/hour is well above any normal back-and-forth (usually 3-5 turns).
+  // Beyond that it's a loop or abuse — skip Gemini and prompt them to call.
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count: waCount } = await supabase
+    .from('raw_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('sender_phone', senderPhone)
+    .gt('received_at', oneHourAgo)
+  if ((waCount ?? 0) >= 15) {
+    await sendWhatsAppMessage({
+      to: senderPhone,
+      body: `We're receiving too many messages right now. For immediate assistance please call us at 9845572207 — our team will sort your booking right away.\n\n— JMS Travels`,
+      log: { client_id: client.id },
+    })
+    await notifyOperator(
+      `⚠️ WhatsApp rate limit hit!\n\nPhone: ${senderPhone} (${client.name}) sent 15+ messages in the last hour. Gemini call skipped.\n\nCheck if a real booking was missed.`
+    ).catch(() => {})
+    return
+  }
+
   // Run conversation LLM with full history
   const savedLocations = client.locations || []
   const result = await converseBooking(updatedMessages, client, savedLocations)

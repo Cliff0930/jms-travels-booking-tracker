@@ -70,6 +70,14 @@ export async function POST(request: Request) {
       const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value || ''
       const gmailThreadId = (msg as Record<string, unknown>).threadId as string || ''
 
+      // Skip messages older than 48 hours — protects against historyId backlog replay
+      // billing thousands of old emails through Gemini. Real missed bookings need manual recovery.
+      const msgAgeMs = Date.now() - parseInt((msg as Record<string, unknown>).internalDate as string || '0')
+      if (msgAgeMs > 48 * 60 * 60 * 1000) {
+        console.log('[gmail-webhook] skipping — message older than 48h:', messageId, 'age hours:', Math.round(msgAgeMs / 3600000))
+        continue
+      }
+
       console.log('[gmail-webhook] processing message from:', from, '| mimeType:', msg.payload?.mimeType, '| threadId:', gmailThreadId)
 
       const emailMatch = from.match(/([^\s<]+@[^\s>]+)/)

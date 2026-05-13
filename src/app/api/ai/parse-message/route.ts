@@ -110,6 +110,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, classification: 'junk' })
     }
 
+    // ── Cost protection: global circuit breaker ──────────────────────────────
+    // If 50+ messages arrived in the last 5 minutes across ALL senders, something
+    // is looping. Pause Gemini calls and alert operator immediately.
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const { count: recentTotal } = await supabase
+      .from('raw_messages')
+      .select('*', { count: 'exact', head: true })
+      .gt('received_at', fiveMinAgo)
+    if ((recentTotal ?? 0) >= 50) {
+      await supabase.from('raw_messages').update({ ai_classification: 'circuit_breaker', processed: true }).eq('id', raw_message_id)
+      notifyOperator(
+        `🔴 CIRCUIT BREAKER triggered!\n\n50+ messages received in the last 5 minutes — possible loop detected. Gemini calls paused.\n\nChannel: ${channel} | From: ${sender_email || sender_phone || 'unknown'}\n\nCheck raw_messages table immediately.`
+      ).catch(() => {})
+      return NextResponse.json({ ok: true, classification: 'circuit_breaker' })
+    }
+
+    // ── Cost protection: per-sender rate limit ───────────────────────────────
+    // If the same sender has 10+ messages processed in the last 60 minutes,
+    // they're either in a loop or hammering the system. Skip Gemini, alert operator.
+    const senderKey = sender_email || sender_phone || null
+    if (senderKey) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+      const { count: senderCount } = await supabase
+        .from('raw_messages')
+        .select('*', { count: 'exact', head: true })
+        .or(`sender_email.eq.${senderKey},sender_phone.eq.${senderKey}`)
+        .gt('received_at', oneHourAgo)
+      if ((senderCount ?? 0) >= 10) {
+        await supabase.from('raw_messages').update({ ai_classification: 'rate_limited', processed: true }).eq('id', raw_message_id)
+        notifyOperator(
+          `⚠️ Rate limit hit!\n\nSender: ${senderKey} has sent 10+ messages in the last hour on ${channel}. Gemini call skipped.\n\nCheck raw_messages if a real booking was missed.`
+        ).catch(() => {})
+        console.log('[parse-message] rate limit hit for sender:', senderKey, 'count:', senderCount)
+        return NextResponse.json({ ok: true, classification: 'rate_limited' })
+      }
+    }
+
     const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
     const result = await classifyAndExtract(message, client, savedLocations)
 
