@@ -4,9 +4,29 @@ import { verifyDriverToken } from '@/lib/utils/driver-token'
 import { sendToAll } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 
-async function getDistanceKm(origin: string, destination: string): Promise<number | null> {
+const MAPS_DAILY_LIMIT = 200
+
+function getTodayIST(): string {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+async function getDistanceKm(
+  origin: string,
+  destination: string,
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<number | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) return null
+
+  // Code-level daily cap — GCP free trial doesn't allow quota adjustment
+  const counterKey = `maps_daily_count_${getTodayIST()}`
+  const { data: counter } = await supabase.from('app_settings').select('value').eq('key', counterKey).single()
+  const currentCount = parseInt(counter?.value || '0')
+  if (currentCount >= MAPS_DAILY_LIMIT) {
+    console.warn('[maps] daily limit reached:', currentCount, '— skipping distance call')
+    return null
+  }
+
   try {
     const params = new URLSearchParams({ origins: origin, destinations: destination, key: apiKey, units: 'metric' })
     const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params}`)
@@ -15,6 +35,14 @@ async function getDistanceKm(origin: string, destination: string): Promise<numbe
     }
     const meters = data?.rows?.[0]?.elements?.[0]?.distance?.value
     if (typeof meters !== 'number') return null
+
+    // Increment counter after successful call
+    await supabase.from('app_settings').upsert({
+      key: counterKey,
+      value: String(currentCount + 1),
+      updated_at: new Date().toISOString(),
+    })
+
     return Math.round(meters / 100) / 10
   } catch {
     return null
@@ -100,10 +128,10 @@ export async function POST(request: Request) {
           const office = JSON.parse(officeSetting.value) as { address?: string }
           if (office.address) {
             if (sheet?.opening_lat && sheet?.opening_lng) {
-              officeToPickupKm = await getDistanceKm(office.address, `${sheet.opening_lat},${sheet.opening_lng}`)
+              officeToPickupKm = await getDistanceKm(office.address, `${sheet.opening_lat},${sheet.opening_lng}`, supabase)
             }
             if (lat && lng) {
-              dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, office.address)
+              dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, office.address, supabase)
             }
           }
         } catch { /* non-critical */ }
