@@ -79,7 +79,7 @@ async function processWebhook(body: unknown) {
         handleApprovalReply(supabase, rawContent, senderPhone, null),
         supabase
           .from('clients')
-          .select('*, company:companies(*), locations:client_locations(*)')
+          .select('*, company:companies!company_id(*), locations:client_locations(*)')
           .eq('primary_phone', senderPhone)
           .single(),
       ])
@@ -756,7 +756,7 @@ async function createClientFromInfo(
   // Check if client already exists (e.g. from a webhook retry or prior partial run)
   const { data: existingClient } = await supabase
     .from('clients')
-    .select('*, company:companies(*), locations:client_locations(*)')
+    .select('*, company:companies!company_id(*), locations:client_locations(*)')
     .eq('primary_phone', senderPhone)
     .single()
 
@@ -772,7 +772,7 @@ async function createClientFromInfo(
       is_verified: false,
       is_vip: false,
     })
-    .select('*, company:companies(*), locations:client_locations(*)')
+    .select('*, company:companies!company_id(*), locations:client_locations(*)')
     .single()
 
   return newClient

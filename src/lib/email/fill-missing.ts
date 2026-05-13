@@ -71,6 +71,14 @@ export async function fillMissingFromReply(
     gmail_thread_id: stillMissing.length > 0 ? threadId : null,
   }).eq('id', booking.id)
 
+  await supabase.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by: senderEmail,
+    note: stillMissing.length > 0 ? `Missing info received via email reply — still waiting for: ${stillMissing.join(', ')}` : 'All missing fields received via email reply',
+  })
+
   const clientName = (client?.name as string | undefined) || senderEmail.split('@')[0]
   const bookingRef = booking.booking_ref as string
   const emailCc = ccEmails.length > 0 ? ccEmails : undefined
@@ -87,7 +95,23 @@ export async function fillMissingFromReply(
       ``,
       `Please reply with these details and we will confirm your booking right away.`,
     ].join('\n')
-    await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading }).catch(e => console.error('[fill-missing] still-missing email failed for', bookingRef, e))
+    let sendStatus = 'failed'
+    try {
+      await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading })
+      sendStatus = 'sent'
+    } catch (e) {
+      console.error('[fill-missing] still-missing email failed for', bookingRef, e)
+    }
+    await supabase.from('message_logs').insert({
+      booking_id: booking.id,
+      client_id: client?.id || null,
+      channel: 'email',
+      direction: 'outbound',
+      recipient: senderEmail,
+      content: body,
+      template_used: 'missing_info_request',
+      status: sendStatus,
+    })
     return
   }
 

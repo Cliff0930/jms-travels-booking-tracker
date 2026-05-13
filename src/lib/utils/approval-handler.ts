@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendEmail } from '@/lib/gmail/send'
 
 export async function handleApprovalReply(
   supabase: SupabaseClient,
@@ -15,7 +16,7 @@ export async function handleApprovalReply(
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, booking_ref, status, approval_status, pickup_date, pickup_location, client:clients(name, primary_phone)')
+    .select('id, booking_ref, status, approval_status, pickup_date, pickup_location, source, client:clients!client_id(name, primary_phone, primary_email)')
     .eq('booking_ref', bookingRef)
     .maybeSingle()
 
@@ -60,13 +61,14 @@ export async function handleApprovalReply(
     }),
   ])
 
-  // Notify client on WhatsApp when approved
+  // Notify client on WhatsApp and/or email when approved
   if (approved) {
-    const client = booking.client as { name?: string; primary_phone?: string } | null
+    const client = booking.client as { name?: string; primary_phone?: string; primary_email?: string } | null
+    const pickupDate = booking.pickup_date
+      ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+      : null
+
     if (client?.primary_phone) {
-      const pickupDate = booking.pickup_date
-        ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-        : null
       const msg = [
         `Hi ${client.name}, your booking request ${booking.booking_ref} has been approved by your company.`,
         ``,
@@ -76,6 +78,20 @@ export async function handleApprovalReply(
         `Our team will confirm the final details and share your driver information shortly. Thank you for choosing JMS Travels!`,
       ].filter(Boolean).join('\n')
       await sendWhatsAppMessage({ to: client.primary_phone, body: msg, log: { booking_id: booking.id } }).catch(e => console.error('[approval-handler] WhatsApp notify failed for', booking.booking_ref, e))
+    }
+
+    if (client?.primary_email) {
+      const emailBody = [
+        `Hi ${client.name || 'there'},`,
+        ``,
+        `Your booking request ${booking.booking_ref} has been approved by your company.`,
+        ``,
+        pickupDate ? `Date    : ${pickupDate}` : null,
+        booking.pickup_location ? `Pickup  : ${booking.pickup_location}` : null,
+        ``,
+        `Our team will share your driver details once assigned. Thank you for choosing JMS Travels!`,
+      ].filter(Boolean).join('\n')
+      await sendEmail({ to: client.primary_email, subject: `Booking Approved - ${booking.booking_ref}`, body: emailBody }).catch(e => console.error('[approval-handler] email notify failed for', booking.booking_ref, e))
     }
   }
 

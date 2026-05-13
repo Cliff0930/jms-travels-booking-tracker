@@ -209,7 +209,7 @@ export async function POST(request: Request) {
 
       const { data: client } = await supabase
         .from('clients')
-        .select('*, company:companies(*), locations:client_locations(*)')
+        .select('*, company:companies!company_id(*), locations:client_locations(*)')
         .eq('primary_email', senderEmail)
         .single()
 

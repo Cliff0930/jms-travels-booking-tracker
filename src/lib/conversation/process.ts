@@ -30,7 +30,7 @@ export async function processConversationSession(
 
   const { data: client } = await supabase
     .from('clients')
-    .select('*, company:companies(*), locations:client_locations(*)')
+    .select('*, company:companies!company_id(*), locations:client_locations(*)')
     .eq('id', clientId)
     .single()
 
