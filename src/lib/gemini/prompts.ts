@@ -591,11 +591,15 @@ AIRPORT trip (any mention of airport/flight/terminal):
     Always ask for flight number and terminal in the same message as any other missing fields.
     If the client provides either one (or both), save in special_instructions.
     Neither is strictly mandatory — if client says they don't know, accept and proceed.
-    Format in special_instructions: "Airport arrival. Flight: [XX 123]. Terminal: [T2]."
+    IMPORTANT: You MUST set special_instructions before the booking can complete. Use one of:
+      - "Airport arrival. Flight: [XX 123]. Terminal: [T2]." (if flight info provided)
+      - "Airport arrival. Flight: [XX 123]." (if only flight number given)
+      - "Airport arrival. Terminal: [T2]." (if only terminal given)
+      - "Airport arrival. Flight details not provided." (if client doesn't have them)
 
   AIRPORT DROP (client is departing — being dropped TO the airport):
     Do NOT ask for flight number or terminal. Just confirm pickup, date, and time.
-    Format in special_instructions: "Airport departure."
+    IMPORTANT: Always set special_instructions to "Airport departure." so the booking can complete.
 
   Detecting arrival vs departure:
     - "pick up from airport", "arriving", "flight lands", "coming from airport" → arrival (ask flight + terminal)

@@ -69,6 +69,8 @@ function isComplete(result: ConversationResult, hasCompany: boolean): boolean {
   if (!ext.pickup_location || !ext.pickup_date || !ext.pickup_time) return false
   if (ext.trip_type === 'outstation' && (!ext.drop_location || !ext.total_days || ext.total_days < 1)) return false
   if (hasCompany && !ext.booking_type) return false
+  // Airport: Gemini must set special_instructions (arrival + flight/terminal asked, or departure confirmed)
+  if (ext.trip_type === 'airport' && !ext.special_instructions) return false
   return true
 }
 
