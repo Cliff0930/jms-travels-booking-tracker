@@ -59,6 +59,7 @@ async function processWebhook(body: unknown) {
       const contacts = value?.contacts as Array<Record<string, unknown>> | undefined
       const senderDisplayName = (contacts?.[0]?.profile as Record<string, unknown> | undefined)?.name as string | undefined
 
+      let rawMsgId: string | undefined
       try {
       const whatsappMessageId = message.id as string | undefined
       const { data: insertedMsg, error: upsertError } = await supabase
@@ -91,6 +92,7 @@ async function processWebhook(body: unknown) {
         console.log('[whatsapp-webhook] retrying unprocessed duplicate messageId:', whatsappMessageId)
         rawMsg = existingMsg as typeof rawMsg
       }
+      rawMsgId = rawMsg?.id
 
       // Run approval check and client lookup in parallel
       const [handled, { data: client }] = await Promise.all([
@@ -146,6 +148,12 @@ async function processWebhook(body: unknown) {
       }
       } catch (msgErr) {
         console.error('[whatsapp-webhook] per-message error for', senderPhone, msgErr)
+        if (rawMsgId) {
+          await supabase.from('raw_messages')
+            .update({ ai_classification: 'processing_failed' })
+            .eq('id', rawMsgId)
+            .catch(() => {})
+        }
         await notifyOperator(`🔴 WhatsApp webhook error!\n\nFrom: ${senderPhone}\nError: ${String(msgErr).slice(0, 300)}\n\nCheck Vercel logs.`).catch(() => {})
         await sendWhatsAppMessage({
           to: senderPhone,
@@ -395,7 +403,7 @@ async function processClientMessage(
 
   await supabase
     .from('raw_messages')
-    .update({ ai_classification: result.intent, processed: true })
+    .update({ ai_classification: result.intent, processed: true, processed_at: new Date().toISOString() })
     .eq('id', rawMsgId)
 
   // Enquiry or other
@@ -731,7 +739,7 @@ async function handleOnboardingReply(
   // current reply) — prevents stale records from re-triggering onboarding on next message
   await supabase
     .from('raw_messages')
-    .update({ ai_classification: 'onboarding_complete', processed: true })
+    .update({ ai_classification: 'onboarding_complete', processed: true, processed_at: new Date().toISOString() })
     .eq('sender_phone', senderPhone)
     .in('ai_classification', ['awaiting_client_info', 'onboarding_complete'])
 

@@ -140,7 +140,7 @@ export async function processConversationSession(
 
     await supabase
       .from('raw_messages')
-      .update({ booking_id: booking.id, processed: true, ai_classification: 'booking' })
+      .update({ booking_id: booking.id, processed: true, processed_at: new Date().toISOString(), ai_classification: 'booking' })
       .eq('sender_phone', phone)
       .is('booking_id', null)
 

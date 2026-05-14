@@ -127,11 +127,13 @@ export async function GET(request: Request) {
       { data: pendingApprovals },
       { data: unassignedToday },
       { count: failedCount },
+      { count: recentMsgCount },
     ] = await Promise.all([
       supabase.from('bookings').select('id', { count: 'exact', head: true }).gte('created_at', yesterday),
       supabase.from('bookings').select('booking_ref, pickup_date, guest_name').eq('status', 'pending_approval').order('created_at').limit(5),
       supabase.from('bookings').select('booking_ref, pickup_date, pickup_time, guest_name').eq('status', 'confirmed').is('driver_id', null).in('pickup_date', [today, tomorrow]).order('pickup_date').limit(10),
       supabase.from('raw_messages').select('id', { count: 'exact', head: true }).eq('ai_classification', 'processing_failed').eq('processed', false),
+      supabase.from('raw_messages').select('id', { count: 'exact', head: true }).gte('received_at', yesterday),
     ])
 
     const lines: string[] = [`☀️ Good morning — CabFlow Daily Summary`]
@@ -158,6 +160,7 @@ export async function GET(request: Request) {
       lines.push(`   Check raw_messages where ai_classification = 'processing_failed'`)
     }
 
+    if ((recentMsgCount ?? 0) === 0) lines.push(`\n🚨 No messages received in 24h — WhatsApp/Gmail webhooks may be broken!`)
     if (!wabaSubOk) lines.push(`\n🔴 WhatsApp re-subscription FAILED — webhook delivery may be broken!`)
     if (!renewalOk) lines.push(`\n⚠️ Gmail watch renewal FAILED — see earlier alert.`)
 

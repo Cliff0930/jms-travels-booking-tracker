@@ -106,7 +106,7 @@ export async function POST(request: Request) {
   try {
     // Free regex pre-filter before Gemini — catches auto-replies, bank alerts, newsletters
     if (channel === 'email' && isObviousJunk(message, sender_email)) {
-      await supabase.from('raw_messages').update({ ai_classification: 'junk', processed: true }).eq('id', raw_message_id)
+      await supabase.from('raw_messages').update({ ai_classification: 'junk', processed: true, processed_at: new Date().toISOString() }).eq('id', raw_message_id)
       return NextResponse.json({ ok: true, classification: 'junk' })
     }
 
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       .select('*', { count: 'exact', head: true })
       .gt('received_at', fiveMinAgo)
     if ((recentTotal ?? 0) >= 50) {
-      await supabase.from('raw_messages').update({ ai_classification: 'circuit_breaker', processed: true }).eq('id', raw_message_id)
+      await supabase.from('raw_messages').update({ ai_classification: 'circuit_breaker', processed: true, processed_at: new Date().toISOString() }).eq('id', raw_message_id)
       notifyOperator(
         `🔴 CIRCUIT BREAKER triggered!\n\n50+ messages received in the last 5 minutes — possible loop detected. Gemini calls paused.\n\nChannel: ${channel} | From: ${sender_email || sender_phone || 'unknown'}\n\nCheck raw_messages table immediately.`
       ).catch(() => {})
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         .or(`sender_email.eq.${senderKey},sender_phone.eq.${senderKey}`)
         .gt('received_at', oneHourAgo)
       if ((senderCount ?? 0) >= 10) {
-        await supabase.from('raw_messages').update({ ai_classification: 'rate_limited', processed: true }).eq('id', raw_message_id)
+        await supabase.from('raw_messages').update({ ai_classification: 'rate_limited', processed: true, processed_at: new Date().toISOString() }).eq('id', raw_message_id)
         notifyOperator(
           `⚠️ Rate limit hit!\n\nSender: ${senderKey} has sent 10+ messages in the last hour on ${channel}. Gemini call skipped.\n\nCheck raw_messages if a real booking was missed.`,
           'ops'
@@ -153,7 +153,7 @@ export async function POST(request: Request) {
 
     await supabase
       .from('raw_messages')
-      .update({ ai_classification: result.classification, ai_confidence: result.confidence, processed: true })
+      .update({ ai_classification: result.classification, ai_confidence: result.confidence, processed: true, processed_at: new Date().toISOString() })
       .eq('id', raw_message_id)
 
     if (result.classification === 'junk') {
@@ -237,7 +237,7 @@ export async function POST(request: Request) {
 
         if (dupBooking) {
           await supabase.from('raw_messages')
-            .update({ ai_classification: 'duplicate', processed: true })
+            .update({ ai_classification: 'duplicate', processed: true, processed_at: new Date().toISOString() })
             .eq('id', raw_message_id)
           notifyOperator(
             `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,

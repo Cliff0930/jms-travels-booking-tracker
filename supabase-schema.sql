@@ -195,6 +195,7 @@ create table raw_messages (
   ai_missing_fields   text[],
   booking_id          uuid references bookings(id),
   processed           boolean default false,
+  processed_at        timestamptz,
   gmail_message_id      text,
   whatsapp_message_id   text,
   received_at           timestamptz default now()
