@@ -440,6 +440,41 @@ export async function handleClientChange(
     return { reply: confirmLines, pendingAction: confirmPending }
   }
 
+  // Modifications with specific changes — ask for confirmation before applying
+  if (modReq?.changes?.length) {
+    const changesSummary = modReq.changes
+      .map(c => `${FIELD_LABELS[c.field] ?? c.field}: *${fmtValue(c.field, (booking as Record<string, unknown>)[c.field] as string ?? '?')}* → *${fmtValue(c.field, c.new_value)}*`)
+      .join('\n')
+    const confirmLines = [
+      `I'll update booking *${booking.booking_ref}* with the following change${modReq.changes.length > 1 ? 's' : ''}:`,
+      ``,
+      changesSummary,
+      ``,
+      `Reply *YES* to confirm or *NO* to cancel.`,
+    ].join('\n')
+    const confirmPending: PendingAction = {
+      intent: 'modify_request',
+      modification_request: modReq,
+      cancel_reason: null,
+      confirmation_pending: true,
+      bookings: [{
+        id: booking.id,
+        booking_ref: booking.booking_ref,
+        guest_name: (booking.guest_name as string | null) ?? null,
+        pickup_date: (booking.pickup_date as string | null) ?? null,
+        pickup_time: (booking.pickup_time as string | null) ?? null,
+        pickup_location: (booking.pickup_location as string | null) ?? null,
+        drop_location: (booking.drop_location as string | null) ?? null,
+        trip_type: (booking.trip_type as string | null) ?? null,
+        total_days: (booking.total_days as number | null) ?? null,
+        driver_id: (booking.driver_id as string | null) ?? null,
+        status: booking.status as string,
+      }],
+    }
+    return { reply: confirmLines, pendingAction: confirmPending }
+  }
+
+  // No specific changes extracted — ask what they want to change
   const reply = await performModify(supabase, client, senderPhone, booking, modReq, result.next_question)
   return { reply, pendingAction: null }
 }
@@ -454,26 +489,29 @@ export async function handleDisambiguationReply(
   const text = rawText.toLowerCase().trim()
   const { bookings } = pendingAction
 
-  // Confirmation flow: YES/NO response to "Are you sure you want to cancel?"
-  if (pendingAction.confirmation_pending && pendingAction.intent === 'cancel_request' && bookings.length === 1) {
+  // Confirmation flow: YES/NO response to cancel or modify confirmation
+  if (pendingAction.confirmation_pending && bookings.length === 1) {
     const isYes = /^(yes|confirm|ok|okay|proceed|sure|yep|yeah|cancel it|go ahead|do it)\b/i.test(text)
     const isNo = /^(no|nope|don't|do not|keep|stop|never mind|leave it|abort)\b/i.test(text)
+    const isCancelConfirm = pendingAction.intent === 'cancel_request'
 
     if (isNo) {
       return {
-        reply: `No problem! Your booking ${bookings[0].booking_ref} is still active. Let us know if you need anything else.`,
+        reply: isCancelConfirm
+          ? `No problem! Your booking ${bookings[0].booking_ref} is still active. Let us know if you need anything else.`
+          : `No problem! No changes made to booking ${bookings[0].booking_ref}.`,
         resolved: true,
       }
     }
 
     if (!isYes) {
       return {
-        reply: `Please reply *YES* to confirm cancellation of ${bookings[0].booking_ref} or *NO* to keep the booking.`,
+        reply: `Please reply *YES* to confirm or *NO* to cancel the ${isCancelConfirm ? 'cancellation' : 'change'}.`,
         resolved: false,
       }
     }
 
-    // Client confirmed — re-fetch with driver info and cancel
+    // Client confirmed — re-fetch with driver info and perform action
     const { data: fullBooking } = await supabase
       .from('bookings')
       .select('*, driver:drivers(name, phone, vehicle_name, vehicle_number)')
@@ -484,7 +522,12 @@ export async function handleDisambiguationReply(
       return { reply: `That booking could not be found. Please call us at 9845572207.`, resolved: true }
     }
 
-    const reply = await performCancel(supabase, client, senderPhone, fullBooking as FullBooking, pendingAction.cancel_reason)
+    if (isCancelConfirm) {
+      const reply = await performCancel(supabase, client, senderPhone, fullBooking as FullBooking, pendingAction.cancel_reason)
+      return { reply, resolved: true }
+    }
+
+    const reply = await performModify(supabase, client, senderPhone, fullBooking as FullBooking, pendingAction.modification_request, null)
     return { reply, resolved: true }
   }
 
@@ -670,6 +713,41 @@ export async function handleDisambiguationReply(
       intent: 'cancel_request',
       modification_request: null,
       cancel_reason: pendingAction.cancel_reason,
+      confirmation_pending: true,
+      bookings: [{
+        id: fb.id,
+        booking_ref: fb.booking_ref,
+        guest_name: (fb.guest_name as string | null) ?? null,
+        pickup_date: (fb.pickup_date as string | null) ?? null,
+        pickup_time: (fb.pickup_time as string | null) ?? null,
+        pickup_location: (fb.pickup_location as string | null) ?? null,
+        drop_location: (fb.drop_location as string | null) ?? null,
+        trip_type: (fb.trip_type as string | null) ?? null,
+        total_days: (fb.total_days as number | null) ?? null,
+        driver_id: (fb.driver_id as string | null) ?? null,
+        status: fb.status as string,
+      }],
+    }
+    return { reply: confirmLines, resolved: false, nextPendingAction: confirmPending }
+  }
+
+  // Modifications with specific changes — ask for confirmation before applying
+  const modReqDisamb = pendingAction.modification_request
+  if (modReqDisamb?.changes?.length) {
+    const changesSummary = modReqDisamb.changes
+      .map(c => `${FIELD_LABELS[c.field] ?? c.field}: *${fmtValue(c.field, (fb as Record<string, unknown>)[c.field] as string ?? '?')}* → *${fmtValue(c.field, c.new_value)}*`)
+      .join('\n')
+    const confirmLines = [
+      `I'll update booking *${fb.booking_ref}* with the following change${modReqDisamb.changes.length > 1 ? 's' : ''}:`,
+      ``,
+      changesSummary,
+      ``,
+      `Reply *YES* to confirm or *NO* to cancel.`,
+    ].join('\n')
+    const confirmPending: PendingAction = {
+      intent: 'modify_request',
+      modification_request: modReqDisamb,
+      cancel_reason: null,
       confirmation_pending: true,
       bookings: [{
         id: fb.id,
