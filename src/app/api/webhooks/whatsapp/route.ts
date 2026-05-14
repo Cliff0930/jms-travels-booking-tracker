@@ -235,7 +235,9 @@ async function processClientMessage(
             body: `Got it, noted ${addressText} for booking ${recentBooking.booking_ref}.`,
             log: { client_id: client.id },
           })
-        } else if (mapsUrl || (addressText.length > 10 && !isQuestionOrAction)) {
+          return
+        }
+        if (mapsUrl || (addressText.length > 10 && !isQuestionOrAction)) {
           // Actual address or maps link — update pickup_location
           const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
           await supabase
@@ -247,15 +249,18 @@ async function processClientMessage(
             body: `Thanks! The pickup address for booking ${recentBooking.booking_ref} has been updated.`,
             log: { client_id: client.id },
           })
-        } else {
-          // Short pointer/confirmation ("Location 👆 check this") — just acknowledge
+          return
+        }
+        if (UP_POINTER.test(rawContent)) {
+          // Explicit pointer emoji/phrase with no long address — just acknowledge
           await sendWhatsAppMessage({
             to: senderPhone,
             body: `Got it, location noted for booking ${recentBooking.booking_ref}.`,
             log: { client_id: client.id },
           })
+          return
         }
-        return
+        // No pointer, no address (e.g. "Hi", "Thanks", "OK") — fall through to post-booking handler
       }
     }
 
@@ -348,8 +353,13 @@ async function processClientMessage(
         last_message_at: new Date().toISOString(),
       }).eq('id', session.id)
     } else {
-      const attemptCount = (pendingAction.attempt_count ?? 0) + 1
-      if (attemptCount >= 2) {
+      // Skip the attempt counter when awaiting a YES/NO confirmation — only unresolvable
+      // disambiguation burns attempts
+      const isConfirmationPending = !!pendingAction.confirmation_pending
+      const attemptCount = isConfirmationPending
+        ? (pendingAction.attempt_count ?? 0)
+        : (pendingAction.attempt_count ?? 0) + 1
+      if (!isConfirmationPending && attemptCount >= 2) {
         await sendWhatsAppMessage({
           to: senderPhone,
           body: `We're sorry we couldn't resolve your query over chat. For immediate assistance, please call us at 9845572207 — our team will be happy to assist you directly.\n\n— JMS Travels`,
@@ -358,15 +368,17 @@ async function processClientMessage(
         await supabase.from('conversation_sessions').delete().eq('id', session.id)
       } else {
         await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
-        // Refresh the bookings list from DB so next attempt reflects latest bookings
+        // Refresh bookings — same ordering and date filter as handleClientChange
+        const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
         const { data: freshBookings } = await supabase
           .from('bookings')
           .select('id, booking_ref, guest_name, pickup_date, pickup_time, pickup_location, drop_location, trip_type, total_days, driver_id, status')
           .eq('client_id', client.id)
           .not('status', 'in', '("completed","cancelled")')
-          .order('pickup_date', { ascending: false })
-          .order('pickup_time', { ascending: false })
-          .limit(5)
+          .or(`pickup_date.is.null,pickup_date.gte.${todayIST}`)
+          .order('pickup_date', { ascending: true, nullsFirst: false })
+          .order('pickup_time', { ascending: true, nullsFirst: false })
+          .limit(10)
         const updatedAction: PendingAction = {
           ...pendingAction,
           attempt_count: attemptCount,
@@ -460,6 +472,19 @@ async function processClientMessage(
 
   // Enquiry or other
   if (result.intent === 'enquiry') {
+    const sessionMsgsEnq = session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>
+    // Mid-booking: answer the pricing question but keep the session alive
+    if (sessionMsgsEnq.length > 0) {
+      const lastAgentMsgEnq = [...sessionMsgsEnq].reverse().find(m => m.role === 'agent')
+      const reaskEnq = lastAgentMsgEnq?.content ?? 'Could you share your pickup location, date, and time?'
+      await sendWhatsAppMessage({
+        to: senderPhone,
+        body: `For rates and pricing, please call us at 9845572207.\n\n${reaskEnq}`,
+        log: { client_id: client.id },
+      })
+      await supabase.from('conversation_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', session.id)
+      return
+    }
     await sendWhatsAppMessage({
       to: senderPhone,
       body: 'For rates and pricing information, please call us at 9845572207. We are happy to help!',
@@ -497,6 +522,15 @@ async function processClientMessage(
   }
 
   if (result.intent === 'other') {
+    const sessionMessages = session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>
+    // Mid-booking: re-ask the last question instead of counting against the client
+    if (sessionMessages.length > 0) {
+      const lastAgentMsg = [...sessionMessages].reverse().find(m => m.role === 'agent')
+      const reask = lastAgentMsg?.content ?? 'Could you share your pickup location, date, and time?'
+      await sendWhatsAppMessage({ to: senderPhone, body: reask, log: { client_id: client.id } })
+      await supabase.from('conversation_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', session.id)
+      return
+    }
     const extracted = (session.extracted as Record<string, unknown>) ?? {}
     const otherCount = ((extracted.other_count as number) ?? 0) + 1
     if (otherCount >= 2) {
@@ -779,7 +813,7 @@ async function handleOnboardingReply(
   senderPhone: string,
   senderName: string | undefined,
   replyText: string,
-  _rawMsgId: string,
+  rawMsgId: string,
 ) {
   const clientInfo = await extractClientInfo(replyText)
   const resolvedName = clientInfo.name || senderName || 'Unknown'
@@ -795,14 +829,9 @@ async function handleOnboardingReply(
     .eq('sender_phone', senderPhone)
     .in('ai_classification', ['awaiting_client_info', 'onboarding_complete'])
 
-  const companyLine =
-    clientInfo.company_name && !clientInfo.is_personal ? ` (${clientInfo.company_name})` : ''
-
-  await sendWhatsAppMessage({
-    to: senderPhone,
-    body: `Thanks, ${resolvedName}${companyLine}! Your profile is set up. What cab do you need?`,
-    log: {},
-  })
+  // Process as a booking message — handles the common case where the client included
+  // booking details in their identity reply (or the original first message had details)
+  await processClientMessage(supabase, newClient, senderPhone, replyText, rawMsgId)
 }
 
 async function createClientFromInfo(

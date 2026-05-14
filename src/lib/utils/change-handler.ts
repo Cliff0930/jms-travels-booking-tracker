@@ -491,8 +491,8 @@ export async function handleDisambiguationReply(
 
   // Confirmation flow: YES/NO response to cancel or modify confirmation
   if (pendingAction.confirmation_pending && bookings.length === 1) {
-    const isYes = /^(yes|confirm|ok|okay|proceed|sure|yep|yeah|cancel it|go ahead|do it)\b/i.test(text)
-    const isNo = /^(no|nope|don't|do not|keep|stop|never mind|leave it|abort)\b/i.test(text)
+    const isYes = /^(yes|confirm|ok|okay|proceed|sure|yep|yup|yeah|right|correct|absolutely|sounds good|perfect|cancel it|go ahead|do it)\b/i.test(text)
+    const isNo = /^(no|nope|don't|do not|keep|stop|never mind|leave it|abort|cancel that|skip it)\b/i.test(text)
     const isCancelConfirm = pendingAction.intent === 'cancel_request'
 
     if (isNo) {
