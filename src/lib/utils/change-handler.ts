@@ -336,7 +336,7 @@ export async function handleClientChange(
   // Still ambiguous — ask client to choose
   if (!booking) {
     const list = buildBookingList(
-      allBookings.slice(0, 5).map(b => ({
+      allBookings.map(b => ({
         id: b.id,
         booking_ref: b.booking_ref,
         guest_name: b.guest_name ?? null,
@@ -356,14 +356,14 @@ export async function handleClientChange(
       ``,
       list,
       ``,
-      `Reply with the number (1, 2, 3) or booking reference (e.g. ${allBookings[0].booking_ref}).`,
+      `Reply with a number or booking reference (e.g. ${allBookings[0].booking_ref}).`,
     ].join('\n')
 
     const pendingAction: PendingAction = {
       intent: result.intent as 'cancel_request' | 'modify_request',
       modification_request: modReq,
       cancel_reason: result.cancel_reason,
-      bookings: allBookings.slice(0, 5).map(b => ({
+      bookings: allBookings.map(b => ({
         id: b.id,
         booking_ref: b.booking_ref,
         guest_name: b.guest_name ?? null,
