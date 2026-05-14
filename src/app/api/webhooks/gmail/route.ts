@@ -100,6 +100,15 @@ export async function POST(request: Request) {
       }).filter(Boolean) : []
       const replyToEmails = replyTo ? replyTo.split(',').map(e => e.trim()).filter(Boolean) : []
 
+      // Extract extra To recipients (beyond our own address) and merge with CC
+      // so all parties on the original email receive our reply
+      const toHeader = headers.find(h => h.name === 'To')?.value || ''
+      const extraToEmails = toHeader ? toHeader.split(',').map(e => e.trim()).filter(e => {
+        const m = e.match(/([^\s<]+@[^\s>]+)/)
+        return m ? m[1].toLowerCase() !== ownEmailLower : e.toLowerCase() !== ownEmailLower
+      }).filter(Boolean) : []
+      const allCcEmails = [...ccEmails, ...extraToEmails]
+
       function extractPlainText(payload: typeof msg.payload): string {
         if (!payload) return ''
         if (payload.mimeType === 'text/plain' && payload.body?.data) {
@@ -143,7 +152,10 @@ export async function POST(request: Request) {
       if (handled) continue
 
       // Check if this email is a reply to an existing draft booking awaiting missing info
-      if (gmailThreadId) {
+      // Skip fill-missing if the email looks like a cancel/modify — let full AI processing handle it
+      const isCancelOrModify = /\b(cancel|called off|not required|not needed|reschedule|postpone|modify|change the|update (the )?booking)\b/i.test(rawContent)
+
+      if (gmailThreadId && !isCancelOrModify) {
         const { data: draftBooking } = await supabase
           .from('bookings')
           .select('*, client:clients!client_id(*, locations:client_locations(*))')
@@ -153,7 +165,7 @@ export async function POST(request: Request) {
 
         if (draftBooking) {
           console.log('[gmail-webhook] reply matched draft booking:', draftBooking.booking_ref)
-          await fillMissingFromReply(supabase, draftBooking, rawContent, senderEmail, ccEmails, gmailThreadId, rfcMessageId)
+          await fillMissingFromReply(supabase, draftBooking, rawContent, senderEmail, allCcEmails, gmailThreadId, rfcMessageId)
           continue
         }
       }
@@ -194,7 +206,7 @@ export async function POST(request: Request) {
           channel: 'email',
           sender_email: senderEmail,
           sender_name: senderName,
-          cc_emails: ccEmails,
+          cc_emails: allCcEmails,
           reply_to_emails: replyToEmails,
           raw_content: rawContent,
           gmail_message_id: messageId,
@@ -231,7 +243,7 @@ export async function POST(request: Request) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: ccEmails, gmail_thread_id: gmailThreadId || null, original_message_id: rfcMessageId || null, skip_auto_reply: false, skip_approval: skipApproval }),
+        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: allCcEmails, gmail_thread_id: gmailThreadId || null, original_message_id: rfcMessageId || null, skip_auto_reply: false, skip_approval: skipApproval }),
       })
     }
   } catch (err) {

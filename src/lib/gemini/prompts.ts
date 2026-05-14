@@ -263,6 +263,8 @@ STEP 1 — CLASSIFY the message into EXACTLY one of:
 - "enquiry" — asking about rates, availability, or services with no booking intent
 - "junk" — promotional, OTP, newsletter, delivery notification, spam, unrelated
 - "unclassified" — cannot determine intent
+- "cancel_request" — the sender clearly wants to cancel an existing booking (keywords: cancel, called off, not required, not needed, won't need, no longer require, please withdraw, trip cancelled, don't proceed, scratch that)
+- "modify_request" — the sender wants to change a detail of an existing booking (keywords: change the time/date, reschedule, postpone, update, modify, different date, push to, earlier/later time, shift the booking)
 
 Classification rules:
 - A message is "booking" if it contains any intent to travel, even if incomplete
@@ -270,6 +272,8 @@ Classification rules:
 - Short messages like "need cab tomorrow" or "book karo" are bookings
 - "What is your rate?" is an enquiry, not a booking
 - WhatsApp forwards, OTPs, bank alerts are always junk
+- If the message contains BOTH a cancel/modify intent AND new booking details for a different trip → classify as "booking" (new booking takes priority)
+- If the message is ONLY about cancelling or changing an existing booking with no new trip → classify as cancel_request or modify_request
 
 STEP 2 — EXTRACT booking details (ONLY when classification = "booking")
 If classification is NOT "booking", set bookings = [], resolved_keywords = {}, new_keyword_detected = null and stop.
@@ -335,11 +339,29 @@ Multi-line addresses should be concatenated into a single pickup_location or dro
 "Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
 Text and URL run together without a space (e.g. "Thank youhttps://maps...") → separate them; the URL belongs to the location field it was sent alongside.
 
+For "cancel_request":
+- Set bookings = [] — do NOT create a new booking
+- target_booking_ref: booking reference if mentioned (e.g. "BK-2026-1234"), otherwise null
+- cancel_reason: the stated reason, otherwise null
+
+For "modify_request":
+- Set bookings = [] — do NOT create a new booking
+- target_booking_ref: booking reference if mentioned, otherwise null
+- modification_request.changes: array of changes [{field, new_value}]
+  Fields: pickup_time (HH:MM 24h), pickup_date (YYYY-MM-DD), pickup_location, drop_location, pax_count (digits), vehicle_type, special_instructions
+- modification_request.booking_ref: same as target_booking_ref
+
 Respond with ONLY a JSON object, no other text:
 {
-  "classification": "booking|enquiry|junk|unclassified",
+  "classification": "booking|enquiry|junk|unclassified|cancel_request|modify_request",
   "confidence": 0.0 to 1.0,
   "reason": "one sentence explanation",
+  "target_booking_ref": "BK-XXXX or null",
+  "cancel_reason": "text or null",
+  "modification_request": {
+    "changes": [{"field": "pickup_time|pickup_date|pickup_location|drop_location|pax_count|vehicle_type|special_instructions", "new_value": "resolved value"}],
+    "booking_ref": "BK-XXXX or null"
+  },
   "bookings": [
     {
       "extracted": {

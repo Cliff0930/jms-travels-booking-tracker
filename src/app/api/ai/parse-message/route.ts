@@ -6,6 +6,7 @@ import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
+import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
 import type { Client, ClientLocation } from '@/types'
 
 // Fast regex pre-filter — skips Gemini for obvious system/automated emails
@@ -98,6 +99,44 @@ async function logOutbound(
   })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findBookingForCancelModify(
+  supabase: ReturnType<typeof createAdminClient>,
+  clientId: string | null,
+  targetRef: string | null,
+  gmailThreadId: string | null,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ booking: Record<string, any> | null; found: 'ref' | 'thread' | 'single' | null }> {
+  if (targetRef) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('*, driver:drivers!driver_id(name, phone)')
+      .eq('booking_ref', targetRef)
+      .not('status', 'in', '("completed","cancelled")')
+      .maybeSingle()
+    if (data) return { booking: data, found: 'ref' }
+  }
+  if (gmailThreadId) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('*, driver:drivers!driver_id(name, phone)')
+      .eq('gmail_thread_id', gmailThreadId)
+      .not('status', 'in', '("completed","cancelled")')
+      .maybeSingle()
+    if (data) return { booking: data, found: 'thread' }
+  }
+  if (clientId) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('*, driver:drivers!driver_id(name, phone)')
+      .eq('client_id', clientId)
+      .not('status', 'in', '("completed","cancelled")')
+      .limit(2)
+    if (data?.length === 1) return { booking: data[0], found: 'single' }
+  }
+  return { booking: null, found: null }
+}
+
 export async function POST(request: Request) {
   const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, gmail_thread_id, original_message_id, skip_auto_reply, skip_approval } = await request.json()
   let client = clientFromReq
@@ -169,6 +208,58 @@ export async function POST(request: Request) {
         await sendWhatsAppMessage({ to: replyTo, body: reply })
       }
       return NextResponse.json({ ok: true, classification: result.classification })
+    }
+
+    if (result.classification === 'cancel_request' || result.classification === 'modify_request') {
+      if (channel !== 'email' || !sender_email) {
+        return NextResponse.json({ ok: true, classification: result.classification })
+      }
+      const threading = {
+        replyToThreadId: gmail_thread_id || undefined,
+        inReplyToMessageId: original_message_id || undefined,
+      }
+      const ccForReply = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails as string[] : undefined
+      const clientName = (client as Client)?.name || sender_name || 'there'
+
+      const { booking } = await findBookingForCancelModify(
+        supabase,
+        (client as Client)?.id ?? null,
+        result.target_booking_ref,
+        gmail_thread_id || null,
+      )
+
+      if (booking) {
+        await supabase.from('raw_messages').update({ booking_id: booking.id as string }).eq('id', raw_message_id)
+      }
+
+      if (!booking) {
+        const subjPrefix = result.classification === 'cancel_request' ? 'Cancellation request' : 'Change request'
+        await sendEmail({
+          to: sender_email,
+          subject: `${subjPrefix} — booking reference needed`,
+          cc: ccForReply,
+          ...threading,
+          body: [
+            `Hi ${clientName},`,
+            ``,
+            result.classification === 'cancel_request'
+              ? `We received your cancellation request but could not identify which booking you'd like to cancel.`
+              : `We received your change request but could not identify which booking you'd like to modify.`,
+            ``,
+            `Please reply with your booking reference (e.g. BK-1234) and we will process it right away.`,
+            ``,
+            `JMS Travels Team`,
+          ].join('\n'),
+        }).catch(() => {})
+        return NextResponse.json({ ok: true, classification: result.classification })
+      }
+
+      if (result.classification === 'cancel_request') {
+        await handleEmailCancel(supabase, booking, clientName, sender_email, ccForReply, result.cancel_reason, threading)
+      } else {
+        await handleEmailModify(supabase, booking, clientName, sender_email, ccForReply, result.modification_request, threading, getTodayIST())
+      }
+      return NextResponse.json({ ok: true, classification: result.classification, booking_id: booking.id as string })
     }
 
     // Booking flow
@@ -265,7 +356,7 @@ export async function POST(request: Request) {
           requested_by: sender_email || sender_phone || null,
           flags,
           cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
-          gmail_thread_id: (channel === 'email' && allMissing.length > 0 && gmail_thread_id) ? gmail_thread_id : null,
+          gmail_thread_id: (channel === 'email' && gmail_thread_id) ? gmail_thread_id : null,
           pickup_location: bk.extracted.pickup_location,
           drop_location: bk.extracted.drop_location,
           pickup_date: bk.extracted.pickup_date,

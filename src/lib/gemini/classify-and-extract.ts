@@ -3,9 +3,17 @@ import { CLASSIFY_AND_EXTRACT_PROMPT } from './prompts'
 import type { ExtractedBooking, ExtractionResult } from './extract'
 import type { Client, ClientLocation } from '@/types'
 
+export interface EmailModificationChange {
+  field: 'pickup_time' | 'pickup_date' | 'pickup_location' | 'drop_location' | 'pax_count' | 'vehicle_type' | 'special_instructions'
+  new_value: string
+}
+
 export interface ClassifyAndExtractResult extends ExtractionResult {
-  classification: 'booking' | 'enquiry' | 'junk' | 'unclassified'
+  classification: 'booking' | 'enquiry' | 'junk' | 'unclassified' | 'cancel_request' | 'modify_request'
   reason: string
+  target_booking_ref: string | null
+  cancel_reason: string | null
+  modification_request: { changes: EmailModificationChange[]; booking_ref: string | null } | null
 }
 
 function getTodayIST(): string {
@@ -25,7 +33,7 @@ const SAFE_EMPTY_BOOKING: ExtractedBooking = {
 }
 
 function safeNonBookingResult(classification: ClassifyAndExtractResult['classification'], reason: string): ClassifyAndExtractResult {
-  return { classification, confidence: 0.9, reason, bookings: [], resolved_keywords: {}, new_keyword_detected: null }
+  return { classification, confidence: 0.9, reason, bookings: [], resolved_keywords: {}, new_keyword_detected: null, target_booking_ref: null, cancel_reason: null, modification_request: null }
 }
 
 export async function classifyAndExtract(
@@ -57,11 +65,20 @@ export async function classifyAndExtract(
     return safeNonBookingResult('unclassified', 'invalid JSON from model')
   }
 
-  const validClasses = ['booking', 'enquiry', 'junk', 'unclassified']
+  const validClasses = ['booking', 'enquiry', 'junk', 'unclassified', 'cancel_request', 'modify_request']
   const classification = parsed.classification as string
   if (!validClasses.includes(classification)) {
     console.error('[classify-and-extract] unexpected classification:', classification)
     return safeNonBookingResult('unclassified', 'unexpected classification value')
+  }
+
+  if (classification === 'cancel_request' || classification === 'modify_request') {
+    return {
+      ...safeNonBookingResult(classification, (parsed.reason as string) ?? ''),
+      target_booking_ref: (parsed.target_booking_ref as string | null) ?? null,
+      cancel_reason: (parsed.cancel_reason as string | null) ?? null,
+      modification_request: (parsed.modification_request as { changes: EmailModificationChange[]; booking_ref: string | null } | null) ?? null,
+    }
   }
 
   if (classification !== 'booking') {
@@ -90,5 +107,8 @@ export async function classifyAndExtract(
     bookings,
     resolved_keywords: (parsed.resolved_keywords as Record<string, string>) ?? {},
     new_keyword_detected: (parsed.new_keyword_detected as string | null) ?? null,
+    target_booking_ref: null,
+    cancel_reason: null,
+    modification_request: null,
   }
 }
