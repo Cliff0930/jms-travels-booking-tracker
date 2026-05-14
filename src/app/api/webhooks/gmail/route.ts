@@ -188,7 +188,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const { data: rawMsg, error: insertError } = await supabase
+      const { data: insertedMsg } = await supabase
         .from('raw_messages')
         .upsert({
           channel: 'email',
@@ -202,9 +202,20 @@ export async function POST(request: Request) {
         .select()
         .single()
 
+      let rawMsg = insertedMsg
       if (!rawMsg) {
-        if (insertError) console.log('[gmail-webhook] skipping duplicate messageId:', messageId)
-        continue
+        const { data: existingMsg } = await supabase
+          .from('raw_messages')
+          .select('id, processed')
+          .eq('gmail_message_id', messageId)
+          .single()
+
+        if (!existingMsg || existingMsg.processed) {
+          console.log('[gmail-webhook] skipping duplicate messageId (already processed):', messageId)
+          continue
+        }
+        console.log('[gmail-webhook] retrying unprocessed duplicate messageId:', messageId)
+        rawMsg = existingMsg as typeof rawMsg
       }
 
       const { data: client } = await supabase
