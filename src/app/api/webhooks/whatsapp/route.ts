@@ -333,11 +333,18 @@ async function processClientMessage(
       session = { ...session, messages: [], extracted: {} }
       // Fall through to normal Gemini processing below
     } else {
-    const { reply, resolved } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
+    const { reply, resolved, nextPendingAction } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
 
     if (resolved) {
       await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
       await supabase.from('conversation_sessions').delete().eq('id', session.id)
+    } else if (nextPendingAction) {
+      // Transition to next state (e.g. confirmation step) — store new pendingAction directly
+      await sendWhatsAppMessage({ to: senderPhone, body: reply, log: { client_id: client.id } })
+      await supabase.from('conversation_sessions').update({
+        extracted: { pending_action: nextPendingAction },
+        last_message_at: new Date().toISOString(),
+      }).eq('id', session.id)
     } else {
       const attemptCount = (pendingAction.attempt_count ?? 0) + 1
       if (attemptCount >= 2) {

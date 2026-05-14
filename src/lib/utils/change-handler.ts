@@ -450,7 +450,7 @@ export async function handleDisambiguationReply(
   senderPhone: string,
   rawText: string,
   pendingAction: PendingAction,
-): Promise<{ reply: string; resolved: boolean }> {
+): Promise<{ reply: string; resolved: boolean; nextPendingAction?: PendingAction }> {
   const text = rawText.toLowerCase().trim()
   const { bookings } = pendingAction
 
@@ -656,8 +656,36 @@ export async function handleDisambiguationReply(
   }
 
   if (isCancelRequest) {
-    const reply = await performCancel(supabase, client, senderPhone, fb, pendingAction.cancel_reason)
-    return { reply, resolved: true }
+    // Ask for confirmation before cancelling
+    const confirmLines = [
+      `Are you sure you want to cancel booking *${fb.booking_ref}*?`,
+      ``,
+      `📅 ${fb.pickup_date ? fmtDate(fb.pickup_date as string) : ''}${fb.pickup_time ? ` at ${fmtTime(fb.pickup_time as string)}` : ''}`,
+      fb.pickup_location ? `📍 ${fb.pickup_location as string}` : '',
+      ``,
+      `Reply *YES* to confirm cancellation or *NO* to keep the booking.`,
+    ].filter(Boolean).join('\n')
+
+    const confirmPending: PendingAction = {
+      intent: 'cancel_request',
+      modification_request: null,
+      cancel_reason: pendingAction.cancel_reason,
+      confirmation_pending: true,
+      bookings: [{
+        id: fb.id,
+        booking_ref: fb.booking_ref,
+        guest_name: (fb.guest_name as string | null) ?? null,
+        pickup_date: (fb.pickup_date as string | null) ?? null,
+        pickup_time: (fb.pickup_time as string | null) ?? null,
+        pickup_location: (fb.pickup_location as string | null) ?? null,
+        drop_location: (fb.drop_location as string | null) ?? null,
+        trip_type: (fb.trip_type as string | null) ?? null,
+        total_days: (fb.total_days as number | null) ?? null,
+        driver_id: (fb.driver_id as string | null) ?? null,
+        status: fb.status as string,
+      }],
+    }
+    return { reply: confirmLines, resolved: false, nextPendingAction: confirmPending }
   }
 
   const reply = await performModify(supabase, client, senderPhone, fb, pendingAction.modification_request, null)
