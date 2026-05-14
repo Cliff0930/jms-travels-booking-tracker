@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, Users, LayoutDashboard, MoreHorizontal, BarChart3, Settings, Building2, Car, X, MessageSquare, ShieldCheck } from 'lucide-react'
+import { BookOpen, Users, LayoutDashboard, MoreHorizontal, BarChart3, Settings, Building2, Car, X, MessageSquare, ShieldCheck, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
@@ -13,11 +13,12 @@ const PRIMARY_NAV = [
 ]
 
 const MORE_NAV = [
-  { href: '/drivers',   label: 'Drivers',   icon: Car },
-  { href: '/messages',  label: 'Messages',  icon: MessageSquare },
-  { href: '/companies', label: 'Companies', icon: Building2 },
-  { href: '/reports',   label: 'Reports',   icon: BarChart3 },
-  { href: '/settings',  label: 'Settings',  icon: Settings },
+  { href: '/drivers',        label: 'Drivers',       icon: Car },
+  { href: '/messages',       label: 'Messages',      icon: MessageSquare },
+  { href: '/notifications',  label: 'Notifications', icon: Bell },
+  { href: '/companies',      label: 'Companies',     icon: Building2 },
+  { href: '/reports',        label: 'Reports',       icon: BarChart3 },
+  { href: '/settings',       label: 'Settings',      icon: Settings },
 ]
 
 const ADMIN_MORE_NAV = [

@@ -390,6 +390,17 @@ create table if not exists push_subscriptions (
 );
 grant all on push_subscriptions to postgres, anon, authenticated, service_role;
 
+-- ─── OPERATOR NOTIFICATIONS ───────────────────────────────────
+create table operator_notifications (
+  id         uuid primary key default uuid_generate_v4(),
+  title      text not null,
+  body       text not null,
+  channel    text not null default 'alerts',
+  read_at    timestamptz,
+  created_at timestamptz default now()
+);
+grant all on operator_notifications to postgres, anon, authenticated, service_role;
+
 -- ─── MIGRATIONS (run if tables already exist) ────────────────
 -- ALTER TABLE conversation_sessions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_type text;

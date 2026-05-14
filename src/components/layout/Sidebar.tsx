@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -17,8 +17,9 @@ const NAV_ITEMS = [
   { href: '/clients',   label: 'Clients',   icon: Users },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/drivers',   label: 'Drivers',   icon: Car },
-  { href: '/reports',   label: 'Reports',   icon: BarChart3 },
-  { href: '/settings',  label: 'Settings',  icon: Settings },
+  { href: '/reports',        label: 'Reports',       icon: BarChart3 },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
+  { href: '/settings',      label: 'Settings',      icon: Settings },
 ]
 
 const ROLE_LABELS: Record<string, string> = {

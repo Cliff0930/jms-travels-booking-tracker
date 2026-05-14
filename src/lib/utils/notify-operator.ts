@@ -1,5 +1,6 @@
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendPushToAll } from '@/lib/utils/push-notify'
+import { createAdminClient } from '@/lib/supabase/server'
 
 // channel='alerts' → push + WhatsApp backup (crash alerts, system errors)
 // channel='ops'    → push only (booking notifications, morning digest, etc.)
@@ -7,8 +8,14 @@ export async function notifyOperator(message: string, channel: 'alerts' | 'ops' 
   const title = channel === 'alerts' ? '🔴 CabFlow Alert' : '📋 CabFlow'
   const firstLine = message.split('\n')[0] || message
 
+  // Persist to DB for the notifications page (fire-and-forget)
+  void createAdminClient()
+    .from('operator_notifications')
+    .insert({ title, body: message, channel })
+    .then(() => {}, () => {})
+
   // Push to all subscribed devices (free — always attempt)
-  await sendPushToAll(title, firstLine, '/bookings').catch(e =>
+  await sendPushToAll(title, firstLine, '/notifications').catch(e =>
     console.error('[notifyOperator] push failed:', e)
   )
 
