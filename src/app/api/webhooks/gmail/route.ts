@@ -188,7 +188,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const { data: insertedMsg } = await supabase
+      const { data: insertedMsg, error: upsertError } = await supabase
         .from('raw_messages')
         .upsert({
           channel: 'email',
@@ -210,7 +210,11 @@ export async function POST(request: Request) {
           .eq('gmail_message_id', messageId)
           .single()
 
-        if (!existingMsg || existingMsg.processed) {
+        if (!existingMsg) {
+          console.error('[gmail-webhook] upsert failed and no existing row found. upsertError:', upsertError, '| messageId:', messageId)
+          continue
+        }
+        if (existingMsg.processed) {
           console.log('[gmail-webhook] skipping duplicate messageId (already processed):', messageId)
           continue
         }
