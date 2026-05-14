@@ -149,10 +149,10 @@ async function processWebhook(body: unknown) {
       } catch (msgErr) {
         console.error('[whatsapp-webhook] per-message error for', senderPhone, msgErr)
         if (rawMsgId) {
-          await supabase.from('raw_messages')
+          void supabase.from('raw_messages')
             .update({ ai_classification: 'processing_failed' })
             .eq('id', rawMsgId)
-            .catch(() => {})
+            .then(() => {}, () => {})
         }
         await notifyOperator(`🔴 WhatsApp webhook error!\n\nFrom: ${senderPhone}\nError: ${String(msgErr).slice(0, 300)}\n\nCheck Vercel logs.`).catch(() => {})
         await sendWhatsAppMessage({
