@@ -46,7 +46,12 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient()
-    const auth = getAuthClient()
+    let auth: ReturnType<typeof getAuthClient>
+    try {
+      auth = getAuthClient()
+    } catch (authErr) {
+      return NextResponse.json({ error: `[AUTH] ${String(authErr)}` }, { status: 500 })
+    }
     const drive = google.drive({ version: 'v3', auth })
     const sheets = google.sheets({ version: 'v4', auth })
     const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID!
