@@ -59,8 +59,9 @@ async function processWebhook(body: unknown) {
       const contacts = value?.contacts as Array<Record<string, unknown>> | undefined
       const senderDisplayName = (contacts?.[0]?.profile as Record<string, unknown> | undefined)?.name as string | undefined
 
+      try {
       const whatsappMessageId = message.id as string | undefined
-      const { data: rawMsg } = await supabase
+      const { data: insertedMsg } = await supabase
         .from('raw_messages')
         .upsert(
           { channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderDisplayName, raw_content: rawContent, whatsapp_message_id: whatsappMessageId },
@@ -69,9 +70,22 @@ async function processWebhook(body: unknown) {
         .select()
         .single()
 
+      let rawMsg = insertedMsg
       if (!rawMsg) {
-        console.log('[whatsapp-webhook] skipping duplicate messageId:', whatsappMessageId)
-        continue
+        // Duplicate message ID — fetch the existing record to check if it was processed
+        const { data: existingMsg } = await supabase
+          .from('raw_messages')
+          .select('id, processed')
+          .eq('whatsapp_message_id', whatsappMessageId!)
+          .single()
+
+        if (!existingMsg || existingMsg.processed) {
+          console.log('[whatsapp-webhook] skipping duplicate messageId (already processed):', whatsappMessageId)
+          continue
+        }
+        // First attempt crashed before processing — retry with existing record
+        console.log('[whatsapp-webhook] retrying unprocessed duplicate messageId:', whatsappMessageId)
+        rawMsg = existingMsg as typeof rawMsg
       }
 
       // Run approval check and client lookup in parallel
@@ -125,6 +139,15 @@ async function processWebhook(body: unknown) {
           body: `Hi! Thanks for reaching out to JMS Travels.\n\nCould you share your name and company (or reply "personal" for a personal booking)? We will get your cab sorted right away.`,
           log: {},
         })
+      }
+      } catch (msgErr) {
+        console.error('[whatsapp-webhook] per-message error for', senderPhone, msgErr)
+        await notifyOperator(`🔴 WhatsApp webhook error!\n\nFrom: ${senderPhone}\nError: ${String(msgErr).slice(0, 300)}\n\nCheck Vercel logs.`).catch(() => {})
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Sorry, we encountered a technical issue. Please try again in a moment or call us at 9845572207.\n\n— JMS Travels`,
+          log: {},
+        }).catch(() => {})
       }
     }
   } catch (err) {

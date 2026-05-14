@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyApprovalToken } from '@/lib/utils/approval-token'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendEmail } from '@/lib/gmail/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 function html(title: string, color: string, heading: string, message: string) {
   return new Response(
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, booking_ref, status, approval_status, pickup_date, pickup_time, pickup_location, client:clients!client_id(name, primary_phone)')
+    .select('id, booking_ref, status, approval_status, source, pickup_date, pickup_time, pickup_location, guest_name, guest_phone, client:clients!client_id(name, primary_phone, primary_email)')
     .eq('id', bookingId)
     .single()
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   }
 
   const approved = action === 'approve'
-  const client = booking.client as { name?: string; primary_phone?: string } | null
+  const client = booking.client as { name?: string; primary_phone?: string; primary_email?: string } | null
 
   if (approved) {
     await supabase.from('bookings').update({
@@ -83,20 +83,45 @@ export async function GET(request: Request) {
     }),
   ])
 
-  // Notify client on WhatsApp when approved
-  if (approved && client?.primary_phone) {
-    const pickupDate = booking.pickup_date
-      ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-      : null
-    const msg = [
-      `Hi ${client.name}, your booking request ${booking.booking_ref} has been approved by your company.`,
-      ``,
-      pickupDate ? `Date: ${pickupDate}` : null,
-      booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
-      ``,
-      `Our team will confirm the final details and share your driver information shortly. Thank you for choosing JMS Travels!`,
-    ].filter(Boolean).join('\n')
-    await sendWhatsAppMessage({ to: client.primary_phone, body: msg, log: { booking_id: bookingId } }).catch(() => {})
+  // Notify client on approval or rejection
+  const clientName = booking.guest_name || client?.name || 'there'
+  const pickupDate = booking.pickup_date
+    ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    : null
+
+  const approvedMsg = [
+    `Hi ${clientName}, your booking request ${booking.booking_ref} has been approved by your company.`,
+    ``,
+    pickupDate ? `Date: ${pickupDate}` : null,
+    booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
+    ``,
+    `Our team will confirm the final details and share your driver information shortly. Thank you for choosing JMS Travels!`,
+  ].filter(Boolean).join('\n')
+
+  const rejectedMsg = [
+    `Hi ${clientName}, unfortunately your booking request ${booking.booking_ref} was not approved by your company.`,
+    ``,
+    `If you believe this is a mistake, please contact your approver or reach out to us directly.`,
+    `— JMS Travels`,
+  ].join('\n')
+
+  const notifyMsg = approved ? approvedMsg : rejectedMsg
+  const notifySubject = approved
+    ? `Booking ${booking.booking_ref} approved — JMS Travels`
+    : `Booking ${booking.booking_ref} not approved — JMS Travels`
+
+  if (booking.source === 'email' && client?.primary_email) {
+    await sendEmail({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
+    if (booking.guest_phone) {
+      await sendWhatsAppMessage({ to: booking.guest_phone, body: notifyMsg, log: { booking_id: bookingId } }).catch(() => {})
+    }
+  } else {
+    const phone = booking.guest_phone || client?.primary_phone
+    if (phone) {
+      await sendWhatsAppMessage({ to: phone, body: notifyMsg, log: { booking_id: bookingId } }).catch(() => {})
+    } else if (client?.primary_email) {
+      await sendEmail({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
+    }
   }
 
   return approved
