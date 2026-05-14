@@ -272,8 +272,10 @@ async function processClientMessage(
     if (isNewBookingRequest) {
       await supabase.from('conversation_sessions').update({
         extracted: {},
+        messages: [],
         last_message_at: new Date().toISOString(),
       }).eq('id', session.id)
+      session = { ...session, messages: [], extracted: {} }
       // Fall through to normal Gemini processing below
     } else {
     const { reply, resolved } = await handleDisambiguationReply(supabase, client, senderPhone, rawContent, pendingAction)
@@ -718,7 +720,8 @@ async function handleOnboardingReply(
   const clientInfo = await extractClientInfo(replyText)
   const resolvedName = clientInfo.name || senderName || 'Unknown'
 
-  await createClientFromInfo(supabase, senderPhone, resolvedName, clientInfo)
+  const newClient = await createClientFromInfo(supabase, senderPhone, resolvedName, clientInfo)
+  if (!newClient) return
 
   // Mark ALL awaiting_client_info messages from this sender as done (not just the
   // current reply) — prevents stale records from re-triggering onboarding on next message
@@ -752,7 +755,7 @@ async function createClientFromInfo(
       .from('companies')
       .select('id')
       .ilike('name', clientInfo.company_name)
-      .single()
+      .maybeSingle()
 
     if (existingCompany) {
       companyId = existingCompany.id

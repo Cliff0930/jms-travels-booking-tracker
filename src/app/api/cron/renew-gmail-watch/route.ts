@@ -35,6 +35,33 @@ export async function GET(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://booking.jmstravels.net'
   const { today, tomorrow } = getISTDates()
 
+  // ── 0. Re-subscribe WABA app (prevents Meta circuit-breaker blocking delivery) ──
+  let wabaSubOk = false
+  try {
+    const wabaId = process.env.WHATSAPP_WABA_ID
+    const systemToken = process.env.WHATSAPP_SYSTEM_TOKEN
+    if (wabaId && systemToken) {
+      const res = await fetch(`https://graph.facebook.com/v25.0/${wabaId}/subscribed_apps`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${systemToken}` },
+      })
+      const json = await res.json() as { success?: boolean; error?: { message: string } }
+      if (json.success) {
+        wabaSubOk = true
+        console.log('[cron] WABA resubscription OK')
+      } else {
+        throw new Error(json.error?.message ?? JSON.stringify(json))
+      }
+    } else {
+      wabaSubOk = true // env not configured — skip silently
+    }
+  } catch (err) {
+    console.error('[cron] WABA resubscription FAILED:', err)
+    await notifyOperator(
+      `🔴 WhatsApp webhook re-subscription FAILED!\n\nMessages may stop arriving from clients.\n\nError: ${String(err).slice(0, 200)}\n\nCheck WHATSAPP_SYSTEM_TOKEN and WHATSAPP_WABA_ID in Vercel env.`
+    ).catch(() => {})
+  }
+
   // ── 1. Renew Gmail watch ──────────────────────────────────────────────────
   let renewalOk = false
   let renewalHistoryId: string | null = null
@@ -131,6 +158,7 @@ export async function GET(request: Request) {
       lines.push(`   Check raw_messages where ai_classification = 'processing_failed'`)
     }
 
+    if (!wabaSubOk) lines.push(`\n🔴 WhatsApp re-subscription FAILED — webhook delivery may be broken!`)
     if (!renewalOk) lines.push(`\n⚠️ Gmail watch renewal FAILED — see earlier alert.`)
 
     await notifyOperator(lines.join('\n'), 'ops')
