@@ -271,7 +271,9 @@ async function processClientMessage(
       .limit(1)
       .maybeSingle()
 
-    if (recentBookingAny) {
+    const isCancelOrModifyMsg = /\b(cancel|modify|change|reschedule|postpone|update booking)\b/i.test(rawContent)
+
+    if (recentBookingAny && !isCancelOrModifyMsg) {
       // If message contains useful notes (flight info, instructions) — append to special_instructions
       const hasFlightInfo = /\b(flight|terminal|gate|airline|pnr|departure|arrival)\b/i.test(rawContent)
       if (hasFlightInfo) {
