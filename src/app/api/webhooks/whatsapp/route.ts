@@ -197,7 +197,7 @@ async function processClientMessage(
     // or maps link, check if there's a recent booking to update the pickup_location on.
     const hasMapsUrl = /https?:\/\/(maps\.(app\.goo\.gl|google\.com)|goo\.gl\/maps)/i.test(rawContent)
     const noBookingSignals = !rawContent.match(
-      /\b(book|cab|drop|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/i
+      /\b(book(ing)?|cab|drop|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
     )
     const isLocationFollowUp = hasMapsUrl || (noBookingSignals && rawContent.trim().split('\n').length <= 5)
 
@@ -205,7 +205,7 @@ async function processClientMessage(
       const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
       const { data: recentBooking } = await supabase
         .from('bookings')
-        .select('id, booking_ref, pickup_location')
+        .select('id, booking_ref, pickup_location, trip_type')
         .eq('client_id', client.id)
         .gt('created_at', tenMinsAgo)
         .in('status', ['pending', 'draft', 'pending_approval'])
@@ -216,6 +216,11 @@ async function processClientMessage(
       if (recentBooking) {
         const mapsUrl = rawContent.match(/https?:\/\/\S+/)?.[0] ?? ''
         const addressText = rawContent.replace(/https?:\/\/\S+/g, '').replace(/👆|👇|⬇️/g, '').trim()
+
+        // Guard: don't treat questions or action sentences as addresses
+        const isQuestionOrAction =
+          /^(do |does |can |could |would |should |is |are |was |will |what |how |why |when |where |who |i want|i need|please|thanks|okay|ok\b|hi\b|hello\b)/i.test(addressText) ||
+          /\b(cancel|want to cancel|i want to)\b/i.test(addressText)
 
         // Name + up-pointer pattern: "Dr Kishore Subbiah 👆" or "see above" — update guest_name on the booking
         const UP_POINTER = /👆|as above|refer above|see above|check above|above location|location above|above address|that location|that address|same as above|\^/i
@@ -230,7 +235,7 @@ async function processClientMessage(
             body: `Got it, noted ${addressText} for booking ${recentBooking.booking_ref}.`,
             log: { client_id: client.id },
           })
-        } else if (mapsUrl || addressText.length > 20) {
+        } else if (mapsUrl || (addressText.length > 10 && !isQuestionOrAction)) {
           // Actual address or maps link — update pickup_location
           const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
           await supabase
@@ -252,6 +257,44 @@ async function processClientMessage(
         }
         return
       }
+    }
+
+    // Post-booking follow-up: client sends a question or extra info within 30 min of booking
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { data: recentBookingAny } = await supabase
+      .from('bookings')
+      .select('id, booking_ref, trip_type, special_instructions')
+      .eq('client_id', client.id)
+      .gt('created_at', thirtyMinsAgo)
+      .not('status', 'in', '("completed","cancelled")')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentBookingAny) {
+      // If message contains useful notes (flight info, instructions) — append to special_instructions
+      const hasFlightInfo = /\b(flight|terminal|gate|airline|pnr|departure|arrival)\b/i.test(rawContent)
+      if (hasFlightInfo) {
+        const existing = recentBookingAny.special_instructions ?? ''
+        const updated = [existing, rawContent.trim()].filter(Boolean).join('\n')
+        await supabase
+          .from('bookings')
+          .update({ special_instructions: updated, updated_at: new Date().toISOString() })
+          .eq('id', recentBookingAny.id)
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Thanks! We've noted those details for booking ${recentBookingAny.booking_ref} and will pass them to your driver. Our team will confirm your booking shortly.`,
+          log: { client_id: client.id },
+        })
+      } else {
+        // General question or remark after booking — friendly acknowledgment
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Thanks for your message! Your booking ${recentBookingAny.booking_ref} has been received and our team will confirm it shortly.\n\nIf you have any additional details to add (such as flight number or special instructions), feel free to share them here.`,
+          log: { client_id: client.id },
+        })
+      }
+      return
     }
 
     const { data: newSession } = await supabase
