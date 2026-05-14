@@ -3,37 +3,28 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
-// Escapes literal newlines/carriage-returns ONLY inside JSON string values.
-// A simple .replace(/\n/g) would also mangle structural newlines between fields.
-function fixJsonControlChars(json: string): string {
-  let inStr = false, esc = false, out = ''
-  for (const ch of json) {
-    if (esc)                     { out += ch; esc = false; continue }
-    if (inStr && ch === '\\')    { out += ch; esc = true;  continue }
-    if (ch === '"')              { out += ch; inStr = !inStr; continue }
-    if (inStr && ch === '\n')    { out += '\\n'; continue }
-    if (inStr && ch === '\r')    { out += '\\r'; continue }
-    out += ch
-  }
-  return out
-}
-
 function getAuthClient() {
   const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
-  // Support both raw JSON (starts with '{') and base64-encoded JSON
+  // Decode base64 if needed
   const jsonStr = keyRaw.trimStart().startsWith('{')
     ? keyRaw
     : Buffer.from(keyRaw, 'base64').toString('utf-8')
-  // Try normal parse first; fall back to sanitised parse if private_key has literal newlines
-  let keyJson: { client_email: string; private_key: string }
-  try {
-    keyJson = JSON.parse(jsonStr)
-  } catch {
-    keyJson = JSON.parse(fixJsonControlChars(jsonStr))
+
+  // Regex extraction avoids JSON.parse entirely — no control-char issues
+  // PEM keys only have base64 + dashes + spaces + newlines, never contain "
+  const emailMatch = jsonStr.match(/"client_email"\s*:\s*"([^"]+)"/)
+  const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
+
+  if (!emailMatch || !keyMatch) {
+    throw new Error('Cannot parse GOOGLE_SERVICE_ACCOUNT_KEY — check env var format')
   }
+
+  // Handle both \n escape sequences and literal newlines
+  const privateKey = keyMatch[1].replace(/\\n/g, '\n')
+
   return new google.auth.JWT({
-    email: keyJson.client_email,
-    key: keyJson.private_key,
+    email: emailMatch[1],
+    key: privateKey,
     scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
   })
 }
