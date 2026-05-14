@@ -5,9 +5,12 @@ import { notifyOperator } from '@/lib/utils/notify-operator'
 
 function getAuthClient() {
   const keyBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
-  // .replace(/\n/g, '\\n') fixes literal newlines in private_key when the JSON
-  // was base64-encoded without first escaping them — avoids "bad control character" parse error
-  const keyJson = JSON.parse(Buffer.from(keyBase64, 'base64').toString('utf-8').replace(/\n/g, '\\n'))
+  // Support both raw JSON and base64-encoded JSON in the env var
+  const jsonStr = keyBase64.trimStart().startsWith('{')
+    ? keyBase64
+    : Buffer.from(keyBase64, 'base64').toString('utf-8')
+  // .replace fixes literal newlines in private_key (avoids "bad control character" parse error)
+  const keyJson = JSON.parse(jsonStr.replace(/\n/g, '\\n'))
   return new google.auth.JWT({
     email: keyJson.client_email,
     key: keyJson.private_key,
