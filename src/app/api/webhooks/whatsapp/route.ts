@@ -61,7 +61,7 @@ async function processWebhook(body: unknown) {
 
       try {
       const whatsappMessageId = message.id as string | undefined
-      const { data: insertedMsg } = await supabase
+      const { data: insertedMsg, error: upsertError } = await supabase
         .from('raw_messages')
         .upsert(
           { channel: 'whatsapp', sender_phone: senderPhone, sender_name: senderDisplayName, raw_content: rawContent, whatsapp_message_id: whatsappMessageId },
@@ -79,7 +79,11 @@ async function processWebhook(body: unknown) {
           .eq('whatsapp_message_id', whatsappMessageId!)
           .single()
 
-        if (!existingMsg || existingMsg.processed) {
+        if (!existingMsg) {
+          console.error('[whatsapp-webhook] upsert failed and no existing row found. upsertError:', upsertError, '| messageId:', whatsappMessageId)
+          continue
+        }
+        if (existingMsg.processed) {
           console.log('[whatsapp-webhook] skipping duplicate messageId (already processed):', whatsappMessageId)
           continue
         }
