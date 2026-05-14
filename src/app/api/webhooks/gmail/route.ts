@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       const replyTo = headers.find(h => h.name === 'Reply-To')?.value || ''
       const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value || ''
       const gmailThreadId = (msg as Record<string, unknown>).threadId as string || ''
+      const emailSubject = headers.find(h => h.name === 'Subject')?.value || ''
 
       // Skip messages older than 48 hours — protects against historyId backlog replay
       // billing thousands of old emails through Gemini. Real missed bookings need manual recovery.
@@ -142,6 +143,11 @@ export async function POST(request: Request) {
 
       let rawContent = extractPlainText(msg.payload) || extractHtmlText(msg.payload)
 
+      // Prepend subject so Gemini can read it — corporate clients often put dates/destinations there
+      if (emailSubject) {
+        rawContent = `Subject: ${emailSubject}\n\n${rawContent}`
+      }
+
       console.log('[gmail-webhook] rawContent length:', rawContent.length)
       if (!rawContent) {
         console.log('[gmail-webhook] skipping — no text/plain content found')
@@ -153,7 +159,7 @@ export async function POST(request: Request) {
 
       // Check if this email is a reply to an existing draft booking awaiting missing info
       // Skip fill-missing if the email looks like a cancel/modify — let full AI processing handle it
-      const isCancelOrModify = /\b(cancel|called off|not required|not needed|reschedule|postpone|modify|change the|update (the )?booking)\b/i.test(rawContent)
+      const isCancelOrModify = /\b(cancel|called off|not required|not needed|no longer require|withdraw|scratch that|trip cancelled|reschedule|postpone|modify|change the|update (the )?booking|push (the )?booking|shift (the )?booking|earlier time|later time|different date)\b/i.test(rawContent)
 
       if (gmailThreadId && !isCancelOrModify) {
         const { data: draftBooking } = await supabase

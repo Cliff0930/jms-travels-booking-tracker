@@ -68,7 +68,7 @@ export async function fillMissingFromReply(
   await supabase.from('bookings').update({
     ...merged,
     flags: updatedFlags,
-    gmail_thread_id: stillMissing.length > 0 ? threadId : null,
+    gmail_thread_id: threadId,
   }).eq('id', booking.id)
 
   await supabase.from('booking_status_history').insert({

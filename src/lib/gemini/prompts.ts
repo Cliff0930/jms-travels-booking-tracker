@@ -517,6 +517,90 @@ Output:
   "classification": "enquiry",
   "confidence": 0.95,
   "reason": "Asking about rates and vehicle capacity with no booking intent.",
+  "target_booking_ref": null,
+  "cancel_reason": null,
+  "modification_request": {"changes": [], "booking_ref": null},
+  "bookings": [],
+  "resolved_keywords": {},
+  "new_keyword_detected": null
+}
+
+Example 4 — Cancel request with booking reference:
+Message:
+"""
+Hi, please cancel booking BK-2026-0042. Our event has been postponed.
+"""
+Output:
+{
+  "classification": "cancel_request",
+  "confidence": 0.98,
+  "reason": "Explicit cancellation request for a specific booking reference.",
+  "target_booking_ref": "BK-2026-0042",
+  "cancel_reason": "Event postponed",
+  "modification_request": {"changes": [], "booking_ref": null},
+  "bookings": [],
+  "resolved_keywords": {},
+  "new_keyword_detected": null
+}
+
+Example 5 — Cancel request without booking reference:
+Message:
+"""
+Please cancel my booking for tomorrow. Our guest has called off the trip.
+"""
+Output:
+{
+  "classification": "cancel_request",
+  "confidence": 0.95,
+  "reason": "Clear cancellation request — no specific booking reference given.",
+  "target_booking_ref": null,
+  "cancel_reason": "Guest called off the trip",
+  "modification_request": {"changes": [], "booking_ref": null},
+  "bookings": [],
+  "resolved_keywords": {},
+  "new_keyword_detected": null
+}
+
+Example 6 — Modify request, single field (time change):
+Message:
+"""
+Can you please push the cab for BK-2026-0031 to 10:30 AM instead of 9 AM?
+"""
+Output:
+{
+  "classification": "modify_request",
+  "confidence": 0.97,
+  "reason": "Sender requests a specific time change for an existing booking.",
+  "target_booking_ref": "BK-2026-0031",
+  "cancel_reason": null,
+  "modification_request": {
+    "changes": [{"field": "pickup_time", "new_value": "10:30"}],
+    "booking_ref": "BK-2026-0031"
+  },
+  "bookings": [],
+  "resolved_keywords": {},
+  "new_keyword_detected": null
+}
+
+Example 7 — Modify request, multiple fields (date + time):
+Message:
+"""
+Hi, please reschedule the booking to 16th May at 8 AM. Guest had a flight delay.
+"""
+Output:
+{
+  "classification": "modify_request",
+  "confidence": 0.96,
+  "reason": "Reschedule request — both date and time changed, no ref given.",
+  "target_booking_ref": null,
+  "cancel_reason": null,
+  "modification_request": {
+    "changes": [
+      {"field": "pickup_date", "new_value": "2026-05-16"},
+      {"field": "pickup_time", "new_value": "08:00"}
+    ],
+    "booking_ref": null
+  },
   "bookings": [],
   "resolved_keywords": {},
   "new_keyword_detected": null
