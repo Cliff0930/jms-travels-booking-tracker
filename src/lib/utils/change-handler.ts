@@ -55,8 +55,13 @@ function fmtTime(timeStr: string | null): string {
 }
 
 function fmtValue(field: string, raw: string): string {
-  if (field === 'pickup_time') return fmtTime(raw)
-  if (field === 'pickup_date') return fmtDate(raw)
+  if (!raw || raw === '—') return raw || '—'
+  if (field === 'pickup_time') {
+    return /^\d{1,2}:\d{2}$/.test(raw) ? fmtTime(raw) : raw
+  }
+  if (field === 'pickup_date') {
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? fmtDate(raw) : raw
+  }
   return raw
 }
 
@@ -194,6 +199,17 @@ async function performModify(
     updateData[change.field] = change.field === 'pax_count' ? (parseInt(change.new_value) || null) : change.new_value
     changeEntries.push({ field: change.field, label, old_value: oldVal, new_value: change.new_value })
   }
+
+  // Clear flags that are resolved by this modification
+  const changedFields = new Set(modReq.changes.map(c => c.field))
+  const currentFlags: string[] = ((booking as Record<string, unknown>).flags as string[]) ?? []
+  const updatedFlags = currentFlags.filter(f => {
+    if (f === 'missing_pickup' && changedFields.has('pickup_location')) return false
+    if (f === 'missing_date'   && changedFields.has('pickup_date'))     return false
+    if (f === 'missing_time'   && changedFields.has('pickup_time'))     return false
+    return true
+  })
+  updateData.flags = updatedFlags
 
   const changesSummary = changeEntries
     .map(c => `${c.label}: ${fmtValue(c.field, c.new_value)}`)
