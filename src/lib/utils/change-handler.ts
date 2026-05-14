@@ -18,6 +18,7 @@ export interface PendingAction {
   modification_request: ModificationRequest | null
   cancel_reason: string | null
   attempt_count?: number
+  confirmation_pending?: boolean
   bookings: Array<{
     id: string
     booking_ref: string
@@ -407,8 +408,36 @@ export async function handleClientChange(
   }
 
   if (isCancelRequest) {
-    const reply = await performCancel(supabase, client, senderPhone, booking, result.cancel_reason)
-    return { reply, pendingAction: null }
+    // Ask for confirmation before cancelling
+    const confirmLines = [
+      `Are you sure you want to cancel booking *${booking.booking_ref}*?`,
+      ``,
+      `📅 ${booking.pickup_date ? fmtDate(booking.pickup_date as string) : ''}${booking.pickup_time ? ` at ${fmtTime(booking.pickup_time as string)}` : ''}`,
+      booking.pickup_location ? `📍 ${booking.pickup_location as string}` : '',
+      ``,
+      `Reply *YES* to confirm cancellation or *NO* to keep the booking.`,
+    ].filter(Boolean).join('\n')
+
+    const confirmPending: PendingAction = {
+      intent: 'cancel_request',
+      modification_request: null,
+      cancel_reason: result.cancel_reason,
+      confirmation_pending: true,
+      bookings: [{
+        id: booking.id,
+        booking_ref: booking.booking_ref,
+        guest_name: (booking.guest_name as string | null) ?? null,
+        pickup_date: (booking.pickup_date as string | null) ?? null,
+        pickup_time: (booking.pickup_time as string | null) ?? null,
+        pickup_location: (booking.pickup_location as string | null) ?? null,
+        drop_location: (booking.drop_location as string | null) ?? null,
+        trip_type: (booking.trip_type as string | null) ?? null,
+        total_days: (booking.total_days as number | null) ?? null,
+        driver_id: (booking.driver_id as string | null) ?? null,
+        status: booking.status as string,
+      }],
+    }
+    return { reply: confirmLines, pendingAction: confirmPending }
   }
 
   const reply = await performModify(supabase, client, senderPhone, booking, modReq, result.next_question)
@@ -424,6 +453,40 @@ export async function handleDisambiguationReply(
 ): Promise<{ reply: string; resolved: boolean }> {
   const text = rawText.toLowerCase().trim()
   const { bookings } = pendingAction
+
+  // Confirmation flow: YES/NO response to "Are you sure you want to cancel?"
+  if (pendingAction.confirmation_pending && pendingAction.intent === 'cancel_request' && bookings.length === 1) {
+    const isYes = /^(yes|confirm|ok|okay|proceed|sure|yep|yeah|cancel it|go ahead|do it)\b/i.test(text)
+    const isNo = /^(no|nope|don't|do not|keep|stop|never mind|leave it|abort)\b/i.test(text)
+
+    if (isNo) {
+      return {
+        reply: `No problem! Your booking ${bookings[0].booking_ref} is still active. Let us know if you need anything else.`,
+        resolved: true,
+      }
+    }
+
+    if (!isYes) {
+      return {
+        reply: `Please reply *YES* to confirm cancellation of ${bookings[0].booking_ref} or *NO* to keep the booking.`,
+        resolved: false,
+      }
+    }
+
+    // Client confirmed — re-fetch with driver info and cancel
+    const { data: fullBooking } = await supabase
+      .from('bookings')
+      .select('*, driver:drivers(name, phone, vehicle_name, vehicle_number)')
+      .eq('id', bookings[0].id)
+      .single()
+
+    if (!fullBooking) {
+      return { reply: `That booking could not be found. Please call us at 9845572207.`, resolved: true }
+    }
+
+    const reply = await performCancel(supabase, client, senderPhone, fullBooking as FullBooking, pendingAction.cancel_reason)
+    return { reply, resolved: true }
+  }
 
   let booking: PendingAction['bookings'][0] | null = null
 
