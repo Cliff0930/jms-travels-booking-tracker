@@ -292,13 +292,17 @@ export async function handleClientChange(
   const isCancelRequest = result.intent === 'cancel_request'
   const modReq = result.modification_request
 
+  const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
   const { data: allBookings } = await supabase
     .from('bookings')
     .select('*, driver:drivers(name, phone, vehicle_name, vehicle_number)')
     .eq('client_id', client.id)
     .not('status', 'in', '("completed","cancelled")')
-    .order('pickup_date', { ascending: false })
-    .order('pickup_time', { ascending: false })
+    .or(`pickup_date.is.null,pickup_date.gte.${todayIST}`)
+    .order('pickup_date', { ascending: true, nullsFirst: false })
+    .order('pickup_time', { ascending: true, nullsFirst: false })
+    .limit(10)
 
   if (!allBookings?.length) {
     return { reply: `I couldn't find any active booking for your account. Would you like to make a new booking?`, pendingAction: null }
