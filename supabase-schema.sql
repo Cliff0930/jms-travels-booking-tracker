@@ -225,8 +225,8 @@ create index on message_logs(booking_id);
 create index on message_logs(client_id);
 create index on raw_messages(sender_phone);
 create index on raw_messages(sender_email);
-create unique index on raw_messages(gmail_message_id) where gmail_message_id is not null;
-create unique index on raw_messages(whatsapp_message_id) where whatsapp_message_id is not null;
+create unique index raw_messages_gmail_message_id_key on raw_messages(gmail_message_id);
+create unique index raw_messages_whatsapp_message_id_key on raw_messages(whatsapp_message_id);
 
 -- ─── REALTIME ────────────────────────────────────────────────
 alter publication supabase_realtime add table bookings;
