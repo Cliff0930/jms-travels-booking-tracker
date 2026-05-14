@@ -16,7 +16,13 @@ function getAuthClient() {
   const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
 
   if (!emailMatch || !keyMatch) {
-    throw new Error('Cannot parse GOOGLE_SERVICE_ACCOUNT_KEY — check env var format')
+    const len = jsonStr.length
+    const prefix = jsonStr.slice(0, 30).replace(/[^\x20-\x7E]/g, '?')
+    const hasEmail = jsonStr.includes('client_email')
+    const hasKey = jsonStr.includes('private_key')
+    throw new Error(
+      `Cannot parse key — len=${len}, starts="${prefix}", hasEmail=${hasEmail}, hasKey=${hasKey}, rawStarts="${keyRaw.slice(0, 8)}"`
+    )
   }
 
   // Handle both \n escape sequences and literal newlines
