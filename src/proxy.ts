@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isApi = request.nextUrl.pathname.startsWith('/api/')
-  const isPublicPath = request.nextUrl.pathname.startsWith('/driver-status')
+  const isPublicPath = request.nextUrl.pathname.startsWith('/driver-status') || request.nextUrl.pathname.startsWith('/r/')
 
   if (!user && !isAuthPage && !isApi && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
