@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 const DEFAULT_SIGNATURE = `Best regards,
 
 JMS Travels
+Phone: 9845572207
 bookings@jmstravels.net`
 
 async function getSignature(): Promise<string> {
