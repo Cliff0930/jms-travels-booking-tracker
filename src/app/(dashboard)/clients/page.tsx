@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Plus, Phone, Mail, User, Briefcase, Building2 } from 'lucide-react'
+import { Search, Plus, Phone, Mail, User, Briefcase } from 'lucide-react'
+import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -277,21 +278,11 @@ export default function ClientsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-[#434654]">Company</Label>
-                <Select
-                  value={watch('company_id') || '__none__'}
-                  onValueChange={v => { if (v !== null) setValue('company_id', v === '__none__' ? undefined : v) }}
-                >
-                  <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Building2 className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
-                      <SelectValue placeholder="None" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No company</SelectItem>
-                    {companies.map(co => <SelectItem key={co.id} value={co.id}>{co.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <CompanyCombobox
+                  value={watch('company_id') || ''}
+                  companies={companies}
+                  onChange={id => setValue('company_id', id || undefined)}
+                />
               </div>
             </div>
 

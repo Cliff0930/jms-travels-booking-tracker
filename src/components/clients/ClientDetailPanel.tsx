@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge, Building2, Briefcase, User } from 'lucide-react'
+import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge, Briefcase, User } from 'lucide-react'
+import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
 import { useCanEdit } from '@/hooks/useCurrentUser'
@@ -692,21 +693,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-[#434654]">Company</Label>
-                <Select
-                  value={editForm.company_id || '__none__'}
-                  onValueChange={v => v !== null && setEditForm(p => ({ ...p, company_id: v === '__none__' ? '' : v }))}
-                >
-                  <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Building2 className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
-                      <SelectValue placeholder="None" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No company</SelectItem>
-                    {companies.map(co => <SelectItem key={co.id} value={co.id}>{co.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <CompanyCombobox
+                  value={editForm.company_id || ''}
+                  companies={companies}
+                  onChange={id => setEditForm(p => ({ ...p, company_id: id }))}
+                />
               </div>
             </div>
 
