@@ -4,12 +4,18 @@ import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
 function getDriveAuth() {
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET,
-  )
-  oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
-  return oauth2
+  const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
+  const jsonStr = keyRaw.trimStart().startsWith('{')
+    ? keyRaw
+    : Buffer.from(keyRaw, 'base64').toString('utf-8')
+  const emailMatch = jsonStr.match(/"client_email"\s*:\s*"([^"]+)"/)
+  const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
+  if (!emailMatch || !keyMatch) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is incomplete')
+  return new google.auth.JWT({
+    email: emailMatch[1],
+    key: keyMatch[1].replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
+  })
 }
 
 export async function GET(request: Request) {
