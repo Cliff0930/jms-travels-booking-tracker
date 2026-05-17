@@ -3,32 +3,13 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
-function getAuthClient() {
-  const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
-  // Decode base64 if needed
-  const jsonStr = keyRaw.trimStart().startsWith('{')
-    ? keyRaw
-    : Buffer.from(keyRaw, 'base64').toString('utf-8')
-
-  // Regex extraction avoids JSON.parse entirely — no control-char issues
-  // PEM keys only have base64 + dashes + spaces + newlines, never contain "
-  const emailMatch = jsonStr.match(/"client_email"\s*:\s*"([^"]+)"/)
-  const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
-
-  if (!emailMatch || !keyMatch) {
-    throw new Error(
-      'GOOGLE_SERVICE_ACCOUNT_KEY is incomplete — re-encode the full service account JSON with: base64 -i key.json | tr -d "\\n"'
-    )
-  }
-
-  // Handle both \n escape sequences and literal newlines
-  const privateKey = keyMatch[1].replace(/\\n/g, '\n')
-
-  return new google.auth.JWT({
-    email: emailMatch[1],
-    key: privateKey,
-    scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
-  })
+function getDriveAuth() {
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+  )
+  oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
+  return oauth2
 }
 
 export async function GET(request: Request) {
@@ -39,12 +20,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient()
-    let auth: ReturnType<typeof getAuthClient>
-    try {
-      auth = getAuthClient()
-    } catch (authErr) {
-      return NextResponse.json({ error: `[AUTH] ${String(authErr)}` }, { status: 500 })
-    }
+    const auth = getDriveAuth()
     const drive = google.drive({ version: 'v3', auth })
     const sheets = google.sheets({ version: 'v4', auth })
     const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID!

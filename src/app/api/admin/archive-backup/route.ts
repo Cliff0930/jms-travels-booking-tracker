@@ -17,20 +17,13 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
-function getAuthClient() {
-  const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
-  const jsonStr = keyRaw.trimStart().startsWith('{')
-    ? keyRaw
-    : Buffer.from(keyRaw, 'base64').toString('utf-8')
-  const emailMatch = jsonStr.match(/"client_email"\s*:\s*"([^"]+)"/)
-  const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
-  if (!emailMatch || !keyMatch) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is incomplete')
-  const privateKey = keyMatch[1].replace(/\\n/g, '\n')
-  return new google.auth.JWT({
-    email: emailMatch[1],
-    key: privateKey,
-    scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
-  })
+function getDriveAuth() {
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+  )
+  oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
+  return oauth2
 }
 
 function formatTime12h(time: string): string {
@@ -184,10 +177,10 @@ export async function GET(request: Request) {
   const PRE_FY_END    = '2025-03-31T23:59:59.999Z'
 
   try {
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not set on Vercel')
+    if (!process.env.GMAIL_REFRESH_TOKEN) throw new Error('GMAIL_REFRESH_TOKEN is not set on Vercel')
     if (!process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID) throw new Error('GOOGLE_DRIVE_BACKUP_FOLDER_ID is not set on Vercel')
 
-    const auth   = getAuthClient()
+    const auth   = getDriveAuth()
     const drive  = google.drive({ version: 'v3', auth })
     const sheets = google.sheets({ version: 'v4', auth })
     const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID
