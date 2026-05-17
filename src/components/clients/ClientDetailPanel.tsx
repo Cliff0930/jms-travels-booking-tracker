@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge } from 'lucide-react'
+import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge, Building2, Briefcase, User } from 'lucide-react'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
 import { useCanEdit } from '@/hooks/useCurrentUser'
@@ -601,61 +601,130 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
       {/* ── Edit Client ── */}
       <Dialog open={showEdit} onOpenChange={o => { if (!o && !saving) setShowEdit(false) }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="mb-1 block">Name *</Label>
-              <Input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="border-[#C3C5D7]" />
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl gap-0">
+          <DialogHeader className="sr-only"><DialogTitle>Edit Client</DialogTitle></DialogHeader>
+
+          {/* Gradient header */}
+          <div className={`px-5 pt-5 pb-6 ${
+            editForm.client_type === 'walkin' ? 'bg-gradient-to-br from-emerald-500 to-teal-500' : 'bg-gradient-to-br from-[#1A56DB] to-[#6366F1]'
+          }`}>
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-lg font-bold text-white shrink-0">
+                {editForm.name ? editForm.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() : '?'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-medium text-white/60 uppercase tracking-wider">Editing</p>
+                <h2 className="text-lg font-bold text-white mt-0.5 truncate">{editForm.name || 'Client'}</h2>
+                <div className="flex gap-1.5 mt-2">
+                  {(['corporate', 'walkin'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditForm(p => ({ ...p, client_type: t }))}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all capitalize ${
+                        editForm.client_type === t
+                          ? 'bg-white text-[#191B23] shadow-sm'
+                          : 'bg-white/20 text-white/80 hover:bg-white/30'
+                      }`}
+                    >
+                      {t === 'walkin' ? 'Walk-in' : 'Corporate'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-1 block">Primary Phone</Label>
-                <Input value={editForm.primary_phone} onChange={e => setEditForm(p => ({ ...p, primary_phone: e.target.value }))} className="border-[#C3C5D7]" placeholder="+91 98000 00000" />
-              </div>
-              <div>
-                <Label className="mb-1 block">Primary Email</Label>
-                <Input type="email" value={editForm.primary_email} onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))} className="border-[#C3C5D7]" />
+          </div>
+
+          <div className="px-5 py-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Full Name *</Label>
+              <div className="relative">
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                <Input
+                  value={editForm.name}
+                  onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                  placeholder="Client name"
+                />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-1 block">Designation</Label>
-                <Input value={editForm.designation} onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))} className="border-[#C3C5D7]" placeholder="e.g. Manager" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Phone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input
+                    value={editForm.primary_phone}
+                    onChange={e => setEditForm(p => ({ ...p, primary_phone: e.target.value }))}
+                    className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                    placeholder="+91 98000…"
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="mb-1 block">Type</Label>
-                <Select value={editForm.client_type} onValueChange={v => v && setEditForm(p => ({ ...p, client_type: v }))}>
-                  <SelectTrigger className="border-[#C3C5D7]"><SelectValue /></SelectTrigger>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input
+                    type="email"
+                    value={editForm.primary_email}
+                    onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))}
+                    className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                    placeholder="email@co.com"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Designation</Label>
+                <div className="relative">
+                  <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input
+                    value={editForm.designation}
+                    onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))}
+                    className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                    placeholder="e.g. Manager"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Company</Label>
+                <Select
+                  value={editForm.company_id || '__none__'}
+                  onValueChange={v => v !== null && setEditForm(p => ({ ...p, company_id: v === '__none__' ? '' : v }))}
+                >
+                  <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Building2 className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
+                      <SelectValue placeholder="None" />
+                    </div>
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="corporate">Corporate</SelectItem>
-                    <SelectItem value="walkin">Walk-in</SelectItem>
-                    <SelectItem value="guest">Guest</SelectItem>
+                    <SelectItem value="__none__">No company</SelectItem>
+                    {companies.map(co => <SelectItem key={co.id} value={co.id}>{co.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label className="mb-1 block">Company</Label>
-              <Select
-                value={editForm.company_id || '__none__'}
-                items={[{ value: '__none__', label: 'No company' }, ...companies.map(co => ({ value: co.id, label: co.name }))]}
-                onValueChange={v => v !== null && setEditForm(p => ({ ...p, company_id: v === '__none__' ? '' : v }))}
+
+            <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">
+              <Button variant="outline" className="flex-1" onClick={() => setShowEdit(false)} disabled={saving}>Cancel</Button>
+              <Button
+                className={`flex-1 rounded-sm text-white border-0 shadow-sm ${
+                  editForm.client_type === 'walkin'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90'
+                    : 'bg-gradient-to-r from-[#1A56DB] to-[#6366F1] hover:opacity-90'
+                }`}
+                onClick={handleEdit}
+                disabled={saving || !editForm.name.trim()}
               >
-                <SelectTrigger className="border-[#C3C5D7]"><SelectValue placeholder="No company" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No company</SelectItem>
-                  {companies.map(co => <SelectItem key={co.id} value={co.id}>{co.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+                {saving ? 'Saving…' : 'Save Changes'}
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEdit(false)} disabled={saving}>Cancel</Button>
-            <Button className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleEdit} disabled={saving || !editForm.name.trim()}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

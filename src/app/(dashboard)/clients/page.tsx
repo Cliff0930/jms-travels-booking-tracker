@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useClients, useCreateClient } from '@/hooks/useClients'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { ClientDetailPanel } from '@/components/clients/ClientDetailPanel'
@@ -9,12 +10,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Plus, Phone, Mail, User, Briefcase } from 'lucide-react'
+import { Search, Plus, Phone, Mail, User, Briefcase, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { Client } from '@/types'
+import type { Client, Company } from '@/types'
 
 const clientSchema = z.object({
   name: z.string().min(2),
@@ -22,6 +23,7 @@ const clientSchema = z.object({
   primary_email: z.string().email().optional().or(z.literal('')),
   client_type: z.enum(['corporate', 'walkin']),
   designation: z.string().optional(),
+  company_id: z.string().optional(),
 })
 
 type ClientFormData = z.infer<typeof clientSchema>
@@ -35,6 +37,12 @@ export default function ClientsPage() {
   const { data: clients = [], isLoading, isError } = useClients(search || undefined)
   const createClient = useCreateClient()
   const canEdit = useCanEdit()
+
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ['companies'],
+    queryFn: () => fetch('/api/companies').then(r => r.json()),
+    enabled: showAddModal,
+  })
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
@@ -51,7 +59,10 @@ export default function ClientsPage() {
 
   async function onSubmit(data: ClientFormData) {
     try {
-      await createClient.mutateAsync(data)
+      await createClient.mutateAsync({
+        ...data,
+        company_id: data.company_id || undefined,
+      })
       toast.success('Client added')
       setShowAddModal(false)
       reset()
@@ -256,11 +267,31 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#434654]">Designation</Label>
-              <div className="relative">
-                <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
-                <Input {...register('designation')} placeholder="e.g. Manager, Director" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Designation</Label>
+                <div className="relative">
+                  <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                  <Input {...register('designation')} placeholder="e.g. Manager" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#434654]">Company</Label>
+                <Select
+                  value={watch('company_id') || '__none__'}
+                  onValueChange={v => setValue('company_id', v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Building2 className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
+                      <SelectValue placeholder="None" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No company</SelectItem>
+                    {companies.map(co => <SelectItem key={co.id} value={co.id}>{co.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
