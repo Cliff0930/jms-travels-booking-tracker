@@ -192,15 +192,19 @@ export async function GET(request: Request) {
     const sheets = google.sheets({ version: 'v4', auth })
     const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID
 
-    // ── Purge ALL files in the backup folder owned by the service account ─────
-    // This frees the service account's Drive quota before creating new files.
-    const { data: existingFiles } = await drive.files.list({
-      q: `'${folderId}' in parents and trashed = false`,
-      fields: 'files(id, name)',
-      pageSize: 1000,
-    })
-    const purgeCount = existingFiles?.files?.length ?? 0
-    await Promise.all((existingFiles?.files || []).map(f =>
+    // ── Purge ALL files the service account owns (active + trashed) ───────────
+    // Service account quota counts trashed files too. We permanently delete
+    // everything it owns to zero out its storage before creating new files.
+    const [{ data: activeFiles }, { data: trashedFiles }] = await Promise.all([
+      drive.files.list({ q: 'trashed = false', fields: 'files(id)', pageSize: 1000 }),
+      drive.files.list({ q: 'trashed = true',  fields: 'files(id)', pageSize: 1000 }),
+    ])
+    const allOwnedFiles = [
+      ...(activeFiles?.files || []),
+      ...(trashedFiles?.files || []),
+    ]
+    const purgeCount = allOwnedFiles.length
+    await Promise.all(allOwnedFiles.map(f =>
       drive.files.delete({ fileId: f.id! }).catch(() => {})
     ))
     // ── Fetch master data (clients, companies, drivers — shared across sheets) ──
