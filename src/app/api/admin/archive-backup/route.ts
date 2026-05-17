@@ -178,16 +178,19 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient()
-  const auth = getAuthClient()
-  const drive = google.drive({ version: 'v3', auth })
-  const sheets = google.sheets({ version: 'v4', auth })
-  const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID!
 
   const FY_2526_START = '2025-04-01T00:00:00.000Z'
   const FY_2526_END   = '2026-03-31T23:59:59.999Z'
   const PRE_FY_END    = '2025-03-31T23:59:59.999Z'
 
   try {
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not set on Vercel')
+    if (!process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID) throw new Error('GOOGLE_DRIVE_BACKUP_FOLDER_ID is not set on Vercel')
+
+    const auth   = getAuthClient()
+    const drive  = google.drive({ version: 'v3', auth })
+    const sheets = google.sheets({ version: 'v4', auth })
+    const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID
     // ── Fetch master data (clients, companies, drivers — shared across sheets) ──
     const [{ data: allClients }, { data: allCompanies }, { data: allDrivers }] = await Promise.all([
       supabase.from('clients').select('*, company:companies!company_id(name)').order('created_at', { ascending: false }),
