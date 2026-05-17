@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { verifyDriverToken } from '@/lib/utils/driver-token'
+import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token'
 import { sendToAll } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
+import { totalDistanceKm } from '@/lib/utils/haversine'
 
 const MAPS_DAILY_LIMIT = 200
 
@@ -46,6 +47,58 @@ async function getDistanceKm(
     return Math.round(meters / 100) / 10
   } catch {
     return null
+  }
+}
+
+async function generateAndSaveRouteMap(
+  bookingId: string,
+  sheetId: string,
+  points: Array<{ lat: number; lng: number }>,
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<void> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+  if (!apiKey || points.length < 2) return
+
+  // Subsample to at most 100 points so the URL stays within limits
+  const sample: typeof points = []
+  if (points.length <= 100) {
+    sample.push(...points)
+  } else {
+    for (let i = 0; i < 100; i++) {
+      sample.push(points[Math.round(i * (points.length - 1) / 99)])
+    }
+  }
+
+  const path = sample.map(p => `${p.lat},${p.lng}`).join('|')
+  const start = points[0]
+  const end = points[points.length - 1]
+  const params = new URLSearchParams({
+    size: '640x400',
+    path: `color:0x1A56DBcc|weight:3|${path}`,
+    markers: `color:green|label:S|${start.lat},${start.lng}`,
+    key: apiKey,
+  })
+  // Second markers param — URLSearchParams deduplicates keys, build manually
+  const url = `https://maps.googleapis.com/maps/api/staticmap?${params}&markers=color:red|label:E|${end.lat},${end.lng}`
+
+  try {
+    const imgRes = await fetch(url)
+    if (!imgRes.ok) return
+
+    const buffer = await imgRes.arrayBuffer()
+    const fileName = `${bookingId}/${sheetId}.png`
+
+    const { error } = await supabase.storage
+      .from('route-maps')
+      .upload(fileName, buffer, { contentType: 'image/png', upsert: true })
+
+    if (error) { console.error('[route-map] storage upload error:', error.message); return }
+
+    const { data: publicUrlData } = supabase.storage.from('route-maps').getPublicUrl(fileName)
+
+    await supabase.from('trip_sheets').update({ route_image_url: publicUrlData.publicUrl }).eq('id', sheetId)
+  } catch (err) {
+    console.error('[route-map] generation error:', err)
   }
 }
 
@@ -138,6 +191,18 @@ export async function POST(request: Request) {
       }
     }
 
+    // GPS KM from continuous tracking logs
+    let gpsKm: number | null = null
+    const { data: gpsLogs } = await supabase
+      .from('trip_gps_logs')
+      .select('lat, lng')
+      .eq('booking_id', booking_id)
+      .order('recorded_at', { ascending: true })
+
+    if (gpsLogs && gpsLogs.length >= 2) {
+      gpsKm = totalDistanceKm(gpsLogs)
+    }
+
     if (sheet) {
       await supabase.from('trip_sheets').update({
         closing_km: closing_km ?? null,
@@ -148,10 +213,16 @@ export async function POST(request: Request) {
         drop_to_office_km: dropToOfficeKm,
         toll_amount: toll_amount ?? null,
         parking_amount: parking_amount ?? null,
+        gps_km: gpsKm,
         updated_at: new Date().toISOString(),
       }).eq('id', sheet.id)
+
+      // Generate route map in background — non-blocking
+      if (gpsLogs && gpsLogs.length >= 2) {
+        generateAndSaveRouteMap(booking_id, sheet.id, gpsLogs, supabase).catch(() => {})
+      }
     } else {
-      await supabase.from('trip_sheets').insert({
+      const { data: newSheet } = await supabase.from('trip_sheets').insert({
         booking_id,
         driver_id: booking.driver_id || null,
         booking_leg_id: leg_id || null,
@@ -163,7 +234,12 @@ export async function POST(request: Request) {
         drop_to_office_km: dropToOfficeKm,
         toll_amount: toll_amount ?? null,
         parking_amount: parking_amount ?? null,
-      })
+        gps_km: gpsKm,
+      }).select('id').single()
+
+      if (newSheet && gpsLogs && gpsLogs.length >= 2) {
+        generateAndSaveRouteMap(booking_id, newSheet.id, gpsLogs, supabase).catch(() => {})
+      }
     }
   }
 
@@ -211,6 +287,16 @@ export async function POST(request: Request) {
 
   if (link_code) {
     await markShortLinkUsed(link_code).catch(() => {})
+  }
+
+  if (status === 'arrived') {
+    return NextResponse.json({
+      ok: true,
+      gps_tracking_enabled: !!booking.gps_tracking_enabled,
+      completed_token: booking.gps_tracking_enabled
+        ? generateDriverToken(booking_id, 'completed')
+        : undefined,
+    })
   }
 
   return NextResponse.json({ ok: true })

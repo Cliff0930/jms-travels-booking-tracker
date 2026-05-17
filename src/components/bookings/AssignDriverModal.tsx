@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { AlertTriangle, Car } from 'lucide-react'
+import { AlertTriangle, Car, Navigation } from 'lucide-react'
 import { useDrivers } from '@/hooks/useDrivers'
 import { useAssignDriver } from '@/hooks/useBookings'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -21,6 +21,7 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
   const assignDriver = useAssignDriver()
   const [conflictDriver, setConflictDriver] = useState<Driver | null>(null)
   const [mismatchDriver, setMismatchDriver] = useState<Driver | null>(null)
+  const [gpsEnabled, setGpsEnabled] = useState(false)
 
   function getMismatchReasons(driver: Driver): string[] {
     const reasons: string[] = []
@@ -39,11 +40,11 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
 
   async function doAssign(driverId: string) {
     try {
-      const result = await assignDriver.mutateAsync({ bookingId: booking.id, driverId })
+      const result = await assignDriver.mutateAsync({ bookingId: booking.id, driverId, gpsTrackingEnabled: gpsEnabled })
       if (result?.date_conflict) {
         toast.warning(`Driver assigned — note: they also have booking ${result.date_conflict} on this date`)
       } else {
-        toast.success('Driver assigned — trip brief sent via WhatsApp')
+        toast.success(gpsEnabled ? 'Driver assigned — GPS tracking enabled' : 'Driver assigned — trip brief sent via WhatsApp')
       }
       onClose()
     } catch {
@@ -132,6 +133,24 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
               <span>Booking: #{booking.booking_ref}</span>
             </div>
           </DialogHeader>
+
+          <button
+            type="button"
+            onClick={() => setGpsEnabled(v => !v)}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors mt-3 ${
+              gpsEnabled
+                ? 'border-[#1A56DB] bg-[#EEF2FF] text-[#1A56DB]'
+                : 'border-[#C3C5D7] bg-white text-[#434654]'
+            }`}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <Navigation className="w-4 h-4" />
+              GPS Route Tracking
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gpsEnabled ? 'bg-[#1A56DB] text-white' : 'bg-[#ECEDF5] text-[#737686]'}`}>
+              {gpsEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
 
           <div className="space-y-2 mt-2">
             {eligible.length === 0 && ineligible.length === 0 && (

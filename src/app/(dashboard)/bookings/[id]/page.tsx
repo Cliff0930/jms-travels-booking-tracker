@@ -79,6 +79,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     drop_to_office_km: number | null
     toll_amount: number | null
     parking_amount: number | null
+    gps_km: number | null
+    route_image_url: string | null
   }
 
   function formatTripDuration(openingTime: string, closingTime: string, tripType: string): string {
@@ -917,6 +919,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <dt className="text-[#737686]">Driver KM</dt>
                       <dd className="font-medium text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</dd>
                     </div>
+                    {tripSheet.gps_km != null && (
+                      <div className="flex justify-between">
+                        <dt className="text-[#737686]">GPS KM</dt>
+                        <dd className="text-[#434654]">{tripSheet.gps_km.toFixed(1)} km</dd>
+                      </div>
+                    )}
                     {tripSheet.opening_time && tripSheet.closing_time && (
                       <div className="flex justify-between">
                         <dt className="text-[#737686]">{booking.trip_type === 'outstation' ? 'Trip Duration' : 'Hours Used'}</dt>
@@ -946,6 +954,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       </>
                     )}
                   </>
+                )}
+                {tripSheet.route_image_url && (
+                  <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
+                    <p className="text-xs text-[#737686] mb-2">Route Map</p>
+                    <a href={tripSheet.route_image_url} target="_blank" rel="noopener noreferrer" title="Open full size">
+                      <img
+                        src={tripSheet.route_image_url}
+                        alt="GPS route map"
+                        className="w-full rounded-md border border-[#C3C5D7] cursor-pointer hover:opacity-90 transition-opacity"
+                      />
+                    </a>
+                  </div>
                 )}
               </dl>
             </div>

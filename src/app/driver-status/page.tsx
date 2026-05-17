@@ -1,12 +1,15 @@
 'use client'
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle, MapPin, Car, Navigation } from 'lucide-react'
+import { CheckCircle, MapPin, Car, Navigation, Radio } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 type StatusType = 'arrived' | 'completed'
+type PageMode = 'form' | 'gps_active' | 'done'
+
+const GPS_INTERVAL_MS = 30_000
 
 function DriverStatusContent() {
   const searchParams = useSearchParams()
@@ -16,20 +19,29 @@ function DriverStatusContent() {
   const linkCode = searchParams.get('link_code')
   const legId = searchParams.get('leg_id')
 
-  const [done, setDone] = useState(false)
+  const [mode, setMode] = useState<PageMode>('form')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Arrived form
   const [tripsheetNumber, setTripsheetNumber] = useState('')
   const [openingKm, setOpeningKm] = useState('')
+
+  // Completion form (shown in gps_active mode or for direct completed links)
   const [closingKm, setClosingKm] = useState('')
   const [tollAmount, setTollAmount] = useState('')
   const [parkingAmount, setParkingAmount] = useState('')
 
+  // Single GPS capture (for arrived/completed without GPS tracking)
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsError, setGpsError] = useState('')
+
+  // GPS tracking state (continuous, after arrived)
+  const [gpsPings, setGpsPings] = useState(0)
+  const completedTokenRef = useRef<string | null>(null)
+  const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function captureGPS() {
     if (!navigator.geolocation) { setGpsError('GPS not supported on this device'); return }
@@ -37,32 +49,58 @@ function DriverStatusContent() {
     setGpsError('')
     navigator.geolocation.getCurrentPosition(
       (pos) => { setLat(pos.coords.latitude); setLng(pos.coords.longitude); setGpsLoading(false) },
-      () => { setGpsError('Could not capture location. Please enable GPS and try again.'); setGpsLoading(false) },
+      () => { setGpsError('Could not capture location. Enable GPS and try again.'); setGpsLoading(false) },
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
 
-  async function handleSubmit() {
-    if (!bookingId || !status || !token) return
-    setError('')
+  function sendGpsPing() {
+    if (!bookingId || !token) return
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await fetch('/api/driver/gps-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ booking_id: bookingId, token, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          })
+          setGpsPings(p => p + 1)
+        } catch { /* non-critical */ }
+      },
+      () => { /* silent fail — GPS unavailable momentarily */ },
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }
 
-    if (status === 'arrived') {
-      if (!tripsheetNumber.trim()) { setError('Please enter the tripsheet number'); return }
-      if (!openingKm) { setError('Please enter the opening KM reading'); return }
-    } else {
-      if (!closingKm) { setError('Please enter the closing KM reading'); return }
+  function startGpsTracking() {
+    if (!navigator.geolocation) return
+    sendGpsPing() // immediate first ping
+    trackingIntervalRef.current = setInterval(sendGpsPing, GPS_INTERVAL_MS)
+  }
+
+  function stopGpsTracking() {
+    if (trackingIntervalRef.current) {
+      clearInterval(trackingIntervalRef.current)
+      trackingIntervalRef.current = null
     }
+  }
 
+  // Cleanup on unmount
+  useEffect(() => () => { if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current) }, [])
+
+  async function handleArrivedSubmit() {
+    if (!bookingId || !token) return
+    if (!tripsheetNumber.trim()) { setError('Please enter the tripsheet number'); return }
+    if (!openingKm) { setError('Please enter the opening KM reading'); return }
+
+    setError('')
     setLoading(true)
     try {
-      const body: Record<string, unknown> = { booking_id: bookingId, status, token, link_code: linkCode, leg_id: legId }
-      if (status === 'arrived') {
-        body.tripsheet_number = tripsheetNumber.trim()
-        body.opening_km = parseFloat(openingKm)
-      } else {
-        body.closing_km = parseFloat(closingKm)
-        if (tollAmount) body.toll_amount = parseFloat(tollAmount)
-        if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
+      const body: Record<string, unknown> = {
+        booking_id: bookingId, status: 'arrived', token,
+        link_code: linkCode, leg_id: legId,
+        tripsheet_number: tripsheetNumber.trim(),
+        opening_km: parseFloat(openingKm),
       }
       if (lat !== null) body.lat = lat
       if (lng !== null) body.lng = lng
@@ -73,9 +111,55 @@ function DriverStatusContent() {
         body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Invalid or expired link')
-      setDone(true)
+
+      const data = await res.json() as { ok: boolean; gps_tracking_enabled?: boolean; completed_token?: string }
+
+      if (data.gps_tracking_enabled && data.completed_token) {
+        completedTokenRef.current = data.completed_token
+        startGpsTracking()
+        setMode('gps_active')
+      } else {
+        setMode('done')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCompletedSubmit() {
+    if (!bookingId) return
+    if (!closingKm) { setError('Please enter the closing KM reading'); return }
+
+    const useToken = completedTokenRef.current || token
+    if (!useToken) return
+
+    setError('')
+    setLoading(true)
+    stopGpsTracking()
+
+    try {
+      const body: Record<string, unknown> = {
+        booking_id: bookingId, status: 'completed', token: useToken,
+        link_code: linkCode, leg_id: legId,
+        closing_km: parseFloat(closingKm),
+      }
+      if (tollAmount) body.toll_amount = parseFloat(tollAmount)
+      if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
+      if (lat !== null) body.lat = lat
+      if (lng !== null) body.lng = lng
+
+      const res = await fetch('/api/driver-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Invalid or expired link')
+      setMode('done')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      startGpsTracking() // resume tracking on failure
     } finally {
       setLoading(false)
     }
@@ -85,6 +169,93 @@ function DriverStatusContent() {
     return <p className="text-center text-[#737686]">Invalid link — please use the link sent by JMS Travels</p>
   }
 
+  if (mode === 'done') {
+    return (
+      <div className="flex flex-col items-center gap-3 text-center py-4">
+        <CheckCircle className="w-14 h-14 text-green-500" />
+        <p className="text-lg font-semibold text-[#191B23]">Status updated successfully</p>
+        <p className="text-sm text-[#737686]">The operations team has been notified</p>
+      </div>
+    )
+  }
+
+  if (mode === 'gps_active') {
+    return (
+      <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+            <Radio className="w-8 h-8 text-green-600" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-[#191B23]">GPS Tracking Active</h1>
+            <p className="text-[#434654] mt-1 text-sm">
+              Your route is being recorded every 30 seconds
+            </p>
+            {gpsPings > 0 && (
+              <p className="text-xs text-green-600 mt-1">{gpsPings} location{gpsPings !== 1 ? 's' : ''} recorded</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 text-center">
+          Keep this screen open during the trip. Fill in closing KM when done.
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
+            <Input
+              id="closing_km"
+              type="number"
+              inputMode="numeric"
+              value={closingKm}
+              onChange={e => setClosingKm(e.target.value)}
+              placeholder="e.g. 45385"
+              className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Input
+                id="toll"
+                type="number"
+                inputMode="decimal"
+                value={tollAmount}
+                onChange={e => setTollAmount(e.target.value)}
+                placeholder="0"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+            <div>
+              <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Input
+                id="parking"
+                type="number"
+                inputMode="decimal"
+                value={parkingAmount}
+                onChange={e => setParkingAmount(e.target.value)}
+                placeholder="0"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
+
+          <Button
+            className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
+            onClick={handleCompletedSubmit}
+            disabled={loading}
+          >
+            {loading ? 'Updating…' : 'Mark Trip Completed'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Default: form mode
   return (
     <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
       <div className="flex flex-col items-center gap-3">
@@ -103,114 +274,106 @@ function DriverStatusContent() {
         </div>
       </div>
 
-      {done ? (
-        <div className="flex flex-col items-center gap-3 text-center py-4">
-          <CheckCircle className="w-14 h-14 text-green-500" />
-          <p className="text-lg font-semibold text-[#191B23]">Status updated successfully</p>
-          <p className="text-sm text-[#737686]">The operations team has been notified</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {status === 'arrived' && (
-            <>
+      <div className="space-y-4">
+        {status === 'arrived' && (
+          <>
+            <div>
+              <Label htmlFor="tripsheet" className="text-sm font-medium text-[#191B23]">Tripsheet Number *</Label>
+              <Input
+                id="tripsheet"
+                value={tripsheetNumber}
+                onChange={e => setTripsheetNumber(e.target.value)}
+                placeholder="e.g. TS-001"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <Label htmlFor="opening_km" className="text-sm font-medium text-[#191B23]">Opening KM *</Label>
+              <Input
+                id="opening_km"
+                type="number"
+                inputMode="numeric"
+                value={openingKm}
+                onChange={e => setOpeningKm(e.target.value)}
+                placeholder="e.g. 45230"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+          </>
+        )}
+
+        {status === 'completed' && (
+          <>
+            <div>
+              <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
+              <Input
+                id="closing_km"
+                type="number"
+                inputMode="numeric"
+                value={closingKm}
+                onChange={e => setClosingKm(e.target.value)}
+                placeholder="e.g. 45385"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="tripsheet" className="text-sm font-medium text-[#191B23]">Tripsheet Number *</Label>
+                <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
                 <Input
-                  id="tripsheet"
-                  value={tripsheetNumber}
-                  onChange={e => setTripsheetNumber(e.target.value)}
-                  placeholder="e.g. TS-001"
-                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <Label htmlFor="opening_km" className="text-sm font-medium text-[#191B23]">Opening KM *</Label>
-                <Input
-                  id="opening_km"
+                  id="toll"
                   type="number"
-                  inputMode="numeric"
-                  value={openingKm}
-                  onChange={e => setOpeningKm(e.target.value)}
-                  placeholder="e.g. 45230"
+                  inputMode="decimal"
+                  value={tollAmount}
+                  onChange={e => setTollAmount(e.target.value)}
+                  placeholder="0"
                   className="mt-1.5 border-[#C3C5D7] h-12 text-base"
                 />
               </div>
-            </>
-          )}
-
-          {status === 'completed' && (
-            <>
               <div>
-                <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
+                <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
                 <Input
-                  id="closing_km"
+                  id="parking"
                   type="number"
-                  inputMode="numeric"
-                  value={closingKm}
-                  onChange={e => setClosingKm(e.target.value)}
-                  placeholder="e.g. 45385"
+                  inputMode="decimal"
+                  value={parkingAmount}
+                  onChange={e => setParkingAmount(e.target.value)}
+                  placeholder="0"
                   className="mt-1.5 border-[#C3C5D7] h-12 text-base"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
-                  <Input
-                    id="toll"
-                    type="number"
-                    inputMode="decimal"
-                    value={tollAmount}
-                    onChange={e => setTollAmount(e.target.value)}
-                    placeholder="0"
-                    className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
-                  <Input
-                    id="parking"
-                    type="number"
-                    inputMode="decimal"
-                    value={parkingAmount}
-                    onChange={e => setParkingAmount(e.target.value)}
-                    placeholder="0"
-                    className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                  />
-                </div>
-              </div>
-            </>
-          )}
+            </div>
+          </>
+        )}
 
-          <div>
-            <Label className="text-sm font-medium text-[#191B23]">Location <span className="font-normal text-[#737686]">(optional)</span></Label>
-            <button
-              type="button"
-              onClick={captureGPS}
-              disabled={gpsLoading}
-              className={`mt-1.5 w-full flex items-center justify-center gap-2 h-12 rounded-md border text-sm font-medium transition-colors ${
-                lat !== null
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-[#C3C5D7] bg-white text-[#434654] hover:bg-[#F3F3FE]'
-              }`}
-            >
-              <Navigation className="w-4 h-4" />
-              {gpsLoading ? 'Capturing location…' : lat !== null ? 'Location captured ✓' : 'Capture My Location'}
-            </button>
-            {gpsError && <p className="text-xs text-red-600 mt-1">{gpsError}</p>}
-          </div>
-
-          {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
-
-          <Button
-            className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
-            onClick={handleSubmit}
-            disabled={loading}
+        <div>
+          <Label className="text-sm font-medium text-[#191B23]">Location <span className="font-normal text-[#737686]">(optional)</span></Label>
+          <button
+            type="button"
+            onClick={captureGPS}
+            disabled={gpsLoading}
+            className={`mt-1.5 w-full flex items-center justify-center gap-2 h-12 rounded-md border text-sm font-medium transition-colors ${
+              lat !== null
+                ? 'border-green-500 bg-green-50 text-green-700'
+                : 'border-[#C3C5D7] bg-white text-[#434654] hover:bg-[#F3F3FE]'
+            }`}
           >
-            {loading ? 'Updating…' : status === 'arrived' ? 'Confirm Arrival' : 'Mark Trip Completed'}
-          </Button>
+            <Navigation className="w-4 h-4" />
+            {gpsLoading ? 'Capturing location…' : lat !== null ? 'Location captured ✓' : 'Capture My Location'}
+          </button>
+          {gpsError && <p className="text-xs text-red-600 mt-1">{gpsError}</p>}
         </div>
-      )}
+
+        {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
+
+        <Button
+          className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
+          onClick={status === 'arrived' ? handleArrivedSubmit : handleCompletedSubmit}
+          disabled={loading}
+        >
+          {loading ? 'Updating…' : status === 'arrived' ? 'Confirm Arrival' : 'Mark Trip Completed'}
+        </Button>
+      </div>
     </div>
   )
 }

@@ -10,7 +10,11 @@ import type { Client } from '@/types'
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
-  const { driver_id } = await request.json()
+  const { driver_id, gps_tracking_enabled } = await request.json()
+
+  if (gps_tracking_enabled != null) {
+    await supabase.from('bookings').update({ gps_tracking_enabled: !!gps_tracking_enabled }).eq('id', id)
+  }
 
   const { data: booking } = await supabase
     .from('bookings')
