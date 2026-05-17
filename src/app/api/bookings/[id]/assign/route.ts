@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Send trip brief to driver via WhatsApp
   const { data: driver } = await supabase
     .from('drivers')
-    .select('name, phone, vehicle_name, vehicle_number, vehicle_color')
+    .select('name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color')
     .eq('id', driver_id)
     .single()
 
@@ -123,9 +123,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
 
+      const contactLine = driver.secondary_phone
+        ? `${driver.phone} / ${driver.secondary_phone}`
+        : driver.phone
+
       const driverDetails = [
         `Driver Name : ${driver.name}`,
-        `Contact     : ${driver.phone}`,
+        `Contact     : ${contactLine}`,
         vehicleLine ? `Vehicle     : ${vehicleLine}` : null,
         driver.vehicle_number ? `Plate No.   : ${driver.vehicle_number}` : null,
       ].filter(Boolean).join('\n')
