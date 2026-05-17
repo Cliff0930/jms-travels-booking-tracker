@@ -6,6 +6,7 @@ import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
+import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import type { Client, ClientLocation } from '@/types'
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
@@ -674,6 +675,15 @@ async function processClientMessage(
       needsApproval ? '⏳ Pending approval' : '✅ Ready to confirm',
     ].filter(Boolean).join('\n'), 'ops'),
   ])
+
+  if (isAfterHours()) {
+    await sendAfterHoursNotices({
+      bookingRef: booking.booking_ref,
+      clientName: client.name,
+      phone: senderPhone,
+      email: client.primary_email,
+    }).catch(() => {})
+  }
 }
 
 async function createBookingFromResult(

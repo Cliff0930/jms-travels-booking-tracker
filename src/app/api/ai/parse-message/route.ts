@@ -7,6 +7,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
+import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import type { Client, ClientLocation } from '@/types'
 
 // Fast regex pre-filter — skips Gemini for obvious system/automated emails
@@ -546,6 +547,22 @@ export async function POST(request: Request) {
         } catch (e) { status = `failed: ${String(e)}` }
         await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient, body, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status })
       }
+    }
+
+    if (isAfterHours()) {
+      const afterHoursPhone = (client as Client)?.primary_phone || (channel === 'whatsapp' ? sender_phone : null)
+      const afterHoursEmail = channel === 'email'
+        ? (sender_email || (client as Client)?.primary_email)
+        : (client as Client)?.primary_email
+      await sendAfterHoursNotices({
+        bookingRef: createdBookings[0].booking.booking_ref,
+        clientName,
+        phone: afterHoursPhone,
+        email: afterHoursEmail,
+        emailCc: emailCc,
+        replyToThreadId: gmail_thread_id || undefined,
+        inReplyToMessageId: original_message_id || undefined,
+      }).catch(() => {})
     }
 
     return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
