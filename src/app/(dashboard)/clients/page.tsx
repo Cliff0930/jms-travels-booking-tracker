@@ -279,7 +279,7 @@ export default function ClientsPage() {
                 <Label className="text-xs font-semibold text-[#434654]">Company</Label>
                 <Select
                   value={watch('company_id') || '__none__'}
-                  onValueChange={v => setValue('company_id', v === '__none__' ? '' : v)}
+                  onValueChange={v => { if (v !== null) setValue('company_id', v === '__none__' ? undefined : v) }}
                 >
                   <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
                     <div className="flex items-center gap-1.5 min-w-0">
