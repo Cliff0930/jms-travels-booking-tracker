@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
@@ -118,6 +118,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('Client Request')
   const [savingGuest, setSavingGuest] = useState(false)
+
+  // Resend message dialog
+  const [showResend, setShowResend] = useState(false)
+  const [resendType, setResendType] = useState<'booking_confirmed' | 'driver_details' | 'trip_brief_driver'>('booking_confirmed')
+  const [resendChannel, setResendChannel] = useState<'whatsapp' | 'email'>('whatsapp')
+  const [resendRecipient, setResendRecipient] = useState('')
+  const [resendSending, setResendSending] = useState(false)
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -255,6 +262,31 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.error('Failed to update change request')
     } finally {
       setApplyingLog(null)
+    }
+  }
+
+  async function handleResend() {
+    setResendSending(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}/resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message_type: resendType,
+          channel: resendChannel,
+          override_recipient: resendRecipient.trim() || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success(`Sent via ${resendChannel} to ${json.recipient}`)
+      setShowResend(false)
+      setResendRecipient('')
+      qc.invalidateQueries({ queryKey: ['booking-messages', id] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send')
+    } finally {
+      setResendSending(false)
     }
   }
 
@@ -846,6 +878,19 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Cancel Booking
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
+                onClick={() => {
+                  setResendType('booking_confirmed')
+                  setResendChannel(booking.source === 'email' ? 'email' : 'whatsapp')
+                  setResendRecipient('')
+                  setShowResend(true)
+                }}
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Resend Message
+              </Button>
             </div>
           </div>
           )}
@@ -1047,6 +1092,71 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <Button variant="outline" onClick={() => setShowCancel(false)}>Keep</Button>
             <Button variant="destructive" onClick={handleCancel} disabled={cancelBooking.isPending} className="rounded-sm">
               {cancelBooking.isPending ? 'Cancelling…' : 'Cancel Booking'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resend Message dialog */}
+      <Dialog open={showResend} onOpenChange={o => { if (!o && !resendSending) setShowResend(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Resend Message</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="mb-1.5 block text-sm">Message</Label>
+              <Select value={resendType} onValueChange={v => v && setResendType(v as typeof resendType)}>
+                <SelectTrigger className="border-[#C3C5D7]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="booking_confirmed">Booking Confirmation</SelectItem>
+                  {booking.driver_id && <SelectItem value="driver_details">Driver Details to Client</SelectItem>}
+                  {booking.driver_id && <SelectItem value="trip_brief_driver">Trip Brief to Driver</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block text-sm">Send via</Label>
+              <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-sm">
+                {(['whatsapp', 'email'] as const).map(ch => (
+                  <button
+                    key={ch}
+                    onClick={() => setResendChannel(ch)}
+                    className={`flex-1 h-9 border-r last:border-r-0 border-[#C3C5D7] capitalize transition-colors ${
+                      resendChannel === ch ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                    }`}
+                  >
+                    {ch === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block text-sm">
+                Send to
+                <span className="text-xs font-normal text-[#737686] ml-1">— leave blank to use default contact</span>
+              </Label>
+              <Input
+                value={resendRecipient}
+                onChange={e => setResendRecipient(e.target.value)}
+                placeholder={resendChannel === 'email' ? 'name@example.com' : '+91 98000 00000'}
+                className="border-[#C3C5D7]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResend(false)} disabled={resendSending}>Cancel</Button>
+            <Button
+              onClick={handleResend}
+              disabled={resendSending}
+              className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
+            >
+              <Send className="w-3.5 h-3.5 mr-1.5" />
+              {resendSending ? 'Sending…' : 'Send'}
             </Button>
           </DialogFooter>
         </DialogContent>
