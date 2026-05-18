@@ -159,6 +159,13 @@ function TodayLinkCard({ leg, onSent }: { leg: TodayLeg; onSent: () => void }) {
 export default function DashboardPage() {
   const qc = useQueryClient()
   const { data: bookings = [], isLoading, refetch } = useBookings()
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await Promise.all([refetch(), qc.invalidateQueries({ queryKey: ['today-links'] })])
+    setRefreshing(false)
+  }
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
@@ -227,10 +234,11 @@ export default function DashboardPage() {
           <div className="flex gap-2">
             <Button
               variant="outline" size="sm"
-              onClick={() => { refetch(); qc.invalidateQueries({ queryKey: ['today-links'] }) }}
+              onClick={handleRefresh}
+              disabled={refreshing}
               className="gap-1.5 rounded-sm"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
             <ButtonLink href="/bookings/new" size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5">

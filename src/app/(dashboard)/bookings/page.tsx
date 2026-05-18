@@ -10,7 +10,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -21,10 +21,17 @@ function localDate(offset = 0) {
 }
 
 export default function BookingsPage() {
-  const { data: bookings = [], isLoading, isError } = useBookings()
+  const { data: bookings = [], isLoading, isError, refetch } = useBookings()
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
   const canEdit = useCanEdit()
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await refetch()
+    setRefreshing(false)
+  }
   const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
 
@@ -95,16 +102,29 @@ export default function BookingsPage() {
     <div>
       <PageHeader
         title="Bookings"
-        actions={canEdit ? (
+        actions={
           <div className="flex items-center gap-2">
-            <ButtonLink href="/bookings/upload" size="sm" variant="outline" className="rounded-sm gap-1.5">
-              <Upload className="w-4 h-4" /> Upload
-            </ButtonLink>
-            <ButtonLink href="/bookings/new" size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5">
-              <Plus className="w-4 h-4" /> New Booking
-            </ButtonLink>
+            <Button
+              variant="outline" size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="gap-1.5 rounded-sm"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            {canEdit && (
+              <>
+                <ButtonLink href="/bookings/upload" size="sm" variant="outline" className="rounded-sm gap-1.5">
+                  <Upload className="w-4 h-4" /> Upload
+                </ButtonLink>
+                <ButtonLink href="/bookings/new" size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5">
+                  <Plus className="w-4 h-4" /> New Booking
+                </ButtonLink>
+              </>
+            )}
           </div>
-        ) : undefined}
+        }
       />
 
       {/* Filter Bar */}
