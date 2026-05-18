@@ -17,8 +17,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { toast } from 'sonner'
@@ -254,6 +255,20 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.error('Failed to update change request')
     } finally {
       setApplyingLog(null)
+    }
+  }
+
+  async function handleGpsToggle(enabled: boolean) {
+    try {
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gps_tracking_enabled: enabled }),
+      })
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success(enabled ? 'GPS tracking enabled' : 'GPS tracking disabled')
+    } catch {
+      toast.error('Failed to update GPS setting')
     }
   }
 
@@ -831,6 +846,29 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Cancel Booking
                 </Button>
               )}
+            </div>
+          </div>
+          )}
+
+          {canEdit && (
+          <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <Radio className={`w-4 h-4 mt-0.5 shrink-0 ${booking.gps_tracking_enabled ? 'text-green-600' : 'text-[#737686]'}`} />
+                <div>
+                  <h2 className="text-base font-semibold text-[#191B23]">GPS Tracking</h2>
+                  <p className="text-xs text-[#737686] mt-0.5">
+                    {booking.gps_tracking_enabled
+                      ? 'Driver location recorded every 30s during trip'
+                      : 'Enable to record driver route during trip'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={!!booking.gps_tracking_enabled}
+                onCheckedChange={handleGpsToggle}
+                className="ml-4 shrink-0"
+              />
             </div>
           </div>
           )}

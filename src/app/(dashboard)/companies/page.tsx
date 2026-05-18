@@ -711,6 +711,29 @@ export default function CompaniesPage() {
 
                 <Separator />
 
+                {/* Trip Origin Address */}
+                <section>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">Trip Origin Address</h3>
+                  <p className="text-xs text-[#737686] mb-3">
+                    Dead mileage (office → pickup, drop → office) is calculated from this address.
+                    Leave blank to use JMS Travels&apos; office from Settings.
+                  </p>
+                  <Input
+                    key={selectedCompany.id}
+                    defaultValue={selectedCompany.pickup_origin_address ?? ''}
+                    placeholder="e.g. 123 Whitefield Main Rd, Bangalore 560066"
+                    className="border-[#C3C5D7] text-sm"
+                    onBlur={e => {
+                      const val = e.target.value.trim()
+                      if (val !== (selectedCompany.pickup_origin_address ?? '')) {
+                        updateCompany(selectedCompany.id, { pickup_origin_address: val || null })
+                      }
+                    }}
+                  />
+                </section>
+
+                <Separator />
+
                 {/* Driver Notification */}
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED] mb-1">Driver Details — Notify</h3>

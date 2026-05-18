@@ -35,6 +35,7 @@ export interface Company {
   email_intake_mode: 'domain' | 'specific_senders' | 'off'
   direct_booking_emails: string[]
   driver_notify_target: 'booker' | 'guest' | 'both'
+  pickup_origin_address: string | null
   created_at: string
   updated_at: string
 }
@@ -126,6 +127,7 @@ export interface Booking {
   booking_type: 'company' | 'personal' | null
   cancelled_reason: string | null
   cancelled_at: string | null
+  gps_tracking_enabled: boolean
   created_at: string
   updated_at: string
   client?: Client

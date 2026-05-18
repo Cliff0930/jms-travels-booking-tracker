@@ -17,6 +17,7 @@ create table companies (
   approval_timeout_hours int default 4,
   approval_exclusions text[] default '{}',
   digest_mode         boolean default false,
+  pickup_origin_address text,
   created_at          timestamptz default now(),
   updated_at          timestamptz default now()
 );

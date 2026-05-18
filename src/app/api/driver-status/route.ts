@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone), driver:drivers(name, phone, vehicle_name, vehicle_number, vehicle_color)')
+    .select('*, client:clients!client_id(id, name, primary_phone), driver:drivers(name, phone, vehicle_name, vehicle_number, vehicle_color), company:companies!company_id(pickup_origin_address)')
     .eq('id', booking_id)
     .single()
 
@@ -175,19 +175,26 @@ export async function POST(request: Request) {
     const distEnabled = distSetting?.value !== 'false'
 
     if (distEnabled) {
+      const company = booking.company as { pickup_origin_address?: string | null } | null
+      const companyAddress = company?.pickup_origin_address?.trim() || null
+
       const { data: officeSetting } = await supabase.from('app_settings').select('value').eq('key', 'office_location').single()
+      let jmsAddress: string | null = null
       if (officeSetting?.value) {
         try {
           const office = JSON.parse(officeSetting.value) as { address?: string }
-          if (office.address) {
-            if (sheet?.opening_lat && sheet?.opening_lng) {
-              officeToPickupKm = await getDistanceKm(office.address, `${sheet.opening_lat},${sheet.opening_lng}`, supabase)
-            }
-            if (lat && lng) {
-              dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, office.address, supabase)
-            }
-          }
+          jmsAddress = office.address?.trim() || null
         } catch { /* non-critical */ }
+      }
+
+      const originAddress = companyAddress || jmsAddress
+      if (originAddress) {
+        if (sheet?.opening_lat && sheet?.opening_lng) {
+          officeToPickupKm = await getDistanceKm(originAddress, `${sheet.opening_lat},${sheet.opening_lng}`, supabase)
+        }
+        if (lat && lng) {
+          dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, originAddress, supabase)
+        }
       }
     }
 
