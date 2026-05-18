@@ -121,8 +121,10 @@ export default function ReportsPage() {
     const cancelled  = filteredBookings.filter(b => b.status === 'cancelled').length
     const inProgress = filteredBookings.filter(b => b.status === 'in_progress').length
     const outstation = filteredBookings.filter(b => b.trip_type === 'outstation').length
+    const local      = filteredBookings.filter(b => b.trip_type === 'local').length
+    const airport    = filteredBookings.filter(b => b.trip_type === 'airport').length
     const cancelRate = total > 0 ? Math.round((cancelled / total) * 100) : 0
-    return { total, completed, cancelled, inProgress, outstation, cancelRate }
+    return { total, completed, cancelled, inProgress, outstation, local, airport, cancelRate }
   }, [filteredBookings])
 
   // ── Chart data (all from filteredBookings) ──────────────────────────────
@@ -296,14 +298,16 @@ export default function ReportsPage() {
       </div>
 
       {/* Stat cards — sync with filteredBookings */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-5">
         {[
-          { label: 'Total',          value: stats.total,                   color: '#1A56DB', bg: '#DBEAFE' },
-          { label: 'In Progress',    value: stats.inProgress,              color: '#7E3AF2', bg: '#EDE9FE' },
-          { label: 'Completed',      value: stats.completed,               color: '#059669', bg: '#D1FAE5' },
-          { label: 'Cancelled',      value: stats.cancelled,               color: '#DC2626', bg: '#FEE2E2' },
-          { label: 'Cancel Rate',    value: `${stats.cancelRate}%`,        color: '#D97706', bg: '#FEF3C7' },
-          { label: 'Outstation',     value: stats.outstation,              color: '#0284C7', bg: '#E0F2FE' },
+          { label: 'Total',          value: stats.total,                   color: '#1A56DB' },
+          { label: 'In Progress',    value: stats.inProgress,              color: '#7E3AF2' },
+          { label: 'Completed',      value: stats.completed,               color: '#059669' },
+          { label: 'Cancelled',      value: stats.cancelled,               color: '#DC2626' },
+          { label: 'Cancel Rate',    value: `${stats.cancelRate}%`,        color: '#D97706' },
+          { label: 'Local',          value: stats.local,                   color: '#1A56DB' },
+          { label: 'Outstation',     value: stats.outstation,              color: '#7B5EA7' },
+          { label: 'Airport',        value: stats.airport,                 color: '#059669' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-lg border border-[#C3C5D7] p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#737686]">{s.label}</p>
