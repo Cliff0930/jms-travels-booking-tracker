@@ -14,6 +14,14 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // Kill switch — bail out before touching any sessions
+  const { data: killSetting } = await supabase.from('app_settings').select('value').eq('key', 'ai_processing_enabled').single()
+  if (killSetting?.value === 'false') {
+    console.log('[cron] AI processing disabled — skipping all sessions')
+    return NextResponse.json({ ok: true, processed: 0, skipped: true })
+  }
+
   const now = Date.now()
   const cutoff = new Date(now - SILENCE_WINDOW_MS).toISOString()
   const staleCutoff = new Date(now - STALE_RETRY_MS).toISOString()

@@ -18,6 +18,10 @@ export async function POST(request: Request) {
   const body = await request.json()
   const supabase = createAdminClient()
 
+  // Kill switch — checked once per webhook call before any Gemini work
+  const { data: killSetting } = await supabase.from('app_settings').select('value').eq('key', 'ai_processing_enabled').single()
+  const aiEnabled = killSetting?.value !== 'false'
+
   try {
     const data = body?.message?.data
     if (!data) return NextResponse.json({ ok: true })
@@ -245,6 +249,11 @@ export async function POST(request: Request) {
         .select('*, company:companies!company_id(*), locations:client_locations(*)')
         .eq('primary_email', senderEmail)
         .single()
+
+      if (!aiEnabled) {
+        console.log('[gmail] AI processing disabled — email stored, skipping Gemini for', senderEmail)
+        continue
+      }
 
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',

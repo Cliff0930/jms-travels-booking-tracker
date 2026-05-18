@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Send, Building2, Route } from 'lucide-react'
+import { Send, Building2, Route, ShieldAlert } from 'lucide-react'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import type { MessageTemplate } from '@/types'
@@ -26,6 +26,7 @@ export default function SettingsPage() {
   const [officeName, setOfficeName] = useState('')
   const [officeAddress, setOfficeAddress] = useState('')
   const [distanceEnabled, setDistanceEnabled] = useState(true)
+  const [aiEnabled, setAiEnabled] = useState(true)
   const [savingGeneral, setSavingGeneral] = useState(false)
 
   const { data: generalSettings } = useQuery<Record<string, string>>({
@@ -44,6 +45,9 @@ export default function SettingsPage() {
     }
     if (generalSettings.distance_calculation_enabled !== undefined) {
       setDistanceEnabled(generalSettings.distance_calculation_enabled !== 'false')
+    }
+    if (generalSettings.ai_processing_enabled !== undefined) {
+      setAiEnabled(generalSettings.ai_processing_enabled !== 'false')
     }
   }, [generalSettings])
 
@@ -74,6 +78,18 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ distance_calculation_enabled: enabled ? 'true' : 'false' }),
     }).catch(() => toast.error('Failed to update setting'))
+  }
+
+  async function handleToggleAi(enabled: boolean) {
+    setAiEnabled(enabled)
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_processing_enabled: enabled ? 'true' : 'false' }),
+    }).catch(() => toast.error('Failed to update setting'))
+    toast[enabled ? 'success' : 'warning'](
+      enabled ? 'AI processing resumed' : 'AI processing stopped — messages will queue, no Gemini calls'
+    )
   }
 
   const { data: templates = [] } = useQuery<MessageTemplate[]>({
@@ -133,6 +149,30 @@ export default function SettingsPage() {
 
         <TabsContent value="general">
           <div className="space-y-5">
+
+            {/* AI Kill Switch */}
+            <div className={`rounded-lg border p-5 ${aiEnabled ? 'bg-white border-[#C3C5D7]' : 'bg-red-50 border-red-300'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-2">
+                  <ShieldAlert className={`w-4 h-4 mt-0.5 shrink-0 ${aiEnabled ? 'text-[#1A56DB]' : 'text-red-600'}`} />
+                  <div>
+                    <h3 className={`font-semibold ${aiEnabled ? 'text-[#191B23]' : 'text-red-700'}`}>AI Processing</h3>
+                    <p className={`text-sm mt-0.5 ${aiEnabled ? 'text-[#737686]' : 'text-red-600'}`}>
+                      {aiEnabled
+                        ? 'WhatsApp and email bookings are being processed automatically by Gemini.'
+                        : 'STOPPED — Gemini is disabled. Messages are saved but not processed. No bookings will be auto-created.'}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={aiEnabled}
+                  onCheckedChange={isAdmin ? handleToggleAi : undefined}
+                  disabled={!isAdmin}
+                  className="ml-4 shrink-0"
+                />
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5 space-y-4">
               <div className="flex items-center gap-2 mb-1">
                 <Building2 className="w-4 h-4 text-[#1A56DB]" />

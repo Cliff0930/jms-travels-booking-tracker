@@ -43,6 +43,10 @@ export async function POST(request: Request) {
 async function processWebhook(body: unknown) {
   const supabase = createAdminClient()
 
+  // Kill switch — checked once per webhook call before any Gemini work
+  const { data: killSetting } = await supabase.from('app_settings').select('value').eq('key', 'ai_processing_enabled').single()
+  const aiEnabled = killSetting?.value !== 'false'
+
   try {
     const b = body as Record<string, unknown>
     const entry = ((b?.entry as unknown[]) ?? [])[0] as Record<string, unknown> | undefined
@@ -105,6 +109,11 @@ async function processWebhook(body: unknown) {
           .single(),
       ])
       if (handled) continue
+
+      if (!aiEnabled) {
+        console.log('[whatsapp] AI processing disabled — message stored, skipping Gemini for', senderPhone)
+        continue
+      }
 
       if (client) {
         await processClientMessage(supabase, client, senderPhone, rawContent, rawMsg.id)
