@@ -19,9 +19,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2 } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
@@ -138,8 +139,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
-
-  const clientName = booking.guest_name || booking.client?.name || 'Unknown Client'
 
   function startEdit() {
     setEditForm({
@@ -326,7 +325,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: newClient.id, flags: newFlags }),
+        body: JSON.stringify({ guest_client_id: newClient.id, flags: newFlags }),
       })
 
       qc.invalidateQueries({ queryKey: ['bookings', id] })
@@ -336,6 +335,22 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.error('Failed to save guest')
     } finally {
       setSavingGuest(false)
+    }
+  }
+
+  async function handleSwitchBookingType() {
+    if (!canEdit || !booking) return
+    const newType = booking.booking_type === 'company' ? 'personal' : 'company'
+    try {
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_type: newType }),
+      })
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success(`Switched to ${newType === 'company' ? 'Corporate' : 'Personal'}`)
+    } catch {
+      toast.error('Failed to update booking type')
     }
   }
 
@@ -354,6 +369,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-semibold text-[#191B23]">{booking.booking_ref}</h1>
         <BookingStatusBadge status={booking.status} />
+        {booking.booking_type && (
+          <span className={cn(
+            'px-2 py-0.5 rounded-full text-xs font-medium',
+            booking.booking_type === 'company' ? 'bg-[#EEF2FF] text-[#1A56DB]' : 'bg-[#F3F4F6] text-[#374151]'
+          )}>
+            {booking.booking_type === 'company' ? 'Corporate' : 'Personal'}
+          </span>
+        )}
         {booking.trip_type === 'outstation' && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EDE9FE] text-[#7E3AF2]">Outstation</span>
         )}
@@ -598,22 +621,66 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
-            <h2 className="text-base font-semibold text-[#191B23] mb-3">Client</h2>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#D4DCFF] flex items-center justify-center text-sm font-semibold text-[#1A56DB]">
-                {clientName.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+            <h2 className="text-base font-semibold text-[#191B23] mb-4">People & Company</h2>
+
+            {/* Company */}
+            {booking.company && (
+              <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
+                <div className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider mb-2">Company</div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4 text-[#1A56DB]" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#191B23] text-sm">{booking.company.name}</div>
+                    <div className="text-xs text-[#737686]">
+                      {booking.booking_type === 'company' ? 'Corporate booking' : 'Personal booking'}
+                    </div>
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* Booked by (coordinator / client) */}
+            {booking.client && (
+              <div className={cn('mb-4 pb-4 border-b border-[#E5E7EB]', !booking.guest_name && 'mb-0 pb-0 border-b-0')}>
+                <div className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider mb-2">Booked by</div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-semibold text-[#1A56DB] shrink-0">
+                    {booking.client.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#191B23] text-sm">{booking.client.name}</div>
+                    {booking.client.primary_phone && (
+                      <div className="flex items-center gap-1 text-xs text-[#737686]">
+                        <Phone className="w-3 h-3" />{booking.client.primary_phone}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Traveller / Guest */}
+            {booking.guest_name ? (
               <div>
-                <div className="font-medium text-[#191B23]">{clientName}</div>
-                {booking.company && <div className="text-sm text-[#434654]">{booking.company.name}</div>}
-                {booking.flags?.includes('guest_booking') && (
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className="text-xs text-amber-600">Not linked to a client account</span>
-                    {canEdit && (
+                <div className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider mb-2">Traveller</div>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center text-xs font-semibold text-[#434654] shrink-0">
+                    {booking.guest_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#191B23] text-sm">{booking.guest_name}</div>
+                    {booking.guest_phone && (
+                      <div className="flex items-center gap-1 text-xs text-[#737686]">
+                        <Phone className="w-3 h-3" />{booking.guest_phone}
+                      </div>
+                    )}
+                    {booking.flags?.includes('guest_booking') && canEdit && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-6 text-xs px-2 rounded-sm text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
+                        className="h-6 text-xs px-2 mt-1.5 rounded-sm text-[#7E3AF2] border-[#7E3AF2] hover:bg-[#EDE9FE]"
                         onClick={handleSaveGuest}
                         disabled={savingGuest}
                       >
@@ -622,19 +689,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       </Button>
                     )}
                   </div>
-                )}
-                {booking.guest_phone && (
-                  <div className="flex items-center gap-1 text-xs text-[#737686] mt-0.5">
-                    <Phone className="w-3 h-3" />{booking.guest_phone}
-                  </div>
-                )}
-                {booking.client?.primary_phone && !booking.guest_phone && (
-                  <div className="flex items-center gap-1 text-xs text-[#737686] mt-0.5">
-                    <Phone className="w-3 h-3" />{booking.client.primary_phone}
-                  </div>
-                )}
+                </div>
               </div>
-            </div>
+            ) : !booking.client && (
+              <div className="text-sm text-[#737686]">No client linked</div>
+            )}
           </div>
 
           {booking.driver && (
@@ -924,6 +983,31 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex justify-between">
                 <dt className="text-[#737686]">Reference</dt>
                 <dd className="font-medium text-[#191B23]">{booking.booking_ref}</dd>
+              </div>
+              {booking.company && (
+                <div className="flex justify-between">
+                  <dt className="text-[#737686]">Company</dt>
+                  <dd className="text-[#434654] font-medium text-right max-w-[60%] truncate">{booking.company.name}</dd>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <dt className="text-[#737686]">Booking Type</dt>
+                <dd className="flex items-center gap-1.5">
+                  <span className={cn(
+                    'text-xs font-medium px-1.5 py-0.5 rounded',
+                    booking.booking_type === 'company' ? 'bg-[#EEF2FF] text-[#1A56DB]' : 'bg-[#F3F4F6] text-[#374151]'
+                  )}>
+                    {booking.booking_type === 'company' ? 'Corporate' : 'Personal'}
+                  </span>
+                  {canEdit && (
+                    <button
+                      onClick={handleSwitchBookingType}
+                      className="text-xs text-[#737686] hover:text-[#1A56DB] underline-offset-2 hover:underline"
+                    >
+                      Switch
+                    </button>
+                  )}
+                </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-[#737686]">Source</dt>

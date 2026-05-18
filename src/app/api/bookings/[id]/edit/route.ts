@@ -80,5 +80,47 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     changes: diff,
   })
 
+  // Auto-save guest to client directory when guest_name is set/changed and booking has a company
+  if ('guest_name' in changes && changes.guest_name) {
+    const companyId: string | null = (updated as Record<string, unknown>)?.company_id as string | null ?? null
+    if (companyId) {
+      const guestName = String(changes.guest_name)
+      const guestPhone = changes.guest_phone != null
+        ? String(changes.guest_phone)
+        : ((current as Record<string, unknown>).guest_phone as string | null ?? null)
+      const existingGuestClientId = (current as Record<string, unknown>).guest_client_id as string | null ?? null
+
+      try {
+        if (existingGuestClientId) {
+          await admin.from('clients').update({
+            name: guestName,
+            ...(guestPhone ? { primary_phone: guestPhone } : {}),
+          }).eq('id', existingGuestClientId)
+        } else {
+          let guestClientId: string | null = null
+          if (guestPhone) {
+            const { data: byPhone } = await admin.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
+            if (byPhone) guestClientId = (byPhone as { id: string }).id
+          }
+          if (!guestClientId) {
+            const { data: newGuest } = await admin.from('clients').insert({
+              name: guestName,
+              primary_phone: guestPhone ?? null,
+              company_id: companyId,
+              guest_of_company_id: companyId,
+              client_type: 'guest',
+              is_verified: false,
+              is_vip: false,
+            }).select('id').single()
+            guestClientId = (newGuest as { id: string } | null)?.id ?? null
+          }
+          if (guestClientId) {
+            await admin.from('bookings').update({ guest_client_id: guestClientId }).eq('id', id)
+          }
+        }
+      } catch { /* non-critical */ }
+    }
+  }
+
   return NextResponse.json(updated)
 }
