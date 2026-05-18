@@ -104,14 +104,28 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
     font-size: 14px;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Safe-area-aware layout classes (used by dashboard layout + nav) */
+.main-layout {
+  padding-top: calc(4rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .main-layout {
+    padding-bottom: 1.5rem;
   }
 }
 

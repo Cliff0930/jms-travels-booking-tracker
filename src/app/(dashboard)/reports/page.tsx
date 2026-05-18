@@ -392,33 +392,35 @@ export default function ReportsPage() {
         <div className="py-12 text-center text-[#737686]">Loading report…</div>
       ) : (
         <div className="bg-white rounded-lg border border-[#C3C5D7] overflow-x-auto">
-          <table className="w-full text-sm min-w-[1400px]">
+          <table className="w-full text-sm min-w-[320px] sm:min-w-[640px] lg:min-w-[1400px]">
             <thead>
               <tr className="border-b border-[#C3C5D7] bg-[#F3F3FE]">
-                {/* Booking core */}
+                {/* Always visible */}
                 <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Ref</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Client</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Company</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Driver</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Vehicle</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pickup</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Drop</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Date</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Time</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pax</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Trip</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Status</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Source</th>
-                {/* Tripsheet */}
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap border-l border-[#C3C5D7]">Sheet No.</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open KM</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close KM</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver KM</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">GPS KM</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Total KM</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Toll</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Parking</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Duration</th>
+                {/* sm+ */}
+                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Company</th>
+                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Driver</th>
+                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Trip</th>
+                {/* lg+ */}
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Vehicle</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pickup</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Drop</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Time</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pax</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Source</th>
+                {/* Tripsheet — lg+ only */}
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap border-l border-[#C3C5D7]">Sheet No.</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open KM</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close KM</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver KM</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">GPS KM</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Total KM</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Toll</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Parking</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -436,28 +438,28 @@ export default function ReportsPage() {
                 return (
                   <tr key={b.id} className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE]">
                     <td className="px-3 py-2 font-medium text-[#1A56DB] whitespace-nowrap">{b.booking_ref}</td>
-                    <td className="px-3 py-2 text-[#191B23] whitespace-nowrap">{b.client?.name || b.guest_name || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.company?.name || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.name || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.pickup_location || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.drop_location || '—'}</td>
+                    <td className="px-3 py-2 text-[#191B23] whitespace-nowrap max-w-[100px] truncate">{b.client?.name || b.guest_name || '—'}</td>
                     <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_date || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_time || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-center">{b.pax_count ?? '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] capitalize">{b.trip_type}</td>
                     <td className="px-3 py-2"><BookingStatusBadge status={b.status} /></td>
-                    <td className="px-3 py-2 text-[#434654] capitalize">{b.source}</td>
-                    {/* Tripsheet columns — purple tint header to differentiate */}
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap border-l border-[#C3C5D7]">{ts?.tripsheet_number || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
-                    <td className="px-3 py-2 text-[#191B23] font-medium text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-right">{ts?.gps_km != null ? ts.gps_km.toFixed(1) : '—'}</td>
-                    <td className="px-3 py-2 text-[#1A56DB] font-semibold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{duration}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.company?.name || '—'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.name || '—'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] capitalize">{b.trip_type}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.pickup_location || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.drop_location || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_time || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-center">{b.pax_count ?? '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] capitalize">{b.source}</td>
+                    {/* Tripsheet columns — lg+ */}
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap border-l border-[#C3C5D7]">{ts?.tripsheet_number || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#191B23] font-medium text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.gps_km != null ? ts.gps_km.toFixed(1) : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-semibold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{duration}</td>
                   </tr>
                 )
               })}
