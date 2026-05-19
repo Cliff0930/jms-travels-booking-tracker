@@ -606,6 +606,32 @@ async function processClientMessage(
     return
   }
 
+  // Duplicate check — same client, same date, same pickup, same time, not yet cancelled/completed
+  const dupDate     = result.extracted.pickup_date
+  const dupLocation = result.extracted.pickup_location
+  const dupTime     = result.extracted.pickup_time
+  if (dupDate && dupLocation) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let dupQ: any = supabase
+      .from('bookings')
+      .select('id, booking_ref')
+      .eq('client_id', client.id)
+      .eq('pickup_date', dupDate)
+      .ilike('pickup_location', dupLocation)
+      .not('status', 'in', '("cancelled","completed")')
+    if (dupTime) dupQ = dupQ.eq('pickup_time', dupTime)
+    const { data: dupBooking } = await dupQ.maybeSingle()
+    if (dupBooking) {
+      await sendWhatsAppMessage({
+        to: senderPhone,
+        body: `Hi ${client.name}, it looks like this booking already exists — Ref: ${dupBooking.booking_ref}.\n\nIf this is a new booking with different details, please send them again. Otherwise call us at 9845572207.`,
+        log: { client_id: client.id },
+      })
+      await supabase.from('conversation_sessions').delete().eq('id', session.id)
+      return
+    }
+  }
+
   // Lock session immediately — prevents duplicate bookings if ack send times out
   await supabase
     .from('conversation_sessions')
