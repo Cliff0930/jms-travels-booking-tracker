@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   if (status) query = query.eq('status', status)
   if (date) query = query.eq('pickup_date', date)
-  if (clientId) query = query.eq('client_id', clientId)
+  if (clientId) query = query.or(`client_id.eq.${clientId},guest_client_id.eq.${clientId}`)
   if (dateFrom) query = query.gte('pickup_date', dateFrom)
   if (dateTo) query = query.lte('pickup_date', dateTo)
   if (tripType) query = query.eq('trip_type', tripType)
