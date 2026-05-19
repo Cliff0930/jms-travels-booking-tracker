@@ -140,6 +140,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
 
+  // Use booking's direct company, or fall back to the coordinator client's company
+  const displayCompany = booking.company ?? booking.client?.company ?? null
+
   function startEdit() {
     setEditForm({
       pickup_location: booking!.pickup_location || '',
@@ -314,8 +317,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           name: booking.guest_name,
           primary_phone: booking.guest_phone || null,
           client_type: 'guest',
-          company_id: booking.company_id || null,
-          guest_of_company_id: booking.company_id || null,
+          company_id: displayCompany?.id || null,
+          guest_of_company_id: displayCompany?.id || null,
         }),
       })
       if (!clientRes.ok) throw new Error('Failed to create guest record')
@@ -624,7 +627,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <h2 className="text-base font-semibold text-[#191B23] mb-4">People & Company</h2>
 
             {/* Company */}
-            {booking.company && (
+            {displayCompany && (
               <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
                 <div className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider mb-2">Company</div>
                 <div className="flex items-center gap-2.5">
@@ -632,7 +635,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <Building2 className="w-4 h-4 text-[#1A56DB]" />
                   </div>
                   <div>
-                    <div className="font-medium text-[#191B23] text-sm">{booking.company.name}</div>
+                    <div className="font-medium text-[#191B23] text-sm">{displayCompany.name}</div>
                     <div className="text-xs text-[#737686]">
                       {booking.booking_type === 'company' ? 'Corporate booking' : 'Personal booking'}
                     </div>
@@ -896,7 +899,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Confirm Booking
                 </Button>
               )}
-              {booking.status === 'pending_approval' && booking.company?.approval_required && (
+              {booking.status === 'pending_approval' && displayCompany?.approval_required && (
                 <Button
                   variant="outline"
                   className="w-full rounded-sm text-[#1A56DB] border-[#1A56DB] hover:bg-[#EEF2FF]"
@@ -984,10 +987,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <dt className="text-[#737686]">Reference</dt>
                 <dd className="font-medium text-[#191B23]">{booking.booking_ref}</dd>
               </div>
-              {booking.company && (
+              {displayCompany && (
                 <div className="flex justify-between">
                   <dt className="text-[#737686]">Company</dt>
-                  <dd className="text-[#434654] font-medium text-right max-w-[60%] truncate">{booking.company.name}</dd>
+                  <dd className="text-[#434654] font-medium text-right max-w-[60%] truncate">{displayCompany.name}</dd>
                 </div>
               )}
               <div className="flex justify-between items-center">

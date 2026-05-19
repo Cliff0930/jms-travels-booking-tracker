@@ -216,7 +216,14 @@ function NewBookingForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Client</Label>
-                  <Select value={form.client_id} items={clients.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('client_id', v)}>
+                  <Select value={form.client_id} items={clients.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => {
+                      if (v === null) return
+                      setField('client_id', v)
+                      const picked = clients.find(c => c.id === v)
+                      if (picked?.company_id && !form.company_id) {
+                        setField('company_id', picked.company_id)
+                      }
+                    }}>
                     <SelectTrigger className="border-[#C3C5D7] h-9">
                       <SelectValue placeholder="Select client…" />
                     </SelectTrigger>

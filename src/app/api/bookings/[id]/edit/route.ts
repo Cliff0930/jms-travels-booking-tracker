@@ -87,7 +87,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ?? ((current as Record<string, unknown>).guest_phone as string | null)
     ?? null
   const existingGuestClientId = (current as Record<string, unknown>).guest_client_id as string | null ?? null
-  const companyId = (current as Record<string, unknown>).company_id as string | null ?? null
+  let companyId = (current as Record<string, unknown>).company_id as string | null ?? null
+  if (!companyId) {
+    const clientId = (current as Record<string, unknown>).client_id as string | null ?? null
+    if (clientId) {
+      const { data: clientRow } = await admin.from('clients').select('company_id').eq('id', clientId).single()
+      companyId = (clientRow as { company_id: string | null } | null)?.company_id ?? null
+    }
+  }
 
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
