@@ -1,6 +1,6 @@
 'use client'
 import { useRouter } from 'next/navigation'
-import { MapPin, Calendar, Clock, MoreVertical } from 'lucide-react'
+import { MapPin, Calendar, Clock, MoreVertical, User } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { BookingStatusBadge, statusBarClass } from '@/components/shared/StatusBadge'
@@ -17,8 +17,9 @@ interface BookingCardProps {
 
 export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingCardProps) {
   const router = useRouter()
-  const clientName = booking.guest_name || booking.client?.name || 'Unknown'
-  const companyName = booking.company?.name
+  const travellerName = booking.guest_name || booking.client?.name || 'Unknown'
+  const bookerName = booking.guest_name && booking.client?.name ? booking.client.name : null
+  const companyName = booking.company?.name || booking.client?.company?.name
 
   return (
     <div
@@ -66,16 +67,30 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
           </div>
         </div>
 
-        {/* Row 2: client name + company + VIP */}
+        {/* Row 2: traveller + company + VIP + booking type */}
         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-          <span className="text-sm font-medium text-[#191B23]">{clientName}</span>
+          <span className="text-sm font-medium text-[#191B23]">{travellerName}</span>
           {companyName && (
             <span className="px-2 py-0.5 rounded-full text-xs bg-[#EDEDF8] text-[#434654]">{companyName}</span>
           )}
           {booking.client?.is_vip && (
             <span className="px-1.5 py-0.5 rounded-full text-xs bg-[#FEF9C3] text-[#713F12] font-semibold">VIP</span>
           )}
+          {booking.booking_type === 'company' && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-[#EFF6FF] text-[#1D4ED8] font-medium">Corporate</span>
+          )}
+          {booking.booking_type === 'personal' && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-[#FFF7ED] text-[#C2410C] font-medium">Personal</span>
+          )}
         </div>
+
+        {/* Row 3: booked by (only if guest is different from booker) */}
+        {bookerName && (
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-[#9CA3AF]">
+            <User className="w-3 h-3 shrink-0" />
+            <span>Booked by {bookerName}</span>
+          </div>
+        )}
 
         {/* Row 3: pickup → drop */}
         <div className="flex items-center gap-1.5 mt-2 text-sm text-[#434654]">

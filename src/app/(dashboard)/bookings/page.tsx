@@ -10,7 +10,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -40,22 +40,26 @@ export default function BookingsPage() {
   const [pickupDate, setPickupDate] = useState<string>('')   // 'today' | 'tomorrow' | 'YYYY-MM-DD' | ''
   const [newTodayOnly, setNewTodayOnly] = useState(false)
   const [companyFilter, setCompanyFilter] = useState<string>('')
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<'' | 'company' | 'personal'>('')
 
   const today = localDate(0)
   const tomorrow = localDate(1)
 
   const companies = useMemo(() => {
-    const names = bookings.map(b => b.company?.name).filter(Boolean) as string[]
+    const names = bookings
+      .map(b => b.company?.name || b.client?.company?.name)
+      .filter(Boolean) as string[]
     return [...new Set(names)].sort()
   }, [bookings])
 
-  const hasFilters = !!searchQuery || !!pickupDate || newTodayOnly || !!companyFilter
+  const hasFilters = !!searchQuery || !!pickupDate || newTodayOnly || !!companyFilter || !!bookingTypeFilter
 
   function clearFilters() {
     setSearchQuery('')
     setPickupDate('')
     setNewTodayOnly(false)
     setCompanyFilter('')
+    setBookingTypeFilter('')
   }
 
   function applyFilters(items: Booking[]) {
@@ -64,7 +68,9 @@ export default function BookingsPage() {
       if (pickupDate === 'tomorrow' && !b.pickup_date?.startsWith(tomorrow)) return false
       if (pickupDate !== 'today' && pickupDate !== 'tomorrow' && pickupDate && !b.pickup_date?.startsWith(pickupDate)) return false
       if (newTodayOnly && !b.created_at?.startsWith(today)) return false
-      if (companyFilter && b.company?.name !== companyFilter) return false
+      const derivedCompany = b.company?.name || b.client?.company?.name
+      if (companyFilter && derivedCompany !== companyFilter) return false
+      if (bookingTypeFilter && b.booking_type !== bookingTypeFilter) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         const match =
@@ -75,6 +81,7 @@ export default function BookingsPage() {
           b.client?.primary_phone?.toLowerCase().includes(q) ||
           b.client?.primary_email?.toLowerCase().includes(q) ||
           b.company?.name?.toLowerCase().includes(q) ||
+          b.client?.company?.name?.toLowerCase().includes(q) ||
           b.driver?.name?.toLowerCase().includes(q) ||
           b.driver?.phone?.toLowerCase().includes(q) ||
           b.driver?.vehicle_number?.toLowerCase().includes(q) ||
@@ -188,6 +195,33 @@ export default function BookingsPage() {
             }`}
           >
             New Today
+          </button>
+        </div>
+
+        {/* Vertical divider — desktop only */}
+        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+
+        {/* Billing type filter */}
+        <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
+          <button
+            onClick={() => setBookingTypeFilter(v => v === 'company' ? '' : 'company')}
+            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              bookingTypeFilter === 'company'
+                ? 'bg-[#1D4ED8] text-white border-r-[#1D4ED8]'
+                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" /> Corporate
+          </button>
+          <button
+            onClick={() => setBookingTypeFilter(v => v === 'personal' ? '' : 'personal')}
+            className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              bookingTypeFilter === 'personal'
+                ? 'bg-[#C2410C] text-white'
+                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" /> Personal
           </button>
         </div>
 
