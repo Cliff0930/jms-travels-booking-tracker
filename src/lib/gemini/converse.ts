@@ -64,11 +64,10 @@ function sanitizePickupDate(raw: string | null, today: string): string | null {
   return raw
 }
 
-function isComplete(result: ConversationResult, hasCompany: boolean): boolean {
+function isComplete(result: ConversationResult): boolean {
   const ext = result.extracted
   if (!ext.pickup_location || !ext.pickup_date || !ext.pickup_time) return false
   if (ext.trip_type === 'outstation' && (!ext.drop_location || !ext.total_days || ext.total_days < 1)) return false
-  if (hasCompany && !ext.booking_type) return false
   // Airport: Gemini must set special_instructions (arrival + flight/terminal asked, or departure confirmed)
   if (ext.trip_type === 'airport' && !ext.special_instructions) return false
   return true
@@ -152,8 +151,13 @@ export async function converseBooking(
   }
 
   const hasCompany = !!client?.company_id
+  // Safety net: Gemini should never return null booking_type for corporate clients
+  if (hasCompany && parsed.extracted && !parsed.extracted.booking_type) {
+    parsed.extracted.booking_type = 'company'
+  }
+
   // Code-level completeness check overrides LLM if it missed something
-  if (parsed.intent === 'booking' && !isComplete(parsed, hasCompany)) {
+  if (parsed.intent === 'booking' && !isComplete(parsed)) {
     parsed.is_complete = false
   }
 

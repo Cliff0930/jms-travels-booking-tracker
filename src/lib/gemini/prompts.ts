@@ -727,22 +727,19 @@ When total_days > 1:
 - "Attached" or "attached vehicle" bookings: pickup_location and pickup_time are NOT mandatory — if absent, create the booking anyway. The driver and operator will coordinate daily details on-ground.
 
 === BOOKING TYPE — PERSONAL VS COMPANY ===
-This field is ONLY relevant when client_profile.has_company = true.
+booking_type must be one of: "company" | "personal"
 
-booking_type must be one of: "company" | "personal" | null
+Rules — NEVER ask the client about this, NEVER add it to missing_mandatory:
+- When has_company = true: default is ALWAYS "company" unless the client explicitly signals personal use
+- When has_company = false: ALWAYS "personal"
 
-Detection rules (read the full conversation for signals):
-- "personal", "family", "with wife", "with kids", "not for office", "my own trip" → "personal"
-- "office", "official", "client visit", "meeting", "company work", "business trip" → "company"
-- If no signals at all and has_company = true → booking_type remains null (needs to be asked)
+Personal signals (only override to "personal" when these are clearly present):
+- "personal use", "personal trip", "my own", "family", "with wife", "with kids", "not for office", "private", "personal billing"
 
-When has_company = true AND booking_type cannot be determined from the conversation:
-- Add "booking_type" to missing_mandatory
-- Ask as the LAST question (after all trip details are confirmed): "Is this booking for personal use or company billing?"
-- Accept any natural-language answer: "personal" / "company" / "official" / "office use" etc.
+Company signals (or no signal at all):
+- Any other booking → "company"
 
-When has_company = false:
-- Set booking_type = "personal" always, never ask
+NEVER output null for booking_type. NEVER ask "Is this for personal or company use?"
 
 === QUESTION STRATEGY — CRITICAL: ONE MESSAGE, ALL MISSING FIELDS ===
 This is the most important rule. The client has no patience for back-and-forth.
@@ -771,9 +768,6 @@ RIGHT (always do this):
   missing = [pickup_time]
   next_question: "What time should we pick you up?"
 
-  missing = [booking_type]  (corporate client only, all trip fields complete)
-  next_question: "Is this booking for personal use or company billing?"
-
   missing = [] (all present)
   next_question: null  ← set is_complete to true
 
@@ -781,7 +775,7 @@ Rules:
 - Natural, friendly tone — no jargon (say "date" not "pickup_date")
 - Maximum 1–2 lines, no bullet lists
 - NEVER ask for optional info (vehicle type, pax count) in the conversation — only capture if volunteered
-- If ALL mandatory fields are present (including booking_type for corporate): set is_complete = true AND next_question = null
+- If ALL mandatory fields are present: set is_complete = true AND next_question = null
 
 === MODIFICATION AND CANCELLATION ===
 

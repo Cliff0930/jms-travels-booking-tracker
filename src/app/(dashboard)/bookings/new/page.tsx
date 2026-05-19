@@ -232,19 +232,17 @@ function NewBookingForm() {
                     </SelectContent>
                   </Select>
                 </div>
-                {form.booking_type === 'company' && (
-                  <div>
-                    <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
-                    <Select value={form.company_id} items={companies.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('company_id', v)}>
-                      <SelectTrigger className="border-[#C3C5D7] h-9">
-                        <SelectValue placeholder="Select company…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
+                  <Select value={form.company_id} items={companies.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('company_id', v)}>
+                    <SelectTrigger className="border-[#C3C5D7] h-9">
+                      <SelectValue placeholder="Select company…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Guest Name <span className="text-[#9CA3AF]">(if different)</span></Label>
                   <Input

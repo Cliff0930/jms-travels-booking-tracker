@@ -4,18 +4,15 @@ import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
 function getDriveAuth() {
-  const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
-  const jsonStr = keyRaw.trimStart().startsWith('{')
-    ? keyRaw
-    : Buffer.from(keyRaw, 'base64').toString('utf-8')
-  const emailMatch = jsonStr.match(/"client_email"\s*:\s*"([^"]+)"/)
-  const keyMatch   = jsonStr.match(/"private_key"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*})/)
-  if (!emailMatch || !keyMatch) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is incomplete')
-  return new google.auth.JWT({
-    email: emailMatch[1],
-    key: keyMatch[1].replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'],
-  })
+  const clientId     = process.env.GOOGLE_DRIVE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET
+  const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Missing GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET or GOOGLE_DRIVE_REFRESH_TOKEN env vars')
+  }
+  const oauth2 = new google.auth.OAuth2(clientId, clientSecret)
+  oauth2.setCredentials({ refresh_token: refreshToken })
+  return oauth2
 }
 
 export async function GET(request: Request) {
