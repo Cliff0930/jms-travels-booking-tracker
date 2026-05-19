@@ -31,6 +31,25 @@ export async function fillMissingFromReply(
   const client = booking.client as Record<string, any> | null
   const savedLocations = client?.locations || []
 
+  // Store the inbound reply so it appears in the booking message log
+  try {
+    const inboundRow = {
+      channel: 'email',
+      sender_email: senderEmail,
+      sender_name: (client?.name as string | null) ?? null,
+      raw_content: replyContent,
+      booking_id: booking.id as string,
+      processed: true,
+      processed_at: new Date().toISOString(),
+      ...(originalMessageId ? { gmail_message_id: originalMessageId } : {}),
+    }
+    if (originalMessageId) {
+      await supabase.from('raw_messages').upsert(inboundRow, { onConflict: 'gmail_message_id', ignoreDuplicates: true })
+    } else {
+      await supabase.from('raw_messages').insert(inboundRow)
+    }
+  } catch { /* non-critical — don't block booking processing */ }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const extraction = await extractBookingFields(replyContent, client as any, savedLocations)
   const newFields = extraction.bookings[0]?.extracted ?? {}

@@ -6,7 +6,7 @@ import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { FlagList } from '@/components/shared/FlagBadge'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { ApproveByCallModal } from '@/components/bookings/ApproveByCallModal'
-import { MessageTimeline } from '@/components/bookings/MessageTimeline'
+import { BookingMessageChat } from '@/components/bookings/BookingMessageChat'
 import { SubstituteDriverModal } from '@/components/bookings/SubstituteDriverModal'
 import { TripLegsPanel } from '@/components/bookings/TripLegsPanel'
 import { TripTimeline } from '@/components/bookings/TripTimeline'
@@ -780,7 +780,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           {/* Message Log */}
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <h2 className="text-base font-semibold text-[#191B23] mb-4">Message Log</h2>
-            <MessageTimeline messages={messages} />
+            <BookingMessageChat messages={messages} booking={booking} />
           </div>
 
           {/* Edit History */}
