@@ -159,6 +159,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [chasingApproval, setChasingApproval] = useState(false)
   const [dismissingDup, setDismissingDup] = useState(false)
   const [cancellingOther, setCancellingOther] = useState<string | null>(null)
+  const [showCompleteEarly, setShowCompleteEarly] = useState(false)
+  const [completeEarlyReason, setCompleteEarlyReason] = useState('')
+  const [completingEarly, setCompletingEarly] = useState(false)
   const canEdit = useCanEdit()
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
@@ -387,6 +390,28 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.success('Booking cancelled')
     } catch {
       toast.error('Failed to cancel booking')
+    }
+  }
+
+  async function handleCompleteEarly() {
+    setCompletingEarly(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}/complete-early`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: completeEarlyReason }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      qc.invalidateQueries({ queryKey: ['booking-legs', id] })
+      toast.success('Booking completed — remaining legs cancelled')
+      setShowCompleteEarly(false)
+      setCompleteEarlyReason('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setCompletingEarly(false)
     }
   }
 
@@ -1094,6 +1119,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Cancel Booking
                 </Button>
               )}
+              {booking.total_days > 1 && ['confirmed', 'in_progress'].includes(booking.status) && (
+                <Button
+                  variant="outline"
+                  className="w-full rounded-sm text-[#059669] border-[#6EE7B7] hover:bg-[#ECFDF5]"
+                  onClick={() => setShowCompleteEarly(true)}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Complete Early
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
@@ -1433,6 +1468,44 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             >
               <UserPlus className="w-4 h-4 mr-2" />
               New guest — save {editForm?.guest_name} separately
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Early dialog */}
+      <Dialog open={showCompleteEarly} onOpenChange={o => { if (!o && !completingEarly) { setShowCompleteEarly(false); setCompleteEarlyReason('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Complete Booking Early</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-[#434654]">
+              This will cancel all remaining upcoming legs and mark the booking as <span className="font-medium text-[#059669]">Completed</span>.
+            </p>
+            <div>
+              <Label className="mb-1.5 block text-sm">Reason (optional)</Label>
+              <Textarea
+                value={completeEarlyReason}
+                onChange={e => setCompleteEarlyReason(e.target.value)}
+                placeholder="e.g. Client no longer needs the vehicle from Day 4"
+                rows={2}
+                className="border-[#C3C5D7] resize-none"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCompleteEarly(false); setCompleteEarlyReason('') }} disabled={completingEarly}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCompleteEarly}
+              disabled={completingEarly}
+              className="bg-[#059669] hover:bg-[#047857] rounded-sm"
+            >
+              <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+              {completingEarly ? 'Completing…' : 'Complete Early'}
             </Button>
           </DialogFooter>
         </DialogContent>

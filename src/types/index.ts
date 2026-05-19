@@ -142,7 +142,7 @@ export interface BookingLeg {
   driver_id: string | null
   day_number: number
   leg_date: string
-  leg_status: 'upcoming' | 'in_progress' | 'completed'
+  leg_status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled'
   link_sent_at: string | null
   created_at: string
   driver?: Driver
