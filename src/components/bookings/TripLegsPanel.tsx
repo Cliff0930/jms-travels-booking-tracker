@@ -12,6 +12,7 @@ import type { BookingLeg, Driver } from '@/types'
 interface TripLegsPanelProps {
   bookingId: string
   driverAssigned?: boolean
+  tripType?: string
 }
 
 function legStatusColor(status: string) {
@@ -20,7 +21,7 @@ function legStatusColor(status: string) {
   return 'bg-[#EDEDF8] text-[#434654]'
 }
 
-export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPanelProps) {
+export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: TripLegsPanelProps) {
   const qc = useQueryClient()
   const { data: legs = [], isLoading } = useQuery<(BookingLeg & { driver?: Driver | null })[]>({
     queryKey: ['booking-legs', bookingId],
@@ -95,6 +96,14 @@ export function TripLegsPanel({ bookingId, driverAssigned = false }: TripLegsPan
                 <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
                   {leg.leg_status.replace('_', ' ')}
                 </Badge>
+                {tripType === 'airport' && (
+                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${leg.day_number === 1 ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                    {leg.day_number === 1 ? 'Airport Pickup' : 'Local'}
+                  </span>
+                )}
+                {tripType === 'local' && (
+                  <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#ECFDF5] text-[#065F46]">Local</span>
+                )}
                 {linkSentAt && (
                   <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">
                     <CheckCircle2 className="w-3 h-3" />

@@ -148,7 +148,7 @@ function NewBookingForm() {
     { label: 'Time', value: form.pickup_time || null },
     { label: 'Vehicle', value: form.vehicle_type || null },
     { label: 'Pax', value: form.pax_count ? `${form.pax_count} passenger${parseInt(form.pax_count) !== 1 ? 's' : ''}` : null },
-    ...(form.trip_type === 'outstation' ? [{ label: 'Days', value: form.total_days }] : []),
+    ...(parseInt(form.total_days) > 1 ? [{ label: 'Days', value: form.total_days }] : []),
   ].filter(i => i.value)
 
   const isReadyToSubmit = !!(form.pickup_location && form.pickup_date && form.pickup_time)
@@ -337,18 +337,16 @@ function NewBookingForm() {
                     required
                   />
                 </div>
-                {form.trip_type === 'outstation' && (
-                  <div>
-                    <Label className="text-xs text-[#737686] mb-1.5 block">Total Days</Label>
-                    <Input
-                      value={form.total_days}
-                      onChange={e => setField('total_days', e.target.value)}
-                      type="number"
-                      min="1"
-                      className="border-[#C3C5D7] h-9"
-                    />
-                  </div>
-                )}
+                <div>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">Total Days</Label>
+                  <Input
+                    value={form.total_days}
+                    onChange={e => setField('total_days', e.target.value)}
+                    type="number"
+                    min="1"
+                    className="border-[#C3C5D7] h-9"
+                  />
+                </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Service</Label>
                   <Select value={form.service_type} onValueChange={v => v !== null && setField('service_type', v as 'one_way' | 'return')}>

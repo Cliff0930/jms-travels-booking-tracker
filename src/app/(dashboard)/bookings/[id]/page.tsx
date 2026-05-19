@@ -727,18 +727,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       </SelectContent>
                     </Select>
                   </div>
-                  {f.trip_type === 'outstation' && (
-                    <div>
-                      <Label className="mb-1 block">Total Days</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={f.total_days}
-                        onChange={e => setEditForm(p => p ? { ...p, total_days: e.target.value } : p)}
-                        className="border-[#1A56DB] bg-[#F0F4FF]"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <Label className="mb-1 block">Total Days</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={f.total_days}
+                      onChange={e => setEditForm(p => p ? { ...p, total_days: e.target.value } : p)}
+                      className="border-[#1A56DB] bg-[#F0F4FF]"
+                    />
+                  </div>
                   <div>
                     <Label className="mb-1 block">Guest Name</Label>
                     <Input
@@ -879,7 +877,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 Trip Legs
                 <span className="ml-2 text-sm font-normal text-[#737686]">{booking.total_days} days</span>
               </h2>
-              <TripLegsPanel bookingId={booking.id} driverAssigned={!!booking.driver_id} />
+              <TripLegsPanel bookingId={booking.id} driverAssigned={!!booking.driver_id} tripType={booking.trip_type} />
             </div>
           )}
 
