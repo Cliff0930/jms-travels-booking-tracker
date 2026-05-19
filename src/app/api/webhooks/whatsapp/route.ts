@@ -480,6 +480,24 @@ async function processClientMessage(
     .update({ ai_classification: result.intent, processed: true, processed_at: new Date().toISOString() })
     .eq('id', rawMsgId)
 
+  // If Gemini detects a new booking starting within an existing session, reset the
+  // session so the old booking's partial data doesn't bleed into the new one, then
+  // re-run Gemini on just the current message for a clean extraction.
+  const priorSessionMessages = session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>
+  if (result.is_new_booking_request && priorSessionMessages.length > 0) {
+    await supabase.from('conversation_sessions').update({
+      messages: [],
+      extracted: {},
+      last_message_at: new Date().toISOString(),
+    }).eq('id', session.id)
+    const freshMsg = [{ role: 'client' as const, content: rawContent, timestamp: new Date().toISOString() }]
+    try {
+      result = await converseBooking(freshMsg, client, savedLocations)
+    } catch {
+      // keep original result if re-run fails
+    }
+  }
+
   // Enquiry or other
   if (result.intent === 'enquiry') {
     const sessionMsgsEnq = session.messages as Array<{ role: 'client' | 'agent'; content: string; timestamp: string }>
