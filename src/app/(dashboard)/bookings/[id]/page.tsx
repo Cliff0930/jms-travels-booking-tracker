@@ -219,6 +219,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       if (!res.ok) throw new Error(json.error)
       qc.invalidateQueries({ queryKey: ['bookings', id] })
       qc.invalidateQueries({ queryKey: ['booking-edit-logs', id] })
+      qc.invalidateQueries({ queryKey: ['booking-legs', id] })
       toast.success('Booking updated')
       setIsEditing(false)
       setEditForm(null)

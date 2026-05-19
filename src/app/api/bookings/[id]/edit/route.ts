@@ -100,6 +100,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  // Auto-extend booking legs when total_days increases
+  const newTotalDays = typeof changes.total_days === 'number' ? changes.total_days : null
+  const prevTotalDays = typeof current.total_days === 'number' ? current.total_days : 1
+  if (newTotalDays && newTotalDays > 1 && newTotalDays > prevTotalDays) {
+    const baseDate = (changes.pickup_date as string | null | undefined) ?? (current.pickup_date as string | null)
+    if (baseDate) {
+      const { data: existingLegs } = await admin
+        .from('booking_legs')
+        .select('day_number')
+        .eq('booking_id', id)
+      const existingDays = new Set((existingLegs ?? []).map((l: { day_number: number }) => l.day_number))
+      const newLegs = Array.from({ length: newTotalDays }, (_, i) => {
+        if (existingDays.has(i + 1)) return null
+        const d = new Date(baseDate + 'T00:00:00Z')
+        d.setUTCDate(d.getUTCDate() + i)
+        return { booking_id: id, day_number: i + 1, leg_date: d.toISOString().slice(0, 10), leg_status: 'upcoming' }
+      }).filter(Boolean)
+      if (newLegs.length > 0) {
+        await admin.from('booking_legs').insert(newLegs)
+      }
+    }
+  }
+
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
       const isCorrection = existingGuestClientId && guest_name_action === 'update'
