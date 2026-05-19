@@ -146,11 +146,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       let recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
       let sendStatus = 'failed'
 
+      let waMessageId: string | undefined
       if (phones.length > 0) {
         const results = await sendToAll(phones, body)
-        const anyOk = results.some(r => r.ok)
-        sendStatus = anyOk ? 'sent' : 'failed'
-        if (!anyOk) console.error(`[confirm] WhatsApp failed for all phones booking=${id}`, results)
+        const okResult = results.find(r => r.ok)
+        sendStatus = okResult ? 'sent' : 'failed'
+        waMessageId = okResult?.whatsappMessageId
+        if (!okResult) console.error(`[confirm] WhatsApp failed for all phones booking=${id}`, results)
       } else if (email) {
         channel = 'email'
         recipient = email
@@ -168,6 +170,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         content: body,
         template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
         status: sendStatus,
+        whatsapp_message_id: waMessageId ?? null,
       })
     }
   }

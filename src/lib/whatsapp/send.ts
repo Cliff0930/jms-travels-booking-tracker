@@ -13,6 +13,7 @@ interface WhatsAppTextMessage {
 export interface SendResult {
   ok: boolean
   error?: string
+  whatsappMessageId?: string
 }
 
 // Send the same message to multiple phones (deduped). Returns array of results.
@@ -50,6 +51,9 @@ export async function sendWhatsAppMessage({ to, body, log }: WhatsAppTextMessage
       return { ok: false, error: `API ${res.status}: ${errText}` }
     }
 
+    const responseJson = await res.json() as { messages?: Array<{ id: string }> }
+    const whatsappMessageId = responseJson.messages?.[0]?.id
+
     // Log to message_logs only when caller opts in — booking routes log manually
     if (log !== undefined) {
       try {
@@ -63,11 +67,12 @@ export async function sendWhatsAppMessage({ to, body, log }: WhatsAppTextMessage
           client_id: log.client_id ?? null,
           template_used: log.template_used ?? null,
           status: 'sent',
+          whatsapp_message_id: whatsappMessageId ?? null,
         })
       } catch { /* non-critical */ }
     }
 
-    return { ok: true }
+    return { ok: true, whatsappMessageId }
   } catch (e) {
     console.error(`[WhatsApp] Network error to=${normalizedTo}:`, e)
     return { ok: false, error: String(e) }

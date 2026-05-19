@@ -163,11 +163,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Send
   let sendOk = false
   let sendError: string | undefined
+  let waMessageId: string | undefined
 
   if (channel === 'whatsapp') {
     const result = await sendWhatsAppMessage({ to: recipient, body })
     sendOk = result.ok
     sendError = result.error
+    waMessageId = result.whatsappMessageId
   } else {
     const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined })
     sendOk = result.ok
@@ -184,6 +186,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     content: body,
     template_used: templateUsed,
     status: sendOk ? 'sent' : 'failed',
+    whatsapp_message_id: waMessageId ?? null,
   })
 
   if (!sendOk) {

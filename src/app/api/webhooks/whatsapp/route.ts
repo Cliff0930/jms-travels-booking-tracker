@@ -52,6 +52,35 @@ async function processWebhook(body: unknown) {
     const entry = ((b?.entry as unknown[]) ?? [])[0] as Record<string, unknown> | undefined
     const changes = ((entry?.changes as unknown[]) ?? [])[0] as Record<string, unknown> | undefined
     const value = changes?.value as Record<string, unknown> | undefined
+
+    // Process delivery status updates — Meta sends these when a message fails to deliver
+    const statuses = value?.statuses as Array<Record<string, unknown>> | undefined
+    if (statuses?.length) {
+      for (const s of statuses) {
+        const waMessageId = s.id as string | undefined
+        const status = s.status as string | undefined
+        const errors = s.errors as Array<{ code: number; title: string }> | undefined
+        if (!waMessageId || !status) continue
+
+        // Map Meta statuses: 'sent'=accepted, 'delivered'=on device, 'read'=seen, 'failed'=not delivered
+        if (status === 'failed') {
+          const errorCode = errors?.[0]?.code
+          const errorTitle = errors?.[0]?.title || 'Delivery failed'
+          console.error(`[WhatsApp] Delivery failed wa_message_id=${waMessageId} code=${errorCode} title=${errorTitle}`)
+          // Update message_log by matching the whatsapp_message_id stored when the message was sent
+          await supabase
+            .from('message_logs')
+            .update({ status: 'failed' })
+            .eq('whatsapp_message_id', waMessageId)
+        } else if (status === 'delivered') {
+          await supabase
+            .from('message_logs')
+            .update({ status: 'delivered' })
+            .eq('whatsapp_message_id', waMessageId)
+        }
+      }
+    }
+
     const messages = value?.messages as Array<Record<string, unknown>> | undefined
 
     if (!messages?.length) return
