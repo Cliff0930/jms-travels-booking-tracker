@@ -20,10 +20,11 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const travellerName = booking.guest_name || booking.client?.name || 'Unknown'
   const bookerName = booking.guest_name && booking.client?.name ? booking.client.name : null
   const companyName = booking.company?.name || booking.client?.company?.name
+  const isPossibleDup = (booking.flags as string[] | undefined)?.includes('possible_duplicate')
 
   return (
     <div
-      className={`bg-white rounded-lg border border-[#E5E7EB] overflow-hidden card-hover cursor-pointer ${statusBarClass(booking.status)}`}
+      className={`bg-white rounded-lg border overflow-hidden card-hover cursor-pointer ${isPossibleDup ? 'border-amber-400' : 'border-[#E5E7EB]'} ${statusBarClass(booking.status)}`}
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       {/* Main content */}
@@ -32,6 +33,9 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0">
             <span className="font-semibold text-[#191B23] text-sm">{booking.booking_ref}</span>
+            {isPossibleDup && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300">Possible duplicate</span>
+            )}
             {booking.trip_type === 'local' && (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#ECFDF5] text-[#065F46]">Local</span>
             )}

@@ -59,5 +59,41 @@ export async function POST(request: Request) {
     changed_by: 'system',
   })
 
+  // Possible-duplicate detection: same client + same date, matching guest or location
+  if (data.client_id && data.pickup_date) {
+    const { data: sameDay } = await supabase
+      .from('bookings')
+      .select('id, flags, guest_name, pickup_location')
+      .eq('client_id', data.client_id)
+      .eq('pickup_date', data.pickup_date)
+      .not('status', 'in', '("cancelled","completed")')
+      .neq('id', data.id)
+
+    const guestFirst = (data.guest_name as string | null)?.toLowerCase().split(' ')[0] ?? ''
+    const locFirst   = (data.pickup_location as string | null)?.toLowerCase().split(' ').slice(0, 3).join(' ') ?? ''
+
+    const matches = (sameDay ?? []).filter(s => {
+      if (guestFirst && s.guest_name?.toLowerCase().includes(guestFirst)) return true
+      if (locFirst   && s.pickup_location?.toLowerCase().includes(locFirst)) return true
+      return false
+    })
+
+    if (matches.length > 0) {
+      // Flag the new booking
+      await supabase.from('bookings')
+        .update({ flags: [...(data.flags as string[] || []), 'possible_duplicate'] })
+        .eq('id', data.id)
+      // Flag existing similar bookings that aren't already flagged
+      for (const m of matches) {
+        const mFlags = (m.flags as string[] | null) ?? []
+        if (!mFlags.includes('possible_duplicate')) {
+          await supabase.from('bookings')
+            .update({ flags: [...mFlags, 'possible_duplicate'] })
+            .eq('id', m.id)
+        }
+      }
+    }
+  }
+
   return NextResponse.json(data, { status: 201 })
 }

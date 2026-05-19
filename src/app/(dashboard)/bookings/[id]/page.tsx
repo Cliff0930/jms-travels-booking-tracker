@@ -19,15 +19,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2 } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
-const CANCEL_REASONS = ['Client Request', 'No Show', 'Operational Issue', 'Other']
+const CANCEL_REASONS = ['Client Request', 'No Show', 'Operational Issue', 'Duplicate Booking', 'Other']
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
+
+interface SimilarBooking {
+  id: string
+  booking_ref: string
+  pickup_date: string
+  pickup_time: string | null
+  pickup_location: string | null
+  drop_location: string | null
+  guest_name: string | null
+  guest_phone: string | null
+  status: string
+  trip_type: string | null
+}
 
 interface EditForm {
   pickup_location: string
@@ -68,6 +81,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     queryKey: ['booking-edit-logs', id],
     queryFn: () => fetch(`/api/bookings/${id}/edit-logs`).then(r => r.json()),
     enabled: !!id,
+  })
+
+  const isPossibleDup = booking?.flags?.includes('possible_duplicate') ?? false
+  const { data: similarBookings = [] } = useQuery<SimilarBooking[]>({
+    queryKey: ['booking-similar', id],
+    queryFn: () => fetch(`/api/bookings/${id}/similar`).then(r => r.json()),
+    enabled: isPossibleDup,
   })
 
   interface TripSheet {
@@ -137,6 +157,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false)
   const [applyingLog, setApplyingLog] = useState<string | null>(null)
   const [chasingApproval, setChasingApproval] = useState(false)
+  const [dismissingDup, setDismissingDup] = useState(false)
+  const [cancellingOther, setCancellingOther] = useState<string | null>(null)
   const canEdit = useCanEdit()
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
@@ -320,6 +342,53 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleDismissDuplicate() {
+    setDismissingDup(true)
+    try {
+      const newFlags = (booking!.flags || []).filter((f: string) => f !== 'possible_duplicate')
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flags: newFlags }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      qc.invalidateQueries({ queryKey: ['booking-similar', id] })
+      toast.success('Marked as not a duplicate')
+    } catch {
+      toast.error('Failed to dismiss')
+    } finally {
+      setDismissingDup(false)
+    }
+  }
+
+  async function handleCancelOtherBooking(otherId: string, otherRef: string) {
+    setCancellingOther(otherId)
+    try {
+      const res = await fetch(`/api/bookings/${otherId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: `Duplicate of ${booking!.booking_ref}` }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      qc.invalidateQueries({ queryKey: ['booking-similar', id] })
+      toast.success(`${otherRef} cancelled`)
+    } catch {
+      toast.error('Failed to cancel')
+    } finally {
+      setCancellingOther(null)
+    }
+  }
+
+  async function handleCancelThisAsDuplicate(otherRef: string) {
+    try {
+      await cancelBooking.mutateAsync({ id, reason: `Duplicate of ${otherRef}` })
+      toast.success('Booking cancelled')
+    } catch {
+      toast.error('Failed to cancel booking')
+    }
+  }
+
   async function handleSaveGuest() {
     if (!booking || !booking.guest_name) return
     setSavingGuest(true)
@@ -402,6 +471,78 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Editing</span>
         )}
       </div>
+
+      {isPossibleDup && (
+        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">Possible duplicate booking</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                This booking shares the same client, date, and{' '}
+                {similarBookings.length > 0 ? 'guest or pickup location' : 'details'} as another booking.
+                Call the client to confirm, then cancel the duplicate.
+              </p>
+
+              {similarBookings.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {similarBookings.map(s => (
+                    <div key={s.id} className="flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-white px-3 py-2.5 text-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-[#191B23]">{s.booking_ref}</span>
+                          <span className="capitalize text-xs text-[#737686]">{s.status}</span>
+                        </div>
+                        {s.guest_name && <div className="text-xs text-[#434654] mt-0.5">{s.guest_name}</div>}
+                        <div className="text-xs text-[#737686] mt-0.5 truncate">
+                          {s.pickup_location}{s.drop_location ? ` → ${s.drop_location}` : ''}
+                        </div>
+                        <div className="text-xs text-[#737686]">
+                          {formatBookingDateTime(s.pickup_date, s.pickup_time)}
+                        </div>
+                      </div>
+                      {canEdit && s.status !== 'cancelled' && s.status !== 'completed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-xs rounded-sm shrink-0 text-red-600 border-red-200 hover:bg-red-50"
+                          disabled={cancellingOther === s.id}
+                          onClick={() => handleCancelOtherBooking(s.id, s.booking_ref)}
+                        >
+                          {cancellingOther === s.id ? 'Cancelling…' : `Cancel ${s.booking_ref}`}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                {canEdit && booking.status !== 'cancelled' && booking.status !== 'completed' && similarBookings.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-3 text-xs rounded-sm text-red-600 border-red-200 hover:bg-red-50"
+                    disabled={cancelBooking.isPending}
+                    onClick={() => handleCancelThisAsDuplicate(similarBookings[0].booking_ref)}
+                  >
+                    Cancel This One
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs rounded-sm text-amber-700 border-amber-300 hover:bg-amber-100"
+                  disabled={dismissingDup}
+                  onClick={handleDismissDuplicate}
+                >
+                  {dismissingDup ? 'Dismissing…' : 'Not a duplicate — dismiss'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left: Trip Details */}
