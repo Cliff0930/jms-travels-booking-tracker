@@ -119,6 +119,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('Client Request')
   const [savingGuest, setSavingGuest] = useState(false)
+  const [showGuestChoiceDialog, setShowGuestChoiceDialog] = useState(false)
+  const [guestNameAction, setGuestNameAction] = useState<'update' | 'new' | null>(null)
 
   // Resend message dialog
   const [showResend, setShowResend] = useState(false)
@@ -166,6 +168,17 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     setEditForm(null)
   }
 
+  function handleInitiateSave() {
+    if (!editForm) return
+    const guestChanged = editForm.guest_name !== (booking!.guest_name || '')
+    const hasExistingGuest = !!booking!.guest_client_id
+    if (guestChanged && hasExistingGuest) {
+      setShowGuestChoiceDialog(true)
+    } else {
+      setShowSaveDialog(true)
+    }
+  }
+
   async function handleSave() {
     if (!editForm || !editReason.trim()) return
     setSaving(true)
@@ -178,7 +191,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       const res = await fetch(`/api/bookings/${id}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes, reason: editReason }),
+        body: JSON.stringify({ changes, reason: editReason, guest_name_action: guestNameAction }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -189,6 +202,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       setEditForm(null)
       setShowSaveDialog(false)
       setEditReason('')
+      setGuestNameAction(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
@@ -417,7 +431,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <Button
                     size="sm"
                     className="h-7 text-xs rounded-sm bg-[#1A56DB] hover:bg-[#003FB1]"
-                    onClick={() => setShowSaveDialog(true)}
+                    onClick={handleInitiateSave}
                   >
                     Save Changes
                   </Button>
@@ -1244,6 +1258,41 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             >
               <Send className="w-3.5 h-3.5 mr-1.5" />
               {resendSending ? 'Sending…' : 'Send'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Guest changed — ask correction vs new guest */}
+      <Dialog open={showGuestChoiceDialog} onOpenChange={o => { if (!o) setShowGuestChoiceDialog(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Guest Changed</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-[#434654]">You changed the guest name:</p>
+            <div className="flex items-center justify-center gap-2 bg-[#F3F3FE] rounded-lg px-3 py-2 text-sm">
+              <span className="font-medium text-[#737686]">{booking.guest_name || '—'}</span>
+              <span className="text-[#737686]">→</span>
+              <span className="font-medium text-[#191B23]">{editForm?.guest_name || '—'}</span>
+            </div>
+            <p className="text-xs text-[#737686]">Is this a correction to the same person, or a completely different guest?</p>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              variant="outline"
+              className="w-full justify-start rounded-sm border-[#C3C5D7]"
+              onClick={() => { setGuestNameAction('update'); setShowGuestChoiceDialog(false); setShowSaveDialog(true) }}
+            >
+              <Pencil className="w-4 h-4 mr-2 text-[#737686]" />
+              Correction — update {booking.guest_name}&apos;s profile
+            </Button>
+            <Button
+              className="w-full justify-start rounded-sm bg-[#1A56DB] hover:bg-[#003FB1]"
+              onClick={() => { setGuestNameAction('new'); setShowGuestChoiceDialog(false); setShowSaveDialog(true) }}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              New guest — save {editForm?.guest_name} separately
             </Button>
           </DialogFooter>
         </DialogContent>

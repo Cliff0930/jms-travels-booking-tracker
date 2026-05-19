@@ -34,7 +34,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     changedByName = profile?.name || profile?.email || user.email || 'operator'
   }
 
-  const { changes, reason } = await request.json()
+  const { changes, reason, guest_name_action } = await request.json() as {
+    changes: Record<string, unknown>
+    reason: string
+    guest_name_action?: 'update' | 'new'
+  }
 
   if (!reason?.trim()) {
     return NextResponse.json({ error: 'Reason is required' }, { status: 400 })
@@ -98,12 +102,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
-      if (existingGuestClientId) {
+      const isCorrection = existingGuestClientId && guest_name_action === 'update'
+
+      if (isCorrection) {
+        // Typo / name correction — update existing guest's profile in place
         await admin.from('clients').update({
           name: guestName,
           ...(guestPhone ? { primary_phone: guestPhone } : {}),
         }).eq('id', existingGuestClientId)
       } else {
+        // New guest (or no existing link) — find by phone or create fresh record
         let guestClientId: string | null = null
         if (guestPhone) {
           const { data: byPhone } = await admin.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()

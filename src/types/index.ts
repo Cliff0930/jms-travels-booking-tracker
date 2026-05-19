@@ -125,6 +125,7 @@ export interface Booking {
   approved_at: string | null
   approval_note: string | null
   booking_type: 'company' | 'personal' | null
+  guest_client_id: string | null
   cancelled_reason: string | null
   cancelled_at: string | null
   gps_tracking_enabled: boolean
