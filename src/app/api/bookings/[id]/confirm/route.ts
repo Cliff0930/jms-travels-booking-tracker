@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import type { Client } from '@/types'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -119,13 +119,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     if (booking.source === 'email') {
       // Email-source bookings: notify via email only
+      let emailStatus = email ? 'skipped' : 'skipped'
       if (email) {
-        await sendEmail({
+        const result = await sendEmailSafe({
           to: email,
           subject: `Your booking is confirmed - ${booking.booking_ref}`,
           body,
           cc: bookingCc.length > 0 ? bookingCc : undefined,
-        }).catch(() => {})
+        })
+        emailStatus = result.ok ? 'sent' : 'failed'
+        if (!result.ok) console.error(`[confirm] Email failed booking=${id} error=${result.error}`)
       }
       await supabase.from('message_logs').insert({
         booking_id: id,
@@ -135,25 +138,36 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         recipient: email || 'unknown',
         content: body,
         template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
-        status: email ? 'sent' : 'skipped',
+        status: emailStatus,
       })
     } else {
       // WhatsApp-source bookings: send via WhatsApp, fall back to email
+      let channel: 'whatsapp' | 'email' = 'whatsapp'
+      let recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
+      let sendStatus = 'failed'
+
       if (phones.length > 0) {
-        await sendToAll(phones, body)
+        const results = await sendToAll(phones, body)
+        const anyOk = results.some(r => r.ok)
+        sendStatus = anyOk ? 'sent' : 'failed'
+        if (!anyOk) console.error(`[confirm] WhatsApp failed for all phones booking=${id}`, results)
       } else if (email) {
-        await sendEmail({ to: email, subject: `Your booking is confirmed - ${booking.booking_ref}`, body }).catch(() => {})
+        channel = 'email'
+        recipient = email
+        const result = await sendEmailSafe({ to: email, subject: `Your booking is confirmed - ${booking.booking_ref}`, body })
+        sendStatus = result.ok ? 'sent' : 'failed'
+        if (!result.ok) console.error(`[confirm] Fallback email failed booking=${id} error=${result.error}`)
       }
-      const recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
+
       await supabase.from('message_logs').insert({
         booking_id: id,
         client_id: client?.id || null,
-        channel: phones.length > 0 ? 'whatsapp' : 'email',
+        channel,
         direction: 'outbound',
         recipient,
         content: body,
         template_used: TEMPLATE_KEYS.BOOKING_CONFIRMED,
-        status: 'sent',
+        status: sendStatus,
       })
     }
   }

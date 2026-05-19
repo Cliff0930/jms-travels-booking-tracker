@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -161,13 +161,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   // Send
+  let sendOk = false
+  let sendError: string | undefined
+
   if (channel === 'whatsapp') {
-    await sendWhatsAppMessage({ to: recipient, body })
+    const result = await sendWhatsAppMessage({ to: recipient, body })
+    sendOk = result.ok
+    sendError = result.error
   } else {
-    await sendEmail({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined })
+    const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined })
+    sendOk = result.ok
+    sendError = result.error
   }
 
-  // Log to message_logs
+  // Log to message_logs with actual send outcome
   await supabase.from('message_logs').insert({
     booking_id: id,
     client_id: client?.id || null,
@@ -176,8 +183,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     recipient,
     content: body,
     template_used: templateUsed,
-    status: 'sent',
+    status: sendOk ? 'sent' : 'failed',
   })
+
+  if (!sendOk) {
+    return NextResponse.json({ error: `Send failed: ${sendError}` }, { status: 502 })
+  }
 
   return NextResponse.json({ ok: true, recipient, channel })
 }

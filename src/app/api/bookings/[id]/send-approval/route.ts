@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { approvalLink } from '@/lib/utils/approval-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -59,12 +59,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   ])
   const emailBody = `${baseBody}\n\nQuick links:\n✅ Approve: ${approveUrl}\n❌ Reject: ${rejectUrl}`
 
-  const sends: Promise<unknown>[] = []
-
   if ((channel === 'email' || channel === 'both') && hasEmailApprovers) {
-    for (const email of company.approver_emails) {
-      sends.push(sendEmail({ to: email, subject, body: emailBody }).catch(e => console.error('Email send error:', e)))
-    }
+    const results = await Promise.all(
+      company.approver_emails.map((email: string) => sendEmailSafe({ to: email, subject, body: emailBody }))
+    )
+    const anyOk = results.some(r => r.ok)
+    if (!anyOk) console.error(`[send-approval] All email sends failed booking=${id}`, results)
     await supabase.from('message_logs').insert({
       booking_id: id,
       channel: 'email',
@@ -72,13 +72,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       recipient: company.approver_emails.join(', '),
       content: emailBody,
       template_used: TEMPLATE_KEYS.APPROVAL_REQUEST,
+      status: anyOk ? 'sent' : 'failed',
     })
   }
 
   if ((channel === 'whatsapp' || channel === 'both') && hasWAApprovers) {
-    for (const phone of company.approver_whatsapp) {
-      sends.push(sendWhatsAppMessage({ to: phone, body: baseBody }).catch(e => console.error('WA send error:', e)))
-    }
+    const results = await Promise.all(
+      company.approver_whatsapp.map((phone: string) => sendWhatsAppMessage({ to: phone, body: baseBody }))
+    )
+    const anyOk = results.some(r => r.ok)
+    if (!anyOk) console.error(`[send-approval] All WhatsApp sends failed booking=${id}`, results)
     await supabase.from('message_logs').insert({
       booking_id: id,
       channel: 'whatsapp',
@@ -86,10 +89,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       recipient: company.approver_whatsapp.join(', '),
       content: baseBody,
       template_used: TEMPLATE_KEYS.APPROVAL_REQUEST,
+      status: anyOk ? 'sent' : 'failed',
     })
   }
-
-  await Promise.allSettled(sends)
 
   await supabase
     .from('bookings')

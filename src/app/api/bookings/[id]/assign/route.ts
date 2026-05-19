@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
@@ -154,12 +154,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (isEmailSource) {
         // Email-source bookings: send email to booker + WhatsApp to guest (if phone available)
         if (bookerEmail) {
-          await sendEmail({
+          const result = await sendEmailSafe({
             to: bookerEmail,
             subject: `Driver Assigned - ${booking.booking_ref}`,
             body: driverBody,
             cc: bookingCc.length > 0 ? bookingCc : undefined,
-          }).catch(e => console.error('Driver details email error:', e))
+          })
+          if (!result.ok) console.error(`[assign] Driver email failed booking=${id} error=${result.error}`)
 
           await supabase.from('message_logs').insert({
             booking_id: id,
@@ -169,7 +170,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             recipient: bookerEmail,
             content: driverBody,
             template_used: 'driver_details_to_client',
-            status: 'sent',
+            status: result.ok ? 'sent' : 'failed',
           })
         }
         if (guestPhone) {
@@ -177,7 +178,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             booking_id: id,
             client_id: client?.id || undefined,
             template_used: 'driver_details_to_client',
-          }).catch(e => console.error('Driver details WA error:', e))
+          })
         }
       } else {
         // WhatsApp-source bookings: use company notify target preference
@@ -190,14 +191,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           booking_id: id,
           client_id: client?.id || undefined,
           template_used: 'driver_details_to_client',
-        }).catch(e => console.error('Driver details WA error:', e))
+        })
 
         if (bookerEmail && notifyTarget !== 'guest') {
-          await sendEmail({
+          const result = await sendEmailSafe({
             to: bookerEmail,
             subject: `Driver Assigned - ${booking.booking_ref}`,
             body: driverBody,
-          }).catch(e => console.error('Driver details email error:', e))
+          })
+          if (!result.ok) console.error(`[assign] Driver email (WA source) failed booking=${id} error=${result.error}`)
 
           await supabase.from('message_logs').insert({
             booking_id: id,
@@ -207,7 +209,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             recipient: bookerEmail,
             content: driverBody,
             template_used: 'driver_details_to_client',
-            status: 'sent',
+            status: result.ok ? 'sent' : 'failed',
           })
         }
       }

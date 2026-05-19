@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
 import { expireBookingLinks } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
@@ -68,12 +68,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (booking.source === 'email' && client?.primary_email) {
       // Email-source bookings: notify via email (same channel they used to book)
-      await sendEmail({ to: client.primary_email, subject, body, cc: bookingCc.length > 0 ? bookingCc : undefined }).catch(e => console.error('Cancel email client error:', e))
+      const result = await sendEmailSafe({ to: client.primary_email, subject, body, cc: bookingCc.length > 0 ? bookingCc : undefined })
+      if (!result.ok) console.error(`[cancel] Email failed booking=${id} error=${result.error}`)
       await supabase.from('message_logs').insert({
         booking_id: id, client_id: booking.client_id,
         channel: 'email', direction: 'outbound',
         recipient: client.primary_email, content: body,
         template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
+        status: result.ok ? 'sent' : 'failed',
       })
       // Also WhatsApp the guest if they have a separate phone
       if (booking.guest_phone) {
@@ -86,20 +88,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
 
       if (phones.length > 0) {
-        await sendToAll(phones, body).catch(e => console.error('Cancel WA client error:', e))
+        const results = await sendToAll(phones, body)
+        const anyOk = results.some(r => r.ok)
+        if (!anyOk) console.error(`[cancel] WhatsApp failed all phones booking=${id}`, results)
         await supabase.from('message_logs').insert({
           booking_id: id, client_id: booking.client_id,
           channel: 'whatsapp', direction: 'outbound',
           recipient: phones.join(', '), content: body,
           template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
+          status: anyOk ? 'sent' : 'failed',
         })
       } else if (client?.primary_email) {
-        await sendEmail({ to: client.primary_email, subject, body }).catch(e => console.error('Cancel email client error:', e))
+        const result = await sendEmailSafe({ to: client.primary_email, subject, body })
+        if (!result.ok) console.error(`[cancel] Fallback email failed booking=${id} error=${result.error}`)
         await supabase.from('message_logs').insert({
           booking_id: id, client_id: booking.client_id,
           channel: 'email', direction: 'outbound',
           recipient: client.primary_email, content: body,
           template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
+          status: result.ok ? 'sent' : 'failed',
         })
       }
     }

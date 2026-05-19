@@ -64,3 +64,20 @@ export async function sendEmail({ to, subject, body, cc, skipSignature = false, 
   })
   return result.data.id || null
 }
+
+export interface EmailSendResult {
+  ok: boolean
+  messageId?: string | null
+  error?: string
+}
+
+export async function sendEmailSafe(opts: EmailMessage): Promise<EmailSendResult> {
+  try {
+    const messageId = await sendEmail(opts)
+    return { ok: true, messageId }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error(`[Gmail] Send failed to=${opts.to}:`, msg)
+    return { ok: false, error: msg }
+  }
+}
