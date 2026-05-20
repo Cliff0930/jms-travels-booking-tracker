@@ -4,7 +4,6 @@ import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
-import { formatDate } from '@/lib/utils/date'
 
 const MAPS_DAILY_LIMIT = 200
 
