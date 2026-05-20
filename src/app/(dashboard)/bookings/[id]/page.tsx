@@ -835,7 +835,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <div className="font-medium text-[#191B23] text-sm">{booking.client.name}</div>
                     {booking.client.primary_phone && (
                       <div className="flex items-center gap-1 text-xs text-[#737686]">
-                        <Phone className="w-3 h-3" />{booking.client.primary_phone}
+                        <Phone className="w-3 h-3" />
+                        <a href={`tel:${booking.client.primary_phone}`} className="hover:underline hover:text-[#1A56DB]">{booking.client.primary_phone}</a>
                       </div>
                     )}
                   </div>
@@ -855,7 +856,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <div className="font-medium text-[#191B23] text-sm">{booking.guest_name}</div>
                     {booking.guest_phone && (
                       <div className="flex items-center gap-1 text-xs text-[#737686]">
-                        <Phone className="w-3 h-3" />{booking.guest_phone}
+                        <Phone className="w-3 h-3" />
+                        <a href={`tel:${booking.guest_phone}`} className="hover:underline hover:text-[#1A56DB]">{booking.guest_phone}</a>
                       </div>
                     )}
                     {booking.flags?.includes('guest_booking') && canEdit && (
@@ -889,7 +891,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <div className="font-medium text-[#191B23]">{booking.driver.name}</div>
                   <div className="text-sm text-[#434654]">{booking.driver.vehicle_name} — {booking.driver.vehicle_number}</div>
                   <div className="flex items-center gap-1 text-xs text-[#737686] mt-0.5">
-                    <Phone className="w-3 h-3" />{booking.driver.phone}
+                    <Phone className="w-3 h-3" />
+                    <a href={`tel:${booking.driver.phone}`} className="hover:underline hover:text-[#1A56DB]">{booking.driver.phone}</a>
                   </div>
                 </div>
               </div>

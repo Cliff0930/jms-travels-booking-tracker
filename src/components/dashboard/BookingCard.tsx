@@ -117,7 +117,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             <Car className="w-3.5 h-3.5 shrink-0 text-[#059669]" />
             <span className="font-medium text-[#059669]">{booking.driver.name}</span>
             <span className="text-[#D1D5DB]">·</span>
-            <span className="text-[#6B7280]">{booking.driver.phone}</span>
+            <a href={`tel:${booking.driver.phone}`} onClick={e => e.stopPropagation()} className="text-[#6B7280] hover:text-[#059669] hover:underline">{booking.driver.phone}</a>
             <span className="text-[#D1D5DB]">·</span>
             <span className="text-[#6B7280]">{booking.driver.vehicle_type}</span>
             <span className="text-[#D1D5DB]">·</span>
