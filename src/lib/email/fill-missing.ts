@@ -162,7 +162,13 @@ export async function fillMissingFromReply(
     `Thank you for choosing JMS Travels.`,
   ].join('\n')
 
-  await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading }).catch(e => console.error('[fill-missing] confirmation email failed for', bookingRef, e))
+  let confirmStatus = 'failed'
+  try {
+    await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading })
+    confirmStatus = 'sent'
+  } catch (e) {
+    console.error('[fill-missing] confirmation email failed for', bookingRef, e)
+  }
 
   await supabase.from('message_logs').insert({
     booking_id: booking.id,
@@ -172,6 +178,6 @@ export async function fillMissingFromReply(
     recipient: senderEmail,
     content: body,
     template_used: 'booking_received',
-    status: 'sent',
+    status: confirmStatus,
   })
 }

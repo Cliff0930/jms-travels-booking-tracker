@@ -11,7 +11,7 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 }
 
 const REDIRECT_URI = 'http://localhost:3333'
-const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+const SCOPE = 'https://mail.google.com/'
 
 const authUrl =
   `https://accounts.google.com/o/oauth2/v2/auth` +
