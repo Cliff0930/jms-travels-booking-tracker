@@ -178,6 +178,7 @@ export default function DashboardPage() {
   const { data: todayLegs = [], isLoading: legsLoading } = useQuery<TodayLeg[]>({
     queryKey: ['today-links', today],
     queryFn: () => fetch(`/api/dashboard/today-links?date=${today}`).then(r => r.json()),
+    refetchInterval: 30000,
   })
 
   // ── Computed sections ────────────────────────────────────────────────────

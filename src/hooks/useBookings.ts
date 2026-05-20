@@ -9,6 +9,7 @@ export function useBookings(filters?: { status?: BookingStatus; date?: string })
   return useQuery<Booking[]>({
     queryKey: ['bookings', filters],
     queryFn: () => fetch(`/api/bookings?${params}`).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || `HTTP ${r.status}`) } return r.json() }),
+    refetchInterval: 30000,
   })
 }
 

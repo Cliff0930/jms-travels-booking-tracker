@@ -53,7 +53,7 @@ export default function BookingsPage() {
     queryKey: ['legs-due', legsDate],
     queryFn: () => fetch(`/api/bookings/legs-due?date=${legsDate}`).then(r => r.json()),
     enabled: !!legsDate,
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   })
 
   const companies = useMemo(() => {
