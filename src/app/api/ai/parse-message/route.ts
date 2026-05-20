@@ -386,17 +386,17 @@ export async function POST(request: Request) {
 
       await supabase.from('booking_status_history').insert({ booking_id: booking.id, new_status: 'draft', changed_by: 'system' })
 
-      // Auto-create guest client profile
+      // Auto-create guest client profile and link to booking
       if (bk.extracted.guest_name) {
         try {
           const guestPhone = bk.extracted.guest_phone || null
-          let existingGuest = null
+          let guestClientId: string | null = null
           if (guestPhone) {
             const { data } = await supabase.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
-            existingGuest = data
+            guestClientId = data?.id ?? null
           }
-          if (!existingGuest) {
-            await supabase.from('clients').insert({
+          if (!guestClientId) {
+            const { data: newGuest } = await supabase.from('clients').insert({
               name: bk.extracted.guest_name,
               primary_phone: guestPhone,
               company_id: (client as Client)?.company_id ?? null,
@@ -404,7 +404,11 @@ export async function POST(request: Request) {
               client_type: 'guest',
               is_verified: false,
               is_vip: false,
-            })
+            }).select('id').single()
+            guestClientId = newGuest?.id ?? null
+          }
+          if (guestClientId) {
+            await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)
           }
         } catch { /* non-critical */ }
       }
