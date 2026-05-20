@@ -5,6 +5,7 @@ import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { approvalLink } from '@/lib/utils/approval-token'
 import { createShortLink } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Company, Client } from '@/types'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +44,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const chaseBody = [
     `Hi ${approverName},`,
     ``,
-    `This is a reminder that booking ${booking.booking_ref} for ${guestName} on ${booking.pickup_date || 'TBD'} at ${booking.pickup_time || 'TBD'} is still awaiting your approval.`,
+    `This is a reminder that booking ${booking.booking_ref} for ${guestName} on ${formatDate(booking.pickup_date)} at ${formatTime(booking.pickup_time)} is still awaiting your approval.`,
     ``,
     `✅ Approve: ${approveUrl}`,
     `❌ Reject: ${rejectUrl}`,
@@ -75,7 +76,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         sendWhatsAppTemplate({
           to: phone,
           templateName: 'jms_approval_chase',
-          params: [approverName, booking.booking_ref, booking.pickup_date || 'TBD', booking.pickup_time || 'TBD'],
+          params: [approverName, booking.booking_ref, formatDate(booking.pickup_date), formatTime(booking.pickup_time)],
           fallbackBody: chaseBody,
         })
       )

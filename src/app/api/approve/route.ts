@@ -3,6 +3,7 @@ import { verifyApprovalToken } from '@/lib/utils/approval-token'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
+import { formatDate } from '@/lib/utils/date'
 function html(title: string, color: string, heading: string, message: string) {
   return new Response(
     `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -85,9 +86,7 @@ export async function GET(request: Request) {
 
   // Notify client on approval or rejection
   const clientName = booking.guest_name || client?.name || 'there'
-  const pickupDate = booking.pickup_date
-    ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-    : null
+  const pickupDate = booking.pickup_date ? formatDate(booking.pickup_date) : null
 
   const approvedMsg = [
     `Hi ${clientName}, your booking request ${booking.booking_ref} has been approved by your company.`,

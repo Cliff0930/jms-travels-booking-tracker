@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useDrivers } from '@/hooks/useDrivers'
 import { Calendar, User, Send, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatDate } from '@/lib/utils/date'
 import type { BookingLeg, Driver } from '@/types'
 
 interface TripLegsPanelProps {
@@ -91,7 +92,7 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <Calendar className="w-3.5 h-3.5 text-[#737686]" />
                 <span className="text-sm font-medium text-[#191B23]">
-                  {new Date(leg.leg_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDate(leg.leg_date)}
                 </span>
                 <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
                   {leg.leg_status.replace('_', ' ')}

@@ -5,6 +5,7 @@ import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { approvalLink } from '@/lib/utils/approval-token'
 import { createShortLink } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Company, Client } from '@/types'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -43,8 +44,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     booking_ref: booking.booking_ref,
     guest_name: guestName,
     pickup_location: booking.pickup_location || 'TBD',
-    pickup_date: booking.pickup_date || 'TBD',
-    pickup_time: booking.pickup_time || 'TBD',
+    pickup_date: formatDate(booking.pickup_date),
+    pickup_time: formatTime(booking.pickup_time),
   }
 
   const baseBody = fillTemplate(tmpl.body, vars)

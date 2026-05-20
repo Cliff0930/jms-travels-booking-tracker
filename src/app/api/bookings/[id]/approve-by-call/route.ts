@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { formatDate } from '@/lib/utils/date'
 import type { Company, Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -57,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const client = booking.client as Client | null
     const guestName = booking.guest_name || client?.name || 'Guest'
     const approverName = company.approver_emails?.[0] || 'Team'
-    const pickupDate = booking.pickup_date || 'TBD'
+    const pickupDate = formatDate(booking.pickup_date)
     const channel = company.approval_channel || 'email'
 
     const ackBody = [

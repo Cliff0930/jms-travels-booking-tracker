@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
+import { formatDate } from '@/lib/utils/date'
 
 const CANCELLABLE_STATUSES = ['draft', 'confirmed', 'pending_approval', 'pending']
 
@@ -59,9 +60,7 @@ export async function handleApprovalReply(
 
     // Acknowledge the cancellation back to sender
     if (senderEmail) {
-      const pickupDate = booking.pickup_date
-        ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-        : null
+      const pickupDate = booking.pickup_date ? formatDate(booking.pickup_date) : null
       const body = [
         `Hi,`,
         ``,
@@ -126,9 +125,7 @@ export async function handleApprovalReply(
   // Notify client on WhatsApp and/or email when approved
   if (approved) {
     const client = booking.client as { name?: string; primary_phone?: string; primary_email?: string } | null
-    const pickupDate = booking.pickup_date
-      ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-      : null
+    const pickupDate = booking.pickup_date ? formatDate(booking.pickup_date) : null
 
     if (client?.primary_phone) {
       const msg = [

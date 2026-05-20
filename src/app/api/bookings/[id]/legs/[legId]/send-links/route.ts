@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { formatDate } from '@/lib/utils/date'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string; legId: string }> }) {
   const { id, legId } = await params
@@ -45,9 +46,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     createShortLink(completedTarget, id),
   ])
 
-  const legDate = new Date(leg.leg_date + 'T00:00:00Z').toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
-  })
+  const legDate = formatDate(leg.leg_date)
 
   const fallbackBody = [
     `JMS Travels — Day ${leg.day_number} Trip Update`,

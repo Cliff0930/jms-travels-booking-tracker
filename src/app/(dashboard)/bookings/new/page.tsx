@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils/date'
 import type { Client, Company } from '@/types'
 import { Suspense } from 'react'
 
@@ -144,7 +145,7 @@ function NewBookingForm() {
     { label: 'Company', value: selectedCompany?.name || null },
     { label: 'Pickup', value: form.pickup_location || null },
     { label: 'Drop', value: form.drop_location || null },
-    { label: 'Date', value: form.pickup_date ? new Date(form.pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null },
+    { label: 'Date', value: form.pickup_date ? formatDate(form.pickup_date) : null },
     { label: 'Time', value: form.pickup_time || null },
     { label: 'Vehicle', value: form.vehicle_type || null },
     { label: 'Pax', value: form.pax_count ? `${form.pax_count} passenger${parseInt(form.pax_count) !== 1 ? 's' : ''}` : null },

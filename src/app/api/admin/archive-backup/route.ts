@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { notifyOperator } from '@/lib/utils/notify-operator'
+import { formatDate, formatTime } from '@/lib/utils/date'
 
 function getDriveAuth() {
   const keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!
@@ -33,10 +34,6 @@ function getDriveAuth() {
   })
 }
 
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
-}
 
 type BookingRow = Record<string, unknown>
 type ClientRow  = Record<string, unknown>
@@ -56,8 +53,8 @@ function buildBookingRows(bookings: BookingRow[]) {
       (b.driver as { name: string; vehicle_name: string; vehicle_number: string } | null)?.vehicle_number || '',
       b.pickup_location || '',
       b.drop_location || '',
-      b.pickup_date || '',
-      b.pickup_time ? formatTime12h(b.pickup_time as string) : '',
+      b.pickup_date ? formatDate(b.pickup_date as string) : '',
+      b.pickup_time ? formatTime(b.pickup_time as string) : '',
       b.pax_count || '',
       b.vehicle_type || '',
       b.trip_type || '',

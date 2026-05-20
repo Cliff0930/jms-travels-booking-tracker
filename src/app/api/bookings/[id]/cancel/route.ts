@@ -4,6 +4,7 @@ import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { expireBookingLinks } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -48,8 +49,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const vars = {
     booking_ref: booking.booking_ref,
-    pickup_date: booking.pickup_date || 'TBD',
-    pickup_time: booking.pickup_time || 'TBD',
+    pickup_date: formatDate(booking.pickup_date),
+    pickup_time: formatTime(booking.pickup_time),
   }
 
   // Notify client

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator as globalNotifyOperator } from '@/lib/utils/notify-operator'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { EmailModificationChange } from '@/lib/gemini/classify-and-extract'
 
 const FIELD_LABELS: Record<string, string> = {
@@ -19,21 +20,11 @@ function hoursUntilPickup(pickupDate: string | null, pickupTime: string | null):
   return (pickup.getTime() - Date.now()) / (1000 * 60 * 60)
 }
 
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
-}
-
-function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
-  })
-}
 
 function fmtValue(field: string, raw: string): string {
   if (!raw || raw === '—') return raw || '—'
   if (field === 'pickup_time') {
-    return /^\d{1,2}:\d{2}$/.test(raw) ? formatTime12h(raw) : raw
+    return /^\d{1,2}:\d{2}$/.test(raw) ? formatTime(raw) : raw
   }
   if (field === 'pickup_date') {
     return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? formatDate(raw) : raw
@@ -133,7 +124,7 @@ export async function handleEmailCancel(
 
   const dateLine = [
     booking.pickup_date ? formatDate(booking.pickup_date) : null,
-    booking.pickup_time ? `at ${formatTime12h(booking.pickup_time)}` : null,
+    booking.pickup_time ? `at ${formatTime(booking.pickup_time)}` : null,
     booking.pickup_location ? `from ${booking.pickup_location}` : null,
   ].filter(Boolean).join(', ')
 

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseConversation } from '@/lib/gemini/conversation'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { ConversationMessage } from '@/types'
 
 // ─── ENTRY POINT ─────────────────────────────────────────────────────────────
@@ -262,19 +263,12 @@ function buildConfirmationMsg(
   ]
   if (extracted.pickup_location) lines.push(`Pickup: ${extracted.pickup_location}`)
   if (extracted.drop_location)   lines.push(`Drop: ${extracted.drop_location}`)
-  if (extracted.pickup_date)     lines.push(`Date: ${extracted.pickup_date}`)
-  if (extracted.pickup_time)     lines.push(`Time: ${formatTime12h(extracted.pickup_time)}`)
+  if (extracted.pickup_date)     lines.push(`Date: ${formatDate(extracted.pickup_date)}`)
+  if (extracted.pickup_time)     lines.push(`Time: ${formatTime(extracted.pickup_time)}`)
   if (extracted.total_days > 1)  lines.push(`Days: ${extracted.total_days}`)
   if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
   lines.push(``, `— JMS Travels Team`)
   return lines.join('\n')
-}
-
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const hour = h % 12 || 12
-  return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
 async function createBookingLegs(

@@ -4,6 +4,7 @@ import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
+import { formatDate } from '@/lib/utils/date'
 
 const MAPS_DAILY_LIMIT = 200
 
@@ -282,9 +283,7 @@ export async function POST(request: Request) {
         })
       )).catch(() => {})
     } else {
-      const dateStr = booking.pickup_date
-        ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-        : null
+      const dateStr = booking.pickup_date ? formatDate(booking.pickup_date) : null
       const fallbackBody = [
         `Hi ${clientName}, your trip has been completed successfully.`,
         ``,

@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
 
 // Fast regex pre-filter — skips Gemini for obvious system/automated emails
@@ -25,18 +26,6 @@ function getTodayIST(): string {
   return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
 }
 
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const hour = h % 12 || 12
-  return `${hour}:${String(m).padStart(2, '0')} ${period}`
-}
-
-function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
-  })
-}
 
 function buildWhatsAppConfirmation(
   clientName: string,
@@ -47,8 +36,8 @@ function buildWhatsAppConfirmation(
   const lines = [`Hi ${clientName}, your booking is confirmed.`, ``, `Ref: ${bookingRef}`]
   if (extracted.pickup_location) lines.push(`Pickup: ${extracted.pickup_location}`)
   if (extracted.drop_location)   lines.push(`Drop: ${extracted.drop_location}`)
-  if (extracted.pickup_date)     lines.push(`Date: ${extracted.pickup_date}`)
-  if (extracted.pickup_time)     lines.push(`Time: ${formatTime12h(extracted.pickup_time)}`)
+  if (extracted.pickup_date)     lines.push(`Date: ${formatDate(extracted.pickup_date)}`)
+  if (extracted.pickup_time)     lines.push(`Time: ${formatTime(extracted.pickup_time)}`)
   lines.push(`Trip: ${tripLabel[extracted.trip_type] ?? extracted.trip_type}`)
   if ((extracted.total_days ?? 1) > 1) lines.push(`Days: ${extracted.total_days}`)
   if (extracted.special_instructions) lines.push(`Note: ${extracted.special_instructions}`)
@@ -65,7 +54,7 @@ function buildMultiBookingEmailBody(clientName: string, bookings: Array<{ ref: s
   ]
   bookings.forEach(({ ref, extracted }, i) => {
     lines.push(`${i + 1}. Ref: ${ref}`)
-    if (extracted.pickup_date) lines.push(`   Date    : ${formatDate(extracted.pickup_date)}${extracted.pickup_time ? ` at ${formatTime12h(extracted.pickup_time)}` : ''}`)
+    if (extracted.pickup_date) lines.push(`   Date    : ${formatDate(extracted.pickup_date)}${extracted.pickup_time ? ` at ${formatTime(extracted.pickup_time)}` : ''}`)
     if (extracted.pickup_location) lines.push(`   Pickup  : ${extracted.pickup_location}`)
     if (extracted.drop_location)   lines.push(`   Drop    : ${extracted.drop_location}`)
     if (extracted.guest_name)      lines.push(`   Guest   : ${extracted.guest_name}`)
@@ -508,7 +497,7 @@ export async function POST(request: Request) {
       } else {
         const lines = [`Hi ${clientName}, your ${createdBookings.length} bookings are confirmed.`, ``]
         createdBookings.forEach(({ booking, extracted }, i) => {
-          lines.push(`${i + 1}. Ref: ${booking.booking_ref} — ${extracted.pickup_date || 'TBD'} ${extracted.pickup_time ? formatTime12h(extracted.pickup_time) : ''}`)
+          lines.push(`${i + 1}. Ref: ${booking.booking_ref} — ${formatDate(extracted.pickup_date)} ${extracted.pickup_time ? formatTime(extracted.pickup_time) : ''}`)
         })
         lines.push(``, `Driver details will follow. Thank you! — JMS Travels`)
         const body = lines.join('\n')

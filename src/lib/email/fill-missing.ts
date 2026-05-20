@@ -1,21 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { extractBookingFields } from '@/lib/gemini/extract'
 import { sendEmail } from '@/lib/gmail/send'
+import { formatDate, formatTime } from '@/lib/utils/date'
 
 function getTodayIST(): string {
   return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
-}
-
-function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
-  })
-}
 
 export async function fillMissingFromReply(
   supabase: ReturnType<typeof createAdminClient>,
@@ -153,7 +144,7 @@ export async function fillMissingFromReply(
     merged.pickup_location    ? `Pickup            : ${merged.pickup_location}` : null,
     merged.drop_location      ? `Drop              : ${merged.drop_location}` : null,
     merged.pickup_date        ? `Date              : ${formatDate(merged.pickup_date)}` : null,
-    merged.pickup_time        ? `Time              : ${formatTime12h(merged.pickup_time)}` : null,
+    merged.pickup_time        ? `Time              : ${formatTime(merged.pickup_time)}` : null,
     `Trip Type         : ${tripLabel[booking.trip_type] ?? booking.trip_type ?? 'Local'}`,
     merged.guest_name         ? `Guest             : ${merged.guest_name}` : null,
     merged.special_instructions ? `Note              : ${merged.special_instructions}` : null,

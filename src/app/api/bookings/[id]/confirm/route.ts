@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import type { Client } from '@/types'
@@ -74,15 +75,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const clientName = booking.guest_name || client?.name || 'there'
 
     const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
-    const dateFormatted = booking.pickup_date
-      ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-      : 'TBD'
-    const timeFormatted = (() => {
-      if (!booking.pickup_time) return 'TBD'
-      const [hh, mm] = booking.pickup_time.split(':').map(Number)
-      const ampm = hh >= 12 ? 'PM' : 'AM'
-      return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
-    })()
+    const dateFormatted = formatDate(booking.pickup_date)
+    const timeFormatted = formatTime(booking.pickup_time)
 
     const detailLines = [
       `Booking Reference : ${booking.booking_ref}`,

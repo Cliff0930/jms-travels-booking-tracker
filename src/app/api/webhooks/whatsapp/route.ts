@@ -7,6 +7,7 @@ import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
@@ -694,13 +695,9 @@ async function processClientMessage(
   const ackDateLine = (() => {
     const ext = result.extracted
     if (!ext.pickup_date) return null
-    const d = new Date(ext.pickup_date + 'T00:00:00Z')
-    const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    const dateStr = formatDate(ext.pickup_date)
     if (!ext.pickup_time) return `Date: ${dateStr}`
-    const [hh, mm] = ext.pickup_time.split(':').map(Number)
-    const ampm = hh >= 12 ? 'PM' : 'AM'
-    const h12 = hh % 12 || 12
-    return `Date: ${dateStr}, ${h12}:${String(mm).padStart(2, '0')} ${ampm}`
+    return `Date: ${dateStr}, ${formatTime(ext.pickup_time)}`
   })()
 
   const ackDetails = [

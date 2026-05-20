@@ -5,6 +5,7 @@ import { sendEmailSafe } from '@/lib/gmail/send'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -138,8 +139,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Guest Phone: ${guestPhone}`,
       `Pickup: ${booking.pickup_location || 'TBD'}`,
       `Drop: ${booking.drop_location || 'TBD'}`,
-      `Date: ${booking.pickup_date || 'TBD'}`,
-      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Date: ${formatDate(booking.pickup_date)}`,
+      `Time: ${formatTime(booking.pickup_time)}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
       ``,
       `Please confirm receipt. Tap below to update status:`,
@@ -159,8 +160,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         guestPhone,
         booking.pickup_location || 'TBD',
         booking.drop_location || 'TBD',
-        booking.pickup_date || 'TBD',
-        booking.pickup_time || 'TBD',
+        formatDate(booking.pickup_date),
+        formatTime(booking.pickup_time),
         booking.pax_count?.toString() || 'TBD',
         arrivedLink,
         completedLink,

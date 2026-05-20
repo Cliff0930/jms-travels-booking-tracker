@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { notifyOperator as globalNotifyOperator } from '@/lib/utils/notify-operator'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { ConversationResult, ModificationRequest } from '@/lib/gemini/converse'
 import type { Client } from '@/types'
 
@@ -40,35 +41,22 @@ function hoursUntilPickup(pickupDate: string | null, pickupTime: string | null):
   return (pickup.getTime() - Date.now()) / (1000 * 60 * 60)
 }
 
-function fmtDate(dateStr: string | null): string {
-  if (!dateStr) return ''
-  return new Date(dateStr + 'T00:00:00Z').toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
-  })
-}
-
-function fmtTime(timeStr: string | null): string {
-  if (!timeStr) return ''
-  const [hh, mm] = timeStr.split(':').map(Number)
-  const ampm = hh >= 12 ? 'PM' : 'AM'
-  return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
-}
 
 function fmtValue(field: string, raw: string): string {
   if (!raw || raw === '—') return raw || '—'
   if (field === 'pickup_time') {
-    return /^\d{1,2}:\d{2}$/.test(raw) ? fmtTime(raw) : raw
+    return /^\d{1,2}:\d{2}$/.test(raw) ? formatTime(raw) : raw
   }
   if (field === 'pickup_date') {
-    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? fmtDate(raw) : raw
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? formatDate(raw) : raw
   }
   return raw
 }
 
 function pickupSummary(b: { pickup_date?: string | null; pickup_time?: string | null; pickup_location?: string | null }): string {
   const parts: string[] = []
-  if (b.pickup_date) parts.push(fmtDate(b.pickup_date))
-  if (b.pickup_time) parts.push(fmtTime(b.pickup_time))
+  if (b.pickup_date) parts.push(formatDate(b.pickup_date))
+  if (b.pickup_time) parts.push(formatTime(b.pickup_time))
   if (b.pickup_location) parts.push(`from ${b.pickup_location}`)
   return parts.join(', ')
 }
@@ -138,7 +126,7 @@ async function performCancel(
     )
 
     return [
-      `Your booking ${booking.booking_ref}${booking.pickup_date ? ` for ${fmtDate(booking.pickup_date)}` : ''} has been cancelled.`,
+      `Your booking ${booking.booking_ref}${booking.pickup_date ? ` for ${formatDate(booking.pickup_date)}` : ''} has been cancelled.`,
       ``,
       `Let us know if you need a new cab — just message us here.`,
     ].join('\n')
@@ -185,7 +173,7 @@ async function performModify(
   const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
   for (const change of modReq.changes) {
     if (change.field === 'pickup_date' && change.new_value < todayStr) {
-      return `The date ${fmtDate(change.new_value)} is in the past. Please provide a future date for booking ${booking.booking_ref}.`
+      return `The date ${formatDate(change.new_value)} is in the past. Please provide a future date for booking ${booking.booking_ref}.`
     }
   }
 
@@ -283,8 +271,8 @@ async function performModify(
 
 function buildBookingList(bookings: PendingAction['bookings']): string {
   return bookings.map((b, i) => {
-    const date = b.pickup_date ? fmtDate(b.pickup_date) : '?'
-    const time = b.pickup_time ? `, ${fmtTime(b.pickup_time)}` : ''
+    const date = b.pickup_date ? formatDate(b.pickup_date) : '?'
+    const time = b.pickup_time ? `, ${formatTime(b.pickup_time)}` : ''
     const guest = b.guest_name ? ` — Guest: ${b.guest_name}` : ''
     let tripDesc = ''
     if (b.trip_type === 'outstation' && b.drop_location) {
@@ -428,7 +416,7 @@ export async function handleClientChange(
     const confirmLines = [
       `Are you sure you want to cancel booking *${booking.booking_ref}*?`,
       ``,
-      `📅 ${booking.pickup_date ? fmtDate(booking.pickup_date as string) : ''}${booking.pickup_time ? ` at ${fmtTime(booking.pickup_time as string)}` : ''}`,
+      `📅 ${booking.pickup_date ? formatDate(booking.pickup_date as string) : ''}${booking.pickup_time ? ` at ${formatTime(booking.pickup_time as string)}` : ''}`,
       booking.pickup_location ? `📍 ${booking.pickup_location as string}` : '',
       ``,
       `Reply *YES* to confirm cancellation or *NO* to keep the booking.`,
@@ -719,7 +707,7 @@ export async function handleDisambiguationReply(
     const confirmLines = [
       `Are you sure you want to cancel booking *${fb.booking_ref}*?`,
       ``,
-      `📅 ${fb.pickup_date ? fmtDate(fb.pickup_date as string) : ''}${fb.pickup_time ? ` at ${fmtTime(fb.pickup_time as string)}` : ''}`,
+      `📅 ${fb.pickup_date ? formatDate(fb.pickup_date as string) : ''}${fb.pickup_time ? ` at ${formatTime(fb.pickup_time as string)}` : ''}`,
       fb.pickup_location ? `📍 ${fb.pickup_location as string}` : '',
       ``,
       `Reply *YES* to confirm cancellation or *NO* to keep the booking.`,

@@ -5,6 +5,7 @@ import { sendEmailSafe } from '@/lib/gmail/send'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
 
 type MessageType = 'booking_confirmed' | 'driver_details' | 'trip_brief_driver'
@@ -41,15 +42,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const bookerEmail = client?.primary_email || null
   const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
 
-  const dateFormatted = booking.pickup_date
-    ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-    : 'TBD'
-  const timeFormatted = (() => {
-    if (!booking.pickup_time) return 'TBD'
-    const [hh, mm] = booking.pickup_time.split(':').map(Number)
-    const ampm = hh >= 12 ? 'PM' : 'AM'
-    return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
-  })()
+  const dateFormatted = formatDate(booking.pickup_date)
+  const timeFormatted = formatTime(booking.pickup_time)
 
   let body = ''
   let subject = ''
@@ -170,8 +164,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       guestPhoneForDriver,
       booking.pickup_location || 'TBD',
       booking.drop_location || 'TBD',
-      booking.pickup_date || 'TBD',
-      booking.pickup_time || 'TBD',
+      formatDate(booking.pickup_date),
+      formatTime(booking.pickup_time),
       booking.pax_count?.toString() || 'TBD',
       arrivedLink,
       completedLink,
@@ -185,8 +179,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Guest Phone: ${guestPhoneForDriver}`,
       `Pickup: ${booking.pickup_location || 'TBD'}`,
       `Drop: ${booking.drop_location || 'TBD'}`,
-      `Date: ${booking.pickup_date || 'TBD'}`,
-      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Date: ${formatDate(booking.pickup_date)}`,
+      `Time: ${formatTime(booking.pickup_time)}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
       ``,
       `Arrived: ${arrivedLink}`,

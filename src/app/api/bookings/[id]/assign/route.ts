@@ -5,6 +5,7 @@ import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
+import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -75,8 +76,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Guest Phone: ${guestPhone}`,
       `Pickup: ${booking.pickup_location || 'TBD'}`,
       `Drop: ${booking.drop_location || 'TBD'}`,
-      `Date: ${booking.pickup_date || 'TBD'}`,
-      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Date: ${formatDate(booking.pickup_date)}`,
+      `Time: ${formatTime(booking.pickup_time)}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
       ``,
       `Please confirm receipt. Tap below to update status:`,
@@ -96,8 +97,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         guestPhone,
         booking.pickup_location || 'TBD',
         booking.drop_location || 'TBD',
-        booking.pickup_date || 'TBD',
-        booking.pickup_time || 'TBD',
+        formatDate(booking.pickup_date),
+        formatTime(booking.pickup_time),
         booking.pax_count?.toString() || 'TBD',
         arrivedLink,
         completedLink,
@@ -135,11 +136,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const clientName = booking.guest_name || client?.name || 'there'
 
     if (booking.pickup_date && booking.pickup_time) {
-      const d = new Date(booking.pickup_date + 'T00:00:00Z')
-      const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
-      const [hh, mm] = booking.pickup_time.split(':').map(Number)
-      const ampm = hh >= 12 ? 'PM' : 'AM'
-      const timeStr = `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`
+      const dateStr = formatDate(booking.pickup_date)
+      const timeStr = formatTime(booking.pickup_time)
 
       const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
 
