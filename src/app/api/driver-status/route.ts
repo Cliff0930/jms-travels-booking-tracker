@@ -283,27 +283,7 @@ export async function POST(request: Request) {
         })
       )).catch(() => {})
     } else {
-      const dateStr = booking.pickup_date ? formatDate(booking.pickup_date) : null
-      const fallbackBody = [
-        `Hi ${clientName}, your trip has been completed successfully.`,
-        ``,
-        `Booking: ${booking.booking_ref}`,
-        booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
-        booking.drop_location ? `Drop: ${booking.drop_location}` : null,
-        dateStr ? `Date: ${dateStr}` : null,
-        ``,
-        `Thank you for choosing JMS Travels! We look forward to serving you again.`,
-      ].filter(l => l !== null).join('\n')
-
-      await Promise.all(phones.map(phone =>
-        sendWhatsAppTemplate({
-          to: phone,
-          templateName: 'jms_trip_completed',
-          params: [clientName, booking.booking_ref, booking.pickup_location || '-', booking.drop_location || '-', dateStr || '-'],
-          fallbackBody,
-          log: { booking_id, client_id: client?.id || undefined, template_used: 'jms_trip_completed' },
-        })
-      )).catch(() => {})
+      // Trip-completed client notification is currently disabled
     }
   }
 
