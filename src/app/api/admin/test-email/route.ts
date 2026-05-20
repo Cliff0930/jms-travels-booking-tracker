@@ -7,6 +7,22 @@ export async function POST(request: Request) {
 
   const tokenHint = process.env.GMAIL_REFRESH_TOKEN?.slice(0, 12) || 'missing'
 
+  // Direct token refresh test — bypasses googleapis library
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GMAIL_CLIENT_ID!,
+      client_secret: process.env.GMAIL_CLIENT_SECRET!,
+      refresh_token: process.env.GMAIL_REFRESH_TOKEN!,
+      grant_type: 'refresh_token',
+    }),
+  })
+  const tokenData = await tokenRes.json() as Record<string, unknown>
+  if (!tokenRes.ok) {
+    return NextResponse.json({ ok: false, stage: 'token_refresh', tokenData, tokenHint }, { status: 500 })
+  }
+
   try {
     const messageId = await sendEmail({
       to: recipient,
@@ -17,7 +33,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, messageId, to: recipient, tokenHint })
   } catch (e: unknown) {
     const error = e instanceof Error ? e.message : String(e)
-    console.error('[test-email] failed:', error)
-    return NextResponse.json({ ok: false, error, to: recipient, tokenHint }, { status: 500 })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const detail = (e as any)?.response?.data || (e as any)?.errors || null
+    console.error('[test-email] failed:', error, detail)
+    return NextResponse.json({ ok: false, error, detail, to: recipient, tokenHint }, { status: 500 })
   }
 }
