@@ -1,6 +1,6 @@
 'use client'
 import { useRouter } from 'next/navigation'
-import { MapPin, Calendar, Clock, MoreVertical, User } from 'lucide-react'
+import { MapPin, Calendar, Clock, MoreVertical, User, Car } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { BookingStatusBadge, statusBarClass } from '@/components/shared/StatusBadge'
@@ -110,6 +110,20 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
           <Calendar className="w-3.5 h-3.5 shrink-0 text-[#9CA3AF]" />
           <span>{formatBookingDateTime(booking.pickup_date, booking.pickup_time)}</span>
         </div>
+
+        {/* Row 5: driver (only when assigned) */}
+        {booking.driver && (
+          <div className="flex items-center gap-1.5 mt-1.5 text-xs">
+            <Car className="w-3.5 h-3.5 shrink-0 text-[#059669]" />
+            <span className="font-medium text-[#059669]">{booking.driver.name}</span>
+            <span className="text-[#D1D5DB]">·</span>
+            <span className="text-[#6B7280]">{booking.driver.phone}</span>
+            <span className="text-[#D1D5DB]">·</span>
+            <span className="text-[#6B7280]">{booking.driver.vehicle_type}</span>
+            <span className="text-[#D1D5DB]">·</span>
+            <span className="text-[#6B7280]">{booking.driver.vehicle_number}</span>
+          </div>
+        )}
       </div>
 
       {/* Footer strip */}
