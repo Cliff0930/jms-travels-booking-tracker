@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyApprovalToken } from '@/lib/utils/approval-token'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
-import { sendEmail } from '@/lib/gmail/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendEmailSafe } from '@/lib/gmail/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 function html(title: string, color: string, heading: string, message: string) {
   return new Response(
@@ -110,17 +110,32 @@ export async function GET(request: Request) {
     ? `Booking ${booking.booking_ref} approved — JMS Travels`
     : `Booking ${booking.booking_ref} not approved — JMS Travels`
 
+  const templateName = approved ? 'jms_booking_approved' : 'jms_booking_rejected'
+  const templateParams = [clientName, booking.booking_ref]
+
   if (booking.source === 'email' && client?.primary_email) {
-    await sendEmail({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
+    await sendEmailSafe({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
     if (booking.guest_phone) {
-      await sendWhatsAppMessage({ to: booking.guest_phone, body: notifyMsg, log: { booking_id: bookingId } }).catch(() => {})
+      await sendWhatsAppTemplate({
+        to: booking.guest_phone,
+        templateName,
+        params: templateParams,
+        fallbackBody: notifyMsg,
+        log: { booking_id: bookingId },
+      }).catch(() => {})
     }
   } else {
     const phone = booking.guest_phone || client?.primary_phone
     if (phone) {
-      await sendWhatsAppMessage({ to: phone, body: notifyMsg, log: { booking_id: bookingId } }).catch(() => {})
+      await sendWhatsAppTemplate({
+        to: phone,
+        templateName,
+        params: templateParams,
+        fallbackBody: notifyMsg,
+        log: { booking_id: bookingId },
+      }).catch(() => {})
     } else if (client?.primary_email) {
-      await sendEmail({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
+      await sendEmailSafe({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
     }
   }
 

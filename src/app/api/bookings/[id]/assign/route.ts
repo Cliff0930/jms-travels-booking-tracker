@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { TEMPLATE_KEYS } from '@/lib/templates'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -58,44 +58,64 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single()
 
   if (driver?.phone) {
-    const { data: tmpl } = await supabase
-      .from('message_templates')
-      .select('body')
-      .eq('template_key', TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER)
-      .single()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
+    const client = booking.client as Client | null
+    const guestName = booking.guest_name || client?.name || 'Guest'
+    const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+    const [arrivedLink, completedLink] = await Promise.all([
+      createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+      createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+    ])
 
-    if (tmpl) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
-      const client = booking.client as Client | null
-      const guestName = booking.guest_name || client?.name || 'Guest'
-      const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+    const fallbackBody = [
+      `Hi ${driver.name}, you have a new assignment.`,
+      ``,
+      `Booking: ${booking.booking_ref}`,
+      `Guest: ${guestName}`,
+      `Guest Phone: ${guestPhone}`,
+      `Pickup: ${booking.pickup_location || 'TBD'}`,
+      `Drop: ${booking.drop_location || 'TBD'}`,
+      `Date: ${booking.pickup_date || 'TBD'}`,
+      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
+      ``,
+      `Please confirm receipt. Tap below to update status:`,
+      `Arrived: ${arrivedLink}`,
+      `Completed: ${completedLink}`,
+      ``,
+      `— JMS Travels`,
+    ].join('\n')
 
-      const body = fillTemplate(tmpl.body, {
-        driver_name: driver.name,
-        booking_ref: booking.booking_ref,
-        guest_name: guestName,
-        guest_phone: guestPhone,
-        pickup_location: booking.pickup_location || 'TBD',
-        drop_location: booking.drop_location || 'TBD',
-        pickup_date: booking.pickup_date || 'TBD',
-        pickup_time: booking.pickup_time || 'TBD',
-        pax_count: booking.pax_count?.toString() || 'TBD',
-        arrived_link: await createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
-        completed_link: await createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
-      })
+    const result = await sendWhatsAppTemplate({
+      to: driver.phone,
+      templateName: 'jms_trip_brief_driver',
+      params: [
+        driver.name,
+        booking.booking_ref,
+        guestName,
+        guestPhone,
+        booking.pickup_location || 'TBD',
+        booking.drop_location || 'TBD',
+        booking.pickup_date || 'TBD',
+        booking.pickup_time || 'TBD',
+        booking.pax_count?.toString() || 'TBD',
+        arrivedLink,
+        completedLink,
+      ],
+      fallbackBody,
+    })
 
-      await sendWhatsAppMessage({ to: driver.phone, body }).catch(e => console.error('Trip brief WA error:', e))
-
-      await supabase.from('message_logs').insert({
-        booking_id: id,
-        driver_id,
-        channel: 'whatsapp',
-        direction: 'outbound',
-        recipient: driver.phone,
-        content: body,
-        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
-      })
-    }
+    await supabase.from('message_logs').insert({
+      booking_id: id,
+      driver_id,
+      channel: 'whatsapp',
+      direction: 'outbound',
+      recipient: driver.phone,
+      content: fallbackBody,
+      template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+      status: result.ok ? 'sent' : 'failed',
+      whatsapp_message_id: result.whatsappMessageId ?? null,
+    })
   }
 
   // Send driver details — respects company driver_notify_target setting
@@ -159,7 +179,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         booking.booking_ref,
         driver.name,
         contactLine,
-        vehicleLine || driver.phone,
+        vehicleLine || driver.vehicle_name || '-',
+        driver.vehicle_number || '-',
         dateStr,
         timeStr,
         booking.pickup_location || 'your confirmed pickup point',

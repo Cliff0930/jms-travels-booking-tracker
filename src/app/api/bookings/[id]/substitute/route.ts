@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendEmail } from '@/lib/gmail/send'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { TEMPLATE_KEYS } from '@/lib/templates'
+import { sendEmailSafe } from '@/lib/gmail/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
@@ -42,102 +42,143 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await supabase.from('drivers').update({ status: 'on_duty' }).eq('id', new_driver_id)
 
-  // Fetch new driver details
   const { data: newDriver } = await supabase
     .from('drivers')
     .select('name, phone, vehicle_name, vehicle_number, vehicle_color')
     .eq('id', new_driver_id)
     .single()
 
-  // Notify client about substitution
   const client = booking.client as Client | null
   const clientName = booking.guest_name || client?.name || 'there'
 
-  const { data: subTmpl } = await supabase
-    .from('message_templates')
-    .select('body, subject')
-    .eq('template_key', TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT)
-    .single()
+  // Notify client about substitution
+  if (newDriver) {
+    const vehicleLine = [newDriver.vehicle_name, newDriver.vehicle_color ? `(${newDriver.vehicle_color})` : null].filter(Boolean).join(' ')
 
-  if (subTmpl && newDriver) {
-    const vars = {
-      client_name: clientName,
-      booking_ref: booking.booking_ref,
-      driver_name: newDriver.name,
-      driver_phone: newDriver.phone,
-      vehicle_name: newDriver.vehicle_name,
-      vehicle_color: newDriver.vehicle_color || '',
-      vehicle_number: newDriver.vehicle_number,
-    }
-    const body = fillTemplate(subTmpl.body, vars)
-    const subject = fillTemplate(subTmpl.subject || '', vars)
+    const subFallbackBody = [
+      `Hi ${clientName},`,
+      ``,
+      `Please note that your driver for booking ${booking.booking_ref} has been updated.`,
+      ``,
+      `New Driver: ${newDriver.name}`,
+      `Contact: ${newDriver.phone}`,
+      vehicleLine ? `Vehicle: ${vehicleLine}` : null,
+      newDriver.vehicle_number ? `Plate No.: ${newDriver.vehicle_number}` : null,
+      booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
+      ``,
+      `We apologise for any inconvenience. — JMS Travels`,
+    ].filter(Boolean).join('\n')
 
-    if (booking.guest_phone || client?.primary_phone) {
-      const phone = booking.guest_phone || client?.primary_phone!
-      await sendWhatsAppMessage({ to: phone, body }).catch(e => console.error('Substitute WA client error:', e))
+    const guestPhone = booking.guest_phone || null
+    const adminPhone = client?.primary_phone || null
+    const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+
+    if (phones.length > 0) {
+      const results = await Promise.all(
+        phones.map(phone => sendWhatsAppTemplate({
+          to: phone,
+          templateName: 'jms_substitute_client',
+          params: [
+            clientName,
+            booking.booking_ref,
+            newDriver.name,
+            newDriver.phone,
+            vehicleLine || newDriver.vehicle_name || '-',
+            newDriver.vehicle_number || '-',
+            booking.pickup_location || 'TBD',
+          ],
+          fallbackBody: subFallbackBody,
+        }))
+      )
+      const anyOk = results.some(r => r.ok)
       await supabase.from('message_logs').insert({
         booking_id: id,
         client_id: booking.client_id,
         channel: 'whatsapp',
         direction: 'outbound',
-        recipient: phone,
-        content: body,
+        recipient: phones.join(', '),
+        content: subFallbackBody,
         template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT,
+        status: anyOk ? 'sent' : 'failed',
       })
     } else if (client?.primary_email) {
-      await sendEmail({ to: client.primary_email, subject, body }).catch(e => console.error('Substitute email client error:', e))
+      const result = await sendEmailSafe({
+        to: client.primary_email,
+        subject: `Driver Update — ${booking.booking_ref}`,
+        body: subFallbackBody,
+      })
       await supabase.from('message_logs').insert({
         booking_id: id,
         client_id: booking.client_id,
         channel: 'email',
         direction: 'outbound',
         recipient: client.primary_email,
-        content: body,
+        content: subFallbackBody,
         template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT,
+        status: result.ok ? 'sent' : 'failed',
       })
     }
   }
 
   // Send new trip brief to new driver
   if (newDriver?.phone) {
-    const { data: tmpl } = await supabase
-      .from('message_templates')
-      .select('body')
-      .eq('template_key', TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER)
-      .single()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
+    const guestName = booking.guest_name || client?.name || 'Guest'
+    const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+    const [arrivedLink, completedLink] = await Promise.all([
+      createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+      createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+    ])
 
-    if (tmpl) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
-      const guestName = booking.guest_name || client?.name || 'Guest'
-      const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
-      const [arrivedLink, completedLink] = await Promise.all([
-        createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
-        createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
-      ])
-      const body = fillTemplate(tmpl.body, {
-        driver_name: newDriver.name,
-        booking_ref: booking.booking_ref,
-        guest_name: guestName,
-        guest_phone: guestPhone,
-        pickup_location: booking.pickup_location || 'TBD',
-        drop_location: booking.drop_location || 'TBD',
-        pickup_date: booking.pickup_date || 'TBD',
-        pickup_time: booking.pickup_time || 'TBD',
-        pax_count: booking.pax_count?.toString() || 'TBD',
-        arrived_link: arrivedLink,
-        completed_link: completedLink,
-      })
-      await sendWhatsAppMessage({ to: newDriver.phone, body }).catch(e => console.error('Substitute trip brief error:', e))
-      await supabase.from('message_logs').insert({
-        booking_id: id,
-        driver_id: new_driver_id,
-        channel: 'whatsapp',
-        direction: 'outbound',
-        recipient: newDriver.phone,
-        content: body,
-        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
-      })
-    }
+    const fallbackBody = [
+      `Hi ${newDriver.name}, you have a new assignment.`,
+      ``,
+      `Booking: ${booking.booking_ref}`,
+      `Guest: ${guestName}`,
+      `Guest Phone: ${guestPhone}`,
+      `Pickup: ${booking.pickup_location || 'TBD'}`,
+      `Drop: ${booking.drop_location || 'TBD'}`,
+      `Date: ${booking.pickup_date || 'TBD'}`,
+      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
+      ``,
+      `Please confirm receipt. Tap below to update status:`,
+      `Arrived: ${arrivedLink}`,
+      `Completed: ${completedLink}`,
+      ``,
+      `— JMS Travels`,
+    ].join('\n')
+
+    const result = await sendWhatsAppTemplate({
+      to: newDriver.phone,
+      templateName: 'jms_trip_brief_driver',
+      params: [
+        newDriver.name,
+        booking.booking_ref,
+        guestName,
+        guestPhone,
+        booking.pickup_location || 'TBD',
+        booking.drop_location || 'TBD',
+        booking.pickup_date || 'TBD',
+        booking.pickup_time || 'TBD',
+        booking.pax_count?.toString() || 'TBD',
+        arrivedLink,
+        completedLink,
+      ],
+      fallbackBody,
+    })
+
+    await supabase.from('message_logs').insert({
+      booking_id: id,
+      driver_id: new_driver_id,
+      channel: 'whatsapp',
+      direction: 'outbound',
+      recipient: newDriver.phone,
+      content: fallbackBody,
+      template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+      status: result.ok ? 'sent' : 'failed',
+      whatsapp_message_id: result.whatsappMessageId ?? null,
+    })
   }
 
   return NextResponse.json(data)

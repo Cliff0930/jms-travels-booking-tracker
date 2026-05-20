@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { expireBookingLinks } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
 
@@ -121,25 +121,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Notify driver
   const driver = booking.driver as { name: string; phone: string } | null
   if (driver?.phone) {
-    const { data: driverTmpl } = await supabase
-      .from('message_templates')
-      .select('body')
-      .eq('template_key', TEMPLATE_KEYS.CANCELLATION_DRIVER)
-      .single()
-
-    if (driverTmpl) {
-      const body = fillTemplate(driverTmpl.body, { ...vars, driver_name: driver.name })
-      await sendWhatsAppMessage({ to: driver.phone, body }).catch(e => console.error('Cancel WA driver error:', e))
-      await supabase.from('message_logs').insert({
+    const driverFallback = `Hi ${driver.name}, booking ${booking.booking_ref} for ${vars.pickup_date} at ${vars.pickup_time} has been cancelled. You are now available for new assignments. — JMS Travels`
+    const result = await sendWhatsAppTemplate({
+      to: driver.phone,
+      templateName: 'jms_cancellation_driver',
+      params: [driver.name, booking.booking_ref, vars.pickup_date, vars.pickup_time],
+      fallbackBody: driverFallback,
+    })
+    if (!result.ok) console.error(`[cancel] Driver WA failed booking=${id} error=${result.error}`)
+    await supabase.from('message_logs').insert({
         booking_id: id,
         driver_id: booking.driver_id,
         channel: 'whatsapp',
         direction: 'outbound',
         recipient: driver.phone,
-        content: body,
+        content: driverFallback,
         template_used: TEMPLATE_KEYS.CANCELLATION_DRIVER,
+        status: result.ok ? 'sent' : 'failed',
+        whatsapp_message_id: result.whatsappMessageId ?? null,
       })
-    }
   }
 
   return NextResponse.json(data)

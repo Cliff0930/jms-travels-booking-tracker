@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendEmail } from '@/lib/gmail/send'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { TEMPLATE_KEYS } from '@/lib/templates'
+import { sendEmailSafe } from '@/lib/gmail/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import type { Company, Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -54,52 +54,61 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Send verbal_approval_ack to company approvers
   const company = booking.company as Company | null
   if (company) {
-    const { data: tmpl } = await supabase
-      .from('message_templates')
-      .select('body, subject')
-      .eq('template_key', TEMPLATE_KEYS.VERBAL_APPROVAL_ACK)
-      .single()
+    const client = booking.client as Client | null
+    const guestName = booking.guest_name || client?.name || 'Guest'
+    const approverName = company.approver_emails?.[0] || 'Team'
+    const pickupDate = booking.pickup_date || 'TBD'
+    const channel = company.approval_channel || 'email'
 
-    if (tmpl) {
-      const client = booking.client as Client | null
-      const guestName = booking.guest_name || client?.name || 'Guest'
-      const vars = {
-        approver_name: company.approver_emails?.[0] || 'Team',
-        booking_ref: booking.booking_ref,
-        guest_name: guestName,
-        pickup_date: booking.pickup_date || 'TBD',
-      }
-      const body = fillTemplate(tmpl.body, vars)
-      const subject = fillTemplate(tmpl.subject || '', vars)
-      const channel = company.approval_channel || 'email'
+    const ackBody = [
+      `Hi ${approverName},`,
+      ``,
+      `This is to confirm that verbal approval has been recorded for booking ${booking.booking_ref} (${guestName}, ${pickupDate}).`,
+      ``,
+      `The booking has been updated and will now proceed. Thank you.`,
+      ``,
+      `— JMS Travels`,
+    ].join('\n')
 
-      if ((channel === 'email' || channel === 'both') && company.approver_emails?.length) {
-        for (const email of company.approver_emails) {
-          await sendEmail({ to: email, subject, body }).catch(e => console.error('Verbal ack email error:', e))
-        }
-        await supabase.from('message_logs').insert({
-          booking_id: id,
-          channel: 'email',
-          direction: 'outbound',
-          recipient: company.approver_emails.join(', '),
-          content: body,
-          template_used: TEMPLATE_KEYS.VERBAL_APPROVAL_ACK,
-        })
-      }
+    if ((channel === 'email' || channel === 'both') && company.approver_emails?.length) {
+      const results = await Promise.all(
+        company.approver_emails.map((email: string) =>
+          sendEmailSafe({ to: email, subject: `Verbal Approval Confirmed — ${booking.booking_ref}`, body: ackBody })
+        )
+      )
+      const anyOk = results.some(r => r.ok)
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        channel: 'email',
+        direction: 'outbound',
+        recipient: company.approver_emails.join(', '),
+        content: ackBody,
+        template_used: TEMPLATE_KEYS.VERBAL_APPROVAL_ACK,
+        status: anyOk ? 'sent' : 'failed',
+      })
+    }
 
-      if ((channel === 'whatsapp' || channel === 'both') && company.approver_whatsapp?.length) {
-        for (const phone of company.approver_whatsapp) {
-          await sendWhatsAppMessage({ to: phone, body }).catch(e => console.error('Verbal ack WA error:', e))
-        }
-        await supabase.from('message_logs').insert({
-          booking_id: id,
-          channel: 'whatsapp',
-          direction: 'outbound',
-          recipient: company.approver_whatsapp.join(', '),
-          content: body,
-          template_used: TEMPLATE_KEYS.VERBAL_APPROVAL_ACK,
-        })
-      }
+    if ((channel === 'whatsapp' || channel === 'both') && company.approver_whatsapp?.length) {
+      const results = await Promise.all(
+        company.approver_whatsapp.map((phone: string) =>
+          sendWhatsAppTemplate({
+            to: phone,
+            templateName: 'jms_verbal_approval_ack',
+            params: [approverName, booking.booking_ref, guestName, pickupDate],
+            fallbackBody: ackBody,
+          })
+        )
+      )
+      const anyOk = results.some(r => r.ok)
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: company.approver_whatsapp.join(', '),
+        content: ackBody,
+        template_used: TEMPLATE_KEYS.VERBAL_APPROVAL_ACK,
+        status: anyOk ? 'sent' : 'failed',
+      })
     }
   }
 

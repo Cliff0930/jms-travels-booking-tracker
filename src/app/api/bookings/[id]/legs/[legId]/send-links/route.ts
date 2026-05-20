@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string; legId: string }> }) {
   const { id, legId } = await params
@@ -25,7 +25,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if (!leg) return NextResponse.json({ error: 'Leg not found' }, { status: 404 })
 
-  // Use leg's own driver if assigned, otherwise fall back to booking driver
   const driverId = leg.driver_id || booking.driver_id
   if (!driverId) return NextResponse.json({ error: 'No driver assigned to this leg or booking' }, { status: 400 })
 
@@ -50,15 +49,22 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
   })
 
-  const body = [
-    `Day ${leg.day_number} — JMS Travels`,
-    `Ref: ${booking.booking_ref} | Date: ${legDate}`,
-    ``,
-    `🟢 Arrived: ${arrivedLink}`,
-    `✅ Completed: ${completedLink}`,
+  const fallbackBody = [
+    `JMS Travels — Day ${leg.day_number} Trip Update`,
+    `Booking Ref: ${booking.booking_ref}`,
+    `Date: ${legDate}`,
+    `Tap below to update your trip status:`,
+    `Arrived at pickup: ${arrivedLink}`,
+    `Trip completed: ${completedLink}`,
+    `Thank you, JMS Travels Team`,
   ].join('\n')
 
-  const result = await sendWhatsAppMessage({ to: driver.phone, body })
+  const result = await sendWhatsAppTemplate({
+    to: driver.phone,
+    templateName: 'jms_leg_day_links',
+    params: [String(leg.day_number), booking.booking_ref, legDate, arrivedLink, completedLink],
+    fallbackBody,
+  })
   if (!result.ok) return NextResponse.json({ error: result.error || 'WhatsApp send failed' }, { status: 500 })
 
   await Promise.all([
@@ -68,8 +74,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       channel: 'whatsapp',
       direction: 'outbound',
       recipient: driver.phone,
-      content: body,
-      template_used: 'day_links',
+      content: fallbackBody,
+      template_used: 'jms_leg_day_links',
+      status: 'sent',
+      whatsapp_message_id: result.whatsappMessageId ?? null,
     }),
     supabase.from('booking_legs')
       .update({ link_sent_at: new Date().toISOString() })

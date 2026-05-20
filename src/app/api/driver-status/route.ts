@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token'
-import { sendToAll } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
 
@@ -257,23 +257,35 @@ export async function POST(request: Request) {
   const adminPhone = client?.primary_phone || null
   const clientName = booking.guest_name || client?.name || 'there'
 
-  if ((guestPhone || adminPhone) && driver) {
+  const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+
+  if (phones.length > 0 && driver) {
     const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
-    let body: string
+    const vehicleInfo = [vehicleLine || driver.vehicle_name || '-', driver.vehicle_number ? `(${driver.vehicle_number})` : null].filter(Boolean).join(' ')
 
     if (status === 'arrived') {
-      body = [
+      const fallbackBody = [
         `Hi ${clientName}, your driver ${driver.name} has arrived at your pickup location.`,
         ``,
-        vehicleLine ? `Vehicle: ${vehicleLine} — ${driver.vehicle_number || ''}` : `Vehicle: ${driver.vehicle_number || 'assigned'}`,
+        vehicleInfo ? `Vehicle: ${vehicleInfo}` : null,
         ``,
         `Please proceed to your pickup point. Safe travels! — JMS Travels`,
-      ].join('\n')
+      ].filter(Boolean).join('\n')
+
+      await Promise.all(phones.map(phone =>
+        sendWhatsAppTemplate({
+          to: phone,
+          templateName: 'jms_driver_arrived',
+          params: [clientName, driver.name || '-', vehicleInfo || '-'],
+          fallbackBody,
+          log: { booking_id, client_id: client?.id || undefined, template_used: 'jms_driver_arrived' },
+        })
+      )).catch(() => {})
     } else {
       const dateStr = booking.pickup_date
         ? new Date(booking.pickup_date + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
         : null
-      body = [
+      const fallbackBody = [
         `Hi ${clientName}, your trip has been completed successfully.`,
         ``,
         `Booking: ${booking.booking_ref}`,
@@ -283,13 +295,17 @@ export async function POST(request: Request) {
         ``,
         `Thank you for choosing JMS Travels! We look forward to serving you again.`,
       ].filter(l => l !== null).join('\n')
-    }
 
-    await sendToAll([guestPhone, adminPhone], body, {
-      booking_id,
-      client_id: client?.id || undefined,
-      template_used: status === 'arrived' ? 'driver_arrived' : 'trip_completed',
-    }).catch(() => {})
+      await Promise.all(phones.map(phone =>
+        sendWhatsAppTemplate({
+          to: phone,
+          templateName: 'jms_trip_completed',
+          params: [clientName, booking.booking_ref, booking.pickup_location || '-', booking.drop_location || '-', dateStr || '-'],
+          fallbackBody,
+          log: { booking_id, client_id: client?.id || undefined, template_used: 'jms_trip_completed' },
+        })
+      )).catch(() => {})
+    }
   }
 
   if (link_code) {
