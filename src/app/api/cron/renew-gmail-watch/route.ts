@@ -3,13 +3,15 @@ import { google } from 'googleapis'
 import { createAdminClient } from '@/lib/supabase/server'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
-function getOAuthClient() {
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET
-  )
-  oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
-  return oauth2
+function getGmailAuth() {
+  const keyJson = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!, 'base64').toString()
+  const key = JSON.parse(keyJson) as { client_email: string; private_key: string }
+  return new google.auth.JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    subject: process.env.GMAIL_USER_EMAIL,
+  })
 }
 
 function getISTDates() {
@@ -66,7 +68,7 @@ export async function GET(request: Request) {
   let renewalOk = false
   let renewalHistoryId: string | null = null
   try {
-    const auth = getOAuthClient()
+    const auth = getGmailAuth()
     const gmail = google.gmail({ version: 'v1', auth })
     const { data } = await gmail.users.watch({
       userId: 'me',

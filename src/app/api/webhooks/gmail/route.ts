@@ -5,13 +5,15 @@ import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { fillMissingFromReply } from '@/lib/email/fill-missing'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 
-function getOAuthClient() {
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET
-  )
-  oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
-  return oauth2
+function getGmailAuth() {
+  const keyJson = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!, 'base64').toString()
+  const key = JSON.parse(keyJson) as { client_email: string; private_key: string }
+  return new google.auth.JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    subject: process.env.GMAIL_USER_EMAIL,
+  })
 }
 
 export async function POST(request: Request) {
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
 
     if (!historyId) return NextResponse.json({ ok: true })
 
-    const auth = getOAuthClient()
+    const auth = getGmailAuth()
     const gmail = google.gmail({ version: 'v1', auth })
 
     console.log('[gmail-webhook] notification historyId:', historyId)
