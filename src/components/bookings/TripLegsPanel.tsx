@@ -69,8 +69,31 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
     }
   }
 
+  const [generating, setGenerating] = useState(false)
+
+  async function handleGenerateLegs() {
+    setGenerating(true)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/legs`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      qc.invalidateQueries({ queryKey: ['booking-legs', bookingId] })
+      toast.success('Legs generated')
+    } catch {
+      toast.error('Could not generate legs')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   if (isLoading) return <p className="text-sm text-[#737686]">Loading legs…</p>
-  if (legs.length === 0) return <p className="text-sm text-[#737686]">No legs found. Confirm the booking to generate legs.</p>
+  if (legs.length === 0) return (
+    <div className="flex items-center gap-3">
+      <p className="text-sm text-[#737686]">No legs found.</p>
+      <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 rounded-sm" onClick={handleGenerateLegs} disabled={generating}>
+        {generating ? 'Generating…' : 'Generate Legs'}
+      </Button>
+    </div>
+  )
 
   return (
     <div className="space-y-2">
