@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
+import { TEMPLATE_KEYS } from '@/lib/templates'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import type { Client } from '@/types'
@@ -54,19 +54,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let body = ''
   let subject = ''
   let templateUsed = ''
+  let templateName = ''
+  let templateParams: string[] = []
   let recipient = override_recipient?.trim() || ''
 
   if (message_type === 'booking_confirmed') {
     templateUsed = TEMPLATE_KEYS.BOOKING_CONFIRMED
+    templateName = 'jms_booking_confirmed'
 
     const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+    const tripType = tripTypeLabel[booking.trip_type] ?? booking.trip_type
     const detailLines = [
       `Booking Reference : ${booking.booking_ref}`,
       `Pickup            : ${booking.pickup_location || 'TBD'}`,
       booking.drop_location ? `Drop              : ${booking.drop_location}` : null,
       `Date              : ${dateFormatted}`,
       `Time              : ${timeFormatted}`,
-      `Trip Type         : ${tripTypeLabel[booking.trip_type] ?? booking.trip_type}`,
+      `Trip Type         : ${tripType}`,
       booking.total_days > 1 ? `Duration          : ${booking.total_days} days` : null,
       booking.pax_count ? `Passengers        : ${booking.pax_count}` : null,
       booking.vehicle_type ? `Vehicle           : ${booking.vehicle_type}` : null,
@@ -85,12 +89,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Thank you for choosing JMS Travels. We look forward to serving you.`,
     ].join('\n')
 
+    templateParams = [
+      clientName,
+      booking.booking_ref,
+      booking.pickup_location || 'TBD',
+      booking.drop_location || '-',
+      dateFormatted,
+      timeFormatted,
+      tripType,
+      booking.total_days > 1 ? `${booking.total_days} days` : '-',
+      booking.pax_count ? String(booking.pax_count) : '-',
+      booking.vehicle_type || '-',
+      booking.special_instructions || '-',
+    ]
+
     subject = `Your booking is confirmed - ${booking.booking_ref}`
     if (!recipient) recipient = channel === 'email' ? (bookerEmail || '') : (guestPhone || bookerPhone || '')
 
   } else if (message_type === 'driver_details') {
     if (!driver) return NextResponse.json({ error: 'No driver assigned to this booking' }, { status: 400 })
     templateUsed = 'driver_details_to_client'
+    templateName = 'jms_driver_assigned'
 
     const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
     const contactLine = driver.secondary_phone ? `${driver.phone} / ${driver.secondary_phone}` : driver.phone
@@ -116,38 +135,65 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Please feel free to contact your driver directly for any assistance. For any other queries, we are always happy to help.`,
     ].join('\n')
 
+    templateParams = [
+      clientName,
+      booking.booking_ref,
+      driver.name,
+      contactLine,
+      vehicleLine || driver.vehicle_name || '-',
+      driver.vehicle_number || '-',
+      dateFormatted,
+      timeFormatted,
+      booking.pickup_location || 'your confirmed pickup point',
+    ]
+
     subject = `Driver Assigned - ${booking.booking_ref}`
     if (!recipient) recipient = channel === 'email' ? (bookerEmail || '') : (guestPhone || bookerPhone || '')
 
   } else if (message_type === 'trip_brief_driver') {
     if (!driver) return NextResponse.json({ error: 'No driver assigned to this booking' }, { status: 400 })
     templateUsed = TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER
-
-    const { data: tmpl } = await supabase
-      .from('message_templates')
-      .select('body')
-      .eq('template_key', TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER)
-      .single()
-
-    if (!tmpl) return NextResponse.json({ error: 'Trip brief template not found' }, { status: 500 })
+    templateName = 'jms_trip_brief_driver'
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     const guestNameForDriver = booking.guest_name || client?.name || 'Guest'
     const guestPhoneForDriver = booking.guest_phone || client?.primary_phone || 'TBD'
+    const [arrivedLink, completedLink] = await Promise.all([
+      createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+      createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+    ])
 
-    body = fillTemplate(tmpl.body, {
-      driver_name: driver.name,
-      booking_ref: booking.booking_ref,
-      guest_name: guestNameForDriver,
-      guest_phone: guestPhoneForDriver,
-      pickup_location: booking.pickup_location || 'TBD',
-      drop_location: booking.drop_location || 'TBD',
-      pickup_date: booking.pickup_date || 'TBD',
-      pickup_time: booking.pickup_time || 'TBD',
-      pax_count: booking.pax_count?.toString() || 'TBD',
-      arrived_link: await createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
-      completed_link: await createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
-    })
+    templateParams = [
+      driver.name,
+      booking.booking_ref,
+      guestNameForDriver,
+      guestPhoneForDriver,
+      booking.pickup_location || 'TBD',
+      booking.drop_location || 'TBD',
+      booking.pickup_date || 'TBD',
+      booking.pickup_time || 'TBD',
+      booking.pax_count?.toString() || 'TBD',
+      arrivedLink,
+      completedLink,
+    ]
+
+    body = [
+      `Hi ${driver.name}, you have a new assignment.`,
+      ``,
+      `Booking: ${booking.booking_ref}`,
+      `Guest: ${guestNameForDriver}`,
+      `Guest Phone: ${guestPhoneForDriver}`,
+      `Pickup: ${booking.pickup_location || 'TBD'}`,
+      `Drop: ${booking.drop_location || 'TBD'}`,
+      `Date: ${booking.pickup_date || 'TBD'}`,
+      `Time: ${booking.pickup_time || 'TBD'}`,
+      `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
+      ``,
+      `Arrived: ${arrivedLink}`,
+      `Completed: ${completedLink}`,
+      ``,
+      `— JMS Travels`,
+    ].join('\n')
 
     subject = `Trip Brief - ${booking.booking_ref}`
     if (!recipient) recipient = driver.phone
@@ -160,13 +206,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'No recipient available — enter a phone number or email' }, { status: 400 })
   }
 
-  // Send
   let sendOk = false
   let sendError: string | undefined
   let waMessageId: string | undefined
 
   if (channel === 'whatsapp') {
-    const result = await sendWhatsAppMessage({ to: recipient, body })
+    const result = await sendWhatsAppTemplate({ to: recipient, templateName, params: templateParams, fallbackBody: body })
     sendOk = result.ok
     sendError = result.error
     waMessageId = result.whatsappMessageId
@@ -176,7 +221,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     sendError = result.error
   }
 
-  // Log to message_logs with actual send outcome
   await supabase.from('message_logs').insert({
     booking_id: id,
     client_id: client?.id || null,
