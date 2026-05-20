@@ -97,6 +97,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     closing_km: number | null
     opening_time: string | null
     closing_time: string | null
+    opening_lat: number | null
+    opening_lng: number | null
+    closing_lat: number | null
+    closing_lng: number | null
     office_to_pickup_km: number | null
     drop_to_office_km: number | null
     toll_amount: number | null
@@ -1267,13 +1271,27 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <div className="border-b border-[#C3C5D7]" />
                   </>
                 )}
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <dt className="text-[#737686]">Opening KM</dt>
-                  <dd className="text-[#434654]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</dd>
+                  <dd className="flex items-center gap-2">
+                    <span className="text-[#434654]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</span>
+                    {tripSheet.opening_lat != null && tripSheet.opening_lng != null && (
+                      <a href={`https://www.google.com/maps?q=${tripSheet.opening_lat},${tripSheet.opening_lng}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A56DB] hover:underline flex items-center gap-0.5 shrink-0">
+                        <MapPin className="w-3 h-3" /> Pickup
+                      </a>
+                    )}
+                  </dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <dt className="text-[#737686]">Closing KM</dt>
-                  <dd className="text-[#434654]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</dd>
+                  <dd className="flex items-center gap-2">
+                    <span className="text-[#434654]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
+                    {tripSheet.closing_lat != null && tripSheet.closing_lng != null && (
+                      <a href={`https://www.google.com/maps?q=${tripSheet.closing_lat},${tripSheet.closing_lng}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A56DB] hover:underline flex items-center gap-0.5 shrink-0">
+                        <MapPin className="w-3 h-3" /> Drop
+                      </a>
+                    )}
+                  </dd>
                 </div>
                 {tripSheet.opening_km != null && tripSheet.closing_km != null && (
                   <>
