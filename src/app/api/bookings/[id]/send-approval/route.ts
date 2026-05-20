@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { approvalLink } from '@/lib/utils/approval-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import type { Company, Client } from '@/types'
@@ -77,8 +77,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   if ((channel === 'whatsapp' || channel === 'both') && hasWAApprovers) {
+    // Template params for jms_approval_request:
+    // {{1}}=approver_name {{2}}=booking_ref {{3}}=guest_name {{4}}=pickup_location
+    // {{5}}=date {{6}}=time {{7}}=approve_url {{8}}=reject_url
+    const approvalTemplateParams = [
+      vars.approver_name,
+      vars.booking_ref,
+      guestName,
+      vars.pickup_location,
+      vars.pickup_date,
+      vars.pickup_time,
+      approveUrl,
+      rejectUrl,
+    ]
     const results = await Promise.all(
-      company.approver_whatsapp.map((phone: string) => sendWhatsAppMessage({ to: phone, body: baseBody }))
+      company.approver_whatsapp.map((phone: string) =>
+        sendWhatsAppTemplate({ to: phone, templateName: 'jms_approval_request', params: approvalTemplateParams, fallbackBody: `${baseBody}\n\nApprove: ${approveUrl}\nReject: ${rejectUrl}` })
+      )
     )
     const anyOk = results.some(r => r.ok)
     if (!anyOk) console.error(`[send-approval] All WhatsApp sends failed booking=${id}`, results)

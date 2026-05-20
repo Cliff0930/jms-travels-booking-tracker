@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import type { Client } from '@/types'
 
@@ -141,18 +141,33 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         status: emailStatus,
       })
     } else {
-      // WhatsApp-source bookings: send via WhatsApp, fall back to email
+      // WhatsApp-source bookings: send via template (bypasses 24h window), fall back to email
       let channel: 'whatsapp' | 'email' = 'whatsapp'
       let recipient = phones.length > 0 ? phones.join(', ') : email || 'unknown'
       let sendStatus = 'failed'
-
       let waMessageId: string | undefined
+
       if (phones.length > 0) {
-        const results = await sendToAll(phones, body)
+        const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+        const results = await Promise.all(
+          phones.map(phone => sendWhatsAppTemplate({
+            to: phone,
+            templateName: 'jms_booking_confirmed',
+            params: [
+              clientName,
+              booking.booking_ref,
+              booking.pickup_location || 'TBD',
+              dateFormatted,
+              timeFormatted,
+              tripTypeLabel[booking.trip_type] ?? booking.trip_type,
+            ],
+            fallbackBody: body,
+          }))
+        )
         const okResult = results.find(r => r.ok)
         sendStatus = okResult ? 'sent' : 'failed'
         waMessageId = okResult?.whatsappMessageId
-        if (!okResult) console.error(`[confirm] WhatsApp failed for all phones booking=${id}`, results)
+        if (!okResult) console.error(`[confirm] WhatsApp template failed for all phones booking=${id}`, results)
       } else if (email) {
         channel = 'email'
         recipient = email

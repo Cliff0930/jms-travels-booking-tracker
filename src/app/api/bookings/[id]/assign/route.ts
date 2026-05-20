@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage, sendToAll } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -151,8 +151,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
       const isEmailSource = booking.source === 'email'
 
+      // Template params for jms_driver_assigned:
+      // {{1}}=client_name {{2}}=booking_ref {{3}}=driver_name {{4}}=driver_contact
+      // {{5}}=vehicle_info {{6}}=date {{7}}=time {{8}}=pickup_location
+      const driverTemplateParams = [
+        clientName,
+        booking.booking_ref,
+        driver.name,
+        contactLine,
+        vehicleLine || driver.phone,
+        dateStr,
+        timeStr,
+        booking.pickup_location || 'your confirmed pickup point',
+      ]
+
       if (isEmailSource) {
-        // Email-source bookings: send email to booker + WhatsApp to guest (if phone available)
+        // Email-source bookings: send email to booker + WhatsApp template to guest
         if (bookerEmail) {
           const result = await sendEmailSafe({
             to: bookerEmail,
@@ -174,24 +188,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           })
         }
         if (guestPhone) {
-          await sendToAll([guestPhone], driverBody, {
-            booking_id: id,
-            client_id: client?.id || undefined,
-            template_used: 'driver_details_to_client',
+          await sendWhatsAppTemplate({
+            to: guestPhone,
+            templateName: 'jms_driver_assigned',
+            params: driverTemplateParams,
+            fallbackBody: driverBody,
+            log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
           })
         }
       } else {
         // WhatsApp-source bookings: use company notify target preference
-        const waRecipients: (string | null)[] =
+        const waRecipients = (
           notifyTarget === 'guest'  ? [guestPhone] :
           notifyTarget === 'booker' ? [bookerPhone] :
           [guestPhone, bookerPhone]
+        ).filter((p): p is string => !!p)
 
-        await sendToAll(waRecipients, driverBody, {
-          booking_id: id,
-          client_id: client?.id || undefined,
-          template_used: 'driver_details_to_client',
-        })
+        await Promise.all(waRecipients.map(phone =>
+          sendWhatsAppTemplate({
+            to: phone,
+            templateName: 'jms_driver_assigned',
+            params: driverTemplateParams,
+            fallbackBody: driverBody,
+            log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
+          })
+        ))
 
         if (bookerEmail && notifyTarget !== 'guest') {
           const result = await sendEmailSafe({
