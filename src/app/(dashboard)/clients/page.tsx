@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Plus, Phone, Mail, User, Briefcase } from 'lucide-react'
+import { normalizePhone } from '@/lib/utils/phone'
 import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
@@ -256,7 +257,7 @@ export default function ClientsPage() {
                 <Label className="text-xs font-semibold text-[#434654]">Phone</Label>
                 <div className="relative">
                   <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
-                  <Input {...register('primary_phone')} placeholder="+91 98765…" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
+                  <Input {...register('primary_phone')} onBlur={e => setValue('primary_phone', normalizePhone(e.target.value))} placeholder="91XXXXXXXXXX" className="pl-8 border-[#C3C5D7] h-9 text-sm" />
                 </div>
               </div>
               <div className="space-y-1.5">

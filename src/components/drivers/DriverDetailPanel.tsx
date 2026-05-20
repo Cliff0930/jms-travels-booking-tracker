@@ -14,6 +14,7 @@ import { Phone, Mail, Car, Users, Pencil, X, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Driver, VehicleType } from '@/types'
+import { normalizePhone } from '@/lib/utils/phone'
 
 const VEHICLE_TYPES: VehicleType[] = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
 
@@ -93,7 +94,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
         id: driver!.id,
         data: {
           name: form.name,
-          phone: form.phone,
+          phone: normalizePhone(form.phone),
           email: form.email || null,
           vehicle_type: form.vehicle_type as VehicleType,
           vehicle_name: form.vehicle_name,

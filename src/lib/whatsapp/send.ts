@@ -1,10 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
-
-// Normalize to E.164 without leading +. Handles 10-digit Indian numbers stored without country code.
-function normalizePhone(phone: string): string {
-  const stripped = phone.replace(/^\+/, '')
-  return /^[6-9]\d{9}$/.test(stripped) ? '91' + stripped : stripped
-}
+import { normalizePhone } from '@/lib/utils/phone'
 
 interface WhatsAppTextMessage {
   to: string

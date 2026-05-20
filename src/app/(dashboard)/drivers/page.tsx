@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Search, Car, Phone, Mail, User, Users, Paintbrush } from 'lucide-react'
+import { normalizePhone } from '@/lib/utils/phone'
 import { toast } from 'sonner'
 import type { Driver, DriverStatus, VehicleType } from '@/types'
 
@@ -234,7 +235,7 @@ export default function DriversPage() {
                     <Label className="text-xs font-semibold text-[#434654]">Phone *</Label>
                     <div className="relative">
                       <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
-                      <Input value={form.phone} onChange={e => setField('phone', e.target.value)} placeholder="+91 98765…" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
+                      <Input value={form.phone} onChange={e => setField('phone', e.target.value)} onBlur={e => setField('phone', normalizePhone(e.target.value))} placeholder="91XXXXXXXXXX" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
                     </div>
                   </div>
                 </div>

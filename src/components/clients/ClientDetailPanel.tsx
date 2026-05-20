@@ -19,6 +19,7 @@ import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { formatBookingDateTime } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import type { Booking, Client, ClientType, Company } from '@/types'
+import { normalizePhone } from '@/lib/utils/phone'
 
 interface ClientDetailPanelProps {
   client: Client | null
@@ -122,7 +123,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
         id: client!.id,
         data: {
           name: editForm.name.trim(),
-          primary_phone: editForm.primary_phone.trim() || null,
+          primary_phone: normalizePhone(editForm.primary_phone.trim()) || null,
           primary_email: editForm.primary_email.trim() || null,
           designation: editForm.designation.trim() || null,
           client_type: editForm.client_type as ClientType,
