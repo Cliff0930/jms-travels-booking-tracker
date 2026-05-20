@@ -75,11 +75,12 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
     setGenerating(true)
     try {
       const res = await fetch(`/api/bookings/${bookingId}/legs`, { method: 'POST' })
-      if (!res.ok) throw new Error('Failed')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed')
       qc.invalidateQueries({ queryKey: ['booking-legs', bookingId] })
       toast.success('Legs generated')
-    } catch {
-      toast.error('Could not generate legs')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not generate legs')
     } finally {
       setGenerating(false)
     }

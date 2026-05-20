@@ -49,9 +49,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         leg_status: 'upcoming',
       }
     })
-    await supabase
+    const { error: legsError } = await supabase
       .from('booking_legs')
       .upsert(legs, { onConflict: 'booking_id,day_number' })
+    if (legsError) console.error(`[confirm] Failed to create legs booking=${id}:`, legsError.message)
   }
 
   // Send booking confirmed notification to client
