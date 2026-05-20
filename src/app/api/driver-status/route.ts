@@ -4,6 +4,7 @@ import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
+import { sendPushToAll } from '@/lib/utils/push-notify'
 
 const MAPS_DAILY_LIMIT = 200
 
@@ -284,6 +285,20 @@ export async function POST(request: Request) {
     } else {
       // Trip-completed client notification is currently disabled
     }
+  }
+
+  // Push notification to operator on trip completion
+  if (status === 'completed') {
+    const driverObj = booking.driver as { name?: string } | null
+    const driverName = driverObj?.name || 'Driver'
+    const clientName2 = booking.guest_name || (booking.client as { name?: string } | null)?.name || ''
+    const pushBody = [
+      clientName2 ? `${clientName2}` : null,
+      booking.pickup_location ? `From: ${booking.pickup_location}` : null,
+      booking.drop_location ? `To: ${booking.drop_location}` : null,
+      `Driver: ${driverName}`,
+    ].filter(Boolean).join(' · ')
+    sendPushToAll(`✅ Trip Completed — ${booking.booking_ref}`, pushBody, `/bookings/${booking_id}`).catch(() => {})
   }
 
   if (link_code) {
