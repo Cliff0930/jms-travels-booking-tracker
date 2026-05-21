@@ -44,21 +44,30 @@ function DriverStatusContent() {
   // Opening data for direct completed links (fetched from server)
   const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
   const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
+  const [alreadyDone, setAlreadyDone] = useState(false)
 
-  // Fetch opening data when driver opens a direct completed link
+  // On mount: check if this action was already submitted (prevents double-submission via browser back)
   useEffect(() => {
-    if (status === 'completed' && bookingId && mode === 'form') {
-      fetch(`/api/bookings/${bookingId}/trip-sheet`)
-        .then(r => r.json())
-        .then(data => {
-          if (data) {
-            setServerOpeningKm(data.opening_km ?? null)
-            setServerOpeningTime(data.manual_opening_time ?? null)
-          }
-        })
-        .catch(() => {})
-    }
-  }, [status, bookingId, mode])
+    if (!bookingId || !status) return
+    type Sheet = { booking_leg_id: string | null; opening_time: string | null; closing_time: string | null; opening_km: number | null; manual_opening_time: string | null }
+    fetch(`/api/bookings/${bookingId}/trip-sheet`)
+      .then(r => r.json())
+      .then((sheets: Sheet[]) => {
+        if (!Array.isArray(sheets) || sheets.length === 0) return
+        const sheet = legId
+          ? sheets.find(s => s.booking_leg_id === legId)
+          : (sheets.find(s => !s.booking_leg_id) ?? sheets[sheets.length - 1])
+        if (!sheet) return
+        if (status === 'arrived' && sheet.opening_time) { setAlreadyDone(true); return }
+        if (status === 'completed' && sheet.closing_time) { setAlreadyDone(true); return }
+        // Load opening data for the completed form
+        if (status === 'completed') {
+          setServerOpeningKm(sheet.opening_km ?? null)
+          setServerOpeningTime(sheet.manual_opening_time ?? null)
+        }
+      })
+      .catch(() => {})
+  }, [bookingId, legId, status])
 
   // GPS tracking state (continuous, after arrived)
   const [gpsPings, setGpsPings] = useState(0)
@@ -199,6 +208,25 @@ function DriverStatusContent() {
 
   if (!bookingId || !status || !token) {
     return <p className="text-center text-[#737686]">Invalid link — please use the link sent by JMS Travels</p>
+  }
+
+  if (alreadyDone) {
+    return (
+      <div className="min-h-screen bg-[#FAF8FF] flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-8 max-w-sm w-full text-center space-y-3">
+          <div className="text-5xl mb-2">✅</div>
+          <h2 className="text-lg font-semibold text-[#191B23]">
+            {status === 'arrived' ? 'Trip Already Started' : 'Trip Already Completed'}
+          </h2>
+          <p className="text-sm text-[#737686] leading-relaxed">
+            {status === 'arrived'
+              ? 'You have already checked in for this trip. The trip is now in progress.'
+              : 'You have already submitted the trip completion details.'}
+          </p>
+          <p className="text-xs text-[#9CA3AF]">For any changes, contact JMS Travels directly.</p>
+        </div>
+      </div>
+    )
   }
 
   if (mode === 'done' && status === 'completed') {
