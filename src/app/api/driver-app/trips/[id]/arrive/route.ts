@@ -56,5 +56,11 @@ export async function POST(
     manual_opening_time: manual_opening_time || null,
   })
 
-  return NextResponse.json({ ok: true, gps_tracking_enabled: !!booking.gps_tracking_enabled })
+  return NextResponse.json({
+    ok: true,
+    gps_tracking_enabled: !!booking.gps_tracking_enabled,
+    tripsheet_number: finalTripsheetNumber,
+    opening_km: opening_km ?? null,
+    manual_opening_time: manual_opening_time || null,
+  })
 }

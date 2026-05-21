@@ -25,9 +25,24 @@ export async function GET(request: Request) {
 
   if (!data) return NextResponse.json(null)
   const { pickup_date, pickup_time, pax_count, ...rest } = data
+
+  let active_tripsheet: { tripsheet_number: string | null; opening_km: number | null; manual_opening_time: string | null } | null = null
+  if (rest.status === 'in_progress') {
+    const { data: sheet } = await supabase
+      .from('trip_sheets')
+      .select('tripsheet_number, opening_km, manual_opening_time')
+      .eq('booking_id', rest.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    active_tripsheet = sheet ?? null
+  }
+
   return NextResponse.json({
     ...rest,
     pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00:00'}`,
     pax: pax_count ?? 0,
+    gps_tracking_enabled: !!rest.gps_tracking_enabled,
+    active_tripsheet,
   })
 }
