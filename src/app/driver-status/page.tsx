@@ -201,6 +201,102 @@ function DriverStatusContent() {
     return <p className="text-center text-[#737686]">Invalid link — please use the link sent by JMS Travels</p>
   }
 
+  if (mode === 'done' && status === 'completed') {
+    const finalOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
+    const finalClosingKm = closingKm ? parseFloat(closingKm) : null
+    const totalKm = finalOpeningKm != null && finalClosingKm != null ? (finalClosingKm - finalOpeningKm) : null
+    const finalOpeningTime = openingTime || serverOpeningTime
+    const totalTime = finalOpeningTime && closingTime
+      ? (() => {
+          const [oh, om] = finalOpeningTime.split(':').map(Number)
+          const [ch, cm] = closingTime.split(':').map(Number)
+          let mins = (ch * 60 + cm) - (oh * 60 + om)
+          if (mins < 0) mins += 24 * 60
+          const h = Math.floor(mins / 60), m = mins % 60
+          return m > 0 ? `${h}h ${m}m` : `${h}h`
+        })()
+      : null
+
+    return (
+      <div className="flex flex-col gap-5 w-full max-w-sm mx-auto px-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <CheckCircle className="w-14 h-14 text-green-500" />
+          <p className="text-lg font-semibold text-[#191B23]">Trip Completed</p>
+          <p className="text-sm text-[#737686]">The operations team has been notified</p>
+        </div>
+
+        <div className="bg-white border border-[#C3C5D7] rounded-xl p-4 space-y-2.5 text-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434654] mb-1">Trip Summary</p>
+
+          {finalOpeningKm != null && (
+            <div className="flex justify-between">
+              <span className="text-[#737686]">Opening KM</span>
+              <span className="font-medium text-[#191B23]">{finalOpeningKm.toLocaleString()}</span>
+            </div>
+          )}
+          {finalOpeningTime && (
+            <div className="flex justify-between">
+              <span className="text-[#737686]">Opening Time</span>
+              <span className="font-medium text-[#191B23]">{finalOpeningTime}</span>
+            </div>
+          )}
+          {finalClosingKm != null && (
+            <div className="flex justify-between">
+              <span className="text-[#737686]">Closing KM</span>
+              <span className="font-medium text-[#191B23]">{finalClosingKm.toLocaleString()}</span>
+            </div>
+          )}
+          {closingTime && (
+            <div className="flex justify-between">
+              <span className="text-[#737686]">Closing Time</span>
+              <span className="font-medium text-[#191B23]">{closingTime}</span>
+            </div>
+          )}
+
+          {(totalKm != null || totalTime) && (
+            <div className="border-t border-[#E5E7EB] pt-2 mt-1 space-y-2">
+              {totalKm != null && (
+                <div className="flex justify-between">
+                  <span className="font-semibold text-[#191B23]">Total KM</span>
+                  <span className="font-bold text-[#1A56DB]">{totalKm.toFixed(1)} km</span>
+                </div>
+              )}
+              {totalTime && (
+                <div className="flex justify-between">
+                  <span className="font-semibold text-[#191B23]">Total Time</span>
+                  <span className="font-bold text-[#1A56DB]">{totalTime}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(tollAmount || parkingAmount || permitAmount) && (
+            <div className="border-t border-[#E5E7EB] pt-2 space-y-1.5">
+              {tollAmount && (
+                <div className="flex justify-between">
+                  <span className="text-[#737686]">Toll</span>
+                  <span className="text-[#434654]">₹{tollAmount}</span>
+                </div>
+              )}
+              {parkingAmount && (
+                <div className="flex justify-between">
+                  <span className="text-[#737686]">Parking</span>
+                  <span className="text-[#434654]">₹{parkingAmount}</span>
+                </div>
+              )}
+              {permitAmount && (
+                <div className="flex justify-between">
+                  <span className="text-[#737686]">Permit</span>
+                  <span className="text-[#434654]">₹{permitAmount}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (mode === 'done') {
     return (
       <div className="flex flex-col items-center gap-3 text-center py-4">
@@ -219,18 +315,11 @@ function DriverStatusContent() {
             <Radio className="w-8 h-8 text-green-600" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-[#191B23]">GPS Tracking Active</h1>
+            <h1 className="text-2xl font-bold text-[#191B23]">Trip In Progress</h1>
             <p className="text-[#434654] mt-1 text-sm">
-              Your route is being recorded every 30 seconds
+              Keep this screen open. Fill in closing KM when done.
             </p>
-            {gpsPings > 0 && (
-              <p className="text-xs text-green-600 mt-1">{gpsPings} location{gpsPings !== 1 ? 's' : ''} recorded</p>
-            )}
           </div>
-        </div>
-
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 text-center">
-          Keep this screen open during the trip. Fill in closing KM when done.
         </div>
 
         {/* Opening summary */}
