@@ -41,6 +41,25 @@ function DriverStatusContent() {
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsError, setGpsError] = useState('')
 
+  // Opening data for direct completed links (fetched from server)
+  const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
+  const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
+
+  // Fetch opening data when driver opens a direct completed link
+  useEffect(() => {
+    if (status === 'completed' && bookingId && mode === 'form') {
+      fetch(`/api/bookings/${bookingId}/trip-sheet`)
+        .then(r => r.json())
+        .then(data => {
+          if (data) {
+            setServerOpeningKm(data.opening_km ?? null)
+            setServerOpeningTime(data.manual_opening_time ?? null)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [status, bookingId, mode])
+
   // GPS tracking state (continuous, after arrived)
   const [gpsPings, setGpsPings] = useState(0)
   const completedTokenRef = useRef<string | null>(null)
@@ -136,6 +155,13 @@ function DriverStatusContent() {
     if (!bookingId) return
     if (!closingKm) { setError('Please enter the closing KM reading'); return }
 
+    // Validate closing KM > opening KM
+    const knownOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
+    if (knownOpeningKm != null && parseFloat(closingKm) <= knownOpeningKm) {
+      setError(`Closing KM must be greater than opening KM (${knownOpeningKm.toLocaleString()})`)
+      return
+    }
+
     const useToken = completedTokenRef.current || token
     if (!useToken) return
 
@@ -205,6 +231,21 @@ function DriverStatusContent() {
 
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 text-center">
           Keep this screen open during the trip. Fill in closing KM when done.
+        </div>
+
+        {/* Opening summary */}
+        <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
+          <div className="flex justify-between">
+            <span className="text-[#737686]">Opening KM</span>
+            <span className="font-semibold text-[#191B23]">{openingKm ? parseFloat(openingKm).toLocaleString() : '—'}</span>
+          </div>
+          {openingTime && (
+            <div className="flex justify-between mt-1">
+              <span className="text-[#737686]">Opening Time</span>
+              <span className="font-semibold text-[#191B23]">{openingTime}</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -343,6 +384,24 @@ function DriverStatusContent() {
               </div>
             </div>
           </>
+        )}
+
+        {status === 'completed' && (serverOpeningKm != null || serverOpeningTime) && (
+          <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
+            {serverOpeningKm != null && (
+              <div className="flex justify-between">
+                <span className="text-[#737686]">Opening KM</span>
+                <span className="font-semibold text-[#191B23]">{serverOpeningKm.toLocaleString()}</span>
+              </div>
+            )}
+            {serverOpeningTime && (
+              <div className="flex justify-between mt-1">
+                <span className="text-[#737686]">Opening Time</span>
+                <span className="font-semibold text-[#191B23]">{serverOpeningTime}</span>
+              </div>
+            )}
+          </div>
         )}
 
         {status === 'completed' && (
