@@ -148,6 +148,9 @@ function DriverStatusContent() {
 
       if (data.gps_tracking_enabled && data.completed_token) {
         completedTokenRef.current = data.completed_token
+        // Clear GPS coords so completed form captures fresh drop location, not stale pickup coords
+        setLat(null)
+        setLng(null)
         startGpsTracking()
         setMode('gps_active')
       } else {
