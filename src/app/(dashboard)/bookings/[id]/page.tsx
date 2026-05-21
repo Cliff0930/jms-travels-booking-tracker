@@ -97,6 +97,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     closing_km: number | null
     opening_time: string | null
     closing_time: string | null
+    manual_opening_time: string | null
+    manual_closing_time: string | null
     opening_lat: number | null
     opening_lng: number | null
     closing_lat: number | null
@@ -105,8 +107,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     drop_to_office_km: number | null
     toll_amount: number | null
     parking_amount: number | null
+    permit_amount: number | null
     gps_km: number | null
     route_image_url: string | null
+  }
+
+  function calcManualDuration(open: string, close: string): string {
+    const [oh, om] = open.split(':').map(Number)
+    const [ch, cm] = close.split(':').map(Number)
+    let mins = (ch * 60 + cm) - (oh * 60 + om)
+    if (mins < 0) mins += 24 * 60
+    const h = Math.floor(mins / 60), m = mins % 60
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
   }
 
   function formatTripDuration(openingTime: string, closingTime: string, tripType: string): string {
@@ -1247,94 +1259,135 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <Gauge className="w-4 h-4 text-[#1A56DB]" />
                 Tripsheet
               </h2>
-              <dl className="space-y-2 text-sm">
-                {tripSheet.tripsheet_number && (
-                  <div className="flex justify-between">
-                    <dt className="text-[#737686]">Sheet No.</dt>
-                    <dd className="font-medium text-[#191B23]">{tripSheet.tripsheet_number}</dd>
+              {tripSheet.tripsheet_number && (
+                <p className="text-xs text-[#737686] mb-3">Sheet No. <span className="font-semibold text-[#191B23]">{tripSheet.tripsheet_number}</span></p>
+              )}
+
+              {/* Two-column layout: Driver entry | System/GPS */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+
+                {/* LEFT: Driver manual entry */}
+                <div className="bg-[#F9F9FE] rounded-lg border border-[#C3C5D7] p-3 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A56DB] mb-1">Driver Entry</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#737686]">Opening KM</span>
+                    <span className="font-medium text-[#191B23]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</span>
                   </div>
-                )}
-                {(tripSheet.toll_amount != null || tripSheet.parking_amount != null) && (
-                  <>
-                    {tripSheet.toll_amount != null && (
-                      <div className="flex justify-between">
-                        <dt className="text-[#737686]">Toll</dt>
-                        <dd className="text-[#434654]">₹{tripSheet.toll_amount}</dd>
-                      </div>
-                    )}
-                    {tripSheet.parking_amount != null && (
-                      <div className="flex justify-between">
-                        <dt className="text-[#737686]">Parking</dt>
-                        <dd className="text-[#434654]">₹{tripSheet.parking_amount}</dd>
-                      </div>
-                    )}
-                    <div className="border-b border-[#C3C5D7]" />
-                  </>
-                )}
-                <div className="flex justify-between items-center">
-                  <dt className="text-[#737686]">Opening KM</dt>
-                  <dd className="flex items-center gap-2">
-                    <span className="text-[#434654]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</span>
-                    {tripSheet.opening_lat != null && tripSheet.opening_lng != null && (
-                      <a href={`https://www.google.com/maps?q=${tripSheet.opening_lat},${tripSheet.opening_lng}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A56DB] hover:underline flex items-center gap-0.5 shrink-0">
-                        <MapPin className="w-3 h-3" /> Pickup
-                      </a>
-                    )}
-                  </dd>
-                </div>
-                <div className="flex justify-between items-center">
-                  <dt className="text-[#737686]">Closing KM</dt>
-                  <dd className="flex items-center gap-2">
-                    <span className="text-[#434654]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
-                    {tripSheet.closing_lat != null && tripSheet.closing_lng != null && (
-                      <a href={`https://www.google.com/maps?q=${tripSheet.closing_lat},${tripSheet.closing_lng}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A56DB] hover:underline flex items-center gap-0.5 shrink-0">
-                        <MapPin className="w-3 h-3" /> Drop
-                      </a>
-                    )}
-                  </dd>
-                </div>
-                {tripSheet.opening_km != null && tripSheet.closing_km != null && (
-                  <>
-                    <div className="flex justify-between border-t border-[#C3C5D7] pt-2 mt-2">
-                      <dt className="text-[#737686]">Driver KM</dt>
-                      <dd className="font-medium text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</dd>
+                  {tripSheet.manual_opening_time && (
+                    <div className="flex justify-between">
+                      <span className="text-[#737686]">Opening Time</span>
+                      <span className="text-[#434654]">{tripSheet.manual_opening_time}</span>
                     </div>
-                    {tripSheet.gps_km != null && (
-                      <div className="flex justify-between">
-                        <dt className="text-[#737686]">GPS KM</dt>
-                        <dd className="text-[#434654]">{tripSheet.gps_km.toFixed(1)} km</dd>
-                      </div>
-                    )}
-                    {tripSheet.opening_time && tripSheet.closing_time && (
-                      <div className="flex justify-between">
-                        <dt className="text-[#737686]">{booking.trip_type === 'outstation' ? 'Trip Duration' : 'Hours Used'}</dt>
-                        <dd className="text-[#434654]">{formatTripDuration(tripSheet.opening_time, tripSheet.closing_time, booking.trip_type)}</dd>
-                      </div>
-                    )}
-                    {(tripSheet.office_to_pickup_km != null || tripSheet.drop_to_office_km != null) && (
-                      <>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#737686]">Closing KM</span>
+                    <span className="font-medium text-[#191B23]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
+                  </div>
+                  {tripSheet.manual_closing_time && (
+                    <div className="flex justify-between">
+                      <span className="text-[#737686]">Closing Time</span>
+                      <span className="text-[#434654]">{tripSheet.manual_closing_time}</span>
+                    </div>
+                  )}
+                  {tripSheet.manual_opening_time && tripSheet.manual_closing_time && (
+                    <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5 mt-1">
+                      <span className="text-[#737686]">Total Hours</span>
+                      <span className="font-semibold text-[#191B23]">{calcManualDuration(tripSheet.manual_opening_time, tripSheet.manual_closing_time)}</span>
+                    </div>
+                  )}
+                  {tripSheet.opening_km != null && tripSheet.closing_km != null && (
+                    <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
+                      <span className="text-[#737686]">Driver KM</span>
+                      <span className="font-semibold text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</span>
+                    </div>
+                  )}
+                  {(tripSheet.toll_amount != null || tripSheet.parking_amount != null || tripSheet.permit_amount != null) && (
+                    <div className="border-t border-[#C3C5D7] pt-1.5 space-y-1.5">
+                      {tripSheet.toll_amount != null && (
                         <div className="flex justify-between">
-                          <dt className="text-[#737686]">Office → Pickup</dt>
-                          <dd className="text-[#434654]">{tripSheet.office_to_pickup_km != null ? `${tripSheet.office_to_pickup_km} km` : '—'}</dd>
+                          <span className="text-[#737686]">Toll</span>
+                          <span className="text-[#434654]">₹{tripSheet.toll_amount}</span>
                         </div>
+                      )}
+                      {tripSheet.parking_amount != null && (
                         <div className="flex justify-between">
-                          <dt className="text-[#737686]">Drop → Office</dt>
-                          <dd className="text-[#434654]">{tripSheet.drop_to_office_km != null ? `${tripSheet.drop_to_office_km} km` : '—'}</dd>
+                          <span className="text-[#737686]">Parking</span>
+                          <span className="text-[#434654]">₹{tripSheet.parking_amount}</span>
                         </div>
-                        <div className="flex justify-between border-t border-[#C3C5D7] pt-2 mt-2">
-                          <dt className="font-medium text-[#191B23]">Grand Total</dt>
-                          <dd className="font-semibold text-[#1A56DB]">
-                            {(
-                              (tripSheet.closing_km - tripSheet.opening_km) +
-                              (tripSheet.office_to_pickup_km ?? 0) +
-                              (tripSheet.drop_to_office_km ?? 0)
-                            ).toFixed(1)} km
-                          </dd>
+                      )}
+                      {tripSheet.permit_amount != null && (
+                        <div className="flex justify-between">
+                          <span className="text-[#737686]">Permit</span>
+                          <span className="text-[#434654]">₹{tripSheet.permit_amount}</span>
                         </div>
-                      </>
-                    )}
-                  </>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT: System / GPS */}
+                <div className="bg-[#F0FDF4] rounded-lg border border-[#BBF7D0] p-3 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#059669] mb-1">System / GPS</p>
+                  {tripSheet.opening_time && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#737686]">Arrived</span>
+                      <span className="text-[#434654] text-xs">{new Date(tripSheet.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span>
+                    </div>
+                  )}
+                  {tripSheet.closing_time && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#737686]">Completed</span>
+                      <span className="text-[#434654] text-xs">{new Date(tripSheet.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span>
+                    </div>
+                  )}
+                  {tripSheet.opening_time && tripSheet.closing_time && (
+                    <div className="flex justify-between border-t border-[#BBF7D0] pt-1.5">
+                      <span className="text-[#737686]">{booking.trip_type === 'outstation' ? 'Duration' : 'Hours'}</span>
+                      <span className="font-semibold text-[#059669]">{formatTripDuration(tripSheet.opening_time, tripSheet.closing_time, booking.trip_type)}</span>
+                    </div>
+                  )}
+                  {tripSheet.gps_km != null && (
+                    <div className="flex justify-between">
+                      <span className="text-[#737686]">GPS KM</span>
+                      <span className="text-[#434654]">{tripSheet.gps_km.toFixed(1)} km</span>
+                    </div>
+                  )}
+                  {(tripSheet.office_to_pickup_km != null || tripSheet.drop_to_office_km != null) && (
+                    <div className="border-t border-[#BBF7D0] pt-1.5 space-y-1.5">
+                      {tripSheet.office_to_pickup_km != null && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-[#737686]">Office→Pickup</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[#434654]">{tripSheet.office_to_pickup_km} km</span>
+                            {tripSheet.opening_lat != null && (
+                              <a href={`https://www.google.com/maps?q=${tripSheet.opening_lat},${tripSheet.opening_lng}`} target="_blank" rel="noopener noreferrer" className="text-[#1A56DB]"><MapPin className="w-3 h-3" /></a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {tripSheet.drop_to_office_km != null && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-[#737686]">Drop→Office</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[#434654]">{tripSheet.drop_to_office_km} km</span>
+                            {tripSheet.closing_lat != null && (
+                              <a href={`https://www.google.com/maps?q=${tripSheet.closing_lat},${tripSheet.closing_lng}`} target="_blank" rel="noopener noreferrer" className="text-[#1A56DB]"><MapPin className="w-3 h-3" /></a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {tripSheet.opening_km != null && tripSheet.closing_km != null && (tripSheet.office_to_pickup_km != null || tripSheet.drop_to_office_km != null) && (
+                    <div className="flex justify-between border-t border-[#BBF7D0] pt-1.5">
+                      <span className="font-medium text-[#191B23]">Grand Total</span>
+                      <span className="font-semibold text-[#059669]">
+                        {((tripSheet.closing_km - tripSheet.opening_km) + (tripSheet.office_to_pickup_km ?? 0) + (tripSheet.drop_to_office_km ?? 0)).toFixed(1)} km
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
                 <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-[#737686]">Route Map</p>
@@ -1367,7 +1420,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <p className="text-xs text-[#9CA3AF]">No map yet — click Generate Map above.</p>
                   )}
                 </div>
-              </dl>
             </div>
           )}
         </div>

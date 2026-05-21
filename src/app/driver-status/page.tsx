@@ -26,11 +26,14 @@ function DriverStatusContent() {
   // Arrived form
   const [tripsheetNumber, setTripsheetNumber] = useState('')
   const [openingKm, setOpeningKm] = useState('')
+  const [openingTime, setOpeningTime] = useState('')
 
   // Completion form (shown in gps_active mode or for direct completed links)
   const [closingKm, setClosingKm] = useState('')
+  const [closingTime, setClosingTime] = useState('')
   const [tollAmount, setTollAmount] = useState('')
   const [parkingAmount, setParkingAmount] = useState('')
+  const [permitAmount, setPermitAmount] = useState('')
 
   // Single GPS capture (for arrived/completed without GPS tracking)
   const [lat, setLat] = useState<number | null>(null)
@@ -102,6 +105,7 @@ function DriverStatusContent() {
         tripsheet_number: tripsheetNumber.trim(),
         opening_km: parseFloat(openingKm),
       }
+      if (openingTime) body.manual_opening_time = openingTime
       if (lat !== null) body.lat = lat
       if (lng !== null) body.lng = lng
 
@@ -145,8 +149,10 @@ function DriverStatusContent() {
         link_code: linkCode, leg_id: legId,
         closing_km: parseFloat(closingKm),
       }
+      if (closingTime) body.manual_closing_time = closingTime
       if (tollAmount) body.toll_amount = parseFloat(tollAmount)
       if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
+      if (permitAmount) body.permit_amount = parseFloat(permitAmount)
       if (lat !== null) body.lat = lat
       if (lng !== null) body.lng = lng
 
@@ -202,23 +208,35 @@ function DriverStatusContent() {
         </div>
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
-            <Input
-              id="closing_km"
-              type="number"
-              inputMode="numeric"
-              value={closingKm}
-              onChange={e => setClosingKm(e.target.value)}
-              placeholder="e.g. 45385"
-              className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-            />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Label htmlFor="closing_km_gps" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
               <Input
-                id="toll"
+                id="closing_km_gps"
+                type="number"
+                inputMode="numeric"
+                value={closingKm}
+                onChange={e => setClosingKm(e.target.value)}
+                placeholder="e.g. 45385"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+            <div>
+              <Label htmlFor="closing_time_gps" className="text-sm font-medium text-[#191B23]">Closing Time</Label>
+              <Input
+                id="closing_time_gps"
+                type="time"
+                value={closingTime}
+                onChange={e => setClosingTime(e.target.value)}
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="toll_gps" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Input
+                id="toll_gps"
                 type="number"
                 inputMode="decimal"
                 value={tollAmount}
@@ -228,13 +246,25 @@ function DriverStatusContent() {
               />
             </div>
             <div>
-              <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Label htmlFor="parking_gps" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
               <Input
-                id="parking"
+                id="parking_gps"
                 type="number"
                 inputMode="decimal"
                 value={parkingAmount}
                 onChange={e => setParkingAmount(e.target.value)}
+                placeholder="0"
+                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+              />
+            </div>
+            <div>
+              <Label htmlFor="permit_gps" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
+              <Input
+                id="permit_gps"
+                type="number"
+                inputMode="decimal"
+                value={permitAmount}
+                onChange={e => setPermitAmount(e.target.value)}
                 placeholder="0"
                 className="mt-1.5 border-[#C3C5D7] h-12 text-base"
               />
@@ -288,36 +318,60 @@ function DriverStatusContent() {
                 autoComplete="off"
               />
             </div>
-            <div>
-              <Label htmlFor="opening_km" className="text-sm font-medium text-[#191B23]">Opening KM *</Label>
-              <Input
-                id="opening_km"
-                type="number"
-                inputMode="numeric"
-                value={openingKm}
-                onChange={e => setOpeningKm(e.target.value)}
-                placeholder="e.g. 45230"
-                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="opening_km" className="text-sm font-medium text-[#191B23]">Opening KM *</Label>
+                <Input
+                  id="opening_km"
+                  type="number"
+                  inputMode="numeric"
+                  value={openingKm}
+                  onChange={e => setOpeningKm(e.target.value)}
+                  placeholder="e.g. 45230"
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
+              <div>
+                <Label htmlFor="opening_time" className="text-sm font-medium text-[#191B23]">Opening Time</Label>
+                <Input
+                  id="opening_time"
+                  type="time"
+                  value={openingTime}
+                  onChange={e => setOpeningTime(e.target.value)}
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
             </div>
           </>
         )}
 
         {status === 'completed' && (
           <>
-            <div>
-              <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
-              <Input
-                id="closing_km"
-                type="number"
-                inputMode="numeric"
-                value={closingKm}
-                onChange={e => setClosingKm(e.target.value)}
-                placeholder="e.g. 45385"
-                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-              />
-            </div>
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
+                <Input
+                  id="closing_km"
+                  type="number"
+                  inputMode="numeric"
+                  value={closingKm}
+                  onChange={e => setClosingKm(e.target.value)}
+                  placeholder="e.g. 45385"
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
+              <div>
+                <Label htmlFor="closing_time" className="text-sm font-medium text-[#191B23]">Closing Time</Label>
+                <Input
+                  id="closing_time"
+                  type="time"
+                  value={closingTime}
+                  onChange={e => setClosingTime(e.target.value)}
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
                 <Input
@@ -338,6 +392,18 @@ function DriverStatusContent() {
                   inputMode="decimal"
                   value={parkingAmount}
                   onChange={e => setParkingAmount(e.target.value)}
+                  placeholder="0"
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                />
+              </div>
+              <div>
+                <Label htmlFor="permit" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
+                <Input
+                  id="permit"
+                  type="number"
+                  inputMode="decimal"
+                  value={permitAmount}
+                  onChange={e => setPermitAmount(e.target.value)}
                   placeholder="0"
                   className="mt-1.5 border-[#C3C5D7] h-12 text-base"
                 />

@@ -107,7 +107,8 @@ export async function POST(request: Request) {
   const {
     booking_id, status, token,
     tripsheet_number, opening_km, closing_km,
-    toll_amount, parking_amount,
+    manual_opening_time, manual_closing_time,
+    toll_amount, parking_amount, permit_amount,
     lat, lng,
     link_code,
     leg_id,
@@ -151,6 +152,7 @@ export async function POST(request: Request) {
       opening_lat: lat ?? null,
       opening_lng: lng ?? null,
       opening_time: new Date().toISOString(),
+      manual_opening_time: manual_opening_time || null,
     }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
   } else {
     // Find matching sheet: prefer leg-specific, fall back to booking-level
@@ -217,10 +219,12 @@ export async function POST(request: Request) {
         closing_lat: lat ?? null,
         closing_lng: lng ?? null,
         closing_time: new Date().toISOString(),
+        manual_closing_time: manual_closing_time || null,
         office_to_pickup_km: officeToPickupKm,
         drop_to_office_km: dropToOfficeKm,
         toll_amount: toll_amount ?? null,
         parking_amount: parking_amount ?? null,
+        permit_amount: permit_amount ?? null,
         gps_km: gpsKm,
         updated_at: new Date().toISOString(),
       }).eq('id', sheet.id)
@@ -238,10 +242,12 @@ export async function POST(request: Request) {
         closing_lat: lat ?? null,
         closing_lng: lng ?? null,
         closing_time: new Date().toISOString(),
+        manual_closing_time: manual_closing_time || null,
         office_to_pickup_km: officeToPickupKm,
         drop_to_office_km: dropToOfficeKm,
         toll_amount: toll_amount ?? null,
         parking_amount: parking_amount ?? null,
+        permit_amount: permit_amount ?? null,
         gps_km: gpsKm,
       }).select('id').single()
 
