@@ -406,9 +406,61 @@ create table operator_notifications (
 );
 grant all on operator_notifications to postgres, anon, authenticated, service_role;
 
+-- ─── TRIP SHEETS ─────────────────────────────────────────────
+create table if not exists trip_sheets (
+  id                  uuid primary key default uuid_generate_v4(),
+  booking_id          uuid references bookings(id) on delete cascade,
+  driver_id           uuid references drivers(id),
+  booking_leg_id      uuid references booking_legs(id),
+  tripsheet_number    text,
+  opening_km          numeric,
+  closing_km          numeric,
+  opening_lat         double precision,
+  opening_lng         double precision,
+  closing_lat         double precision,
+  closing_lng         double precision,
+  opening_time        timestamptz,
+  closing_time        timestamptz,
+  manual_opening_time text,
+  manual_closing_time text,
+  toll_amount         numeric,
+  parking_amount      numeric,
+  permit_amount       numeric,
+  gps_km              numeric,
+  office_to_pickup_km numeric,
+  drop_to_office_km   numeric,
+  route_image_url     text,
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
+);
+
+create index if not exists idx_trip_sheets_booking_id on trip_sheets(booking_id);
+grant all on trip_sheets to postgres, anon, authenticated, service_role;
+
+-- ─── TRIP GPS LOGS ───────────────────────────────────────────
+create table if not exists trip_gps_logs (
+  id              uuid primary key default uuid_generate_v4(),
+  booking_id      uuid references bookings(id) on delete cascade,
+  driver_id       uuid references drivers(id),
+  trip_sheet_id   uuid references trip_sheets(id),
+  lat             double precision not null,
+  lng             double precision not null,
+  recorded_at     timestamptz default now()
+);
+
+create index if not exists idx_trip_gps_logs_booking_id on trip_gps_logs(booking_id, recorded_at);
+grant all on trip_gps_logs to postgres, anon, authenticated, service_role;
+
 -- ─── MIGRATIONS (run if tables already exist) ────────────────
 -- ALTER TABLE conversation_sessions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_type text;
+-- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS gps_tracking_enabled boolean default false;
+-- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_client_id uuid references clients(id);
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS approval_exclusions text[] DEFAULT '{}';
+-- ALTER TABLE drivers ADD COLUMN IF NOT EXISTS pin_hash text;
+-- ALTER TABLE drivers ADD COLUMN IF NOT EXISTS secondary_phone text;
+-- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS pickup_location text;
+-- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS drop_location text;
+-- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS pickup_time time;
 -- Run these in Supabase SQL Editor to update the live templates:
 -- UPDATE message_templates SET subject = replace(subject, 'CabFlow', 'JMS Travels'), body = replace(body, 'CabFlow Team', 'JMS Travels Team'), body = replace(body, '— CabFlow', '— JMS Travels') WHERE subject LIKE '%CabFlow%' OR body LIKE '%CabFlow%';
