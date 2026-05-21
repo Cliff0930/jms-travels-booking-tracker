@@ -15,12 +15,17 @@ export async function GET(request: Request) {
 
   const { data } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_datetime, pax, guest_name, status')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, pax_count, guest_name, status')
     .eq('driver_id', verified.driverId)
-    .gt('pickup_datetime', `${today}T23:59:59`)
+    .gt('pickup_date', today)
     .not('status', 'in', '("cancelled","completed")')
-    .order('pickup_datetime', { ascending: true })
+    .order('pickup_date', { ascending: true })
+    .order('pickup_time', { ascending: true })
     .limit(30)
 
-  return NextResponse.json(data ?? [])
+  return NextResponse.json((data ?? []).map(({ pickup_date, pickup_time, pax_count, ...rest }) => ({
+    ...rest,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pax: pax_count ?? 0,
+  })))
 }

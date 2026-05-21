@@ -10,10 +10,10 @@ export async function GET(request: Request) {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_datetime, guest_name, status, pax')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, guest_name, status, pax_count')
     .eq('driver_id', verified.driverId)
     .eq('status', 'completed')
-    .order('pickup_datetime', { ascending: false })
+    .order('pickup_date', { ascending: false })
     .limit(50)
 
   if (!bookings || bookings.length === 0) return NextResponse.json([])
@@ -30,5 +30,10 @@ export async function GET(request: Request) {
     sheetsByBooking[sheet.booking_id]!.push(sheet)
   }
 
-  return NextResponse.json(bookings.map(b => ({ ...b, sheets: sheetsByBooking[b.id] ?? [] })))
+  return NextResponse.json(bookings.map(({ pickup_date, pickup_time, pax_count, ...b }) => ({
+    ...b,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pax: pax_count ?? 0,
+    sheets: sheetsByBooking[b.id] ?? [],
+  })))
 }

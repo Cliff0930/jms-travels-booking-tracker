@@ -15,14 +15,19 @@ export async function GET(request: Request) {
 
   const { data } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_datetime, pax, guest_name, guest_phone, status, gps_tracking_enabled, booking_legs(id, day_number, leg_date, pickup_location, drop_location, pickup_time)')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, pax_count, guest_name, guest_phone, status, gps_tracking_enabled, booking_legs(id, day_number, leg_date, pickup_location, drop_location, pickup_time)')
     .eq('driver_id', verified.driverId)
-    .gte('pickup_datetime', `${today}T00:00:00`)
-    .lte('pickup_datetime', `${today}T23:59:59`)
+    .eq('pickup_date', today)
     .not('status', 'in', '("cancelled","completed")')
-    .order('pickup_datetime', { ascending: true })
+    .order('pickup_time', { ascending: true })
     .limit(1)
     .maybeSingle()
 
-  return NextResponse.json(data ?? null)
+  if (!data) return NextResponse.json(null)
+  const { pickup_date, pickup_time, pax_count, ...rest } = data
+  return NextResponse.json({
+    ...rest,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pax: pax_count ?? 0,
+  })
 }
