@@ -143,11 +143,23 @@ export async function POST(request: Request) {
 
   // Trip sheet handling
   if (status === 'arrived') {
+    // Auto-suffix duplicate tripsheet numbers: 2000 → 2000+1 → 2000+2
+    let finalTripsheetNumber: string | null = tripsheet_number || null
+    if (tripsheet_number) {
+      const { data: existing } = await supabase
+        .from('trip_sheets')
+        .select('tripsheet_number')
+        .or(`tripsheet_number.eq.${tripsheet_number},tripsheet_number.like.${tripsheet_number}+%`)
+      if (existing && existing.length > 0) {
+        finalTripsheetNumber = `${tripsheet_number}+${existing.length}`
+      }
+    }
+
     await supabase.from('trip_sheets').insert({
       booking_id,
       driver_id: booking.driver_id || null,
       booking_leg_id: leg_id || null,
-      tripsheet_number: tripsheet_number || null,
+      tripsheet_number: finalTripsheetNumber,
       opening_km: opening_km ?? null,
       opening_lat: lat ?? null,
       opening_lng: lng ?? null,
