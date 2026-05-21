@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label'
 type StatusType = 'arrived' | 'completed'
 type PageMode = 'form' | 'gps_active' | 'done'
 
-const GPS_INTERVAL_MS = 30_000
-
 // Silently tries to get current position; resolves null on failure or timeout
 function silentlyCaptureGPS(): Promise<{ lat: number; lng: number } | null> {
   return new Promise(resolve => {
@@ -74,12 +72,12 @@ function DriverStatusContent() {
       .catch(() => {})
   }, [bookingId, legId, status])
 
-  // Continuous GPS tracking (runs while page is open after arrived)
+  // GPS tracking — fires on page-visible events so driver can switch apps freely
   const completedTokenRef = useRef<string | null>(null)
-  const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isTrackingRef = useRef(false)
 
   function sendGpsPing() {
-    if (!bookingId || !token) return
+    if (!bookingId || !token || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -96,19 +94,25 @@ function DriverStatusContent() {
   }
 
   function startGpsTracking() {
-    if (!navigator.geolocation) return
-    sendGpsPing()
-    trackingIntervalRef.current = setInterval(sendGpsPing, GPS_INTERVAL_MS)
+    isTrackingRef.current = true
+    sendGpsPing() // immediate ping on arrival
   }
 
   function stopGpsTracking() {
-    if (trackingIntervalRef.current) {
-      clearInterval(trackingIntervalRef.current)
-      trackingIntervalRef.current = null
-    }
+    isTrackingRef.current = false
   }
 
-  useEffect(() => () => { if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current) }, [])
+  // Ping GPS every time the driver returns to this tab (works when switching apps)
+  useEffect(() => {
+    if (mode !== 'gps_active') return
+    const handleVisibility = () => {
+      if (isTrackingRef.current && document.visibilityState === 'visible') {
+        sendGpsPing()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [mode])
 
   async function handleArrivedSubmit() {
     if (!bookingId || !token) return
