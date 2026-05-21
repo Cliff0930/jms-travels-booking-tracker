@@ -67,14 +67,16 @@ export async function POST(
   }
 
   if (sheet) {
-    await supabase.from('trip_sheets').update(sheetUpdate).eq('id', sheet.id)
+    const { error: updateErr } = await supabase.from('trip_sheets').update(sheetUpdate).eq('id', sheet.id)
+    if (updateErr) console.error(`[complete] trip_sheets update failed booking=${bookingId}:`, updateErr.message)
   } else {
-    await supabase.from('trip_sheets').insert({
+    const { error: insertErr } = await supabase.from('trip_sheets').insert({
       booking_id: bookingId,
       driver_id: verified.driverId,
       booking_leg_id: leg_id || null,
       ...sheetUpdate,
     })
+    if (insertErr) console.error(`[complete] trip_sheets insert failed booking=${bookingId}:`, insertErr.message)
   }
 
   await supabase.from('bookings').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', bookingId)

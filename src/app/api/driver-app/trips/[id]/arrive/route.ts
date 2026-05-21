@@ -44,7 +44,7 @@ export async function POST(
 
   await supabase.from('bookings').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', bookingId)
   await supabase.from('drivers').update({ status: 'on_duty' }).eq('id', verified.driverId)
-  await supabase.from('trip_sheets').insert({
+  const { error: sheetError } = await supabase.from('trip_sheets').insert({
     booking_id: bookingId,
     driver_id: verified.driverId,
     booking_leg_id: leg_id || null,
@@ -55,6 +55,7 @@ export async function POST(
     opening_time: new Date().toISOString(),
     manual_opening_time: manual_opening_time || null,
   })
+  if (sheetError) console.error(`[arrive] trip_sheets insert failed booking=${bookingId}:`, sheetError.message)
 
   return NextResponse.json({
     ok: true,
