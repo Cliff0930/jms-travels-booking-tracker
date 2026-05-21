@@ -6,10 +6,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('trip_sheets')
-    .select('*')
+    .select('*, leg:booking_legs(day_number, leg_date)')
     .eq('booking_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-  return NextResponse.json(data || null)
+    .order('created_at', { ascending: true })
+  return NextResponse.json(data || [])
 }

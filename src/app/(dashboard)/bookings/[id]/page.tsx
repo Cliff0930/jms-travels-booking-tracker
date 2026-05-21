@@ -110,6 +110,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     permit_amount: number | null
     gps_km: number | null
     route_image_url: string | null
+    leg?: { day_number: number; leg_date: string } | null
   }
 
   function calcManualDuration(open: string, close: string): string {
@@ -137,12 +138,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     return `${totalHours}h ${minutes}m`
   }
 
-  const { data: tripSheet } = useQuery<TripSheet | null>({
+  const { data: tripSheets = [] } = useQuery<TripSheet[]>({
     queryKey: ['trip-sheet', id],
     queryFn: () => fetch(`/api/bookings/${id}/trip-sheet`).then(r => r.json()),
     enabled: !!id,
     refetchInterval: booking?.status === 'in_progress' ? 15000 : false,
   })
+  const [selectedSheetIdx, setSelectedSheetIdx] = useState(0)
+  const tripSheet = tripSheets[selectedSheetIdx] ?? null
 
   const updateBooking = useUpdateBooking()
   const confirmBooking = useConfirmBooking()
@@ -1253,16 +1256,41 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <TripTimeline booking={booking} />
           </div>
 
-          {tripSheet && (
+          {tripSheets.length > 0 && (
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
               <h2 className="text-base font-semibold text-[#191B23] mb-3 flex items-center gap-2">
                 <Gauge className="w-4 h-4 text-[#1A56DB]" />
                 Tripsheet
               </h2>
-              {tripSheet.tripsheet_number && (
+
+              {/* Day tabs for local multi-day trips */}
+              {tripSheets.length > 1 && (
+                <div className="flex gap-1 mb-4 border-b border-[#E5E7EB]">
+                  {tripSheets.map((s, idx) => {
+                    const dayNum = s.leg?.day_number ?? (idx + 1)
+                    const isActive = idx === selectedSheetIdx
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedSheetIdx(idx)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors ${
+                          isActive
+                            ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]'
+                            : 'border-transparent text-[#737686] hover:text-[#434654] hover:bg-[#F9F9FE]'
+                        }`}
+                      >
+                        Day {dayNum}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {tripSheet && tripSheet.tripsheet_number && (
                 <p className="text-xs text-[#737686] mb-3">Sheet No. <span className="font-semibold text-[#191B23]">{tripSheet.tripsheet_number}</span></p>
               )}
 
+              {tripSheet && <div>
               {/* Two-column layout: Driver entry | System/GPS */}
               <div className="grid grid-cols-2 gap-3 text-sm">
 
@@ -1394,11 +1422,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <button
                       onClick={async () => {
                         try {
-                          const res = await fetch(`/api/bookings/${booking.id}/regenerate-map`, { method: 'POST' })
+                          const res = await fetch(`/api/bookings/${booking.id}/regenerate-map`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sheet_id: tripSheet?.id }),
+                          })
                           const json = await res.json()
                           if (!res.ok) { toast.error(json.error || 'Failed to generate map'); return }
                           toast.success('Map generated')
-                          // Refetch trip sheet
                           window.location.reload()
                         } catch { toast.error('Failed to generate map') }
                       }}
@@ -1420,6 +1451,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <p className="text-xs text-[#9CA3AF]">No map yet — click Generate Map above.</p>
                   )}
                 </div>
+              </div>}
             </div>
           )}
         </div>

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
+
+  const body = await req.json().catch(() => ({})) as { sheet_id?: string }
 
   const { data: gpsLogs } = await supabase
     .from('trip_gps_logs')
@@ -15,16 +17,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Not enough GPS points to generate a map (need at least 2)' }, { status: 400 })
   }
 
-  const { data: sheet } = await supabase
-    .from('trip_sheets')
-    .select('id')
-    .eq('booking_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (!sheet) {
-    return NextResponse.json({ error: 'No trip sheet found for this booking' }, { status: 404 })
+  let sheetId = body.sheet_id
+  if (!sheetId) {
+    const { data: sheet } = await supabase
+      .from('trip_sheets')
+      .select('id')
+      .eq('booking_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (!sheet) return NextResponse.json({ error: 'No trip sheet found for this booking' }, { status: 404 })
+    sheetId = sheet.id
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
@@ -54,7 +57,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!imgRes.ok) return NextResponse.json({ error: 'Google Maps API request failed' }, { status: 502 })
 
   const buffer = await imgRes.arrayBuffer()
-  const fileName = `${id}/${sheet.id}.png`
+  const fileName = `${id}/${sheetId}.png`
 
   const { error: uploadError } = await supabase.storage
     .from('route-maps')
@@ -63,7 +66,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
   const { data: publicUrlData } = supabase.storage.from('route-maps').getPublicUrl(fileName)
-  await supabase.from('trip_sheets').update({ route_image_url: publicUrlData.publicUrl }).eq('id', sheet.id)
+  await supabase.from('trip_sheets').update({ route_image_url: publicUrlData.publicUrl }).eq('id', sheetId)
 
   return NextResponse.json({ ok: true, url: publicUrlData.publicUrl })
 }
