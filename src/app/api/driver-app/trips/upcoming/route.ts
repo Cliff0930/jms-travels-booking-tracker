@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json((data ?? []).map(({ pickup_date, pickup_time, pax_count, ...rest }) => ({
     ...rest,
-    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00:00'}`,
     pax: pax_count ?? 0,
   })))
 }

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     .from('bookings')
     .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, guest_name, status, pax_count')
     .eq('driver_id', verified.driverId)
-    .eq('status', 'completed')
+    .in('status', ['completed', 'cancelled'])
     .order('pickup_date', { ascending: false })
     .limit(50)
 
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json(bookings.map(({ pickup_date, pickup_time, pax_count, ...b }) => ({
     ...b,
-    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00:00'}`,
     pax: pax_count ?? 0,
     sheets: sheetsByBooking[b.id] ?? [],
   })))

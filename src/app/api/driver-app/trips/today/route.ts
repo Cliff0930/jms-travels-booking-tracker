@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const { pickup_date, pickup_time, pax_count, ...rest } = data
   return NextResponse.json({
     ...rest,
-    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00'}:00`,
+    pickup_datetime: `${pickup_date}T${pickup_time ?? '00:00:00'}`,
     pax: pax_count ?? 0,
   })
 }
