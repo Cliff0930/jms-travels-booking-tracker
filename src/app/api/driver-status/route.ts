@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       manual_opening_time: manual_opening_time || null,
     }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
   } else {
-    // Find matching sheet: prefer leg-specific, fall back to booking-level
+    // Find matching sheet: leg-specific if leg_id provided, otherwise most recent for booking
     let sheetQuery = supabase
       .from('trip_sheets')
       .select('id, opening_lat, opening_lng')
@@ -177,11 +177,10 @@ export async function POST(request: Request) {
 
     if (leg_id) {
       sheetQuery = sheetQuery.eq('booking_leg_id', leg_id)
-    } else {
-      sheetQuery = sheetQuery.is('booking_leg_id', null)
     }
 
-    const { data: sheet } = await sheetQuery.single()
+    const { data: sheet, error: sheetFindErr } = await sheetQuery.maybeSingle()
+    if (sheetFindErr) console.error(`[driver-status] sheet lookup failed booking=${booking_id}:`, sheetFindErr.message)
 
     let officeToPickupKm: number | null = null
     let dropToOfficeKm: number | null = null
@@ -226,7 +225,7 @@ export async function POST(request: Request) {
     }
 
     if (sheet) {
-      await supabase.from('trip_sheets').update({
+      const { error: updateErr } = await supabase.from('trip_sheets').update({
         closing_km: closing_km ?? null,
         closing_lat: lat ?? null,
         closing_lng: lng ?? null,
@@ -240,13 +239,14 @@ export async function POST(request: Request) {
         gps_km: gpsKm,
         updated_at: new Date().toISOString(),
       }).eq('id', sheet.id)
+      if (updateErr) console.error(`[driver-status] trip_sheets update failed booking=${booking_id}:`, updateErr.message)
 
       // Generate route map in background — non-blocking
       if (gpsLogs && gpsLogs.length >= 2) {
         generateAndSaveRouteMap(booking_id, sheet.id, gpsLogs, supabase).catch(() => {})
       }
     } else {
-      const { data: newSheet } = await supabase.from('trip_sheets').insert({
+      const { data: newSheet, error: insertErr } = await supabase.from('trip_sheets').insert({
         booking_id,
         driver_id: booking.driver_id || null,
         booking_leg_id: leg_id || null,
@@ -262,6 +262,7 @@ export async function POST(request: Request) {
         permit_amount: permit_amount ?? null,
         gps_km: gpsKm,
       }).select('id').single()
+      if (insertErr) console.error(`[driver-status] trip_sheets insert failed booking=${booking_id}:`, insertErr.message)
 
       if (newSheet && gpsLogs && gpsLogs.length >= 2) {
         generateAndSaveRouteMap(booking_id, newSheet.id, gpsLogs, supabase).catch(() => {})

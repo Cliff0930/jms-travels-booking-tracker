@@ -223,7 +223,7 @@ function DriverStatusContent() {
     )
   }
 
-  if (mode === 'done' && status === 'completed') {
+  if (mode === 'done' && (status === 'completed' || closingKm)) {
     const finalOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
     const finalClosingKm = closingKm ? parseFloat(closingKm) : null
     const totalKm = finalOpeningKm != null && finalClosingKm != null ? (finalClosingKm - finalOpeningKm) : null

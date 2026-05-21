@@ -1,5 +1,5 @@
 'use client'
-import { useState, use } from 'react'
+import { useState, use, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBooking, useUpdateBooking, useConfirmBooking, useCancelBooking, useSendApproval, useBookingMessages } from '@/hooks/useBookings'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
@@ -138,7 +138,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     return `${totalHours}h ${minutes}m`
   }
 
-  const { data: tripSheets = [] } = useQuery<TripSheet[]>({
+  const { data: tripSheets = [], refetch: refetchTripSheet } = useQuery<TripSheet[]>({
     queryKey: ['trip-sheet', id],
     queryFn: () => fetch(`/api/bookings/${id}/trip-sheet`).then(r => r.json()),
     enabled: !!id,
@@ -146,6 +146,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   })
   const [selectedSheetIdx, setSelectedSheetIdx] = useState(0)
   const tripSheet = tripSheets[selectedSheetIdx] ?? null
+
+  // Auto-refresh tripsheet when booking transitions to completed
+  const prevBookingStatus = useRef(booking?.status)
+  useEffect(() => {
+    if (prevBookingStatus.current === 'in_progress' && booking?.status === 'completed') {
+      void refetchTripSheet()
+    }
+    prevBookingStatus.current = booking?.status
+  }, [booking?.status])
 
   const updateBooking = useUpdateBooking()
   const confirmBooking = useConfirmBooking()
@@ -1258,10 +1267,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
           {tripSheets.length > 0 && (
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
-              <h2 className="text-base font-semibold text-[#191B23] mb-3 flex items-center gap-2">
-                <Gauge className="w-4 h-4 text-[#1A56DB]" />
-                Tripsheet
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-[#191B23] flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-[#1A56DB]" />
+                  Tripsheet
+                </h2>
+                <button onClick={() => void refetchTripSheet()} className="text-xs text-[#737686] hover:text-[#1A56DB] flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
 
               {/* Day tabs for local multi-day trips */}
               {tripSheets.length > 1 && (
