@@ -1,0 +1,34 @@
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { extractDriverToken } from '@/lib/utils/driver-app-auth'
+
+export async function GET(request: Request) {
+  const verified = extractDriverToken(request)
+  if (!verified) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createAdminClient()
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_datetime, guest_name, status, pax')
+    .eq('driver_id', verified.driverId)
+    .eq('status', 'completed')
+    .order('pickup_datetime', { ascending: false })
+    .limit(50)
+
+  if (!bookings || bookings.length === 0) return NextResponse.json([])
+
+  const { data: sheets } = await supabase
+    .from('trip_sheets')
+    .select('booking_id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time, toll_amount, parking_amount, permit_amount, opening_time, closing_time')
+    .in('booking_id', bookings.map(b => b.id))
+    .order('created_at', { ascending: true })
+
+  const sheetsByBooking: Record<string, typeof sheets> = {}
+  for (const sheet of sheets ?? []) {
+    if (!sheetsByBooking[sheet.booking_id]) sheetsByBooking[sheet.booking_id] = []
+    sheetsByBooking[sheet.booking_id]!.push(sheet)
+  }
+
+  return NextResponse.json(bookings.map(b => ({ ...b, sheets: sheetsByBooking[b.id] ?? [] })))
+}
