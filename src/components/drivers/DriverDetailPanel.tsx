@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { Phone, Mail, Car, Users, Pencil, X, MapPin } from 'lucide-react'
+import { Phone, Mail, Car, Users, Pencil, X, MapPin, Smartphone, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Driver, VehicleType } from '@/types'
@@ -345,6 +345,9 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
             </>
           )}
 
+          {/* Driver App PIN */}
+          {!editing && <DriverAppPin driverId={driver.id} />}
+
           {/* Deactivate / Reactivate */}
           {!editing && (
             <>
@@ -375,5 +378,81 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function DriverAppPin({ driverId }: { driverId: string }) {
+  const [open, setOpen] = useState(false)
+  const [pin, setPin] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSet() {
+    if (!pin || pin.length < 4) { toast.error('PIN must be at least 4 digits'); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/drivers/${driverId}/set-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+      toast.success('App PIN set — driver can now log in')
+      setPin('')
+      setOpen(false)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to set PIN')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-3 flex items-center gap-1.5">
+        <Smartphone className="w-3.5 h-3.5" /> Driver App
+      </h3>
+      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+        {!open ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#374151]">Set a PIN so this driver can log in to the JMS Driver app.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 rounded-sm gap-1.5 shrink-0 ml-3"
+              onClick={() => setOpen(true)}
+            >
+              <KeyRound className="w-3.5 h-3.5" /> Set PIN
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label className="text-xs text-[#374151] font-semibold">New PIN (4–6 digits)</Label>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="e.g. 1234"
+                className="border-emerald-300 h-8 text-sm w-32"
+                autoFocus
+              />
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 rounded-sm"
+                onClick={handleSet}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-sm" onClick={() => { setOpen(false); setPin('') }}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
