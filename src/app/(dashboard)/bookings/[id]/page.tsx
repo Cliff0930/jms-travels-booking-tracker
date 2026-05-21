@@ -1335,9 +1335,26 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     )}
                   </>
                 )}
-                {tripSheet.route_image_url && (
-                  <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
-                    <p className="text-xs text-[#737686] mb-2">Route Map</p>
+                <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-[#737686]">Route Map</p>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/bookings/${booking.id}/regenerate-map`, { method: 'POST' })
+                          const json = await res.json()
+                          if (!res.ok) { toast.error(json.error || 'Failed to generate map'); return }
+                          toast.success('Map generated')
+                          // Refetch trip sheet
+                          window.location.reload()
+                        } catch { toast.error('Failed to generate map') }
+                      }}
+                      className="text-xs text-[#1A56DB] hover:underline"
+                    >
+                      {tripSheet.route_image_url ? 'Regenerate' : 'Generate Map'}
+                    </button>
+                  </div>
+                  {tripSheet.route_image_url && (
                     <a href={tripSheet.route_image_url} target="_blank" rel="noopener noreferrer" title="Open full size">
                       <img
                         src={tripSheet.route_image_url}
@@ -1345,8 +1362,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                         className="w-full rounded-md border border-[#C3C5D7] cursor-pointer hover:opacity-90 transition-opacity"
                       />
                     </a>
-                  </div>
-                )}
+                  )}
+                  {!tripSheet.route_image_url && (
+                    <p className="text-xs text-[#9CA3AF]">No map yet — click Generate Map above.</p>
+                  )}
+                </div>
               </dl>
             </div>
           )}
