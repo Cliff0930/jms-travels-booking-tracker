@@ -24,6 +24,8 @@ interface TripSheetRow {
   drop_to_office_km: number | null
   toll_amount: number | null
   parking_amount: number | null
+  permit_amount: number | null
+  bata_driver: number | null
   gps_km: number | null
 }
 
@@ -217,6 +219,8 @@ export default function ReportsPage() {
         'Total KM':           totalKm ?? '',
         'Toll (₹)':           ts?.toll_amount ?? '',
         'Parking (₹)':        ts?.parking_amount ?? '',
+        'Permit (₹)':         ts?.permit_amount ?? '',
+        'Bata (Driver)':      ts?.bata_driver ?? '',
         'Trip Start':         ts?.opening_time ? new Date(ts.opening_time).toLocaleString('en-IN') : '',
         'Trip End':           ts?.closing_time ? new Date(ts.closing_time).toLocaleString('en-IN') : '',
         'Duration':           ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '',
@@ -420,12 +424,14 @@ export default function ReportsPage() {
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Total KM</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Toll</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Parking</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Permit</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Bata</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Duration</th>
               </tr>
             </thead>
             <tbody>
               {filteredBookings.length === 0 ? (
-                <tr><td colSpan={22} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
+                <tr><td colSpan={24} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
               ) : filteredBookings.map(b => {
                 const ts = b.trip_sheet
                 const driverKm = (ts?.closing_km != null && ts?.opening_km != null)
@@ -459,6 +465,8 @@ export default function ReportsPage() {
                     <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-semibold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.permit_amount != null ? `₹${ts.permit_amount}` : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-medium text-right">{ts?.bata_driver != null && ts.bata_driver > 0 ? `${ts.bata_driver}` : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{duration}</td>
                   </tr>
                 )

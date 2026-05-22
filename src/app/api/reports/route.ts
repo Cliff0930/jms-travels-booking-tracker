@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const bookingIds = bookings.map(b => b.id)
   const { data: sheets } = await supabase
     .from('trip_sheets')
-    .select('booking_id, tripsheet_number, opening_km, closing_km, opening_time, closing_time, office_to_pickup_km, drop_to_office_km, toll_amount, parking_amount, gps_km, created_at')
+    .select('booking_id, tripsheet_number, opening_km, closing_km, opening_time, closing_time, office_to_pickup_km, drop_to_office_km, toll_amount, parking_amount, permit_amount, bata_driver, gps_km, created_at')
     .in('booking_id', bookingIds)
     .order('created_at', { ascending: false })
 

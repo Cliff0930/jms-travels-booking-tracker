@@ -108,6 +108,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     toll_amount: number | null
     parking_amount: number | null
     permit_amount: number | null
+    bata_driver: number | null
     gps_km: number | null
     route_image_url: string | null
     leg?: { day_number: number; leg_date: string } | null
@@ -1363,6 +1364,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                           <span className="text-[#434654]">₹{tripSheet.permit_amount}</span>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && (
+                    <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
+                      <span className="text-[#737686]">Bata (Driver)</span>
+                      <span className="font-medium text-[#1A56DB]">{tripSheet.bata_driver} bata</span>
                     </div>
                   )}
                 </div>
