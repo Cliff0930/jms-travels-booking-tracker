@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Send, Building2, Route, ShieldAlert } from 'lucide-react'
+import { Send, Building2, Route, ShieldAlert, Car, Plus, X } from 'lucide-react'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import type { MessageTemplate } from '@/types'
@@ -145,6 +145,7 @@ export default function SettingsPage() {
         <TabsList className="bg-[#EDEDF8] mb-5 h-auto flex-wrap">
           <TabsTrigger value="general" className="data-[state=active]:bg-white">General</TabsTrigger>
           <TabsTrigger value="templates" className="data-[state=active]:bg-white">Message Templates</TabsTrigger>
+          <TabsTrigger value="vehicle-names" className="data-[state=active]:bg-white">Vehicle Names</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -325,7 +326,104 @@ export default function SettingsPage() {
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="vehicle-names">
+          <VehicleNamesTab />
+        </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+function VehicleNamesTab() {
+  const qc = useQueryClient()
+  const [newName, setNewName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const { data: vehicleNames = [], isLoading } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['vehicle-names'],
+    queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
+  })
+
+  async function handleAdd() {
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/vehicle-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      qc.invalidateQueries({ queryKey: ['vehicle-names'] })
+      setNewName('')
+      toast.success('Vehicle name added')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await fetch(`/api/vehicle-names/${id}`, { method: 'DELETE' })
+      qc.invalidateQueries({ queryKey: ['vehicle-names'] })
+      toast.success('Removed')
+    } catch {
+      toast.error('Failed to remove')
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Car className="w-4 h-4 text-[#1A56DB]" />
+          <h3 className="font-semibold text-[#191B23]">Vehicle Names</h3>
+        </div>
+        <p className="text-sm text-[#737686] mb-4">
+          Standardized vehicle names used across driver profiles and company bata rates. All drivers should use names from this list so bata rate lookups match correctly.
+        </p>
+
+        <div className="flex gap-2 mb-4">
+          <Input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="e.g. Toyota Innova Crysta"
+            className="border-[#C3C5D7] h-8 text-sm max-w-xs"
+          />
+          <Button
+            size="sm"
+            className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5 h-8"
+            onClick={handleAdd}
+            disabled={saving || !newName.trim()}
+          >
+            <Plus className="w-3.5 h-3.5" /> Add
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-[#737686]">Loading…</p>
+        ) : vehicleNames.length === 0 ? (
+          <p className="text-sm text-[#737686]">No vehicle names yet. Add your first one above.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {vehicleNames.map(v => (
+              <div key={v.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#F3F3FE] border border-[#C3C5D7]">
+                <div className="flex items-center gap-2">
+                  <Car className="w-3.5 h-3.5 text-[#737686]" />
+                  <span className="text-sm text-[#191B23] font-medium">{v.name}</span>
+                </div>
+                <button onClick={() => handleDelete(v.id)} className="text-[#737686] hover:text-red-500 transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

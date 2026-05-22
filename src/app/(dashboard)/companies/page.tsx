@@ -771,6 +771,10 @@ export default function CompaniesPage() {
                   />
                 </section>
 
+                <Separator />
+
+                <CompanyBataRates companyId={selectedCompany.id} />
+
                 </div>
               </div>
 
@@ -946,5 +950,91 @@ export default function CompaniesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function CompanyBataRates({ companyId }: { companyId: string }) {
+  const qc = useQueryClient()
+  const [vehicleName, setVehicleName] = useState('')
+  const [rate, setRate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const { data: vehicleNames = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['vehicle-names'],
+    queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
+  })
+
+  const { data: rates = [] } = useQuery<{ id: string; vehicle_name: string; rate_per_bata: number }[]>({
+    queryKey: ['company-bata-rates', companyId],
+    queryFn: () => fetch(`/api/companies/${companyId}/bata-rates`).then(r => r.json()),
+  })
+
+  async function handleAdd() {
+    if (!vehicleName || !rate) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/companies/${companyId}/bata-rates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicle_name: vehicleName, rate_per_bata: Number(rate) }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      qc.invalidateQueries({ queryKey: ['company-bata-rates', companyId] })
+      setVehicleName('')
+      setRate('')
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(rateId: string) {
+    await fetch(`/api/companies/${companyId}/bata-rates?rate_id=${rateId}`, { method: 'DELETE' })
+    qc.invalidateQueries({ queryKey: ['company-bata-rates', companyId] })
+  }
+
+  return (
+    <section>
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">Bata Rates</h3>
+      <p className="text-xs text-[#737686] mb-3">Override bata rate per vehicle for this company. Overrides the driver's default rate.</p>
+
+      <div className="space-y-1.5 mb-3">
+        {rates.length === 0 ? (
+          <p className="text-xs text-[#737686]">No overrides — driver default rates apply.</p>
+        ) : rates.map(r => (
+          <div key={r.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0]">
+            <span className="text-xs font-medium text-[#191B23]">{r.vehicle_name}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-[#059669]">₹{r.rate_per_bata}/bata</span>
+              <button onClick={() => handleDelete(r.id)} className="text-[#737686] hover:text-red-500">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <Select value={vehicleName} onValueChange={v => v && setVehicleName(v)}>
+          <SelectTrigger className="border-[#C3C5D7] h-8 text-xs flex-1">
+            <SelectValue placeholder="Select vehicle…" />
+          </SelectTrigger>
+          <SelectContent>
+            {vehicleNames.map(v => <SelectItem key={v.id} value={v.name} className="text-xs">{v.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Input
+          type="number"
+          value={rate}
+          onChange={e => setRate(e.target.value)}
+          placeholder="₹/bata"
+          className="border-[#C3C5D7] h-8 text-xs w-24"
+        />
+        <Button size="sm" className="bg-[#059669] hover:bg-[#047857] rounded-sm h-8 gap-1" onClick={handleAdd} disabled={saving || !vehicleName || !rate}>
+          <Plus className="w-3.5 h-3.5" /> Add
+        </Button>
+      </div>
+    </section>
   )
 }

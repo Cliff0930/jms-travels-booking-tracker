@@ -88,10 +88,52 @@ export interface Driver {
   vehicle_number: string
   vehicle_color: string | null
   seating_capacity: number
+  bata_rate: number | null
   status: DriverStatus
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface VehicleName {
+  id: string
+  name: string
+}
+
+export interface CompanyBataRate {
+  id: string
+  vehicle_name: string
+  rate_per_bata: number
+}
+
+export interface ReimbursementSheet {
+  sheet_id: string
+  booking_id: string
+  booking_ref: string
+  pickup_date: string | null
+  company_id: string | null
+  company_name: string | null
+  driver_id: string | null
+  driver_name: string | null
+  driver_vehicle_name: string | null
+  toll_amount: number | null
+  parking_amount: number | null
+  permit_amount: number | null
+  bata_driver: number | null
+  bata_rate: number | null
+  bata_amount: number | null
+  tripsheet_doc_received: boolean
+  toll_received: boolean
+  parking_received: boolean
+  permit_received: boolean
+  bata_received: boolean
+  toll_paid: boolean
+  parking_paid: boolean
+  permit_paid: boolean
+  bata_paid: boolean
+  reimbursement_notes: string | null
+  reimbursed_at: string | null
+  created_at: string
 }
 
 export interface Booking {
