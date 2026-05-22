@@ -42,13 +42,21 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
     )
   }
 
-  const eligible = allDrivers.filter(d =>
-    d.is_active &&
-    d.id !== booking.driver_id &&
-    (!booking.vehicle_type || d.vehicle_type === booking.vehicle_type) &&
-    (!booking.pax_count || d.seating_capacity >= booking.pax_count) &&
-    matchesSearch(d)
-  )
+  function isVehicleMatch(driver: Driver): boolean {
+    if (!booking.vehicle_type) return true
+    const q = booking.vehicle_type.toLowerCase().trim()
+    return (
+      driver.vehicle_type.toLowerCase().includes(q) ||
+      q.includes(driver.vehicle_type.toLowerCase()) ||
+      driver.vehicle_name.toLowerCase().includes(q) ||
+      q.includes(driver.vehicle_name.toLowerCase())
+    )
+  }
+
+  const activeDrivers = allDrivers.filter(d => d.is_active && d.id !== booking.driver_id && matchesSearch(d))
+  const preferred = activeDrivers.filter(d => isVehicleMatch(d))
+  const others = activeDrivers.filter(d => !isVehicleMatch(d))
+  const allVisible = [...preferred, ...others]
 
   async function handleConfirm() {
     if (!selected || !reason.trim()) return
@@ -98,12 +106,12 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
               />
             </div>
             <div className="space-y-2">
-              {eligible.length === 0 && (
+              {allVisible.length === 0 && (
                 <p className="text-sm text-[#737686] py-3 text-center">
-                  {searchQuery.trim() ? 'No drivers match your search' : 'No eligible drivers available'}
+                  {searchQuery.trim() ? 'No drivers match your search' : 'No active drivers available'}
                 </p>
               )}
-              {eligible.map(driver => (
+              {allVisible.map(driver => (
                 <button
                   key={driver.id}
                   type="button"
@@ -143,6 +151,10 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
               className="border-[#C3C5D7] mt-1"
             />
           </div>
+        </div>
+
+        <div className="text-xs text-[#737686]">
+          {preferred.length} matching · {others.length} other{others.length !== 1 ? 's' : ''}
         </div>
 
         <DialogFooter>
