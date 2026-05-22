@@ -5,8 +5,9 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
+import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays, Download, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import type { ReimbursementSheet } from '@/types'
 
 interface DriverSummary {
@@ -97,6 +98,48 @@ export default function ReimbursementsPage() {
     }
   }
 
+  async function revokeSettlement(sheetId: string) {
+    try {
+      const res = await fetch(`/api/reimbursements/${sheetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revoke: true }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Settlement revoked — moved back to pending')
+      qc.invalidateQueries({ queryKey: ['reimbursements'] })
+      qc.invalidateQueries({ queryKey: ['reimbursements-all-drivers'] })
+    } catch {
+      toast.error('Failed to revoke')
+    }
+  }
+
+  function exportExcel() {
+    const rows = sheets.map(s => ({
+      'Booking Ref': s.booking_ref,
+      'Tripsheet #': s.tripsheet_number ?? '',
+      'Traveller': s.guest_name || s.requested_by || '',
+      'Phone': s.guest_phone || s.client_phone || '',
+      'Driver': s.driver_name ?? '',
+      'Vehicle': s.driver_vehicle_name ?? '',
+      'Company': s.company_name ?? '',
+      'Pickup Date': s.pickup_date ? new Date(s.pickup_date).toLocaleDateString('en-IN') : '',
+      'Toll (₹)': s.toll_amount ?? '',
+      'Parking (₹)': s.parking_amount ?? '',
+      'Permit (₹)': s.permit_amount ?? '',
+      'Bata Count': s.bata_driver ?? '',
+      'Bata Rate (₹)': s.bata_rate ?? '',
+      'Bata Amount (₹)': s.bata_amount ?? '',
+      'Total (₹)': (s.toll_amount ?? 0) + (s.parking_amount ?? 0) + (s.permit_amount ?? 0) + (s.bata_amount ?? 0),
+      'Settled On': s.reimbursed_at ? new Date(s.reimbursed_at).toLocaleDateString('en-IN') : '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Reimbursements')
+    const label = tab === 'settled' ? 'settled' : 'pending'
+    XLSX.writeFile(wb, `reimbursements-${label}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
   // Compute totals
   const outstanding = sheets.filter(s => !s.reimbursed_at).reduce((sum, s) => {
     return sum +
@@ -178,12 +221,24 @@ export default function ReimbursementsPage() {
           )}
         </div>
 
-        {/* Outstanding total */}
-        {tab === 'pending' && outstanding > 0 && (
-          <div className="ml-auto text-sm font-bold text-[#DC2626] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-            Outstanding: ₹{outstanding.toFixed(0)}
-          </div>
-        )}
+        {/* Outstanding total / Export */}
+        <div className="ml-auto flex items-center gap-2">
+          {tab === 'pending' && outstanding > 0 && (
+            <div className="text-sm font-bold text-[#DC2626] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              Outstanding: ₹{outstanding.toFixed(0)}
+            </div>
+          )}
+          {sheets.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs gap-1.5 border-[#C3C5D7]"
+              onClick={exportExcel}
+            >
+              <Download className="w-3.5 h-3.5" /> Export Excel
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -203,6 +258,7 @@ export default function ReimbursementsPage() {
               settled={tab === 'settled'}
               onToggle={toggleFlag}
               onSettleAll={settleAll}
+              onRevoke={revokeSettlement}
             />
           ))}
         </div>
@@ -216,20 +272,17 @@ function TripCard({
   settled,
   onToggle,
   onSettleAll,
+  onRevoke,
 }: {
   sheet: ReimbursementSheet
   settled: boolean
   onToggle: (sheetId: string, field: string, value: boolean) => void
   onSettleAll: (sheetId: string, sheet: ReimbursementSheet) => void
+  onRevoke: (sheetId: string) => void
 }) {
   const [expanded, setExpanded] = useState(true)
 
   const totalOwed = (sheet.toll_amount ?? 0) + (sheet.parking_amount ?? 0) + (sheet.permit_amount ?? 0) + (sheet.bata_amount ?? 0)
-  const totalPaid = (sheet.toll_paid && sheet.toll_amount ? sheet.toll_amount : 0) +
-    (sheet.parking_paid && sheet.parking_amount ? sheet.parking_amount : 0) +
-    (sheet.permit_paid && sheet.permit_amount ? sheet.permit_amount : 0) +
-    (sheet.bata_paid && sheet.bata_amount != null ? sheet.bata_amount : 0)
-
   const allSettled = !!sheet.reimbursed_at
 
   return (
@@ -356,9 +409,19 @@ function TripCard({
           )}
 
           {allSettled && sheet.reimbursed_at && (
-            <p className="text-xs text-[#059669] text-right pt-2 font-medium">
-              Settled on {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-            </p>
+            <div className="flex items-center justify-between pt-2 mt-1 border-t border-[#F3F4F6]">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 border-[#FCA5A5] text-[#DC2626] hover:bg-red-50"
+                onClick={() => onRevoke(sheet.sheet_id)}
+              >
+                <RotateCcw className="w-3 h-3" /> Revoke
+              </Button>
+              <p className="text-xs text-[#059669] font-medium">
+                Settled on {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+              </p>
+            </div>
           )}
         </div>
       )}

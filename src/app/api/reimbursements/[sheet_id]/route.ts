@@ -16,6 +16,23 @@ export async function PATCH(
   const supabase = createAdminClient()
   const body = await request.json() as Record<string, unknown>
 
+  // Revoke settlement — reset all flags
+  if (body.revoke === true) {
+    const { error } = await supabase
+      .from('trip_sheets')
+      .update({
+        tripsheet_doc_received: false,
+        toll_received: false, toll_paid: false,
+        parking_received: false, parking_paid: false,
+        permit_received: false, permit_paid: false,
+        bata_received: false, bata_paid: false,
+        reimbursed_at: null,
+      })
+      .eq('id', sheet_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ revoked: true })
+  }
+
   // Only allow safe fields
   const update: Record<string, unknown> = {}
   for (const key of ALLOWED_FLAGS) {
