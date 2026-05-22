@@ -53,8 +53,8 @@ export async function GET(request: Request) {
   // Flatten to one entry per trip_sheet
   const result = []
   for (const booking of bookings) {
-    const driver = booking.driver as { id: string; name: string; vehicle_name: string; bata_rate: number | null } | null
-    const company = booking.company as { name: string } | null
+    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; bata_rate: number | null } | null
+    const company = booking.company as unknown as { name: string } | null
     const sheets = (booking.trip_sheets ?? []) as Array<Record<string, unknown>>
 
     for (const sheet of sheets) {
