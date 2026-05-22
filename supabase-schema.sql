@@ -471,6 +471,7 @@ grant all on trip_gps_logs to postgres, anon, authenticated, service_role;
 -- ALTER TABLE trip_sheets ADD COLUMN IF NOT EXISTS toll_amount numeric;
 -- ALTER TABLE trip_sheets ADD COLUMN IF NOT EXISTS parking_amount numeric;
 -- ALTER TABLE trip_sheets ADD COLUMN IF NOT EXISTS permit_amount numeric;
+-- ALTER TABLE trip_sheets ADD COLUMN IF NOT EXISTS bata_driver integer;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_client_id uuid references clients(id);
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS approval_exclusions text[] DEFAULT '{}';
 -- ALTER TABLE drivers ADD COLUMN IF NOT EXISTS pin_hash text;

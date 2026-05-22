@@ -11,10 +11,11 @@ export async function POST(
   const verified = extractDriverToken(request)
   if (!verified) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { closing_km, manual_closing_time, toll_amount, parking_amount, permit_amount, lat, lng, leg_id } =
+  const { closing_km, manual_closing_time, toll_amount, parking_amount, permit_amount, bata_driver, lat, lng, leg_id } =
     await request.json() as {
       closing_km?: number; manual_closing_time?: string
       toll_amount?: number; parking_amount?: number; permit_amount?: number
+      bata_driver?: number
       lat?: number; lng?: number; leg_id?: string
     }
 
@@ -62,6 +63,7 @@ export async function POST(
     toll_amount: toll_amount ?? null,
     parking_amount: parking_amount ?? null,
     permit_amount: permit_amount ?? null,
+    bata_driver: bata_driver ?? null,
     gps_km: gpsKm,
     updated_at: new Date().toISOString(),
   }
