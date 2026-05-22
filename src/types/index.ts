@@ -121,6 +121,7 @@ export interface ReimbursementSheet {
   driver_id: string | null
   driver_name: string | null
   driver_vehicle_name: string | null
+  driver_vehicle_number: string | null
   toll_amount: number | null
   parking_amount: number | null
   permit_amount: number | null

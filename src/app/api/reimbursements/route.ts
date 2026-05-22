@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone, requested_by,
       company:companies!company_id(name),
       client:clients!client_id(primary_phone),
-      driver:drivers!driver_id(id, name, vehicle_name, bata_rate),
+      driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate),
       trip_sheets(
         id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
         tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received,
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   // Flatten to one entry per trip_sheet
   const result = []
   for (const booking of bookings) {
-    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; bata_rate: number | null } | null
+    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; vehicle_number: string; bata_rate: number | null } | null
     const company = booking.company as unknown as { name: string } | null
     const sheets = (booking.trip_sheets ?? []) as Array<Record<string, unknown>>
 
@@ -94,6 +94,7 @@ export async function GET(request: Request) {
         driver_id: driver?.id ?? null,
         driver_name: driver?.name ?? null,
         driver_vehicle_name: driver?.vehicle_name ?? null,
+        driver_vehicle_number: driver?.vehicle_number ?? null,
         // amounts
         toll_amount: toll > 0 ? toll : null,
         parking_amount: parking > 0 ? parking : null,
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
           entry.booking_ref,
           entry.driver_name,
           entry.driver_vehicle_name,
+          entry.driver_vehicle_number,
           entry.guest_name,
           entry.requested_by,
           entry.guest_phone,
