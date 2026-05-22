@@ -224,7 +224,9 @@ function TripCard({
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
               {sheet.pickup_date && <span className="text-xs text-[#737686]">{new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>}
-              {sheet.guest_name && <span className="text-xs text-[#374151] font-medium">{sheet.guest_name}</span>}
+              {(sheet.guest_name || sheet.requested_by) && (
+                <span className="text-xs text-[#374151] font-medium">{sheet.guest_name || sheet.requested_by}</span>
+              )}
               {sheet.guest_phone && <span className="text-xs text-[#737686]">{sheet.guest_phone}</span>}
             </div>
           </div>

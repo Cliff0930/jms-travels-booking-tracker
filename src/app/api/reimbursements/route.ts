@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   let bookingQuery = supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone,
+      id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone, requested_by,
       company:companies!company_id(name),
       driver:drivers!driver_id(id, name, vehicle_name, bata_rate),
       trip_sheets(
@@ -85,6 +85,7 @@ export async function GET(request: Request) {
         tripsheet_number: (sheet.tripsheet_number as string | null) ?? null,
         guest_name: (booking.guest_name as string | null) ?? null,
         guest_phone: (booking.guest_phone as string | null) ?? null,
+        requested_by: (booking.requested_by as string | null) ?? null,
         pickup_date: booking.pickup_date,
         company_id: booking.company_id,
         company_name: company?.name ?? null,

@@ -113,6 +113,7 @@ export interface ReimbursementSheet {
   tripsheet_number: string | null
   guest_name: string | null
   guest_phone: string | null
+  requested_by: string | null
   pickup_date: string | null
   company_id: string | null
   company_name: string | null
