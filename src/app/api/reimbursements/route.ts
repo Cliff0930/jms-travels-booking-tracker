@@ -14,11 +14,11 @@ export async function GET(request: Request) {
   let bookingQuery = supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, company_id, driver_id,
+      id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone,
       company:companies!company_id(name),
       driver:drivers!driver_id(id, name, vehicle_name, bata_rate),
       trip_sheets(
-        id, toll_amount, parking_amount, permit_amount, bata_driver,
+        id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
         tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received,
         toll_paid, parking_paid, permit_paid, bata_paid,
         reimbursement_notes, reimbursed_at, created_at
@@ -82,6 +82,9 @@ export async function GET(request: Request) {
         sheet_id: sheet.id,
         booking_id: booking.id,
         booking_ref: booking.booking_ref,
+        tripsheet_number: (sheet.tripsheet_number as string | null) ?? null,
+        guest_name: (booking.guest_name as string | null) ?? null,
+        guest_phone: (booking.guest_phone as string | null) ?? null,
         pickup_date: booking.pickup_date,
         company_id: booking.company_id,
         company_name: company?.name ?? null,
@@ -128,9 +131,7 @@ export async function GET(request: Request) {
 }
 
 // GET distinct drivers who have reimbursable sheets
-export async function HEAD(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const onlyPending = searchParams.get('pending') === '1'
+export async function HEAD(_request: Request) {
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('bookings')

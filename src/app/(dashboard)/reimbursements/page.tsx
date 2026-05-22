@@ -217,11 +217,16 @@ function TripCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-[#1A56DB]">{sheet.booking_ref}</span>
+              {sheet.tripsheet_number && <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">TS#{sheet.tripsheet_number}</span>}
               {sheet.driver_name && <span className="text-sm font-semibold text-[#191B23]">{sheet.driver_name}</span>}
               {sheet.driver_vehicle_name && <span className="text-xs text-[#737686]">· {sheet.driver_vehicle_name}</span>}
               {sheet.company_name && <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>}
             </div>
-            {sheet.pickup_date && <p className="text-xs text-[#737686] mt-0.5">{new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</p>}
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              {sheet.pickup_date && <span className="text-xs text-[#737686]">{new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>}
+              {sheet.guest_name && <span className="text-xs text-[#374151] font-medium">{sheet.guest_name}</span>}
+              {sheet.guest_phone && <span className="text-xs text-[#737686]">{sheet.guest_phone}</span>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0 ml-2">
