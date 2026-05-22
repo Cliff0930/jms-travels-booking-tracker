@@ -1,9 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { AlertTriangle, Car, Navigation } from 'lucide-react'
+import { AlertTriangle, Car, Navigation, Search } from 'lucide-react'
 import { useDrivers } from '@/hooks/useDrivers'
 import { useAssignDriver } from '@/hooks/useBookings'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -22,6 +22,24 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
   const [conflictDriver, setConflictDriver] = useState<Driver | null>(null)
   const [mismatchDriver, setMismatchDriver] = useState<Driver | null>(null)
   const [gpsEnabled, setGpsEnabled] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    if (!open) setSearchQuery('')
+  }, [open])
+
+  function matchesSearch(driver: Driver): boolean {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return true
+    const plate = driver.vehicle_number.replace(/\s+/g, '').toLowerCase()
+    const queryNorm = q.replace(/\s+/g, '')
+    return (
+      driver.name.toLowerCase().includes(q) ||
+      driver.vehicle_type.toLowerCase().includes(q) ||
+      driver.vehicle_name.toLowerCase().includes(q) ||
+      plate.includes(queryNorm)
+    )
+  }
 
   function getMismatchReasons(driver: Driver): string[] {
     const reasons: string[] = []
@@ -35,8 +53,8 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
   }
 
   const activeDrivers = allDrivers.filter(d => d.is_active)
-  const eligible = activeDrivers.filter(d => getMismatchReasons(d).length === 0)
-  const ineligible = activeDrivers.filter(d => getMismatchReasons(d).length > 0)
+  const eligible = activeDrivers.filter(d => getMismatchReasons(d).length === 0 && matchesSearch(d))
+  const ineligible = activeDrivers.filter(d => getMismatchReasons(d).length > 0 && matchesSearch(d))
 
   async function doAssign(driverId: string) {
     try {
@@ -152,9 +170,22 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
             </span>
           </button>
 
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737686]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by name, vehicle type, vehicle name, or plate number…"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-[#C3C5D7] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB] focus:border-transparent"
+            />
+          </div>
+
           <div className="space-y-2 mt-2">
             {eligible.length === 0 && ineligible.length === 0 && (
-              <p className="text-sm text-[#737686] py-4 text-center">No active drivers found</p>
+              <p className="text-sm text-[#737686] py-4 text-center">
+                {searchQuery.trim() ? 'No drivers match your search' : 'No active drivers found'}
+              </p>
             )}
             {eligible.map(driver => <DriverRow key={driver.id} driver={driver} />)}
 

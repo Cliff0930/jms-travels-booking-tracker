@@ -1,11 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Search } from 'lucide-react'
 import { useDrivers } from '@/hooks/useDrivers'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -23,12 +23,31 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
   const [selected, setSelected] = useState<Driver | null>(null)
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    if (!open) setSearchQuery('')
+  }, [open])
+
+  function matchesSearch(driver: Driver): boolean {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return true
+    const plate = driver.vehicle_number.replace(/\s+/g, '').toLowerCase()
+    const queryNorm = q.replace(/\s+/g, '')
+    return (
+      driver.name.toLowerCase().includes(q) ||
+      driver.vehicle_type.toLowerCase().includes(q) ||
+      driver.vehicle_name.toLowerCase().includes(q) ||
+      plate.includes(queryNorm)
+    )
+  }
 
   const eligible = allDrivers.filter(d =>
     d.is_active &&
     d.id !== booking.driver_id &&
     (!booking.vehicle_type || d.vehicle_type === booking.vehicle_type) &&
-    (!booking.pax_count || d.seating_capacity >= booking.pax_count)
+    (!booking.pax_count || d.seating_capacity >= booking.pax_count) &&
+    matchesSearch(d)
   )
 
   async function handleConfirm() {
@@ -68,9 +87,21 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
         <div className="space-y-4">
           <div>
             <Label className="mb-2 block">Select Replacement Driver</Label>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737686]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by name, vehicle type, vehicle name, or plate number…"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-[#C3C5D7] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB] focus:border-transparent"
+              />
+            </div>
             <div className="space-y-2">
               {eligible.length === 0 && (
-                <p className="text-sm text-[#737686] py-3 text-center">No eligible drivers available</p>
+                <p className="text-sm text-[#737686] py-3 text-center">
+                  {searchQuery.trim() ? 'No drivers match your search' : 'No eligible drivers available'}
+                </p>
               )}
               {eligible.map(driver => (
                 <button
