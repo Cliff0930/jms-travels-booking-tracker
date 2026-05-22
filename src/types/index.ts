@@ -114,6 +114,7 @@ export interface ReimbursementSheet {
   guest_name: string | null
   guest_phone: string | null
   requested_by: string | null
+  client_phone: string | null
   pickup_date: string | null
   company_id: string | null
   company_name: string | null

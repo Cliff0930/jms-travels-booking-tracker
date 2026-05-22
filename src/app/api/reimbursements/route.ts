@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     .select(`
       id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone, requested_by,
       company:companies!company_id(name),
+      client:clients!client_id(primary_phone),
       driver:drivers!driver_id(id, name, vehicle_name, bata_rate),
       trip_sheets(
         id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
         guest_name: (booking.guest_name as string | null) ?? null,
         guest_phone: (booking.guest_phone as string | null) ?? null,
         requested_by: (booking.requested_by as string | null) ?? null,
+        client_phone: ((booking.client as unknown as { primary_phone: string | null } | null)?.primary_phone) ?? null,
         pickup_date: booking.pickup_date,
         company_id: booking.company_id,
         company_name: company?.name ?? null,

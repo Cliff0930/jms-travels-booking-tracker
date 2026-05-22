@@ -227,7 +227,9 @@ function TripCard({
               {(sheet.guest_name || sheet.requested_by) && (
                 <span className="text-xs text-[#374151] font-medium">{sheet.guest_name || sheet.requested_by}</span>
               )}
-              {sheet.guest_phone && <span className="text-xs text-[#737686]">{sheet.guest_phone}</span>}
+              {(sheet.guest_phone || sheet.client_phone) && (
+                <span className="text-xs text-[#737686]">{sheet.guest_phone || sheet.client_phone}</span>
+              )}
             </div>
           </div>
         </div>
