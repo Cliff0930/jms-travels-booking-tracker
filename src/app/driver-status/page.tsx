@@ -118,6 +118,7 @@ function DriverStatusContent() {
     if (!bookingId || !token) return
     if (!tripsheetNumber.trim()) { setError('Please enter the tripsheet number'); return }
     if (!openingKm) { setError('Please enter the opening KM reading'); return }
+    if (!openingTime.trim()) { setError('Please enter the opening time'); return }
 
     setError('')
     setLoading(true)
@@ -158,6 +159,7 @@ function DriverStatusContent() {
   async function handleCompletedSubmit() {
     if (!bookingId) return
     if (!closingKm) { setError('Please enter the closing KM reading'); return }
+    if (!closingTime.trim()) { setError('Please enter the closing time'); return }
 
     const knownOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
     if (knownOpeningKm != null && parseFloat(closingKm) <= knownOpeningKm) {
@@ -371,7 +373,7 @@ function DriverStatusContent() {
               />
             </div>
             <div>
-              <Label htmlFor="closing_time_gps" className="text-sm font-medium text-[#191B23]">Closing Time</Label>
+              <Label htmlFor="closing_time_gps" className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
               <Input
                 id="closing_time_gps"
                 type="time"
@@ -457,7 +459,7 @@ function DriverStatusContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="opening_time" className="text-sm font-medium text-[#191B23]">Opening Time</Label>
+                <Label htmlFor="opening_time" className="text-sm font-medium text-[#191B23]">Opening Time *</Label>
                 <Input
                   id="opening_time"
                   type="time"
@@ -504,7 +506,7 @@ function DriverStatusContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="closing_time" className="text-sm font-medium text-[#191B23]">Closing Time</Label>
+                <Label htmlFor="closing_time" className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
                 <Input
                   id="closing_time"
                   type="time"
