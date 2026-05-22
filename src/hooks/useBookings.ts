@@ -85,7 +85,10 @@ export function useAssignDriver() {
   return useMutation({
     mutationFn: ({ bookingId, driverId, gpsTrackingEnabled }: { bookingId: string; driverId: string; gpsTrackingEnabled?: boolean }) =>
       fetch(`/api/bookings/${bookingId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driver_id: driverId, gps_tracking_enabled: gpsTrackingEnabled }) }).then(r => r.json()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
   })
 }
 

@@ -68,8 +68,10 @@ export function SubstituteDriverModal({ booking, open, onClose }: SubstituteDriv
         body: JSON.stringify({ new_driver_id: selected.id, reason }),
       })
       if (!res.ok) throw new Error()
+      qc.invalidateQueries({ queryKey: ['bookings'] })
       qc.invalidateQueries({ queryKey: ['bookings', booking.id] })
       qc.invalidateQueries({ queryKey: ['booking-messages', booking.id] })
+      qc.invalidateQueries({ queryKey: ['drivers'] })
       toast.success('Driver substituted — client notified')
       onClose()
     } catch {
