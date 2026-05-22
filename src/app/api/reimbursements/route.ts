@@ -121,9 +121,16 @@ export async function GET(request: Request) {
       if (status === 'pending' && isSettled) continue
 
       if (search) {
-        const ref = entry.booking_ref?.toLowerCase() ?? ''
-        const driverName = entry.driver_name?.toLowerCase() ?? ''
-        if (!ref.includes(search) && !driverName.includes(search)) continue
+        const haystack = [
+          entry.booking_ref,
+          entry.driver_name,
+          entry.driver_vehicle_name,
+          entry.guest_name,
+          entry.requested_by,
+          entry.guest_phone,
+          entry.client_phone,
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!haystack.includes(search)) continue
       }
 
       result.push(entry)

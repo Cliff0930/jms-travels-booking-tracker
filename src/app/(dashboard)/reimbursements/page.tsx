@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReimbursementSheet } from '@/types'
 
@@ -18,14 +18,18 @@ export default function ReimbursementsPage() {
   const [tab, setTab] = useState<'pending' | 'settled'>('pending')
   const [driverId, setDriverId] = useState<string>('all')
   const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const qc = useQueryClient()
 
   const { data: sheets = [], isLoading, refetch } = useQuery<ReimbursementSheet[]>({
-    queryKey: ['reimbursements', tab, driverId, search],
+    queryKey: ['reimbursements', tab, driverId, search, dateFrom, dateTo],
     queryFn: () => {
       const params = new URLSearchParams({ status: tab })
       if (driverId !== 'all') params.set('driver_id', driverId)
       if (search.trim()) params.set('search', search.trim())
+      if (dateFrom) params.set('date_from', dateFrom)
+      if (dateTo) params.set('date_to', dateTo)
       return fetch(`/api/reimbursements?${params}`).then(r => r.json())
     },
   })
@@ -143,9 +147,35 @@ export default function ReimbursementsPage() {
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search booking ref or driver…"
+            placeholder="Search name, ref, driver, vehicle…"
             className="pl-9 border-[#C3C5D7] h-9 text-sm"
           />
+        </div>
+
+        {/* Date range */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <CalendarDays className="w-3.5 h-3.5 text-[#737686]" />
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="border-[#C3C5D7] h-9 text-sm w-36"
+          />
+          <span className="text-xs text-[#737686]">–</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="border-[#C3C5D7] h-9 text-sm w-36"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(''); setDateTo('') }}
+              className="text-xs text-[#737686] hover:text-[#374151] px-1"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {/* Outstanding total */}
