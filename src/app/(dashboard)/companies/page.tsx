@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import { Building2, Plus, X, Mail, Phone, Search, GitMerge } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
@@ -471,14 +470,13 @@ export default function CompaniesPage() {
               </div>
 
               {/* Scrollable Body */}
-              <div className="flex-1 overflow-y-auto py-4 px-6 space-y-5">
+              <div className="flex-1 overflow-y-auto py-5 px-5 space-y-4 bg-[#F9FAFB]">
 
-                {/* People */}
-                <section>
-                  {/* Header + filter pills */}
-                  <div className="flex items-center justify-between mb-2">
+                {/* ── People ── */}
+                <div className="bg-white rounded-xl border border-[#E5E7EB] p-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7]">People</h3>
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">People</h3>
                       {(companyClients.length + companyGuests.length) > 0 && (
                         <span className="text-[10px] font-semibold bg-[#EDEDF8] text-[#434654] px-1.5 py-0.5 rounded-full">
                           {companyClients.length + companyGuests.length}
@@ -494,13 +492,11 @@ export default function CompaniesPage() {
                             peopleFilter === f ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
                           }`}
                         >
-                          {f === 'all' ? `All` : f === 'employee' ? 'Employees' : 'Guests'}
+                          {f === 'all' ? 'All' : f === 'employee' ? 'Employees' : 'Guests'}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Search */}
                   <div className="relative mb-3">
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737686]" />
                     <input
@@ -510,11 +506,7 @@ export default function CompaniesPage() {
                       className="w-full pl-8 pr-3 h-8 text-xs border border-[#C3C5D7] rounded-md bg-white outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF]"
                     />
                   </div>
-
-                  {/* Unified list */}
                   {(() => {
-                    // Classify by client_type, not by which query returned them.
-                    // Deduplicate by id in case someone appears in both lists (e.g. guest with company_id set).
                     const seen = new Set<string>()
                     const allPeople = [
                       ...companyClients.map(c => ({ ...c, _role: c.client_type === 'guest' ? 'guest' as const : 'employee' as const })),
@@ -531,16 +523,10 @@ export default function CompaniesPage() {
                         p.primary_email?.toLowerCase().includes(q)
                       )
                     })
-
-                    if (allPeople.length === 0) {
-                      return <p className="text-xs text-[#737686]">No clients or guests yet</p>
-                    }
-                    if (visible.length === 0) {
-                      return <p className="text-xs text-[#737686]">No matches found</p>
-                    }
-
+                    if (allPeople.length === 0) return <p className="text-xs text-[#9CA3AF]">No clients or guests yet</p>
+                    if (visible.length === 0) return <p className="text-xs text-[#9CA3AF]">No matches found</p>
                     return (
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {visible.map(person => {
                           const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('')
                           const isGuest = person._role === 'guest'
@@ -559,11 +545,7 @@ export default function CompaniesPage() {
                                   {person.primary_phone || person.primary_email || person.designation || 'No contact info'}
                                 </div>
                               </div>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${
-                                isGuest
-                                  ? 'text-[#92400E] bg-[#FEF3C7] border-[#FCD34D]'
-                                  : 'text-[#1A56DB] bg-[#EBF5FF] border-[#BFDBFE]'
-                              }`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${isGuest ? 'text-[#92400E] bg-[#FEF3C7] border-[#FCD34D]' : 'text-[#1A56DB] bg-[#EBF5FF] border-[#BFDBFE]'}`}>
                                 {isGuest ? 'Guest' : 'Employee'}
                               </span>
                             </button>
@@ -572,104 +554,56 @@ export default function CompaniesPage() {
                       </div>
                     )
                   })()}
-                </section>
+                </div>
 
-                <Separator />
+                {/* ── Settings (edit-gated) ── */}
+                <div className={!canEdit ? 'pointer-events-none opacity-60 space-y-4' : 'space-y-4'}>
 
-                <div className={!canEdit ? 'pointer-events-none opacity-60' : ''}>
-
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-3">Approval Settings</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-1">
-                      <Label className="text-sm">Require Approval</Label>
-                      <Switch
-                        checked={selectedCompany.approval_required}
-                        onCheckedChange={v => updateCompany(selectedCompany.id, { approval_required: v })}
-                      />
+                  {/* Card 1: Approval & Booking Rules */}
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] divide-y divide-[#F3F4F6] overflow-hidden">
+                    <div className="p-4 space-y-3">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Approval Settings</h3>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Require Approval</Label>
+                        <Switch
+                          checked={selectedCompany.approval_required}
+                          onCheckedChange={v => updateCompany(selectedCompany.id, { approval_required: v })}
+                        />
+                      </div>
+                      {selectedCompany.approval_required && (
+                        <div className="space-y-3 pt-1">
+                          <div>
+                            <Label className="text-xs font-medium text-[#6B7280] mb-1.5 block">Approval Channel</Label>
+                            <Select
+                              value={selectedCompany.approval_channel}
+                              onValueChange={v => v && updateCompany(selectedCompany.id, { approval_channel: v as Company['approval_channel'] })}
+                            >
+                              <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="email">Email</SelectItem>
+                                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                <SelectItem value="both">Both</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#6B7280] mb-1.5 block">Timeout (hours)</Label>
+                            <Input
+                              type="number"
+                              defaultValue={selectedCompany.approval_timeout_hours}
+                              className="border-[#C3C5D7] h-9 text-sm"
+                              onBlur={e => updateCompany(selectedCompany.id, { approval_timeout_hours: parseInt(e.target.value) })}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {selectedCompany.approval_required && (
-                      <>
-                        <div>
-                          <Label className="text-sm mb-1.5 block">Approval Channel</Label>
-                          <Select
-                            value={selectedCompany.approval_channel}
-                            onValueChange={v => v && updateCompany(selectedCompany.id, { approval_channel: v as Company['approval_channel'] })}
-                          >
-                            <SelectTrigger className="border-[#C3C5D7]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="email">Email</SelectItem>
-                              <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                              <SelectItem value="both">Both</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-sm mb-1.5 block">Timeout (hours)</Label>
-                          <Input
-                            type="number"
-                            defaultValue={selectedCompany.approval_timeout_hours}
-                            className="border-[#C3C5D7]"
-                            onBlur={e => updateCompany(selectedCompany.id, { approval_timeout_hours: parseInt(e.target.value) })}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </section>
 
-                <Separator />
-
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#6366F1] mb-2">Email Domains</h3>
-                  <p className="text-xs text-[#737686] mb-2">Emails from these domains are auto-matched to this company.</p>
-                  <TagInput
-                    values={selectedCompany.email_domains ?? []}
-                    onSave={list => updateCompany(selectedCompany.id, { email_domains: list })}
-                    placeholder="company.com"
-                    emptyLabel="No domains configured"
-                    icon={Mail}
-                  />
-                </section>
-
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-2">Approver Emails</h3>
-                  <p className="text-xs text-[#737686] mb-2">Approval requests are sent to these email addresses.</p>
-                  <TagInput
-                    values={selectedCompany.approver_emails ?? []}
-                    onSave={list => updateCompany(selectedCompany.id, { approver_emails: list })}
-                    placeholder="approver@company.com"
-                    inputType="email"
-                    emptyLabel="No approver emails configured"
-                    icon={Mail}
-                  />
-                </section>
-
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-2">Approver WhatsApp</h3>
-                  <p className="text-xs text-[#737686] mb-2">Approval requests are sent to these WhatsApp numbers.</p>
-                  <TagInput
-                    values={selectedCompany.approver_whatsapp ?? []}
-                    onSave={list => updateCompany(selectedCompany.id, { approver_whatsapp: list })}
-                    placeholder="+91 98000 00000"
-                    inputType="tel"
-                    emptyLabel="No WhatsApp numbers configured"
-                    icon={Phone}
-                  />
-                </section>
-
-                <Separator />
-
-                <Separator />
-
-                {/* Email Intake Rules */}
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#0284C7] mb-3">Email Intake Rules</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-sm mb-1.5 block">Capture emails from</Label>
+                    <div className="p-4 space-y-3">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Email Intake</h3>
+                      <p className="text-xs text-[#9CA3AF]">Which senders can create bookings via email.</p>
                       <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
                         {([
                           { val: 'domain',           label: 'All senders' },
@@ -690,90 +624,121 @@ export default function CompaniesPage() {
                         ))}
                       </div>
                       {(selectedCompany.email_intake_mode || 'domain') === 'off' && (
-                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
                           Emails from this company&apos;s domains will be ignored.
                         </p>
                       )}
+                      {selectedCompany.email_intake_mode === 'specific_senders' && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-[#374151]">Direct booking emails</p>
+                          <p className="text-xs text-[#9CA3AF]">Only these addresses can submit bookings — they skip approval.</p>
+                          <DirectEmailPicker
+                            emails={selectedCompany.direct_booking_emails ?? []}
+                            onSave={list => updateCompany(selectedCompany.id, { direct_booking_emails: list })}
+                          />
+                        </div>
+                      )}
                     </div>
 
-                    {(selectedCompany.email_intake_mode === 'specific_senders') && (
-                      <div>
-                        <Label className="text-sm mb-1.5 block">Direct booking emails</Label>
-                        <p className="text-xs text-[#737686] mb-2">Only these addresses can submit bookings. They skip the approval step.</p>
-                        <DirectEmailPicker
-                          emails={selectedCompany.direct_booking_emails ?? []}
-                          onSave={list => updateCompany(selectedCompany.id, { direct_booking_emails: list })}
-                        />
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Driver Details — Notify</h3>
+                      <p className="text-xs text-[#9CA3AF]">Who receives driver name, phone and vehicle when a trip is assigned.</p>
+                      <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
+                        {([
+                          { val: 'booker', label: 'Booker only' },
+                          { val: 'guest',  label: 'Guest only' },
+                          { val: 'both',   label: 'Both' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.val}
+                            onClick={() => updateCompany(selectedCompany.id, { driver_notify_target: opt.val })}
+                            className={`flex-1 h-8 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
+                              (selectedCompany.driver_notify_target || 'both') === opt.val
+                                ? 'bg-[#1A56DB] text-white'
+                                : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
                       </div>
-                    )}
+                    </div>
+
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Trip Origin Address</h3>
+                      <p className="text-xs text-[#9CA3AF]">
+                        Dead mileage (office → pickup, drop → office) is calculated from here.
+                        Leave blank to use the JMS Travels office from Settings.
+                      </p>
+                      <Input
+                        key={selectedCompany.id}
+                        defaultValue={selectedCompany.pickup_origin_address ?? ''}
+                        placeholder="e.g. 123 Whitefield Main Rd, Bangalore 560066"
+                        className="border-[#C3C5D7] text-sm"
+                        onBlur={e => {
+                          const val = e.target.value.trim()
+                          if (val !== (selectedCompany.pickup_origin_address ?? '')) {
+                            updateCompany(selectedCompany.id, { pickup_origin_address: val || null })
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
-                </section>
 
-                <Separator />
-
-                {/* Trip Origin Address */}
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">Trip Origin Address</h3>
-                  <p className="text-xs text-[#737686] mb-3">
-                    Dead mileage (office → pickup, drop → office) is calculated from this address.
-                    Leave blank to use JMS Travels&apos; office from Settings.
-                  </p>
-                  <Input
-                    key={selectedCompany.id}
-                    defaultValue={selectedCompany.pickup_origin_address ?? ''}
-                    placeholder="e.g. 123 Whitefield Main Rd, Bangalore 560066"
-                    className="border-[#C3C5D7] text-sm"
-                    onBlur={e => {
-                      const val = e.target.value.trim()
-                      if (val !== (selectedCompany.pickup_origin_address ?? '')) {
-                        updateCompany(selectedCompany.id, { pickup_origin_address: val || null })
-                      }
-                    }}
-                  />
-                </section>
-
-                <Separator />
-
-                {/* Driver Notification */}
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#7C3AED] mb-1">Driver Details — Notify</h3>
-                  <p className="text-xs text-[#737686] mb-3">Who receives the driver&apos;s name, phone and vehicle details when a trip is assigned.</p>
-                  <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-xs">
-                    {([
-                      { val: 'booker', label: 'Booker only' },
-                      { val: 'guest',  label: 'Guest only' },
-                      { val: 'both',   label: 'Both' },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.val}
-                        onClick={() => updateCompany(selectedCompany.id, { driver_notify_target: opt.val })}
-                        className={`flex-1 h-8 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
-                          (selectedCompany.driver_notify_target || 'both') === opt.val
-                            ? 'bg-[#1A56DB] text-white'
-                            : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                  {/* Card 2: Contact Channels */}
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] divide-y divide-[#F3F4F6] overflow-hidden">
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Email Domains</h3>
+                      <p className="text-xs text-[#9CA3AF]">Emails from these domains are auto-matched to this company.</p>
+                      <TagInput
+                        values={selectedCompany.email_domains ?? []}
+                        onSave={list => updateCompany(selectedCompany.id, { email_domains: list })}
+                        placeholder="company.com"
+                        emptyLabel="No domains configured"
+                        icon={Mail}
+                      />
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Approver Emails</h3>
+                      <p className="text-xs text-[#9CA3AF]">Approval requests are sent to these email addresses.</p>
+                      <TagInput
+                        values={selectedCompany.approver_emails ?? []}
+                        onSave={list => updateCompany(selectedCompany.id, { approver_emails: list })}
+                        placeholder="approver@company.com"
+                        inputType="email"
+                        emptyLabel="No approver emails configured"
+                        icon={Mail}
+                      />
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Approver WhatsApp</h3>
+                      <p className="text-xs text-[#9CA3AF]">Approval requests are sent to these WhatsApp numbers.</p>
+                      <TagInput
+                        values={selectedCompany.approver_whatsapp ?? []}
+                        onSave={list => updateCompany(selectedCompany.id, { approver_whatsapp: list })}
+                        placeholder="+91 98000 00000"
+                        inputType="tel"
+                        emptyLabel="No WhatsApp numbers configured"
+                        icon={Phone}
+                      />
+                    </div>
                   </div>
-                </section>
 
-                <Separator />
+                  {/* Card 3: Approval Exclusions */}
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-2">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Approval Exclusions</h3>
+                    <p className="text-xs text-[#9CA3AF]">Clients on this list bypass approval and are confirmed directly.</p>
+                    <ClientExclusionPicker
+                      companyId={selectedCompany.id}
+                      exclusions={selectedCompany.approval_exclusions ?? []}
+                      onSave={(list: string[]) => updateCompany(selectedCompany.id, { approval_exclusions: list })}
+                    />
+                  </div>
 
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#D97706] mb-1">Approval Exclusions</h3>
-                  <p className="text-xs text-[#737686] mb-3">Clients on this list bypass approval and are confirmed directly.</p>
-                  <ClientExclusionPicker
-                    companyId={selectedCompany.id}
-                    exclusions={selectedCompany.approval_exclusions ?? []}
-                    onSave={(list: string[]) => updateCompany(selectedCompany.id, { approval_exclusions: list })}
-                  />
-                </section>
-
-                <Separator />
-
-                <CompanyBataRates companyId={selectedCompany.id} />
+                  {/* Card 4: Bata Rates */}
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] p-4">
+                    <CompanyBataRates companyId={selectedCompany.id} />
+                  </div>
 
                 </div>
               </div>
