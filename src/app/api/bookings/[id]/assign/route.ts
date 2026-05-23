@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -119,6 +119,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       status: result.ok ? 'sent' : 'failed',
       whatsapp_message_id: result.whatsappMessageId ?? null,
     })
+
+    if (result.ok && (booking.pickup_location_url || booking.drop_location_url)) {
+      const mapLines = [
+        booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
+        booking.drop_location_url   ? `Drop Map: ${booking.drop_location_url}`   : null,
+      ].filter(Boolean).join('\n')
+      await sendWhatsAppMessage({ to: driver.phone, body: mapLines })
+    }
   }
 
   // Send driver details — respects company driver_notify_target setting
