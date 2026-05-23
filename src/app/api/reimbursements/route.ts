@@ -131,8 +131,12 @@ export async function GET(request: Request) {
           entry.requested_by,
           entry.guest_phone,
           entry.client_phone,
+          entry.tripsheet_number,
         ].filter(Boolean).join(' ').toLowerCase()
-        if (!haystack.includes(search)) continue
+        const searchDigits = search.replace(/\D/g, '')
+        const tsDigits = (entry.tripsheet_number ?? '').replace(/\D/g, '')
+        const tripsheetMatch = searchDigits.length > 0 && tsDigits.length > 0 && tsDigits.includes(searchDigits)
+        if (!haystack.includes(search) && !tripsheetMatch) continue
       }
 
       result.push(entry)
