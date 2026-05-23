@@ -18,5 +18,6 @@
 - [Billing software plan](project_billing_plan.md) — Build inside CabFlow (same app); rate cards, invoices, PDF via @react-pdf/renderer; DB tables defined; parked until user ready
 - [WhatsApp delivery fixes](feedback_whatsapp_delivery.md) — Templates required for all outbound (free-form silently drops after 24h); phone normalization for bare Indian numbers; whatsapp_message_id column needed in message_logs
 - [Guest client linking pattern](feedback_guest_client_linking.md) — Always capture returned ID from guest insert + update booking's guest_client_id; missing this is a recurring bug (fixed in parse-message 2026-05-20)
-- [Driver app](project_driver_app_plan.md) — BUILT 2026-05-21. React Native + Expo, APK deployed, OTA updates via EAS, PIN login, 8 screens. Repo: /driver-app. EAS: @jmstravelprabhu/jms-driver.
+- [Driver app](project_driver_app_plan.md) — LIVE 2026-05-23. 10 screens: Today/Upcoming/History/Profile tabs + detail screens. VIP badge, vehicle card, availability toggle, Maps buttons, tripsheet search, duration from manual times. OTA channel: preview.
 - [Explain before editing](feedback_explain_before_edit.md) — Always describe the change before executing any Edit/Write tool call; wait for user confirmation.
+- [Gemini day-of-week bug](feedback_gemini_day_of_week.md) — Always pass {day_of_week} explicitly in Gemini prompts; Gemini computes it wrong from date string (caused Monday→Tuesday mis-booking, fixed 2026-05-23)
