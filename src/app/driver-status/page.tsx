@@ -9,16 +9,89 @@ import { Label } from '@/components/ui/label'
 type StatusType = 'arrived' | 'completed'
 type PageMode = 'form' | 'gps_active' | 'done'
 
-// Silently tries to get current position; resolves null on failure or timeout
-function silentlyCaptureGPS(): Promise<{ lat: number; lng: number } | null> {
+function nowHHMM(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function fmtTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return hhmm
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`
+}
+
+function getGps(): Promise<{ lat: number; lng: number } | null> {
   return new Promise(resolve => {
-    if (!navigator.geolocation) { resolve(null); return }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { resolve(null); return }
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: 5000 }
+      { enableHighAccuracy: false, timeout: 8000 },
     )
   })
+}
+
+function TimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  function parse(v: string) {
+    const [hStr, mStr] = v.split(':')
+    const h24 = parseInt(hStr) || 0
+    return { hour: h24 % 12 || 12, minute: parseInt(mStr) || 0, period: (h24 >= 12 ? 'PM' : 'AM') as 'AM' | 'PM' }
+  }
+  const init = parse(value)
+  const [hour, setHour] = useState(init.hour)
+  const [minute, setMinute] = useState(init.minute)
+  const [period, setPeriod] = useState<'AM' | 'PM'>(init.period)
+
+  function emit(h: number, m: number, p: string) {
+    let h24 = h % 12
+    if (p === 'PM') h24 += 12
+    onChange(`${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5">
+      <select
+        className="flex-1 min-w-0 h-12 rounded-lg border border-[#C3C5D7] text-base text-center bg-white text-[#191B23] font-semibold focus:outline-none focus:border-[#1A56DB]"
+        value={hour}
+        onChange={e => { const v = Number(e.target.value); setHour(v); emit(v, minute, period) }}
+      >
+        {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+          <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+        ))}
+      </select>
+      <span className="text-lg font-bold text-[#374151] select-none">:</span>
+      <select
+        className="flex-1 min-w-0 h-12 rounded-lg border border-[#C3C5D7] text-base text-center bg-white text-[#191B23] font-semibold focus:outline-none focus:border-[#1A56DB]"
+        value={minute}
+        onChange={e => { const v = Number(e.target.value); setMinute(v); emit(hour, v, period) }}
+      >
+        {Array.from({ length: 60 }, (_, i) => i).map(m => (
+          <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="shrink-0 w-14 h-12 rounded-lg bg-[#1A56DB] text-white font-bold text-sm tracking-wide active:bg-[#003FB1] transition-colors"
+        onClick={() => { const p = period === 'AM' ? 'PM' : 'AM'; setPeriod(p as 'AM' | 'PM'); emit(hour, minute, p) }}
+      >
+        {period}
+      </button>
+    </div>
+  )
+}
+
+function GpsPromptOverlay() {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-6">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center space-y-2">
+        <div className="text-4xl">📍</div>
+        <p className="font-semibold text-[#191B23]">Getting your location…</p>
+        <p className="text-sm text-[#737686]">Tap Allow when your browser asks for location access</p>
+      </div>
+    </div>
+  )
 }
 
 function DriverStatusContent() {
@@ -36,21 +109,28 @@ function DriverStatusContent() {
   // Arrived form
   const [tripsheetNumber, setTripsheetNumber] = useState('')
   const [openingKm, setOpeningKm] = useState('')
-  const [openingTime, setOpeningTime] = useState('')
+  const [openingTime, setOpeningTime] = useState(nowHHMM)
 
   // Completion form
   const [closingKm, setClosingKm] = useState('')
-  const [closingTime, setClosingTime] = useState('')
+  const [closingTime, setClosingTime] = useState(nowHHMM)
   const [tollAmount, setTollAmount] = useState('')
   const [parkingAmount, setParkingAmount] = useState('')
   const [permitAmount, setPermitAmount] = useState('')
 
-  // Opening data for direct completed links (fetched from server)
+  // Opening data for direct completed links
   const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
   const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
   const [alreadyDone, setAlreadyDone] = useState(false)
 
-  // On mount: check if this action was already submitted (prevents double-submission via browser back)
+  // GPS
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [showGpsPrompt, setShowGpsPrompt] = useState(false)
+
+  useEffect(() => {
+    getGps().then(c => { if (c) setGpsCoords(c) })
+  }, [])
+
   useEffect(() => {
     if (!bookingId || !status) return
     type Sheet = { booking_leg_id: string | null; opening_time: string | null; closing_time: string | null; opening_km: number | null; manual_opening_time: string | null }
@@ -72,12 +152,11 @@ function DriverStatusContent() {
       .catch(() => {})
   }, [bookingId, legId, status])
 
-  // GPS tracking — fires on page-visible events so driver can switch apps freely
   const completedTokenRef = useRef<string | null>(null)
   const isTrackingRef = useRef(false)
 
   function sendGpsPing() {
-    if (!bookingId || !token || !navigator.geolocation) return
+    if (!bookingId || !token || typeof navigator === 'undefined' || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -88,49 +167,48 @@ function DriverStatusContent() {
           })
         } catch { /* non-critical */ }
       },
-      () => { /* silent fail */ },
+      () => {},
       { enableHighAccuracy: true, timeout: 8000 }
     )
   }
 
-  function startGpsTracking() {
-    isTrackingRef.current = true
-    sendGpsPing() // immediate ping on arrival
-  }
+  function startGpsTracking() { isTrackingRef.current = true; sendGpsPing() }
+  function stopGpsTracking() { isTrackingRef.current = false }
 
-  function stopGpsTracking() {
-    isTrackingRef.current = false
-  }
-
-  // Ping GPS every time the driver returns to this tab (works when switching apps)
   useEffect(() => {
     if (mode !== 'gps_active') return
     const handleVisibility = () => {
-      if (isTrackingRef.current && document.visibilityState === 'visible') {
-        sendGpsPing()
-      }
+      if (isTrackingRef.current && document.visibilityState === 'visible') sendGpsPing()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [mode])
 
+  async function resolveGps(): Promise<{ lat: number; lng: number } | null> {
+    if (gpsCoords) return gpsCoords
+    setShowGpsPrompt(true)
+    const coords = await getGps()
+    setShowGpsPrompt(false)
+    if (coords) setGpsCoords(coords)
+    return coords
+  }
+
   async function handleArrivedSubmit() {
     if (!bookingId || !token) return
     if (!tripsheetNumber.trim()) { setError('Please enter the tripsheet number'); return }
     if (!openingKm) { setError('Please enter the opening KM reading'); return }
-    if (!openingTime.trim()) { setError('Please enter the opening time'); return }
 
     setError('')
     setLoading(true)
     try {
-      const gps = await silentlyCaptureGPS()
+      const gps = await resolveGps()
       const body: Record<string, unknown> = {
         booking_id: bookingId, status: 'arrived', token,
         link_code: linkCode, leg_id: legId,
         tripsheet_number: tripsheetNumber.trim(),
         opening_km: parseFloat(openingKm),
+        manual_opening_time: openingTime,
       }
-      if (openingTime) body.manual_opening_time = openingTime
       if (gps) { body.lat = gps.lat; body.lng = gps.lng }
 
       const res = await fetch('/api/driver-status', {
@@ -159,7 +237,6 @@ function DriverStatusContent() {
   async function handleCompletedSubmit() {
     if (!bookingId) return
     if (!closingKm) { setError('Please enter the closing KM reading'); return }
-    if (!closingTime.trim()) { setError('Please enter the closing time'); return }
 
     const knownOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
     if (knownOpeningKm != null && parseFloat(closingKm) <= knownOpeningKm) {
@@ -175,13 +252,13 @@ function DriverStatusContent() {
     stopGpsTracking()
 
     try {
-      const gps = await silentlyCaptureGPS()
+      const gps = await resolveGps()
       const body: Record<string, unknown> = {
         booking_id: bookingId, status: 'completed', token: useToken,
         link_code: linkCode, leg_id: legId,
         closing_km: parseFloat(closingKm),
+        manual_closing_time: closingTime,
       }
-      if (closingTime) body.manual_closing_time = closingTime
       if (tollAmount) body.toll_amount = parseFloat(tollAmount)
       if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
       if (permitAmount) body.permit_amount = parseFloat(permitAmount)
@@ -248,10 +325,8 @@ function DriverStatusContent() {
           <p className="text-lg font-semibold text-[#191B23]">Trip Completed</p>
           <p className="text-sm text-[#737686]">The operations team has been notified</p>
         </div>
-
         <div className="bg-white border border-[#C3C5D7] rounded-xl p-4 space-y-2.5 text-sm">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#434654] mb-1">Trip Summary</p>
-
           {finalOpeningKm != null && (
             <div className="flex justify-between">
               <span className="text-[#737686]">Opening KM</span>
@@ -261,7 +336,7 @@ function DriverStatusContent() {
           {finalOpeningTime && (
             <div className="flex justify-between">
               <span className="text-[#737686]">Opening Time</span>
-              <span className="font-medium text-[#191B23]">{finalOpeningTime}</span>
+              <span className="font-medium text-[#191B23]">{fmtTime(finalOpeningTime)}</span>
             </div>
           )}
           {finalClosingKm != null && (
@@ -273,10 +348,9 @@ function DriverStatusContent() {
           {closingTime && (
             <div className="flex justify-between">
               <span className="text-[#737686]">Closing Time</span>
-              <span className="font-medium text-[#191B23]">{closingTime}</span>
+              <span className="font-medium text-[#191B23]">{fmtTime(closingTime)}</span>
             </div>
           )}
-
           {(totalKm != null || totalTime) && (
             <div className="border-t border-[#E5E7EB] pt-2 mt-1 space-y-2">
               {totalKm != null && (
@@ -293,7 +367,6 @@ function DriverStatusContent() {
               )}
             </div>
           )}
-
           {(tollAmount || parkingAmount || permitAmount) && (
             <div className="border-t border-[#E5E7EB] pt-2 space-y-1.5">
               {tollAmount && (
@@ -313,7 +386,7 @@ function DriverStatusContent() {
                   <span className="text-[#737686]">Permit</span>
                   <span className="text-[#434654]">₹{permitAmount}</span>
                 </div>
-          )}
+              )}
             </div>
           )}
         </div>
@@ -333,33 +406,34 @@ function DriverStatusContent() {
 
   if (mode === 'gps_active') {
     return (
-      <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-            <Radio className="w-8 h-8 text-green-600" />
-          </div>
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-[#191B23]">Trip In Progress</h1>
-            <p className="text-[#434654] mt-1 text-sm">Fill in the details below when you complete the trip.</p>
-          </div>
-        </div>
-
-        <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
-          <div className="flex justify-between">
-            <span className="text-[#737686]">Opening KM</span>
-            <span className="font-semibold text-[#191B23]">{openingKm ? parseFloat(openingKm).toLocaleString() : '—'}</span>
-          </div>
-          {openingTime && (
-            <div className="flex justify-between mt-1">
-              <span className="text-[#737686]">Opening Time</span>
-              <span className="font-semibold text-[#191B23]">{openingTime}</span>
+      <>
+        {showGpsPrompt && <GpsPromptOverlay />}
+        <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <Radio className="w-8 h-8 text-green-600" />
             </div>
-          )}
-        </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-[#191B23]">Trip In Progress</h1>
+              <p className="text-[#434654] mt-1 text-sm">Fill in the details below when you complete the trip.</p>
+            </div>
+          </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
+            <div className="flex justify-between">
+              <span className="text-[#737686]">Opening KM</span>
+              <span className="font-semibold text-[#191B23]">{openingKm ? parseFloat(openingKm).toLocaleString() : '—'}</span>
+            </div>
+            {openingTime && (
+              <div className="flex justify-between mt-1">
+                <span className="text-[#737686]">Opening Time</span>
+                <span className="font-semibold text-[#191B23]">{fmtTime(openingTime)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
             <div>
               <Label htmlFor="closing_km_gps" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
               <Input
@@ -373,79 +447,74 @@ function DriverStatusContent() {
               />
             </div>
             <div>
-              <Label htmlFor="closing_time_gps" className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
-              <Input
-                id="closing_time_gps"
-                type="time"
-                value={closingTime}
-                onChange={e => setClosingTime(e.target.value)}
-                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-              />
+              <Label className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
+              <TimePicker value={closingTime} onChange={setClosingTime} />
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label htmlFor="toll_gps" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
-              <Input id="toll_gps" type="number" inputMode="decimal" value={tollAmount} onChange={e => setTollAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label htmlFor="toll_gps" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+                <Input id="toll_gps" type="number" inputMode="decimal" value={tollAmount} onChange={e => setTollAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+              </div>
+              <div>
+                <Label htmlFor="parking_gps" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
+                <Input id="parking_gps" type="number" inputMode="decimal" value={parkingAmount} onChange={e => setParkingAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+              </div>
+              <div>
+                <Label htmlFor="permit_gps" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
+                <Input id="permit_gps" type="number" inputMode="decimal" value={permitAmount} onChange={e => setPermitAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="parking_gps" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
-              <Input id="parking_gps" type="number" inputMode="decimal" value={parkingAmount} onChange={e => setParkingAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
-            </div>
-            <div>
-              <Label htmlFor="permit_gps" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
-              <Input id="permit_gps" type="number" inputMode="decimal" value={permitAmount} onChange={e => setPermitAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
-            </div>
-          </div>
 
-          {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
+            {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
 
-          <Button
-            className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
-            onClick={handleCompletedSubmit}
-            disabled={loading}
-          >
-            {loading ? 'Updating…' : 'Mark Trip Completed'}
-          </Button>
+            <Button
+              className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
+              onClick={handleCompletedSubmit}
+              disabled={loading}
+            >
+              {loading ? 'Updating…' : 'Mark Trip Completed'}
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
-  // Default: form mode (arrived or completed direct link)
+  // Default: form mode
   return (
-    <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-16 h-16 rounded-full bg-[#D4DCFF] flex items-center justify-center">
-          {status === 'arrived' ? <MapPin className="w-8 h-8 text-[#1A56DB]" /> : <Car className="w-8 h-8 text-[#1A56DB]" />}
+    <>
+      {showGpsPrompt && <GpsPromptOverlay />}
+      <div className="flex flex-col gap-6 w-full max-w-sm mx-auto px-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-full bg-[#D4DCFF] flex items-center justify-center">
+            {status === 'arrived' ? <MapPin className="w-8 h-8 text-[#1A56DB]" /> : <Car className="w-8 h-8 text-[#1A56DB]" />}
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-[#191B23]">
+              {status === 'arrived' ? 'I Have Arrived' : 'Trip Completed'}
+            </h1>
+            <p className="text-[#434654] mt-1 text-sm">
+              {status === 'arrived'
+                ? 'Fill in the details below before confirming arrival'
+                : 'Enter the closing details to complete the trip'}
+            </p>
+          </div>
         </div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-[#191B23]">
-            {status === 'arrived' ? 'I Have Arrived' : 'Trip Completed'}
-          </h1>
-          <p className="text-[#434654] mt-1 text-sm">
-            {status === 'arrived'
-              ? 'Fill in the details below before confirming arrival'
-              : 'Enter the closing KM to complete the trip'}
-          </p>
-        </div>
-      </div>
 
-      <div className="space-y-4">
-        {status === 'arrived' && (
-          <>
-            <div>
-              <Label htmlFor="tripsheet" className="text-sm font-medium text-[#191B23]">Tripsheet Number *</Label>
-              <Input
-                id="tripsheet"
-                value={tripsheetNumber}
-                onChange={e => setTripsheetNumber(e.target.value)}
-                placeholder="e.g. TS-001"
-                className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                autoComplete="off"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-4">
+          {status === 'arrived' && (
+            <>
+              <div>
+                <Label htmlFor="tripsheet" className="text-sm font-medium text-[#191B23]">Tripsheet Number *</Label>
+                <Input
+                  id="tripsheet"
+                  value={tripsheetNumber}
+                  onChange={e => setTripsheetNumber(e.target.value)}
+                  placeholder="e.g. TS-001"
+                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
+                  autoComplete="off"
+                />
+              </div>
               <div>
                 <Label htmlFor="opening_km" className="text-sm font-medium text-[#191B23]">Opening KM *</Label>
                 <Input
@@ -459,40 +528,32 @@ function DriverStatusContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="opening_time" className="text-sm font-medium text-[#191B23]">Opening Time *</Label>
-                <Input
-                  id="opening_time"
-                  type="time"
-                  value={openingTime}
-                  onChange={e => setOpeningTime(e.target.value)}
-                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                />
+                <Label className="text-sm font-medium text-[#191B23]">Opening Time *</Label>
+                <TimePicker value={openingTime} onChange={setOpeningTime} />
               </div>
+            </>
+          )}
+
+          {status === 'completed' && (serverOpeningKm != null || serverOpeningTime) && (
+            <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
+              {serverOpeningKm != null && (
+                <div className="flex justify-between">
+                  <span className="text-[#737686]">Opening KM</span>
+                  <span className="font-semibold text-[#191B23]">{serverOpeningKm.toLocaleString()}</span>
+                </div>
+              )}
+              {serverOpeningTime && (
+                <div className="flex justify-between mt-1">
+                  <span className="text-[#737686]">Opening Time</span>
+                  <span className="font-semibold text-[#191B23]">{fmtTime(serverOpeningTime)}</span>
+                </div>
+              )}
             </div>
-          </>
-        )}
+          )}
 
-        {status === 'completed' && (serverOpeningKm != null || serverOpeningTime) && (
-          <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
-            {serverOpeningKm != null && (
-              <div className="flex justify-between">
-                <span className="text-[#737686]">Opening KM</span>
-                <span className="font-semibold text-[#191B23]">{serverOpeningKm.toLocaleString()}</span>
-              </div>
-            )}
-            {serverOpeningTime && (
-              <div className="flex justify-between mt-1">
-                <span className="text-[#737686]">Opening Time</span>
-                <span className="font-semibold text-[#191B23]">{serverOpeningTime}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {status === 'completed' && (
-          <>
-            <div className="grid grid-cols-2 gap-3">
+          {status === 'completed' && (
+            <>
               <div>
                 <Label htmlFor="closing_km" className="text-sm font-medium text-[#191B23]">Closing KM *</Label>
                 <Input
@@ -506,44 +567,38 @@ function DriverStatusContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="closing_time" className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
-                <Input
-                  id="closing_time"
-                  type="time"
-                  value={closingTime}
-                  onChange={e => setClosingTime(e.target.value)}
-                  className="mt-1.5 border-[#C3C5D7] h-12 text-base"
-                />
+                <Label className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
+                <TimePicker value={closingTime} onChange={setClosingTime} />
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
-                <Input id="toll" type="number" inputMode="decimal" value={tollAmount} onChange={e => setTollAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
+                  <Input id="toll" type="number" inputMode="decimal" value={tollAmount} onChange={e => setTollAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+                </div>
+                <div>
+                  <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
+                  <Input id="parking" type="number" inputMode="decimal" value={parkingAmount} onChange={e => setParkingAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+                </div>
+                <div>
+                  <Label htmlFor="permit" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
+                  <Input id="permit" type="number" inputMode="decimal" value={permitAmount} onChange={e => setPermitAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="parking" className="text-sm font-medium text-[#191B23]">Parking <span className="font-normal text-[#737686]">(₹)</span></Label>
-                <Input id="parking" type="number" inputMode="decimal" value={parkingAmount} onChange={e => setParkingAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
-              </div>
-              <div>
-                <Label htmlFor="permit" className="text-sm font-medium text-[#191B23]">Permit <span className="font-normal text-[#737686]">(₹)</span></Label>
-                <Input id="permit" type="number" inputMode="decimal" value={permitAmount} onChange={e => setPermitAmount(e.target.value)} placeholder="0" className="mt-1.5 border-[#C3C5D7] h-12 text-base" />
-              </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
+          {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}
 
-        <Button
-          className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
-          onClick={status === 'arrived' ? handleArrivedSubmit : handleCompletedSubmit}
-          disabled={loading}
-        >
-          {loading ? 'Updating…' : status === 'arrived' ? 'Confirm Arrival' : 'Mark Trip Completed'}
-        </Button>
+          <Button
+            className="w-full h-14 text-base font-semibold bg-[#1A56DB] hover:bg-[#003FB1] rounded-xl mt-2"
+            onClick={status === 'arrived' ? handleArrivedSubmit : handleCompletedSubmit}
+            disabled={loading}
+          >
+            {loading ? 'Updating…' : status === 'arrived' ? 'Confirm Arrival' : 'Mark Trip Completed'}
+          </Button>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
