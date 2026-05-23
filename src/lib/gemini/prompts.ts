@@ -34,13 +34,13 @@ Extract booking details from the message below. The sender's phone number and em
 
 IMPORTANT — READ THE SUBJECT LINE: The email subject often contains critical booking information that does not appear in the body — including the pickup date, destination, guest name, or trip purpose. Always extract from the subject line first, then fill in from the body. Example: subject "Cab for Vendor Visit - Hebbal on 08th March 24" gives drop_location=Hebbal and pickup_date=2024-03-08 even if the body omits them.
 
-TODAY'S DATE (IST): {today}
+TODAY'S DATE (IST): {today} ({day_of_week})
 
 DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as words:
 - "today" → {today}
 - "tomorrow" → the day after {today}
 - "day after tomorrow" → 2 days after {today}
-- Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day (if today is that day, use next week's occurrence)
+- Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day, counting forward from {today} ({day_of_week}). If today IS that day, use next week's occurrence instead.
 - Partial dates ("1st May", "May 1", "1/5", "01-05") → resolve to the correct YYYY-MM-DD using the current or next year as appropriate
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26", "09-05-26") → expand YY to 20YY; "09.05.26" = 2026-05-09
@@ -280,13 +280,13 @@ If classification is NOT "booking", set bookings = [], resolved_keywords = {}, n
 
 IMPORTANT — READ THE SUBJECT LINE: The email subject often contains critical booking information that does not appear in the body — including the pickup date, destination, guest name, or trip purpose. Always extract from the subject line first, then fill in from the body.
 
-TODAY'S DATE (IST): {today}
+TODAY'S DATE (IST): {today} ({day_of_week})
 
 DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as words:
 - "today" → {today}
 - "tomorrow" → the day after {today}
 - "day after tomorrow" → 2 days after {today}
-- Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day (if today is that day, use next week's occurrence)
+- Day of week ("Monday", "Tuesday", etc.) → the NEXT upcoming date that falls on that day, counting forward from {today} ({day_of_week}). If today IS that day, use next week's occurrence instead.
 - Partial dates ("1st May", "May 1", "1/5", "01-05") → resolve to the correct YYYY-MM-DD using the current or next year as appropriate
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26", "09-05-26") → expand YY to 20YY; "09.05.26" = 2026-05-09
@@ -633,12 +633,12 @@ IMPORTANT: Short acknowledgements or confirmations WITHOUT any trip details are 
 - "No", "OK", "Yes", "Thanks", "Okay", "Fine", "Sure", "Got it" (alone, no trip details) → "other"
 - Any single word or very short reply that mentions no location, date, time, or destination → "other"
 
-TODAY (IST): {today}
+TODAY (IST): {today} ({day_of_week})
 
 === DATE RULES ===
 - "today" → {today}
 - "tomorrow" → {tomorrow}
-- Day names ("Monday" etc.) → next upcoming occurrence of that day
+- Day names ("Monday" etc.) → next upcoming occurrence of that day, counting forward from {today} ({day_of_week})
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26") → expand to 20YY; "09.05.26" = 2026-05-09
 - Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.

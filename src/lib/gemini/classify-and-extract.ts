@@ -21,6 +21,12 @@ function getTodayIST(): string {
   return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
 }
 
+function getDayOfWeekIST(): string {
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  return days[new Date(Date.now() + istOffset).getUTCDay()]
+}
+
 const SAFE_EMPTY_BOOKING: ExtractedBooking = {
   extracted: {
     pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null,
@@ -47,8 +53,10 @@ export async function classifyAndExtract(
     : '{}'
   const locationsJson = JSON.stringify(savedLocations.map(l => ({ keyword: l.keyword, address: l.address })))
   const today = getTodayIST()
+  const dayOfWeek = getDayOfWeekIST()
   const prompt = CLASSIFY_AND_EXTRACT_PROMPT
     .replace(/{today}/g, today)
+    .replace(/{day_of_week}/g, dayOfWeek)
     .replace('{message}', message)
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)

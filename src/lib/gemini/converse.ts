@@ -49,6 +49,12 @@ function getTodayIST(): string {
   return ist.toISOString().slice(0, 10)
 }
 
+function getDayOfWeekIST(): string {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const ist = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+  return days[ist.getUTCDay()]
+}
+
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() + days)
@@ -81,6 +87,7 @@ export async function converseBooking(
   const model = getGeminiModel()
   const today = getTodayIST()
   const tomorrow = addDays(today, 1)
+  const dayOfWeek = getDayOfWeekIST()
 
   const conversationText = messages
     .map(m => `${m.role === 'client' ? 'Client' : 'Agent'}: ${m.content}`)
@@ -102,6 +109,7 @@ export async function converseBooking(
   const prompt = CONVERSATION_PROMPT
     .replace(/{today}/g, today)
     .replace(/{tomorrow}/g, tomorrow)
+    .replace(/{day_of_week}/g, dayOfWeek)
     .replace('{conversation}', conversationText)
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)
