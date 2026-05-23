@@ -26,6 +26,35 @@ function getTodayIST(): string {
   return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
 }
 
+function extractMapsUrls(text: string): { pickup_location_url: string | null; drop_location_url: string | null } {
+  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
+  const matches = [...text.matchAll(urlRegex)]
+  if (matches.length === 0) return { pickup_location_url: null, drop_location_url: null }
+
+  let pickupUrl: string | null = null
+  let dropUrl: string | null = null
+
+  for (const match of matches) {
+    const url = match[0]
+    const pos = match.index ?? 0
+    const surroundingText = text.slice(Math.max(0, pos - 80), pos + url.length + 80).toLowerCase()
+    const isDropContext = /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(surroundingText)
+    const isPickupContext = /\b(pick\s*up|pickup|from\s*:|departing|start|board)\b/.test(surroundingText)
+
+    if (isDropContext && !dropUrl) {
+      dropUrl = url
+    } else if (isPickupContext && !pickupUrl) {
+      pickupUrl = url
+    } else if (!pickupUrl) {
+      pickupUrl = url
+    } else if (!dropUrl) {
+      dropUrl = url
+    }
+  }
+
+  return { pickup_location_url: pickupUrl, drop_location_url: dropUrl }
+}
+
 
 function buildWhatsAppConfirmation(
   clientName: string,
@@ -178,6 +207,7 @@ export async function POST(request: Request) {
     }
 
     const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
+    const mapsUrls = extractMapsUrls(message)
     const result = await classifyAndExtract(message, client, savedLocations)
 
     await supabase
@@ -349,6 +379,8 @@ export async function POST(request: Request) {
           gmail_thread_id: (channel === 'email' && gmail_thread_id) ? gmail_thread_id : null,
           pickup_location: bk.extracted.pickup_location,
           drop_location: bk.extracted.drop_location,
+          pickup_location_url: mapsUrls.pickup_location_url,
+          drop_location_url: mapsUrls.drop_location_url,
           pickup_date: bk.extracted.pickup_date,
           pickup_time: bk.extracted.pickup_time,
           pax_count: bk.extracted.pax_count,

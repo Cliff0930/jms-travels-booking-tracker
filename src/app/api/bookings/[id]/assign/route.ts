@@ -75,7 +75,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Guest: ${guestName}`,
       `Guest Phone: ${guestPhone}`,
       `Pickup: ${booking.pickup_location || 'TBD'}`,
+      booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
       `Drop: ${booking.drop_location || 'TBD'}`,
+      booking.drop_location_url ? `Drop Map: ${booking.drop_location_url}` : null,
       `Date: ${formatDate(booking.pickup_date)}`,
       `Time: ${formatTime(booking.pickup_time)}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
@@ -85,7 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Completed: ${completedLink}`,
       ``,
       `— JMS Travels`,
-    ].join('\n')
+    ].filter(line => line !== null).join('\n')
 
     const result = await sendWhatsAppTemplate({
       to: driver.phone,

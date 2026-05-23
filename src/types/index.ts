@@ -158,6 +158,8 @@ export interface Booking {
   service_type: ServiceType
   pickup_location: string | null
   drop_location: string | null
+  pickup_location_url: string | null
+  drop_location_url: string | null
   pickup_date: string | null
   pickup_time: string | null
   pax_count: number | null

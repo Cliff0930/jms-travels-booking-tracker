@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, pax_count, guest_name, status')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, pax_count, guest_name, status')
     .eq('driver_id', verified.driverId)
     .gt('pickup_date', today)
     .not('status', 'in', '("cancelled","completed")')

@@ -654,6 +654,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                   <div className={`p-2.5 rounded border text-sm ${booking.flags?.includes('missing_pickup') ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#C3C5D7] bg-[#F3F3FE] text-[#191B23]'}`}>
                     {booking.pickup_location || 'Not provided'}
+                    {booking.pickup_location_url && (
+                      <a href={booking.pickup_location_url} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline">
+                        <MapPin className="w-3 h-3" /> Open in Google Maps
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -674,6 +679,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
                     {booking.drop_location || 'Not provided — call to confirm'}
+                    {booking.drop_location_url && (
+                      <a href={booking.drop_location_url} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline">
+                        <MapPin className="w-3 h-3" /> Open in Google Maps
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

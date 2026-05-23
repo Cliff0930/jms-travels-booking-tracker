@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_date, pickup_time, guest_name, status, pax_count')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, guest_name, status, pax_count')
     .eq('driver_id', verified.driverId)
     .in('status', ['completed', 'cancelled'])
     .order('pickup_date', { ascending: false })
