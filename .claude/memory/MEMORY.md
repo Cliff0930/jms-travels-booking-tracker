@@ -1,0 +1,22 @@
+# CabFlow Project Memory
+
+- [CabFlow project](project_cabflow.md) — Full platform state: WhatsApp/email/GPS flows, driver tripsheet, reimbursements module, bata rate system, DB wipe 2026-05-17, SQL migrations current as of 2026-05-22
+- [CabFlow coding patterns](feedback_cabflow_patterns.md) — Required patterns for shadcn base-ui, Select null guard, Zod coerce workaround, Supabase bypass
+- [Deployment via GitHub](feedback_deployment.md) — Push to GitHub = auto-deploy to booking.jmstravels.net via Vercel. Never use Vercel CLI.
+- [Vercel deployment rules](feedback_vercel_deployment.md) — Hobby plan cron limit blocks all deploys if vercel.json has sub-daily cron; API fallback IDs saved here
+- [Supabase GRANT requirement](feedback_supabase_grants.md) — Every new table needs explicit GRANT or PostgREST silently blocks all access (caused WhatsApp outage 2026-05-01)
+- [PostgreSQL reserved word quoting](feedback_postgres_reserved_words.md) — Column 'role' needs double-quotes in ON CONFLICT DO UPDATE SET "role" = ...
+- [Launch plan](project_launch_plan.md) — Site is live test env; full data wipe planned before real launch. Truncate SQL ready to write when asked.
+- [PostgREST ambiguous FK](feedback_postgrest_ambiguous_fk.md) — Two FK columns to same table = 500 on unqualified joins; always use !column_id hint (broke clients page 2026-05-07)
+- [Gmail CC loop prevention](feedback_email_loop_prevention.md) — Never forward own address in CC; historyId must advance BEFORE history.list; self-email skip must stay (2026-05-11 incident)
+- [Timestamp column names](feedback_table_timestamp_columns.md) — raw_messages=received_at, message_logs=sent_at, all others=created_at
+- [Corporate email booking patterns](project_email_patterns.md) — Real email format from Licious: Name: X,Y = 2 pax, Contact number = guest_phone, Department/Purpose = special_instructions
+- [WhatsApp booking patterns](project_whatsapp_patterns.md) — CDAC coordinator patterns: full day+return, ministry affiliation in name, bulk escalation at 3+ phones, pointer emoji text alternatives
+- [Middleware public paths](feedback_middleware_public_paths.md) — src/proxy.ts is the middleware (not middleware.ts); add new public routes to isPublicPath or external users get login-walled
+- [Email signature](feedback_email_signature.md) — DEFAULT_SIGNATURE in src/lib/gmail/send.ts; no settings UI; current sig includes Phone: 9845572207
+- [Gmail service account auth](feedback_gmail_service_account.md) — Gmail uses service account + domain-wide delegation (NOT OAuth). bookings@jmstravels.net impersonated. OAuth was blocked by Workspace restrictions (2026-05-20 fix)
+- [Billing software plan](project_billing_plan.md) — Build inside CabFlow (same app); rate cards, invoices, PDF via @react-pdf/renderer; DB tables defined; parked until user ready
+- [WhatsApp delivery fixes](feedback_whatsapp_delivery.md) — Templates required for all outbound (free-form silently drops after 24h); phone normalization for bare Indian numbers; whatsapp_message_id column needed in message_logs
+- [Guest client linking pattern](feedback_guest_client_linking.md) — Always capture returned ID from guest insert + update booking's guest_client_id; missing this is a recurring bug (fixed in parse-message 2026-05-20)
+- [Driver app](project_driver_app_plan.md) — BUILT 2026-05-21. React Native + Expo, APK deployed, OTA updates via EAS, PIN login, 8 screens. Repo: /driver-app. EAS: @jmstravelprabhu/jms-driver.
+- [Explain before editing](feedback_explain_before_edit.md) — Always describe the change before executing any Edit/Write tool call; wait for user confirmation.
