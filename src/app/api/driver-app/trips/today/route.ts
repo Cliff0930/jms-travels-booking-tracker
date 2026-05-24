@@ -13,9 +13,9 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const today = getTodayIST()
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('bookings')
-    .select('id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, pax_count, guest_name, guest_phone, special_instructions, status, gps_tracking_enabled, trip_type, booking_legs(id, day_number, leg_date, pickup_location, drop_location, pickup_time), clients!guest_client_id(is_vip, designation)')
+    .select('id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, pax_count, guest_name, guest_phone, special_instructions, status, gps_tracking_enabled, trip_type, booking_legs(id, day_number, leg_date), clients!guest_client_id(is_vip, designation)')
     .eq('driver_id', verified.driverId)
     .eq('pickup_date', today)
     .not('status', 'in', '("cancelled","completed")')
@@ -23,13 +23,7 @@ export async function GET(request: Request) {
     .limit(1)
     .maybeSingle()
 
-  if (!data) {
-    const res = NextResponse.json(null)
-    res.headers.set('x-debug-driver', verified.driverId)
-    res.headers.set('x-debug-today', today)
-    res.headers.set('x-debug-error', error?.message ?? 'no_error_no_data')
-    return res
-  }
+  if (!data) return NextResponse.json(null)
   const { pickup_date, pickup_time, pax_count, clients: clientData, ...rest } = data
 
   let active_tripsheet: { tripsheet_number: string | null; opening_km: number | null; manual_opening_time: string | null } | null = null
