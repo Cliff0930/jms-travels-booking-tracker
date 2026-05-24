@@ -191,6 +191,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showCompleteEarly, setShowCompleteEarly] = useState(false)
   const [completeEarlyReason, setCompleteEarlyReason] = useState('')
   const [completingEarly, setCompletingEarly] = useState(false)
+  const [overridingStatus, setOverridingStatus] = useState(false)
+  const [editingSheet, setEditingSheet] = useState(false)
+  const [sheetEditForm, setSheetEditForm] = useState<{
+    tripsheet_number: string; opening_km: string; closing_km: string
+    manual_opening_time: string; manual_closing_time: string
+    toll_amount: string; parking_amount: string; permit_amount: string
+  } | null>(null)
+  const [savingSheet, setSavingSheet] = useState(false)
   const canEdit = useCanEdit()
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
@@ -441,6 +449,70 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.error(err instanceof Error ? err.message : 'Failed')
     } finally {
       setCompletingEarly(false)
+    }
+  }
+
+  async function handleOverrideStatus(newStatus: 'confirmed' | 'in_progress' | 'completed') {
+    setOverridingStatus(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}/override-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      void refetchTripSheet()
+      toast.success(`Status updated to ${newStatus.replace('_', ' ')}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setOverridingStatus(false)
+    }
+  }
+
+  function startEditSheet(sheet: TripSheet) {
+    setSheetEditForm({
+      tripsheet_number:    sheet.tripsheet_number    ?? '',
+      opening_km:          sheet.opening_km          != null ? String(sheet.opening_km)    : '',
+      closing_km:          sheet.closing_km           != null ? String(sheet.closing_km)    : '',
+      manual_opening_time: sheet.manual_opening_time ?? '',
+      manual_closing_time: sheet.manual_closing_time ?? '',
+      toll_amount:         sheet.toll_amount         != null ? String(sheet.toll_amount)   : '',
+      parking_amount:      sheet.parking_amount      != null ? String(sheet.parking_amount): '',
+      permit_amount:       sheet.permit_amount       != null ? String(sheet.permit_amount) : '',
+    })
+    setEditingSheet(true)
+  }
+
+  async function handleSaveSheet() {
+    if (!sheetEditForm || !tripSheet) return
+    setSavingSheet(true)
+    try {
+      const body = {
+        tripsheet_number:    sheetEditForm.tripsheet_number    || null,
+        opening_km:          sheetEditForm.opening_km          !== '' ? Number(sheetEditForm.opening_km)    : null,
+        closing_km:          sheetEditForm.closing_km           !== '' ? Number(sheetEditForm.closing_km)    : null,
+        manual_opening_time: sheetEditForm.manual_opening_time || null,
+        manual_closing_time: sheetEditForm.manual_closing_time || null,
+        toll_amount:         sheetEditForm.toll_amount         !== '' ? Number(sheetEditForm.toll_amount)   : null,
+        parking_amount:      sheetEditForm.parking_amount      !== '' ? Number(sheetEditForm.parking_amount): null,
+        permit_amount:       sheetEditForm.permit_amount       !== '' ? Number(sheetEditForm.permit_amount) : null,
+      }
+      const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      await refetchTripSheet()
+      setEditingSheet(false)
+      setSheetEditForm(null)
+      toast.success('Tripsheet updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSavingSheet(false)
     }
   }
 
@@ -1171,6 +1243,51 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Complete Early
                 </Button>
               )}
+              {booking.driver_id && !['cancelled'].includes(booking.status) && (
+                <div className="border-t border-[#C3C5D7] pt-2 mt-1 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686]">Force Status</p>
+                  {booking.status === 'confirmed' && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-sm text-[#D97706] border-[#FDE68A] hover:bg-[#FFFBEB]"
+                      disabled={overridingStatus}
+                      onClick={() => { if (confirm('Mark trip as Arrived / In Progress?')) void handleOverrideStatus('in_progress') }}
+                    >
+                      <Radio className="w-4 h-4 mr-2" /> Mark Arrived
+                    </Button>
+                  )}
+                  {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-sm text-[#059669] border-[#6EE7B7] hover:bg-[#ECFDF5]"
+                      disabled={overridingStatus}
+                      onClick={() => { if (confirm('Force complete this trip? Driver will be released.')) void handleOverrideStatus('completed') }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" /> Force Complete
+                    </Button>
+                  )}
+                  {booking.status === 'in_progress' && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-sm text-[#737686] border-[#C3C5D7] hover:bg-[#F3F3FE]"
+                      disabled={overridingStatus}
+                      onClick={() => { if (confirm('Revert trip back to Confirmed?')) void handleOverrideStatus('confirmed') }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" /> Revert to Confirmed
+                    </Button>
+                  )}
+                  {booking.status === 'completed' && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-sm text-[#737686] border-[#C3C5D7] hover:bg-[#F3F3FE]"
+                      disabled={overridingStatus}
+                      onClick={() => { if (confirm('Revert trip back to In Progress?')) void handleOverrideStatus('in_progress') }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" /> Revert to In Progress
+                    </Button>
+                  )}
+                </div>
+              )}
               <Button
                 variant="outline"
                 className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
@@ -1283,9 +1400,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <Gauge className="w-4 h-4 text-[#1A56DB]" />
                   Tripsheet
                 </h2>
-                <button onClick={() => void refetchTripSheet()} className="text-xs text-[#737686] hover:text-[#1A56DB] flex items-center gap-1">
-                  <RefreshCw className="w-3 h-3" /> Refresh
-                </button>
+                <div className="flex items-center gap-3">
+                  {canEdit && tripSheet && !editingSheet && (
+                    <button onClick={() => startEditSheet(tripSheet)} className="text-xs text-[#1A56DB] hover:underline flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                  )}
+                  <button onClick={() => void refetchTripSheet()} className="text-xs text-[#737686] hover:text-[#1A56DB] flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                  </button>
+                </div>
               </div>
 
               {/* Day tabs for local multi-day trips */}
@@ -1313,6 +1437,55 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
               {tripSheet && tripSheet.tripsheet_number && (
                 <p className="text-xs text-[#737686] mb-3">Sheet No. <span className="font-semibold text-[#191B23]">{tripSheet.tripsheet_number}</span></p>
+              )}
+
+              {tripSheet && editingSheet && sheetEditForm && (
+                <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-4 mb-4 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#D97706]">Edit Tripsheet</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-[#737686]">Sheet No.</Label>
+                      <Input className="h-8 text-sm mt-1" value={sheetEditForm.tripsheet_number} onChange={e => setSheetEditForm(f => f && ({ ...f, tripsheet_number: e.target.value }))} placeholder="e.g. 2001" />
+                    </div>
+                    <div />
+                    <div>
+                      <Label className="text-xs text-[#737686]">Opening KM</Label>
+                      <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.opening_km} onChange={e => setSheetEditForm(f => f && ({ ...f, opening_km: e.target.value }))} placeholder="0" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Closing KM</Label>
+                      <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.closing_km} onChange={e => setSheetEditForm(f => f && ({ ...f, closing_km: e.target.value }))} placeholder="0" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Opening Time</Label>
+                      <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.manual_opening_time} onChange={e => setSheetEditForm(f => f && ({ ...f, manual_opening_time: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Closing Time</Label>
+                      <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.manual_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, manual_closing_time: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Toll (₹)</Label>
+                      <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.toll_amount} onChange={e => setSheetEditForm(f => f && ({ ...f, toll_amount: e.target.value }))} placeholder="0" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Parking (₹)</Label>
+                      <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.parking_amount} onChange={e => setSheetEditForm(f => f && ({ ...f, parking_amount: e.target.value }))} placeholder="0" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Permit (₹)</Label>
+                      <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.permit_amount} onChange={e => setSheetEditForm(f => f && ({ ...f, permit_amount: e.target.value }))} placeholder="0" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleSaveSheet} disabled={savingSheet}>
+                      {savingSheet ? 'Saving…' : 'Save Changes'}
+                    </Button>
+                    <Button size="sm" variant="outline" className="rounded-sm" onClick={() => { setEditingSheet(false); setSheetEditForm(null) }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {tripSheet && <div>
