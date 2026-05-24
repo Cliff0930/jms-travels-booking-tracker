@@ -49,6 +49,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (booking.driver_id && booking.driver_id !== driver_id) {
+    await supabase.from('drivers').update({ status: 'available' }).eq('id', booking.driver_id)
+  }
   await supabase.from('drivers').update({ status: 'on_duty' }).eq('id', driver_id)
 
   // Send trip brief to driver via WhatsApp
