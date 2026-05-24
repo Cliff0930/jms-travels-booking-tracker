@@ -13,15 +13,31 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const today = getTodayIST()
 
-  const { data } = await supabase
+  // Find today's current trip (same logic as Today tab: earliest pending trip today)
+  const { data: todayTrip } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('driver_id', verified.driverId)
+    .eq('pickup_date', today)
+    .not('status', 'in', '("cancelled","completed")')
+    .order('pickup_time', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  // Upcoming = all pending trips from today onwards, excluding the one shown in Today tab
+  let query = supabase
     .from('bookings')
     .select('id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, pax_count, guest_name, guest_phone, special_instructions, status, gps_tracking_enabled, trip_type, booking_legs(id, day_number, leg_date), booker:clients!client_id(name, primary_phone), clients!guest_client_id(is_vip, designation)')
     .eq('driver_id', verified.driverId)
-    .gt('pickup_date', today)
+    .gte('pickup_date', today)
     .not('status', 'in', '("cancelled","completed")')
     .order('pickup_date', { ascending: true })
     .order('pickup_time', { ascending: true })
     .limit(30)
+
+  if (todayTrip) query = query.neq('id', todayTrip.id)
+
+  const { data } = await query
 
   return NextResponse.json((data ?? []).map(({ pickup_date, pickup_time, pax_count, guest_name, guest_phone, clients: clientData, booker: bookerData, ...rest }) => {
     const cd = clientData as { is_vip?: boolean | null; designation?: string | null } | null
