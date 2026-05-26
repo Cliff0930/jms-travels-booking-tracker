@@ -282,7 +282,7 @@ export async function POST(request: Request) {
   const adminPhone = client?.primary_phone || null
   const clientName = booking.guest_name || client?.name || 'there'
 
-  const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+  const phones = [guestPhone || adminPhone].filter(Boolean) as string[]
 
   if (phones.length > 0 && driver) {
     const vehicleLine = [driver.vehicle_name, driver.vehicle_color ? `(${driver.vehicle_color})` : null].filter(Boolean).join(' ')
