@@ -166,6 +166,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     const guestNameForDriver = booking.guest_name || client?.name || 'Guest'
     const guestPhoneForDriver = booking.guest_phone || client?.primary_phone || 'TBD'
+    const companyName = (booking.company as { name?: string } | null)?.name || null
     const [arrivedLink, completedLink] = await Promise.all([
       createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
       createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
@@ -186,7 +187,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       completedLink,
     ]
 
-    const companyName = (booking.company as { name?: string } | null)?.name || null
     body = [
       `Hi ${driver.name}, you have a new assignment.`,
       ``,
