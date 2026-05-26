@@ -208,6 +208,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [resendRecipient, setResendRecipient] = useState('')
   const [resendSending, setResendSending] = useState(false)
 
+  // Copy message dialog
+  const [showCopyMessage, setShowCopyMessage] = useState(false)
+  const [copyType, setCopyType] = useState<'booking_confirmed' | 'driver_details' | 'trip_brief_driver'>('booking_confirmed')
+  const [copyChannel, setCopyChannel] = useState<'whatsapp' | 'email'>('whatsapp')
+  const [copyPreview, setCopyPreview] = useState<{ body: string; subject: string } | null>(null)
+  const [copyLoading, setCopyLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
@@ -401,6 +409,32 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setResendSending(false)
     }
+  }
+
+  async function fetchCopyPreview(type: string, channel: string) {
+    setCopyLoading(true)
+    setCopyPreview(null)
+    setCopied(false)
+    try {
+      const res = await fetch(`/api/bookings/${id}/message-preview?type=${type}&channel=${channel}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setCopyPreview(json)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load preview')
+    } finally {
+      setCopyLoading(false)
+    }
+  }
+
+  async function handleCopyToClipboard() {
+    if (!copyPreview) return
+    const text = copyChannel === 'email'
+      ? `Subject: ${copyPreview.subject}\n\n${copyPreview.body}`
+      : copyPreview.body
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
   }
 
   async function handleGpsToggle(enabled: boolean) {
@@ -1441,6 +1475,23 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Resend Message
               </Button>
+              <Button
+                variant="outline"
+                className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
+                onClick={() => {
+                  const defaultType = 'booking_confirmed'
+                  const defaultChannel = 'whatsapp'
+                  setCopyType(defaultType)
+                  setCopyChannel(defaultChannel)
+                  setCopyPreview(null)
+                  setCopied(false)
+                  setShowCopyMessage(true)
+                  void fetchCopyPreview(defaultType, defaultChannel)
+                }}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Copy Message
+              </Button>
             </div>
           </div>
           )}
@@ -2061,6 +2112,94 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
             >
               {saving ? 'Saving…' : 'Confirm Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCopyMessage} onOpenChange={setShowCopyMessage}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Copy Message Template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1.5 block text-sm">Template</Label>
+                <Select
+                  value={copyType}
+                  onValueChange={v => {
+                    if (!v) return
+                    const t = v as typeof copyType
+                    setCopyType(t)
+                    void fetchCopyPreview(t, copyChannel)
+                  }}
+                >
+                  <SelectTrigger className="border-[#C3C5D7]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="booking_confirmed">Booking Confirmation</SelectItem>
+                    {booking.driver_id && <SelectItem value="driver_details">Driver Details to Client</SelectItem>}
+                    {booking.driver_id && <SelectItem value="trip_brief_driver">Trip Brief to Driver</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm">Format</Label>
+                <Select
+                  value={copyChannel}
+                  onValueChange={v => {
+                    if (!v) return
+                    const c = v as typeof copyChannel
+                    setCopyChannel(c)
+                    void fetchCopyPreview(copyType, c)
+                  }}
+                >
+                  <SelectTrigger className="border-[#C3C5D7]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp (plain text)</SelectItem>
+                    <SelectItem value="email">Email (with subject)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block text-sm">Preview</Label>
+              {copyLoading ? (
+                <div className="h-40 flex items-center justify-center text-sm text-[#737686] border border-[#C3C5D7] rounded-md bg-[#F9FAFB]">
+                  Generating…
+                </div>
+              ) : copyPreview ? (
+                <div className="border border-[#C3C5D7] rounded-md bg-[#F9FAFB] p-3 text-xs font-mono text-[#191B23] whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {copyChannel === 'email' && (
+                    <div className="text-[#737686] mb-2 pb-2 border-b border-[#E5E7EB]">
+                      Subject: {copyPreview.subject}
+                    </div>
+                  )}
+                  {copyPreview.body}
+                </div>
+              ) : (
+                <div className="h-40 flex items-center justify-center text-sm text-[#737686] border border-[#C3C5D7] rounded-md bg-[#F9FAFB]">
+                  —
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCopyMessage(false)}>Close</Button>
+            <Button
+              disabled={!copyPreview || copyLoading}
+              className={cn(
+                'rounded-sm',
+                copied ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-[#1A56DB] hover:bg-[#003FB1] text-white'
+              )}
+              onClick={handleCopyToClipboard}
+            >
+              {copied ? '✓ Copied!' : 'Copy to Clipboard'}
             </Button>
           </DialogFooter>
         </DialogContent>
