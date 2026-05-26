@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useCreateBooking } from '@/hooks/useBookings'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,118 @@ function PillButton({ active, onClick, children, className }: { active: boolean;
     >
       {children}
     </button>
+  )
+}
+
+function ClientSearchCombobox({
+  clients,
+  companies,
+  value,
+  onChange,
+}: {
+  clients: Client[]
+  companies: import('@/types').Company[]
+  value: string
+  onChange: (clientId: string, companyId?: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selected = clients.find(c => c.id === value)
+
+  useEffect(() => {
+    if (selected) setQuery('')
+  }, [selected])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filtered = query.trim().length === 0 ? [] : clients.filter(c => {
+    const q = query.toLowerCase()
+    const companyName = (c.company as { name?: string } | null)?.name?.toLowerCase() ?? ''
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.primary_phone ?? '').toLowerCase().includes(q) ||
+      (c.primary_email ?? '').toLowerCase().includes(q) ||
+      companyName.includes(q)
+    )
+  }).slice(0, 20)
+
+  function handleSelect(c: Client) {
+    onChange(c.id, c.company_id ?? undefined)
+    setQuery('')
+    setOpen(false)
+  }
+
+  function handleClear() {
+    onChange('', undefined)
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {selected && !open ? (
+        <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-[#C3C5D7] bg-white text-sm">
+          <span className="flex-1 truncate text-[#191B23] font-medium">{selected.name}</span>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-[#9CA3AF] hover:text-[#191B23] shrink-0 leading-none"
+            aria-label="Clear client"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={query}
+          placeholder={selected ? selected.name : 'Search by name, phone, email or company…'}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          className="w-full h-9 px-3 rounded-md border border-[#C3C5D7] bg-white text-sm text-[#191B23] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#1A56DB] focus:border-transparent"
+        />
+      )}
+
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {filtered.map(c => {
+            const companyName = (c.company as { name?: string } | null)?.name
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => handleSelect(c)}
+                className="w-full text-left px-3 py-2.5 hover:bg-[#EEF2FF] transition-colors border-b border-[#F3F4F6] last:border-0"
+              >
+                <div className="text-sm font-medium text-[#191B23]">{c.name}</div>
+                <div className="flex gap-2 mt-0.5">
+                  {companyName && <span className="text-xs text-[#1A56DB]">{companyName}</span>}
+                  {c.primary_phone && <span className="text-xs text-[#737686]">{c.primary_phone}</span>}
+                  {c.primary_email && !c.primary_phone && <span className="text-xs text-[#737686]">{c.primary_email}</span>}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {open && query.trim().length > 0 && filtered.length === 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-lg shadow-lg px-3 py-3 text-sm text-[#9CA3AF]">
+          No clients found for &ldquo;{query}&rdquo;
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -217,21 +329,15 @@ function NewBookingForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Client</Label>
-                  <Select value={form.client_id} items={clients.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => {
-                      if (v === null) return
-                      setField('client_id', v)
-                      const picked = clients.find(c => c.id === v)
-                      if (picked?.company_id && !form.company_id) {
-                        setField('company_id', picked.company_id)
-                      }
-                    }}>
-                    <SelectTrigger className="border-[#C3C5D7] h-9">
-                      <SelectValue placeholder="Select client…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <ClientSearchCombobox
+                    clients={clients}
+                    companies={companies}
+                    value={form.client_id}
+                    onChange={(clientId, companyId) => {
+                      setField('client_id', clientId)
+                      if (companyId && !form.company_id) setField('company_id', companyId)
+                    }}
+                  />
                 </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
