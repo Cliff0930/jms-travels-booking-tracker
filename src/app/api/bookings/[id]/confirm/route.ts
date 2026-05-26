@@ -121,6 +121,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
           subject: `Your booking is confirmed - ${booking.booking_ref}`,
           body,
           cc: bookingCc.length > 0 ? bookingCc : undefined,
+          booking_id: id,
         })
         emailStatus = result.ok ? 'sent' : 'failed'
         if (!result.ok) console.error(`[confirm] Email failed booking=${id} error=${result.error}`)
@@ -162,6 +163,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
               booking.special_instructions || '-',
             ],
             fallbackBody: body,
+            costBookingId: id,
           }))
         )
         const okResult = results.find(r => r.ok)
@@ -171,7 +173,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       } else if (email) {
         channel = 'email'
         recipient = email
-        const result = await sendEmailSafe({ to: email, subject: `Your booking is confirmed - ${booking.booking_ref}`, body })
+        const result = await sendEmailSafe({ to: email, subject: `Your booking is confirmed - ${booking.booking_ref}`, body, booking_id: id })
         sendStatus = result.ok ? 'sent' : 'failed'
         if (!result.ok) console.error(`[confirm] Fallback email failed booking=${id} error=${result.error}`)
       }

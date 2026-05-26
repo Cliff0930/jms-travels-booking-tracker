@@ -62,7 +62,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if ((channel === 'email' || channel === 'both') && hasEmailApprovers) {
     const results = await Promise.all(
-      company.approver_emails.map((email: string) => sendEmailSafe({ to: email, subject, body: emailBody }))
+      company.approver_emails.map((email: string) => sendEmailSafe({ to: email, subject, body: emailBody, booking_id: id }))
     )
     const anyOk = results.some(r => r.ok)
     if (!anyOk) console.error(`[send-approval] All email sends failed booking=${id}`, results)
@@ -93,7 +93,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     ]
     const results = await Promise.all(
       company.approver_whatsapp.map((phone: string) =>
-        sendWhatsAppTemplate({ to: phone, templateName: 'jms_approval_request', params: approvalTemplateParams, fallbackBody: `${baseBody}\n\nApprove: ${approveUrl}\nReject: ${rejectUrl}` })
+        sendWhatsAppTemplate({ to: phone, templateName: 'jms_approval_request', params: approvalTemplateParams, fallbackBody: `${baseBody}\n\nApprove: ${approveUrl}\nReject: ${rejectUrl}`, costBookingId: id })
       )
     )
     const anyOk = results.some(r => r.ok)

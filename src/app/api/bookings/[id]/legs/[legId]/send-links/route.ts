@@ -63,6 +63,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     templateName: 'jms_leg_day_links',
     params: [String(leg.day_number), booking.booking_ref, legDate, arrivedLink, completedLink],
     fallbackBody,
+    costBookingId: id,
   })
   if (!result.ok) return NextResponse.json({ error: result.error || 'WhatsApp send failed' }, { status: 500 })
 

@@ -55,7 +55,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if ((channel === 'email' || channel === 'both') && hasEmailApprovers) {
     const results = await Promise.all(
       company.approver_emails.map((email: string) =>
-        sendEmailSafe({ to: email, subject: `REMINDER: Approval Required — ${booking.booking_ref}`, body: chaseBody })
+        sendEmailSafe({ to: email, subject: `REMINDER: Approval Required — ${booking.booking_ref}`, body: chaseBody, booking_id: id })
       )
     )
     const anyOk = results.some(r => r.ok)
@@ -78,6 +78,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
           templateName: 'jms_approval_chase',
           params: [approverName, booking.booking_ref, formatDate(booking.pickup_date), formatTime(booking.pickup_time)],
           fallbackBody: chaseBody,
+          costBookingId: id,
         })
       )
     )

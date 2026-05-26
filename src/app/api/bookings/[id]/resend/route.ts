@@ -205,12 +205,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let waMessageId: string | undefined
 
   if (channel === 'whatsapp') {
-    const result = await sendWhatsAppTemplate({ to: recipient, templateName, params: templateParams, fallbackBody: body })
+    const result = await sendWhatsAppTemplate({ to: recipient, templateName, params: templateParams, fallbackBody: body, costBookingId: id })
     sendOk = result.ok
     sendError = result.error
     waMessageId = result.whatsappMessageId
   } else {
-    const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined })
+    const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined, booking_id: id })
     sendOk = result.ok
     sendError = result.error
   }

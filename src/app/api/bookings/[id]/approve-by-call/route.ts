@@ -74,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if ((channel === 'email' || channel === 'both') && company.approver_emails?.length) {
       const results = await Promise.all(
         company.approver_emails.map((email: string) =>
-          sendEmailSafe({ to: email, subject: `Verbal Approval Confirmed — ${booking.booking_ref}`, body: ackBody })
+          sendEmailSafe({ to: email, subject: `Verbal Approval Confirmed — ${booking.booking_ref}`, body: ackBody, booking_id: id })
         )
       )
       const anyOk = results.some(r => r.ok)
@@ -97,6 +97,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             templateName: 'jms_verbal_approval_ack',
             params: [approverName, booking.booking_ref, guestName, pickupDate],
             fallbackBody: ackBody,
+            costBookingId: id,
           })
         )
       )

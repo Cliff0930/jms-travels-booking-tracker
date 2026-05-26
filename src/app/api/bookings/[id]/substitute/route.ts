@@ -89,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             booking.pickup_location || 'TBD',
           ],
           fallbackBody: subFallbackBody,
+          costBookingId: id,
         }))
       )
       const anyOk = results.some(r => r.ok)
@@ -107,6 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         to: client.primary_email,
         subject: `Driver Update — ${booking.booking_ref}`,
         body: subFallbackBody,
+        booking_id: id,
       })
       await supabase.from('message_logs').insert({
         booking_id: id,
@@ -167,6 +169,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         completedLink,
       ],
       fallbackBody,
+      costBookingId: id,
     })
 
     await supabase.from('message_logs').insert({

@@ -34,6 +34,7 @@ interface TemplateMessage {
   params: string[]
   log?: WhatsAppTextMessage['log']
   fallbackBody?: string
+  costBookingId?: string  // log cost only (no message_log insert) — use when caller handles message_logs itself
 }
 
 export async function sendWhatsAppTemplate({
@@ -42,6 +43,7 @@ export async function sendWhatsAppTemplate({
   params,
   log,
   fallbackBody,
+  costBookingId,
 }: TemplateMessage): Promise<SendResult> {
   const normalizedTo = normalizePhone(to)
   const bodyParameters: TemplateParam[] = params.map(text => ({ type: 'text', text }))
@@ -99,6 +101,10 @@ export async function sendWhatsAppTemplate({
         })
       } catch { /* non-critical */ }
       logApiCost({ booking_id: log.booking_id, api_type: 'whatsapp', call_type: templateName, cost_usd: calcWhatsAppCost(), metadata: { to } }).catch(() => {})
+    }
+    // Log cost-only when caller manages message_logs itself
+    if (costBookingId && !log?.booking_id) {
+      logApiCost({ booking_id: costBookingId, api_type: 'whatsapp', call_type: templateName, cost_usd: calcWhatsAppCost(), metadata: { to } }).catch(() => {})
     }
 
     return { ok: true, whatsappMessageId }

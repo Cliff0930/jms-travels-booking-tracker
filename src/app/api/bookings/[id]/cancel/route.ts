@@ -73,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (booking.source === 'email' && client?.primary_email) {
       // Email-source bookings: notify via email (same channel they used to book)
-      const result = await sendEmailSafe({ to: client.primary_email, subject, body, cc: bookingCc.length > 0 ? bookingCc : undefined })
+      const result = await sendEmailSafe({ to: client.primary_email, subject, body, cc: bookingCc.length > 0 ? bookingCc : undefined, booking_id: id })
       if (!result.ok) console.error(`[cancel] Email failed booking=${id} error=${result.error}`)
       await supabase.from('message_logs').insert({
         booking_id: id, client_id: booking.client_id,
@@ -84,7 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       // Also WhatsApp the guest via template if they have a separate phone
       if (booking.guest_phone) {
-        await sendWhatsAppTemplate({ to: booking.guest_phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body }).catch(() => {})
+        await sendWhatsAppTemplate({ to: booking.guest_phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }).catch(() => {})
       }
     } else {
       // WhatsApp-source bookings: notify via template (bypasses 24h window)
@@ -94,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       if (phones.length > 0) {
         const results = await Promise.all(
-          phones.map(phone => sendWhatsAppTemplate({ to: phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body }))
+          phones.map(phone => sendWhatsAppTemplate({ to: phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }))
         )
         const anyOk = results.some(r => r.ok)
         if (!anyOk) console.error(`[cancel] WhatsApp template failed all phones booking=${id}`, results)
@@ -106,7 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           status: anyOk ? 'sent' : 'failed',
         })
       } else if (client?.primary_email) {
-        const result = await sendEmailSafe({ to: client.primary_email, subject, body })
+        const result = await sendEmailSafe({ to: client.primary_email, subject, body, booking_id: id })
         if (!result.ok) console.error(`[cancel] Fallback email failed booking=${id} error=${result.error}`)
         await supabase.from('message_logs').insert({
           booking_id: id, client_id: booking.client_id,
@@ -128,6 +128,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       templateName: 'jms_cancellation_driver',
       params: [driver.name, booking.booking_ref, vars.pickup_date, vars.pickup_time],
       fallbackBody: driverFallback,
+      costBookingId: id,
     })
     if (!result.ok) console.error(`[cancel] Driver WA failed booking=${id} error=${result.error}`)
     await supabase.from('message_logs').insert({
