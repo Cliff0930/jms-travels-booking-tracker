@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/utils/phone'
+import { logApiCost, calcWhatsAppCost } from '@/lib/api-costs'
 
 interface WhatsAppTextMessage {
   to: string
@@ -97,6 +98,7 @@ export async function sendWhatsAppTemplate({
           whatsapp_message_id: whatsappMessageId ?? null,
         })
       } catch { /* non-critical */ }
+      logApiCost({ booking_id: log.booking_id, api_type: 'whatsapp', call_type: templateName, cost_usd: calcWhatsAppCost(), metadata: { to } }).catch(() => {})
     }
 
     return { ok: true, whatsappMessageId }

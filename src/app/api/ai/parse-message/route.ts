@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { classifyAndExtract } from '@/lib/gemini/classify-and-extract'
+import { logApiCost, calcGeminiCost } from '@/lib/api-costs'
 import type { ExtractedFields } from '@/lib/gemini/extract'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
@@ -398,6 +399,12 @@ export async function POST(request: Request) {
       if (!booking) continue
 
       createdBookings.push({ booking, extracted: bk.extracted })
+
+      // Log Gemini cost against the first booking created
+      if (i === 0 && result._usage) {
+        const { tokens_in, tokens_out } = result._usage
+        logApiCost({ booking_id: booking.id as string, api_type: 'gemini', call_type: 'classify_extract', tokens_in, tokens_out, cost_usd: calcGeminiCost(tokens_in, tokens_out) }).catch(() => {})
+      }
 
       // Link first booking to the raw message
       if (i === 0) {

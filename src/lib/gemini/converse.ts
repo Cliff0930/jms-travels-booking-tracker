@@ -41,6 +41,7 @@ export interface ConversationResult {
   new_keyword_detected: string | null
   resolved_keywords: Record<string, string>
   confidence: number
+  _usage?: { tokens_in: number; tokens_out: number }
 }
 
 function getTodayIST(): string {
@@ -115,6 +116,8 @@ export async function converseBooking(
     .replace('{saved_locations}', locationsJson)
 
   const result = await model.generateContent(prompt)
+  const usage = result.response.usageMetadata
+  const _usage = { tokens_in: usage?.promptTokenCount ?? 0, tokens_out: usage?.candidatesTokenCount ?? 0 }
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
 
@@ -169,5 +172,5 @@ export async function converseBooking(
     parsed.is_complete = false
   }
 
-  return parsed
+  return { ...parsed, _usage }
 }

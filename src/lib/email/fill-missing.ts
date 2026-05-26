@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { extractBookingFields } from '@/lib/gemini/extract'
 import { sendEmail } from '@/lib/gmail/send'
 import { formatDate, formatTime } from '@/lib/utils/date'
+import { logApiCost, calcGeminiCost } from '@/lib/api-costs'
 
 function getTodayIST(): string {
   return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -44,6 +45,10 @@ export async function fillMissingFromReply(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const extraction = await extractBookingFields(replyContent, client as any, savedLocations)
   const newFields = extraction.bookings[0]?.extracted ?? {}
+  if (extraction._usage) {
+    const { tokens_in, tokens_out } = extraction._usage
+    logApiCost({ booking_id: booking.id as string, api_type: 'gemini', call_type: 'fill_missing', tokens_in, tokens_out, cost_usd: calcGeminiCost(tokens_in, tokens_out) }).catch(() => {})
+  }
 
   const today = getTodayIST()
   let mergedDate = (booking.pickup_date as string | null) || newFields.pickup_date || null

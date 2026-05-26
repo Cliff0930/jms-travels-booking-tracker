@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown } from 'lucide-react'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -82,6 +82,29 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => fetch(`/api/bookings/${id}/edit-logs`).then(r => r.json()),
     enabled: !!id,
   })
+
+  interface ApiCostRow {
+    api_type: string
+    call_type: string
+    tokens_in: number | null
+    tokens_out: number | null
+    cost_usd: number
+    created_at: string
+  }
+  const [showCosts, setShowCosts] = useState(false)
+  const [inrRate, setInrRate] = useState<number | null>(null)
+  const { data: apiCosts = [] } = useQuery<ApiCostRow[]>({
+    queryKey: ['api-costs', id],
+    queryFn: () => fetch(`/api/bookings/${id}/api-costs`).then(r => r.json()),
+    enabled: showCosts && !!id,
+  })
+  useEffect(() => {
+    if (!showCosts || inrRate !== null) return
+    fetch('https://api.frankfurter.app/latest?from=USD&to=INR')
+      .then(r => r.json())
+      .then((d: { rates?: { INR?: number } }) => { if (d.rates?.INR) setInrRate(d.rates.INR) })
+      .catch(() => {})
+  }, [showCosts, inrRate])
 
   const isPossibleDup = booking?.flags?.includes('possible_duplicate') ?? false
   const { data: similarBookings = [] } = useQuery<SimilarBooking[]>({
@@ -1151,6 +1174,86 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 })}
               </div>
             )}
+          </div>
+
+          {/* API Cost Breakdown */}
+          <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+            <button
+              className="w-full flex items-center justify-between group"
+              onClick={() => setShowCosts(v => !v)}
+            >
+              <h2 className="text-base font-semibold text-[#191B23] flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[#737686]" />
+                API Cost Breakdown
+              </h2>
+              <ChevronDown className={`w-4 h-4 text-[#737686] transition-transform ${showCosts ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showCosts && (() => {
+              const API_LABELS: Record<string, string> = {
+                gemini: 'Gemini AI',
+                maps_static: 'Maps (Static)',
+                maps_distance: 'Maps (Distance)',
+                whatsapp: 'WhatsApp',
+                email: 'Email (Gmail)',
+              }
+              type GroupRow = { calls: number; tokens_in: number; tokens_out: number; cost_usd: number }
+              const grouped: Record<string, GroupRow> = {}
+              for (const row of apiCosts) {
+                if (!grouped[row.api_type]) grouped[row.api_type] = { calls: 0, tokens_in: 0, tokens_out: 0, cost_usd: 0 }
+                grouped[row.api_type].calls++
+                grouped[row.api_type].tokens_in += row.tokens_in ?? 0
+                grouped[row.api_type].tokens_out += row.tokens_out ?? 0
+                grouped[row.api_type].cost_usd += row.cost_usd
+              }
+              const totalUsd = Object.values(grouped).reduce((s, r) => s + r.cost_usd, 0)
+              const fmt = (n: number) => `$${n < 0.0001 && n > 0 ? n.toExponential(2) : n.toFixed(4)}`
+              const fmtInr = (usd: number) => inrRate ? `₹${(usd * inrRate).toFixed(2)}` : null
+
+              return (
+                <div className="mt-4">
+                  {apiCosts.length === 0 ? (
+                    <p className="text-sm text-[#737686]">No API calls recorded for this booking yet.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        {Object.entries(grouped).map(([type, row]) => (
+                          <div key={type} className="rounded-md border border-[#E5E7EB] p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-[#191B23]">{API_LABELS[type] ?? type}</span>
+                              <div className="text-right">
+                                <span className="text-sm font-semibold text-[#1A56DB]">{fmt(row.cost_usd)}</span>
+                                {fmtInr(row.cost_usd) && (
+                                  <span className="ml-1.5 text-xs text-[#737686]">{fmtInr(row.cost_usd)}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-xs text-[#737686] space-y-0.5">
+                              <span>{row.calls} call{row.calls !== 1 ? 's' : ''}</span>
+                              {(type === 'gemini') && (
+                                <span className="ml-3">
+                                  {row.tokens_in.toLocaleString()} in · {row.tokens_out.toLocaleString()} out tokens
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-[#E5E7EB] flex justify-between items-baseline">
+                        <span className="text-sm font-semibold text-[#191B23]">Total</span>
+                        <div className="text-right">
+                          <span className="text-base font-bold text-[#1A56DB]">{fmt(totalUsd)}</span>
+                          {fmtInr(totalUsd) && (
+                            <span className="ml-2 text-sm font-semibold text-[#434654]">{fmtInr(totalUsd)}</span>
+                          )}
+                          {!inrRate && <span className="ml-2 text-xs text-[#737686]">fetching INR…</span>}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
 

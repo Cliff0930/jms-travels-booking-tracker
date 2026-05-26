@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { createAdminClient } from '@/lib/supabase/server'
+import { logApiCost } from '@/lib/api-costs'
 
 const DEFAULT_SIGNATURE = `Best regards,
 
@@ -43,9 +44,10 @@ interface EmailMessage {
   skipSignature?: boolean
   replyToThreadId?: string
   inReplyToMessageId?: string
+  booking_id?: string
 }
 
-export async function sendEmail({ to, subject, body, cc, skipSignature = false, replyToThreadId, inReplyToMessageId }: EmailMessage): Promise<string | null> {
+export async function sendEmail({ to, subject, body, cc, skipSignature = false, replyToThreadId, inReplyToMessageId, booking_id }: EmailMessage): Promise<string | null> {
   const auth = getGmailAuth()
   const gmail = google.gmail({ version: 'v1', auth })
   const from = process.env.GMAIL_USER_EMAIL!
@@ -64,6 +66,9 @@ export async function sendEmail({ to, subject, body, cc, skipSignature = false, 
     userId: 'me',
     requestBody: { raw, ...(replyToThreadId ? { threadId: replyToThreadId } : {}) },
   })
+  if (booking_id) {
+    logApiCost({ booking_id, api_type: 'email', call_type: 'send', cost_usd: 0, metadata: { to, subject } }).catch(() => {})
+  }
   return result.data.id || null
 }
 

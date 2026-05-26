@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { logApiCost, calcMapsStaticCost } from '@/lib/api-costs'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -67,6 +68,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: publicUrlData } = supabase.storage.from('route-maps').getPublicUrl(fileName)
   await supabase.from('trip_sheets').update({ route_image_url: publicUrlData.publicUrl }).eq('id', sheetId)
+
+  logApiCost({ booking_id: id, api_type: 'maps_static', call_type: 'route_map', cost_usd: calcMapsStaticCost() }).catch(() => {})
 
   return NextResponse.json({ ok: true, url: publicUrlData.publicUrl })
 }

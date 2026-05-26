@@ -1,5 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { logApiCost, calcGeminiCost } from '@/lib/api-costs'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { handleClientChange, handleDisambiguationReply, type PendingAction } from '@/lib/utils/change-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
@@ -671,6 +672,11 @@ async function processClientMessage(
   // All fields collected — create booking
   const booking = await createBookingFromResult(supabase, client, result, senderPhone)
   if (!booking) return
+
+  if (result._usage) {
+    const { tokens_in, tokens_out } = result._usage
+    logApiCost({ booking_id: booking.id, api_type: 'gemini', call_type: 'converse', tokens_in, tokens_out, cost_usd: calcGeminiCost(tokens_in, tokens_out) }).catch(() => {})
+  }
 
   // Determine if approval is needed: company billing + approval_required + client not excluded
   const company = client.company as (typeof client.company & { approval_exclusions?: string[] }) | null

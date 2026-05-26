@@ -5,6 +5,7 @@ import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
 import { sendPushToAll } from '@/lib/utils/push-notify'
+import { logApiCost, calcMapsDistanceCost, calcMapsStaticCost } from '@/lib/api-costs'
 
 const MAPS_DAILY_LIMIT = 200
 
@@ -15,7 +16,8 @@ function getTodayIST(): string {
 async function getDistanceKm(
   origin: string,
   destination: string,
-  supabase: ReturnType<typeof createAdminClient>
+  supabase: ReturnType<typeof createAdminClient>,
+  bookingId?: string
 ): Promise<number | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) return null
@@ -44,6 +46,8 @@ async function getDistanceKm(
       value: String(currentCount + 1),
       updated_at: new Date().toISOString(),
     })
+
+    logApiCost({ booking_id: bookingId, api_type: 'maps_distance', call_type: 'distance_matrix', cost_usd: calcMapsDistanceCost(), metadata: { origin, destination } }).catch(() => {})
 
     return Math.round(meters / 100) / 10
   } catch {
@@ -98,6 +102,7 @@ async function generateAndSaveRouteMap(
     const { data: publicUrlData } = supabase.storage.from('route-maps').getPublicUrl(fileName)
 
     await supabase.from('trip_sheets').update({ route_image_url: publicUrlData.publicUrl }).eq('id', sheetId)
+    logApiCost({ booking_id: bookingId, api_type: 'maps_static', call_type: 'route_map', cost_usd: calcMapsStaticCost() }).catch(() => {})
   } catch (err) {
     console.error('[route-map] generation error:', err)
   }
@@ -204,10 +209,10 @@ export async function POST(request: Request) {
       const originAddress = companyAddress || jmsAddress
       if (originAddress) {
         if (sheet?.opening_lat && sheet?.opening_lng) {
-          officeToPickupKm = await getDistanceKm(originAddress, `${sheet.opening_lat},${sheet.opening_lng}`, supabase)
+          officeToPickupKm = await getDistanceKm(originAddress, `${sheet.opening_lat},${sheet.opening_lng}`, supabase, booking_id)
         }
         if (lat && lng) {
-          dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, originAddress, supabase)
+          dropToOfficeKm = await getDistanceKm(`${lat},${lng}`, originAddress, supabase, booking_id)
         }
       }
     }

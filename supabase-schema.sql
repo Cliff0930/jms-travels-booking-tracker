@@ -495,5 +495,9 @@ grant all on trip_gps_logs to postgres, anon, authenticated, service_role;
 -- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS pickup_location text;
 -- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS drop_location text;
 -- ALTER TABLE booking_legs ADD COLUMN IF NOT EXISTS pickup_time time;
+-- API cost tracking (run in Supabase SQL Editor):
+-- CREATE TABLE IF NOT EXISTS api_usage_logs (id uuid PRIMARY KEY DEFAULT uuid_generate_v4(), booking_id uuid REFERENCES bookings(id) ON DELETE SET NULL, api_type text NOT NULL, call_type text NOT NULL, tokens_in integer, tokens_out integer, cost_usd numeric NOT NULL DEFAULT 0, metadata jsonb, created_at timestamptz DEFAULT now());
+-- GRANT ALL ON api_usage_logs TO postgres, anon, authenticated, service_role;
+-- CREATE INDEX IF NOT EXISTS api_usage_logs_booking_id_idx ON api_usage_logs(booking_id);
 -- Run these in Supabase SQL Editor to update the live templates:
 -- UPDATE message_templates SET subject = replace(subject, 'CabFlow', 'JMS Travels'), body = replace(body, 'CabFlow Team', 'JMS Travels Team'), body = replace(body, '— CabFlow', '— JMS Travels') WHERE subject LIKE '%CabFlow%' OR body LIKE '%CabFlow%';

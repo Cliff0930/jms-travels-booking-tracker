@@ -30,6 +30,7 @@ export interface ExtractionResult {
   resolved_keywords: Record<string, string>
   new_keyword_detected: string | null
   confidence: number
+  _usage?: { tokens_in: number; tokens_out: number }
 }
 
 function getTodayIST(): string {
@@ -56,6 +57,8 @@ export async function extractBookingFields(
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)
   const result = await model.generateContent(prompt)
+  const usage = result.response.usageMetadata
+  const _usage = { tokens_in: usage?.promptTokenCount ?? 0, tokens_out: usage?.candidatesTokenCount ?? 0 }
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
 
@@ -69,6 +72,7 @@ export async function extractBookingFields(
       resolved_keywords: {},
       new_keyword_detected: null,
       confidence: 0,
+      _usage,
     }
   }
 
@@ -79,7 +83,8 @@ export async function extractBookingFields(
       resolved_keywords: (parsed.resolved_keywords as Record<string, string>) ?? {},
       new_keyword_detected: (parsed.new_keyword_detected as string | null) ?? null,
       confidence: (parsed.confidence as number) ?? 0.9,
+      _usage,
     } as ExtractionResult
   }
-  return parsed as unknown as ExtractionResult
+  return { ...(parsed as unknown as ExtractionResult), _usage }
 }

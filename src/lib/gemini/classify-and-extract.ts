@@ -62,6 +62,8 @@ export async function classifyAndExtract(
     .replace('{saved_locations}', locationsJson)
 
   const result = await model.generateContent(prompt)
+  const usage = result.response.usageMetadata
+  const _usage = { tokens_in: usage?.promptTokenCount ?? 0, tokens_out: usage?.candidatesTokenCount ?? 0 }
   const text = result.response.text().trim()
   const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '')
 
@@ -86,14 +88,18 @@ export async function classifyAndExtract(
       target_booking_ref: (parsed.target_booking_ref as string | null) ?? null,
       cancel_reason: (parsed.cancel_reason as string | null) ?? null,
       modification_request: (parsed.modification_request as { changes: EmailModificationChange[]; booking_ref: string | null } | null) ?? null,
+      _usage,
     }
   }
 
   if (classification !== 'booking') {
-    return safeNonBookingResult(
-      classification as ClassifyAndExtractResult['classification'],
-      (parsed.reason as string) ?? ''
-    )
+    return {
+      ...safeNonBookingResult(
+        classification as ClassifyAndExtractResult['classification'],
+        (parsed.reason as string) ?? ''
+      ),
+      _usage,
+    }
   }
 
   // Booking — normalise bookings array (same backwards-compat logic as extract.ts)
@@ -118,5 +124,6 @@ export async function classifyAndExtract(
     target_booking_ref: null,
     cancel_reason: null,
     modification_request: null,
+    _usage,
   }
 }
