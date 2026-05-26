@@ -40,3 +40,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   return NextResponse.json(data)
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = createAdminClient()
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, driver_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchErr || !booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+
+  if (booking.status === 'in_progress' || booking.status === 'completed') {
+    return NextResponse.json(
+      { error: 'Cannot delete a booking that is in progress or completed' },
+      { status: 403 }
+    )
+  }
+
+  if (booking.driver_id) {
+    await supabase
+      .from('drivers')
+      .update({ status: 'available' })
+      .eq('id', booking.driver_id)
+      .eq('status', 'on_duty')
+  }
+
+  const { error: delErr } = await supabase.from('bookings').delete().eq('id', id)
+  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}

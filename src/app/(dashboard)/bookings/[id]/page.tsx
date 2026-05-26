@@ -19,8 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown } from 'lucide-react'
-import { useCanEdit } from '@/hooks/useCurrentUser'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2 } from 'lucide-react'
+import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -231,6 +231,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   } | null>(null)
   const [savingSheet, setSavingSheet] = useState(false)
   const canEdit = useCanEdit()
+  const isAdmin = useIsAdmin()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
@@ -600,6 +603,20 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Booking deleted')
+      window.location.href = '/bookings'
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete booking')
+      setDeleting(false)
+    }
+  }
+
   const f = editForm
 
   return (
@@ -629,6 +646,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         {booking.flags?.length > 0 && <FlagList flags={booking.flags} />}
         {isEditing && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Editing</span>
+        )}
+        {isAdmin && booking.status !== 'in_progress' && booking.status !== 'completed' && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-8 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+          </Button>
         )}
       </div>
 
@@ -2034,6 +2061,29 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
             >
               {saving ? 'Saving…' : 'Confirm Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete {booking.booking_ref}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#434654]">
+            This will permanently delete the booking and all associated data (tripsheet, legs, GPS logs, status history). <span className="font-semibold text-red-600">This cannot be undone.</span>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleDelete}
+            >
+              {deleting ? 'Deleting…' : 'Delete Booking'}
             </Button>
           </DialogFooter>
         </DialogContent>
