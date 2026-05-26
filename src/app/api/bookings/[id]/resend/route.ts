@@ -27,14 +27,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color), cc_emails, source')
+    .select('*, client:clients!client_id(id, name, primary_phone, primary_email), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen), cc_emails, source')
     .eq('id', id)
     .single()
 
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
 
   const client = booking.client as (Client & { primary_email?: string }) | null
-  const driver = booking.driver as { id: string; name: string; phone: string; secondary_phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string } | null
+  const driver = booking.driver as { id: string; name: string; phone: string; secondary_phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string; uses_app?: boolean; last_app_seen?: string | null } | null
 
   const clientName = booking.guest_name || client?.name || 'there'
   const guestPhone = booking.guest_phone || null
@@ -146,6 +146,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   } else if (message_type === 'trip_brief_driver') {
     if (!driver) return NextResponse.json({ error: 'No driver assigned to this booking' }, { status: 400 })
+    const driverUsesApp = !!(driver.uses_app && driver.last_app_seen && new Date(driver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+    if (driverUsesApp) {
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id: driver.id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: driver.phone,
+        content: '[Skipped — driver uses the JMS Driver App and will see this trip automatically]',
+        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+        status: 'skipped',
+      })
+      return NextResponse.json({ ok: true, skipped: true, reason: 'driver_uses_app', recipient: driver.phone, channel: 'whatsapp' })
+    }
     templateUsed = TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER
     templateName = 'jms_trip_brief_driver'
 

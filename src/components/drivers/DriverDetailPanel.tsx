@@ -357,7 +357,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           )}
 
           {/* Driver App PIN */}
-          {!editing && <DriverAppPin driverId={driver.id} />}
+          {!editing && <DriverAppPin driver={driver} />}
 
           {/* Deactivate / Reactivate */}
           {!editing && (
@@ -392,10 +392,12 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
   )
 }
 
-function DriverAppPin({ driverId }: { driverId: string }) {
+function DriverAppPin({ driver }: { driver: Driver }) {
+  const { id: driverId } = driver
   const [open, setOpen] = useState(false)
   const [pin, setPin] = useState('')
   const [saving, setSaving] = useState(false)
+  const updateDriver = useUpdateDriver()
 
   async function handleSet() {
     if (!pin || pin.length < 4) { toast.error('PIN must be at least 4 digits'); return }
@@ -422,7 +424,31 @@ function DriverAppPin({ driverId }: { driverId: string }) {
       <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-3 flex items-center gap-1.5">
         <Smartphone className="w-3.5 h-3.5" /> Driver App
       </h3>
-      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 space-y-3">
+        {/* uses_app toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-[#374151]">Uses Driver App</p>
+            {driver.last_app_seen ? (
+              <p className="text-xs text-[#737686] mt-0.5">Last seen: {new Date(driver.last_app_seen).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            ) : (
+              <p className="text-xs text-[#737686] mt-0.5">Never logged in</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await updateDriver.mutateAsync({ id: driver.id, data: { uses_app: !driver.uses_app } as Partial<Driver> })
+                toast.success(driver.uses_app ? 'WhatsApp trip briefs re-enabled' : 'App driver — WhatsApp briefs will be skipped')
+              } catch { toast.error('Failed to update') }
+            }}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${driver.uses_app ? 'bg-emerald-500' : 'bg-[#C3C5D7]'}`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${driver.uses_app ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+        <div className="border-t border-emerald-200" />
         {!open ? (
           <div className="flex items-center justify-between">
             <p className="text-sm text-[#374151]">Set a PIN so this driver can log in to the JMS Driver app.</p>

@@ -57,79 +57,95 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Send trip brief to driver via WhatsApp
   const { data: driver } = await supabase
     .from('drivers')
-    .select('name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color')
+    .select('name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen')
     .eq('id', driver_id)
     .single()
 
+  const driverUsesApp = !!(driver?.uses_app && driver?.last_app_seen && new Date(driver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+
   if (driver?.phone) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
-    const client = booking.client as Client | null
-    const guestName = booking.guest_name || client?.name || 'Guest'
-    const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
-    const [arrivedLink, completedLink] = await Promise.all([
-      createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
-      createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
-    ])
+    if (driverUsesApp) {
+      // Driver uses the JMS Driver App — they see new trips automatically via polling
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: driver.phone,
+        content: '[Skipped — driver uses the JMS Driver App and will see this trip automatically]',
+        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+        status: 'skipped',
+      })
+    } else {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
+      const client = booking.client as Client | null
+      const guestName = booking.guest_name || client?.name || 'Guest'
+      const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+      const [arrivedLink, completedLink] = await Promise.all([
+        createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+        createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+      ])
 
-    const fallbackBody = [
-      `Hi ${driver.name}, you have a new assignment.`,
-      ``,
-      `Booking: ${booking.booking_ref}`,
-      `Guest: ${guestName}`,
-      `Guest Phone: ${guestPhone}`,
-      `Pickup: ${booking.pickup_location || 'TBD'}`,
-      booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
-      `Drop: ${booking.drop_location || 'TBD'}`,
-      booking.drop_location_url ? `Drop Map: ${booking.drop_location_url}` : null,
-      `Date: ${formatDate(booking.pickup_date)}`,
-      `Time: ${formatTime(booking.pickup_time)}`,
-      `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
-      ``,
-      `Please confirm receipt. Tap below to update status:`,
-      `Arrived: ${arrivedLink}`,
-      `Completed: ${completedLink}`,
-      ``,
-      `— JMS Travels`,
-    ].filter(line => line !== null).join('\n')
-
-    const result = await sendWhatsAppTemplate({
-      to: driver.phone,
-      templateName: 'jms_trip_brief_driver',
-      params: [
-        driver.name,
-        booking.booking_ref,
-        guestName,
-        guestPhone,
-        booking.pickup_location || 'TBD',
-        booking.drop_location || 'TBD',
-        formatDate(booking.pickup_date),
-        formatTime(booking.pickup_time),
-        booking.pax_count?.toString() || 'TBD',
-        arrivedLink,
-        completedLink,
-      ],
-      fallbackBody,
-      costBookingId: id,
-    })
-
-    await supabase.from('message_logs').insert({
-      booking_id: id,
-      driver_id,
-      channel: 'whatsapp',
-      direction: 'outbound',
-      recipient: driver.phone,
-      content: fallbackBody,
-      template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
-      status: result.ok ? 'sent' : 'failed',
-      whatsapp_message_id: result.whatsappMessageId ?? null,
-    })
-
-    if (result.ok && (booking.pickup_location_url || booking.drop_location_url)) {
-      const mapLines = [
+      const fallbackBody = [
+        `Hi ${driver.name}, you have a new assignment.`,
+        ``,
+        `Booking: ${booking.booking_ref}`,
+        `Guest: ${guestName}`,
+        `Guest Phone: ${guestPhone}`,
+        `Pickup: ${booking.pickup_location || 'TBD'}`,
         booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
-        booking.drop_location_url   ? `Drop Map: ${booking.drop_location_url}`   : null,
-      ].filter(Boolean).join('\n')
-      await sendWhatsAppMessage({ to: driver.phone, body: mapLines })
+        `Drop: ${booking.drop_location || 'TBD'}`,
+        booking.drop_location_url ? `Drop Map: ${booking.drop_location_url}` : null,
+        `Date: ${formatDate(booking.pickup_date)}`,
+        `Time: ${formatTime(booking.pickup_time)}`,
+        `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
+        ``,
+        `Please confirm receipt. Tap below to update status:`,
+        `Arrived: ${arrivedLink}`,
+        `Completed: ${completedLink}`,
+        ``,
+        `— JMS Travels`,
+      ].filter(line => line !== null).join('\n')
+
+      const result = await sendWhatsAppTemplate({
+        to: driver.phone,
+        templateName: 'jms_trip_brief_driver',
+        params: [
+          driver.name,
+          booking.booking_ref,
+          guestName,
+          guestPhone,
+          booking.pickup_location || 'TBD',
+          booking.drop_location || 'TBD',
+          formatDate(booking.pickup_date),
+          formatTime(booking.pickup_time),
+          booking.pax_count?.toString() || 'TBD',
+          arrivedLink,
+          completedLink,
+        ],
+        fallbackBody,
+        costBookingId: id,
+      })
+
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: driver.phone,
+        content: fallbackBody,
+        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+        status: result.ok ? 'sent' : 'failed',
+        whatsapp_message_id: result.whatsappMessageId ?? null,
+      })
+
+      if (result.ok && (booking.pickup_location_url || booking.drop_location_url)) {
+        const mapLines = [
+          booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
+          booking.drop_location_url   ? `Drop Map: ${booking.drop_location_url}`   : null,
+        ].filter(Boolean).join('\n')
+        await sendWhatsAppMessage({ to: driver.phone, body: mapLines })
+      }
     }
   }
 

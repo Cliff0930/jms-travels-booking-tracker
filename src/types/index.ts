@@ -91,6 +91,8 @@ export interface Driver {
   bata_rate: number | null
   status: DriverStatus
   is_active: boolean
+  uses_app: boolean
+  last_app_seen: string | null
   created_at: string
   updated_at: string
 }

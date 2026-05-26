@@ -45,7 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: newDriver } = await supabase
     .from('drivers')
-    .select('name, phone, vehicle_name, vehicle_number, vehicle_color')
+    .select('name, phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen')
     .eq('id', new_driver_id)
     .single()
 
@@ -125,64 +125,79 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Send new trip brief to new driver
   if (newDriver?.phone) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
-    const guestName = booking.guest_name || client?.name || 'Guest'
-    const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
-    const [arrivedLink, completedLink] = await Promise.all([
-      createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
-      createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
-    ])
+    const newDriverUsesApp = !!(newDriver.uses_app && newDriver.last_app_seen && new Date(newDriver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
 
-    const fallbackBody = [
-      `Hi ${newDriver.name}, you have a new assignment.`,
-      ``,
-      `Booking: ${booking.booking_ref}`,
-      `Guest: ${guestName}`,
-      `Guest Phone: ${guestPhone}`,
-      `Pickup: ${booking.pickup_location || 'TBD'}`,
-      `Drop: ${booking.drop_location || 'TBD'}`,
-      `Date: ${formatDate(booking.pickup_date)}`,
-      `Time: ${formatTime(booking.pickup_time)}`,
-      `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
-      ``,
-      `Please confirm receipt. Tap below to update status:`,
-      `Arrived: ${arrivedLink}`,
-      `Completed: ${completedLink}`,
-      ``,
-      `— JMS Travels`,
-    ].join('\n')
+    if (newDriverUsesApp) {
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id: new_driver_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: newDriver.phone,
+        content: '[Skipped — driver uses the JMS Driver App and will see this trip automatically]',
+        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+        status: 'skipped',
+      })
+    } else {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
+      const guestName = booking.guest_name || client?.name || 'Guest'
+      const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
+      const [arrivedLink, completedLink] = await Promise.all([
+        createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
+        createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
+      ])
 
-    const result = await sendWhatsAppTemplate({
-      to: newDriver.phone,
-      templateName: 'jms_trip_brief_driver',
-      params: [
-        newDriver.name,
-        booking.booking_ref,
-        guestName,
-        guestPhone,
-        booking.pickup_location || 'TBD',
-        booking.drop_location || 'TBD',
-        formatDate(booking.pickup_date),
-        formatTime(booking.pickup_time),
-        booking.pax_count?.toString() || 'TBD',
-        arrivedLink,
-        completedLink,
-      ],
-      fallbackBody,
-      costBookingId: id,
-    })
+      const fallbackBody = [
+        `Hi ${newDriver.name}, you have a new assignment.`,
+        ``,
+        `Booking: ${booking.booking_ref}`,
+        `Guest: ${guestName}`,
+        `Guest Phone: ${guestPhone}`,
+        `Pickup: ${booking.pickup_location || 'TBD'}`,
+        `Drop: ${booking.drop_location || 'TBD'}`,
+        `Date: ${formatDate(booking.pickup_date)}`,
+        `Time: ${formatTime(booking.pickup_time)}`,
+        `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
+        ``,
+        `Please confirm receipt. Tap below to update status:`,
+        `Arrived: ${arrivedLink}`,
+        `Completed: ${completedLink}`,
+        ``,
+        `— JMS Travels`,
+      ].join('\n')
 
-    await supabase.from('message_logs').insert({
-      booking_id: id,
-      driver_id: new_driver_id,
-      channel: 'whatsapp',
-      direction: 'outbound',
-      recipient: newDriver.phone,
-      content: fallbackBody,
-      template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
-      status: result.ok ? 'sent' : 'failed',
-      whatsapp_message_id: result.whatsappMessageId ?? null,
-    })
+      const result = await sendWhatsAppTemplate({
+        to: newDriver.phone,
+        templateName: 'jms_trip_brief_driver',
+        params: [
+          newDriver.name,
+          booking.booking_ref,
+          guestName,
+          guestPhone,
+          booking.pickup_location || 'TBD',
+          booking.drop_location || 'TBD',
+          formatDate(booking.pickup_date),
+          formatTime(booking.pickup_time),
+          booking.pax_count?.toString() || 'TBD',
+          arrivedLink,
+          completedLink,
+        ],
+        fallbackBody,
+        costBookingId: id,
+      })
+
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id: new_driver_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: newDriver.phone,
+        content: fallbackBody,
+        template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+        status: result.ok ? 'sent' : 'failed',
+        whatsapp_message_id: result.whatsappMessageId ?? null,
+      })
+    }
   }
 
   return NextResponse.json(data)

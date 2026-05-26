@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   if (!verified) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = createAdminClient()
+  supabase.from('drivers').update({ last_app_seen: new Date().toISOString() }).eq('id', verified.driverId)
   const today = getTodayIST()
 
   const { data } = await supabase

@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   }
 
   const token = createDriverAppToken(driver.id)
+  supabase.from('drivers').update({ uses_app: true, last_app_seen: new Date().toISOString() }).eq('id', driver.id)
   return NextResponse.json({
     token,
     driver: { id: driver.id, name: driver.name, phone: driver.phone },
