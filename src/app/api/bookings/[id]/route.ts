@@ -68,6 +68,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       .eq('status', 'on_duty')
   }
 
+  // Detach message logs before delete (FK not set to CASCADE/SET NULL in DB)
+  await supabase.from('message_logs').update({ booking_id: null }).eq('booking_id', id)
+  await supabase.from('raw_messages').update({ booking_id: null }).eq('booking_id', id)
+
   const { error: delErr } = await supabase.from('bookings').delete().eq('id', id)
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
