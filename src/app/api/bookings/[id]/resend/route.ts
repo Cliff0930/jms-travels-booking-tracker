@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { driverStatusLink } from '@/lib/utils/driver-token'
@@ -205,7 +205,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let waMessageId: string | undefined
 
   if (channel === 'whatsapp') {
-    const result = await sendWhatsAppTemplate({ to: recipient, templateName, params: templateParams, fallbackBody: body, costBookingId: id })
+    // Driver messages (trip_brief_driver) always use templates; client messages use smart send
+    const sendFn = message_type === 'trip_brief_driver' ? sendWhatsAppTemplate : sendWhatsAppSmart
+    const result = await sendFn({ to: recipient, templateName, params: templateParams, fallbackBody: body, costBookingId: id })
     sendOk = result.ok
     sendError = result.error
     waMessageId = result.whatsappMessageId

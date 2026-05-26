@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
@@ -76,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (phones.length > 0) {
       const results = await Promise.all(
-        phones.map(phone => sendWhatsAppTemplate({
+        phones.map(phone => sendWhatsAppSmart({
           to: phone,
           templateName: 'jms_substitute_client',
           params: [

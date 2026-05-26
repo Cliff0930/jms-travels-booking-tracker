@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { expireBookingLinks } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
@@ -84,7 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       // Also WhatsApp the guest via template if they have a separate phone
       if (booking.guest_phone) {
-        await sendWhatsAppTemplate({ to: booking.guest_phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }).catch(() => {})
+        await sendWhatsAppSmart({ to: booking.guest_phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }).catch(() => {})
       }
     } else {
       // WhatsApp-source bookings: notify via template (bypasses 24h window)
@@ -94,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       if (phones.length > 0) {
         const results = await Promise.all(
-          phones.map(phone => sendWhatsAppTemplate({ to: phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }))
+          phones.map(phone => sendWhatsAppSmart({ to: phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }))
         )
         const anyOk = results.some(r => r.ok)
         if (!anyOk) console.error(`[cancel] WhatsApp template failed all phones booking=${id}`, results)

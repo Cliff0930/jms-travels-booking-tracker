@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import { formatDate, formatTime } from '@/lib/utils/date'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import type { Client } from '@/types'
 
@@ -146,7 +146,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       if (phones.length > 0) {
         const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
         const results = await Promise.all(
-          phones.map(phone => sendWhatsAppTemplate({
+          phones.map(phone => sendWhatsAppSmart({
             to: phone,
             templateName: 'jms_booking_confirmed',
             params: [

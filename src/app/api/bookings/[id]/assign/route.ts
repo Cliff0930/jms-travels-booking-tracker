@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppMessage, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -222,7 +222,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           })
         }
         if (guestPhone) {
-          await sendWhatsAppTemplate({
+          await sendWhatsAppSmart({
             to: guestPhone,
             templateName: 'jms_driver_assigned',
             params: driverTemplateParams,
@@ -239,7 +239,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ).filter((p): p is string => !!p)
 
         await Promise.all(waRecipients.map(phone =>
-          sendWhatsAppTemplate({
+          sendWhatsAppSmart({
             to: phone,
             templateName: 'jms_driver_assigned',
             params: driverTemplateParams,
