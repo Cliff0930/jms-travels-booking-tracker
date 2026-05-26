@@ -89,6 +89,7 @@ export interface Driver {
   vehicle_color: string | null
   seating_capacity: number
   bata_rate: number | null
+  bata_rate_outstation: number | null
   status: DriverStatus
   is_active: boolean
   uses_app: boolean
@@ -105,6 +106,7 @@ export interface VehicleName {
 export interface CompanyBataRate {
   id: string
   vehicle_name: string
+  trip_type: string | null
   rate_per_bata: number
 }
 
@@ -124,6 +126,7 @@ export interface ReimbursementSheet {
   driver_name: string | null
   driver_vehicle_name: string | null
   driver_vehicle_number: string | null
+  trip_type: string | null
   toll_amount: number | null
   parking_amount: number | null
   permit_amount: number | null

@@ -501,3 +501,8 @@ grant all on trip_gps_logs to postgres, anon, authenticated, service_role;
 -- CREATE INDEX IF NOT EXISTS api_usage_logs_booking_id_idx ON api_usage_logs(booking_id);
 -- Run these in Supabase SQL Editor to update the live templates:
 -- UPDATE message_templates SET subject = replace(subject, 'CabFlow', 'JMS Travels'), body = replace(body, 'CabFlow Team', 'JMS Travels Team'), body = replace(body, '— CabFlow', '— JMS Travels') WHERE subject LIKE '%CabFlow%' OR body LIKE '%CabFlow%';
+-- Local vs Outstation bata rates (run in Supabase SQL Editor):
+-- ALTER TABLE company_bata_rates ADD COLUMN IF NOT EXISTS trip_type text CHECK (trip_type IN ('local','outstation','airport'));
+-- ALTER TABLE company_bata_rates DROP CONSTRAINT IF EXISTS company_bata_rates_company_id_vehicle_name_key;
+-- ALTER TABLE company_bata_rates ADD CONSTRAINT company_bata_rates_vehicle_trip_key UNIQUE (company_id, vehicle_name, trip_type);
+-- ALTER TABLE drivers ADD COLUMN IF NOT EXISTS bata_rate_outstation numeric;

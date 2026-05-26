@@ -918,9 +918,12 @@ export default function CompaniesPage() {
   )
 }
 
+const TRIP_TYPE_LABELS: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+
 function CompanyBataRates({ companyId }: { companyId: string }) {
   const qc = useQueryClient()
   const [vehicleName, setVehicleName] = useState('')
+  const [tripType, setTripType] = useState<string>('local')
   const [rate, setRate] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -929,7 +932,7 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
     queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
 
-  const { data: rates = [] } = useQuery<{ id: string; vehicle_name: string; rate_per_bata: number }[]>({
+  const { data: rates = [] } = useQuery<{ id: string; vehicle_name: string; trip_type: string | null; rate_per_bata: number }[]>({
     queryKey: ['company-bata-rates', companyId],
     queryFn: () => fetch(`/api/companies/${companyId}/bata-rates`).then(r => r.json()),
   })
@@ -941,7 +944,7 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
       const res = await fetch(`/api/companies/${companyId}/bata-rates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicle_name: vehicleName, rate_per_bata: Number(rate) }),
+        body: JSON.stringify({ vehicle_name: vehicleName, rate_per_bata: Number(rate), trip_type: tripType || null }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       qc.invalidateQueries({ queryKey: ['company-bata-rates', companyId] })
@@ -962,14 +965,25 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
   return (
     <section>
       <h3 className="text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">Bata Rates</h3>
-      <p className="text-xs text-[#737686] mb-3">Override bata rate per vehicle for this company. Overrides the driver's default rate.</p>
+      <p className="text-xs text-[#737686] mb-3">Set bata rates per vehicle and trip type for this company. Overrides the driver's default rate.</p>
 
       <div className="space-y-1.5 mb-3">
         {rates.length === 0 ? (
           <p className="text-xs text-[#737686]">No overrides — driver default rates apply.</p>
         ) : rates.map(r => (
           <div key={r.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0]">
-            <span className="text-xs font-medium text-[#191B23]">{r.vehicle_name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-[#191B23]">{r.vehicle_name}</span>
+              {r.trip_type ? (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  r.trip_type === 'local' ? 'bg-blue-100 text-blue-700'
+                  : r.trip_type === 'outstation' ? 'bg-orange-100 text-orange-700'
+                  : 'bg-purple-100 text-purple-700'
+                }`}>{TRIP_TYPE_LABELS[r.trip_type] ?? r.trip_type}</span>
+              ) : (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">All</span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-[#059669]">₹{r.rate_per_bata}/bata</span>
               <button onClick={() => handleDelete(r.id)} className="text-[#737686] hover:text-red-500">
@@ -981,12 +995,22 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
       </div>
 
       <div className="flex gap-2">
-        <Select value={vehicleName} onValueChange={v => v && setVehicleName(v)}>
+        <Select value={vehicleName} onValueChange={v => v !== null && setVehicleName(v)}>
           <SelectTrigger className="border-[#C3C5D7] h-8 text-xs flex-1">
             <SelectValue placeholder="Select vehicle…" />
           </SelectTrigger>
           <SelectContent>
             {vehicleNames.map(v => <SelectItem key={v.id} value={v.name} className="text-xs">{v.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={tripType} onValueChange={v => v !== null && setTripType(v)}>
+          <SelectTrigger className="border-[#C3C5D7] h-8 text-xs w-32">
+            <SelectValue placeholder="Trip type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="local" className="text-xs">Local</SelectItem>
+            <SelectItem value="outstation" className="text-xs">Outstation</SelectItem>
+            <SelectItem value="airport" className="text-xs">Airport</SelectItem>
           </SelectContent>
         </Select>
         <Input

@@ -14,10 +14,10 @@ export async function GET(request: Request) {
   let bookingQuery = supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, company_id, driver_id, guest_name, guest_phone, requested_by,
+      id, booking_ref, pickup_date, trip_type, company_id, driver_id, guest_name, guest_phone, requested_by,
       company:companies!company_id(name),
       client:clients!client_id(primary_phone),
-      driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate),
+      driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate, bata_rate_outstation),
       trip_sheets(
         id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
         tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received,
@@ -38,24 +38,28 @@ export async function GET(request: Request) {
   if (!bookings?.length) return NextResponse.json([])
 
   // Fetch company bata rates for all involved companies
+  // Map: companyId → vehicleName → tripType (or 'all' for null) → rate
   const companyIds = [...new Set(bookings.map(b => b.company_id).filter(Boolean))]
-  const bataRateMap: Record<string, Record<string, number>> = {}
+  const bataRateMap: Record<string, Record<string, Record<string, number>>> = {}
   if (companyIds.length > 0) {
     const { data: rates } = await supabase
       .from('company_bata_rates')
-      .select('company_id, vehicle_name, rate_per_bata')
+      .select('company_id, vehicle_name, trip_type, rate_per_bata')
       .in('company_id', companyIds as string[])
     for (const r of rates ?? []) {
       if (!bataRateMap[r.company_id]) bataRateMap[r.company_id] = {}
-      bataRateMap[r.company_id][r.vehicle_name.toLowerCase()] = r.rate_per_bata
+      const vKey = r.vehicle_name.toLowerCase()
+      if (!bataRateMap[r.company_id][vKey]) bataRateMap[r.company_id][vKey] = {}
+      bataRateMap[r.company_id][vKey][r.trip_type ?? 'all'] = r.rate_per_bata
     }
   }
 
   // Flatten to one entry per trip_sheet
   const result = []
   for (const booking of bookings) {
-    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; vehicle_number: string; bata_rate: number | null } | null
+    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; vehicle_number: string; bata_rate: number | null; bata_rate_outstation: number | null } | null
     const company = booking.company as unknown as { name: string } | null
+    const tripType = (booking.trip_type as string | null) ?? 'local'
     const sheets = (booking.trip_sheets ?? []) as Array<Record<string, unknown>>
 
     for (const sheet of sheets) {
@@ -67,13 +71,21 @@ export async function GET(request: Request) {
       // Only include sheets with at least one reimbursable item
       if (toll <= 0 && parking <= 0 && permit <= 0 && bataCount <= 0) continue
 
-      // Resolve bata rate: company override → driver default → null
+      // Resolve bata rate priority:
+      // 1. Company override matching exact trip_type
+      // 2. Company override with trip_type=null (catch-all)
+      // 3. Driver outstation default (for outstation trips)
+      // 4. Driver local/general default
       let bataRate: number | null = null
       if (bataCount > 0 && driver) {
-        const companyRates = booking.company_id ? bataRateMap[booking.company_id] : undefined
         const vehicleKey = driver.vehicle_name.toLowerCase()
-        if (companyRates?.[vehicleKey] != null) {
-          bataRate = companyRates[vehicleKey]
+        const vehicleRates = booking.company_id ? bataRateMap[booking.company_id]?.[vehicleKey] : undefined
+        if (vehicleRates?.[tripType] != null) {
+          bataRate = vehicleRates[tripType]
+        } else if (vehicleRates?.['all'] != null) {
+          bataRate = vehicleRates['all']
+        } else if (tripType === 'outstation' && driver.bata_rate_outstation != null) {
+          bataRate = driver.bata_rate_outstation
         } else {
           bataRate = driver.bata_rate ?? null
         }
@@ -95,6 +107,7 @@ export async function GET(request: Request) {
         driver_name: driver?.name ?? null,
         driver_vehicle_name: driver?.vehicle_name ?? null,
         driver_vehicle_number: driver?.vehicle_number ?? null,
+        trip_type: tripType,
         // amounts
         toll_amount: toll > 0 ? toll : null,
         parking_amount: parking > 0 ? parking : null,

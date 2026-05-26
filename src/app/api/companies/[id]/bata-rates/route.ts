@@ -6,7 +6,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('company_bata_rates')
-    .select('id, vehicle_name, rate_per_bata')
+    .select('id, vehicle_name, trip_type, rate_per_bata')
     .eq('company_id', id)
     .order('vehicle_name', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -16,12 +16,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
-  const { vehicle_name, rate_per_bata } = await request.json() as { vehicle_name: string; rate_per_bata: number }
+  const { vehicle_name, rate_per_bata, trip_type } = await request.json() as { vehicle_name: string; rate_per_bata: number; trip_type?: string | null }
   if (!vehicle_name?.trim() || !rate_per_bata) return NextResponse.json({ error: 'vehicle_name and rate_per_bata required' }, { status: 400 })
   const { data, error } = await supabase
     .from('company_bata_rates')
-    .upsert({ company_id: id, vehicle_name: vehicle_name.trim(), rate_per_bata: Number(rate_per_bata) }, { onConflict: 'company_id,vehicle_name' })
-    .select('id, vehicle_name, rate_per_bata')
+    .upsert(
+      { company_id: id, vehicle_name: vehicle_name.trim(), rate_per_bata: Number(rate_per_bata), trip_type: trip_type ?? null },
+      { onConflict: 'company_id,vehicle_name,trip_type' }
+    )
+    .select('id, vehicle_name, trip_type, rate_per_bata')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)

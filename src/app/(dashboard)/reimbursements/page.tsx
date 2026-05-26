@@ -304,6 +304,13 @@ function TripCard({
               {sheet.driver_name && <span className="text-sm font-semibold text-[#191B23]">{sheet.driver_name}</span>}
               {sheet.driver_vehicle_name && <span className="text-xs text-[#737686]">· {sheet.driver_vehicle_name}</span>}
               {sheet.driver_vehicle_number && <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">{sheet.driver_vehicle_number}</span>}
+              {sheet.trip_type && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
+                  sheet.trip_type === 'local' ? 'bg-blue-100 text-blue-700'
+                  : sheet.trip_type === 'outstation' ? 'bg-orange-100 text-orange-700'
+                  : 'bg-purple-100 text-purple-700'
+                }`}>{sheet.trip_type}</span>
+              )}
               {sheet.company_name && <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">

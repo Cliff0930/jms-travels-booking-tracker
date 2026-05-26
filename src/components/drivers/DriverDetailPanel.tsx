@@ -81,6 +81,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       vehicle_color: driver!.vehicle_color || '',
       seating_capacity: String(driver!.seating_capacity),
       bata_rate: driver!.bata_rate != null ? String(driver!.bata_rate) : '',
+      bata_rate_outstation: driver!.bata_rate_outstation != null ? String(driver!.bata_rate_outstation) : '',
     })
     setEditing(true)
   }
@@ -108,6 +109,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           vehicle_color: form.vehicle_color || null,
           seating_capacity: cap,
           bata_rate: form.bata_rate ? Number(form.bata_rate) : null,
+          bata_rate_outstation: form.bata_rate_outstation ? Number(form.bata_rate_outstation) : null,
         } as Partial<Driver>,
       })
       toast.success('Driver updated')
@@ -218,9 +220,15 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                 <Label className="text-xs text-[#737686]">Vehicle Color</Label>
                 <Input value={form.vehicle_color} onChange={e => setField('vehicle_color', e.target.value)} placeholder="White" className="border-[#C3C5D7] h-8 text-sm mt-1" />
               </div>
-              <div>
-                <Label className="text-xs text-[#737686]">Default Bata Rate (₹ per bata)</Label>
-                <Input type="number" min="0" value={form.bata_rate} onChange={e => setField('bata_rate', e.target.value)} placeholder="e.g. 300" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-[#737686]">Local Bata Rate (₹)</Label>
+                  <Input type="number" min="0" value={form.bata_rate} onChange={e => setField('bata_rate', e.target.value)} placeholder="e.g. 300" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-[#737686]">Outstation Bata Rate (₹)</Label>
+                  <Input type="number" min="0" value={form.bata_rate_outstation} onChange={e => setField('bata_rate_outstation', e.target.value)} placeholder="e.g. 500" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                </div>
               </div>
               <div className="flex gap-2 pt-1">
                 <Button
@@ -334,9 +342,14 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                     </div>
                     <span className="font-medium">{driver.seating_capacity} passengers</span>
                   </div>
-                  {driver.bata_rate != null && (
-                    <div className="text-sm text-[#434654] pl-9">
-                      Default Bata Rate: <span className="font-semibold text-[#191B23]">₹{driver.bata_rate}/bata</span>
+                  {(driver.bata_rate != null || driver.bata_rate_outstation != null) && (
+                    <div className="text-sm text-[#434654] pl-9 space-y-0.5">
+                      {driver.bata_rate != null && (
+                        <div>Local Bata: <span className="font-semibold text-[#191B23]">₹{driver.bata_rate}/bata</span></div>
+                      )}
+                      {driver.bata_rate_outstation != null && (
+                        <div>Outstation Bata: <span className="font-semibold text-[#191B23]">₹{driver.bata_rate_outstation}/bata</span></div>
+                      )}
                     </div>
                   )}
                 </div>
