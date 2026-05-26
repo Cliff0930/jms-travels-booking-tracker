@@ -84,9 +84,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
     } else {
       // WhatsApp-source bookings: notify via template (bypasses 24h window)
+      // If driver was assigned, both guest and booker get notified (driver may already be en route)
+      // If no driver assigned, only booker gets notified
       const guestPhone = booking.guest_phone || null
       const adminPhone = client?.primary_phone || null
-      const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+      const phones = [...new Set(
+        (booking.driver_id ? [guestPhone, adminPhone] : [adminPhone]).filter(Boolean)
+      )] as string[]
 
       if (phones.length > 0) {
         const results = await Promise.all(
