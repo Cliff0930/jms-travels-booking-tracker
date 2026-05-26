@@ -175,6 +175,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         params: [
           newDriver.name,
           booking.booking_ref,
+          companyName || '-',
           guestName,
           guestPhone,
           booking.pickup_location || 'TBD',
