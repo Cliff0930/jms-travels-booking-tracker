@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyApprovalToken } from '@/lib/utils/approval-token'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { formatDate } from '@/lib/utils/date'
@@ -115,7 +115,7 @@ export async function GET(request: Request) {
   if (booking.source === 'email' && client?.primary_email) {
     await sendEmailSafe({ to: client.primary_email, subject: notifySubject, body: notifyMsg }).catch(() => {})
     if (booking.guest_phone) {
-      await sendWhatsAppTemplate({
+      await sendWhatsAppSmart({
         to: booking.guest_phone,
         templateName,
         params: templateParams,
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
   } else {
     const phone = booking.guest_phone || client?.primary_phone
     if (phone) {
-      await sendWhatsAppTemplate({
+      await sendWhatsAppSmart({
         to: phone,
         templateName,
         params: templateParams,

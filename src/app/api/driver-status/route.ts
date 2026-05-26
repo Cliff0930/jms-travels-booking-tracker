@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyDriverToken, generateDriverToken } from '@/lib/utils/driver-token'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
 import { sendPushToAll } from '@/lib/utils/push-notify'
@@ -298,7 +298,7 @@ export async function POST(request: Request) {
       ].filter(Boolean).join('\n')
 
       await Promise.all(phones.map(phone =>
-        sendWhatsAppTemplate({
+        sendWhatsAppSmart({
           to: phone,
           templateName: 'jms_driver_arrived',
           params: [clientName, driver.name || '-', vehicleInfo || '-'],

@@ -104,13 +104,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       `Thank you for choosing JMS Travels. We look forward to serving you.`,
     ].join('\n')
 
-    const guestPhone = booking.guest_phone || null
     const adminPhone = client?.primary_phone || fallbackPhone || null
-    const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
+    const phones = [adminPhone].filter(Boolean) as string[]
     const email = client?.primary_email
     const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
 
-    console.log(`[confirm] booking=${id} source=${booking.source} guest_phone=${guestPhone} admin_phone=${adminPhone}`)
+    console.log(`[confirm] booking=${id} source=${booking.source} guest_phone=${booking.guest_phone} admin_phone=${adminPhone}`)
 
     if (booking.source === 'email') {
       // Email-source bookings: notify via email only
