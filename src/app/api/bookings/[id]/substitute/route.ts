@@ -6,6 +6,7 @@ import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
+import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -198,6 +199,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         whatsapp_message_id: result.whatsappMessageId ?? null,
       })
     }
+  }
+
+  // Push notification to new driver app (non-blocking)
+  if (newDriver) {
+    sendDriverPushNotification(
+      new_driver_id,
+      'New Trip Assigned',
+      `${booking.booking_ref} · ${formatDate(booking.pickup_date)} at ${formatTime(booking.pickup_time)}`,
+      { bookingId: id }
+    ).catch(() => {})
   }
 
   return NextResponse.json(data)

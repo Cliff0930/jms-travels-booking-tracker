@@ -6,6 +6,7 @@ import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
+import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -147,6 +148,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         await sendWhatsAppMessage({ to: driver.phone, body: mapLines })
       }
     }
+  }
+
+  // Push notification to driver app (non-blocking — works alongside or instead of WhatsApp)
+  if (driver) {
+    sendDriverPushNotification(
+      driver_id,
+      'New Trip Assigned',
+      `${booking.booking_ref} · ${formatDate(booking.pickup_date)} at ${formatTime(booking.pickup_time)}`,
+      { bookingId: id }
+    ).catch(() => {})
   }
 
   // Send driver details — respects company driver_notify_target setting
