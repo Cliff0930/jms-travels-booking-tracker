@@ -82,10 +82,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         template_used: TEMPLATE_KEYS.CANCELLATION_CLIENT,
         status: result.ok ? 'sent' : 'failed',
       })
-      // Also WhatsApp the guest via template if they have a separate phone
-      if (booking.guest_phone) {
-        await sendWhatsAppSmart({ to: booking.guest_phone, templateName: 'jms_booking_cancelled', params: cancelTemplateParams, fallbackBody: body, costBookingId: id }).catch(() => {})
-      }
     } else {
       // WhatsApp-source bookings: notify via template (bypasses 24h window)
       const guestPhone = booking.guest_phone || null
