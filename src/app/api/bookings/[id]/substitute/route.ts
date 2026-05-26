@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email), company:companies(name)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -148,10 +148,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
       ])
 
+      const companyName = (booking.company as { name?: string } | null)?.name || null
       const fallbackBody = [
         `Hi ${newDriver.name}, you have a new assignment.`,
         ``,
         `Booking: ${booking.booking_ref}`,
+        companyName ? `Company: ${companyName}` : null,
         `Guest: ${guestName}`,
         `Guest Phone: ${guestPhone}`,
         `Pickup: ${booking.pickup_location || 'TBD'}`,
@@ -165,7 +167,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         `Completed: ${completedLink}`,
         ``,
         `— JMS Travels`,
-      ].join('\n')
+      ].filter(Boolean).join('\n')
 
       const result = await sendWhatsAppTemplate({
         to: newDriver.phone,

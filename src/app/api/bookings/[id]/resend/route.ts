@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen), cc_emails, source')
+    .select('*, client:clients!client_id(id, name, primary_phone, primary_email), company:companies(name), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen), cc_emails, source')
     .eq('id', id)
     .single()
 
@@ -185,10 +185,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       completedLink,
     ]
 
+    const companyName = (booking.company as { name?: string } | null)?.name || null
     body = [
       `Hi ${driver.name}, you have a new assignment.`,
       ``,
       `Booking: ${booking.booking_ref}`,
+      companyName ? `Company: ${companyName}` : null,
       `Guest: ${guestNameForDriver}`,
       `Guest Phone: ${guestPhoneForDriver}`,
       `Pickup: ${booking.pickup_location || 'TBD'}`,
@@ -201,7 +203,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       `Completed: ${completedLink}`,
       ``,
       `— JMS Travels`,
-    ].join('\n')
+    ].filter(Boolean).join('\n')
 
     subject = `Trip Brief - ${booking.booking_ref}`
     if (!recipient) recipient = driver.phone
