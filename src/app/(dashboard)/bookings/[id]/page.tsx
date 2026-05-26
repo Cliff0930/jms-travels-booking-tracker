@@ -137,6 +137,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     leg?: { day_number: number; leg_date: string } | null
   }
 
+  function parseHHMM(t: string): number | null {
+    if (!t) return null
+    const [h, m] = t.split(':').map(Number)
+    if (isNaN(h) || isNaN(m)) return null
+    return h * 60 + m
+  }
+
   function calcManualDuration(open: string, close: string): string {
     const [oh, om] = open.split(':').map(Number)
     const [ch, cm] = close.split(':').map(Number)
@@ -220,6 +227,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     tripsheet_number: string; opening_km: string; closing_km: string
     manual_opening_time: string; manual_closing_time: string
     toll_amount: string; parking_amount: string; permit_amount: string
+    bata_driver: string
   } | null>(null)
   const [savingSheet, setSavingSheet] = useState(false)
   const canEdit = useCanEdit()
@@ -504,6 +512,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toll_amount:         sheet.toll_amount         != null ? String(sheet.toll_amount)   : '',
       parking_amount:      sheet.parking_amount      != null ? String(sheet.parking_amount): '',
       permit_amount:       sheet.permit_amount       != null ? String(sheet.permit_amount) : '',
+      bata_driver:         sheet.bata_driver         != null ? String(sheet.bata_driver)   : '',
     })
     setEditingSheet(true)
   }
@@ -521,6 +530,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         toll_amount:         sheetEditForm.toll_amount         !== '' ? Number(sheetEditForm.toll_amount)   : null,
         parking_amount:      sheetEditForm.parking_amount      !== '' ? Number(sheetEditForm.parking_amount): null,
         permit_amount:       sheetEditForm.permit_amount       !== '' ? Number(sheetEditForm.permit_amount) : null,
+        bata_driver:         sheetEditForm.bata_driver         !== '' ? Number(sheetEditForm.bata_driver)   : null,
       }
       const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
@@ -1567,6 +1577,60 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <Label className="text-xs text-[#737686]">Closing Time</Label>
                       <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.manual_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, manual_closing_time: e.target.value }))} />
                     </div>
+                  </div>
+
+                  {/* Bata auto-calculation */}
+                  {(() => {
+                    const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
+                    const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
+                    const lateNight    = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
+                    const earlyMorn    = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
+                    const outstationDays = booking.trip_type === 'outstation' ? (booking.total_days || 1) : 0
+                    const autoBata  = lateNight + earlyMorn + outstationDays
+                    const breakdown = [
+                      lateNight > 0     && `Late night +1`,
+                      earlyMorn > 0     && `Early start +1`,
+                      outstationDays > 0 && `Outstation ${outstationDays} day${outstationDays > 1 ? 's' : ''} +${outstationDays}`,
+                    ].filter(Boolean).join(' · ')
+                    const showCalc = autoBata > 0 || sheetEditForm.manual_opening_time || sheetEditForm.manual_closing_time
+                    if (!showCalc) return null
+                    return (
+                      <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs text-[#4F46E5]">
+                            <span className="font-semibold">Auto-calculated bata: {autoBata}</span>
+                            {breakdown && <span className="ml-1 text-[#6366F1]">({breakdown})</span>}
+                          </div>
+                          {autoBata > 0 && (
+                            <button
+                              type="button"
+                              className="text-[10px] font-semibold text-[#4F46E5] hover:text-[#3730A3] underline shrink-0"
+                              onClick={() => setSheetEditForm(f => f && ({ ...f, bata_driver: String(autoBata) }))}
+                            >
+                              Use this
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-[#737686]">Bata Count</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        className="h-8 text-sm mt-1"
+                        value={sheetEditForm.bata_driver}
+                        onChange={e => setSheetEditForm(f => f && ({ ...f, bata_driver: e.target.value }))}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs text-[#737686]">Toll (₹)</Label>
                       <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.toll_amount} onChange={e => setSheetEditForm(f => f && ({ ...f, toll_amount: e.target.value }))} placeholder="0" />
