@@ -70,6 +70,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   // Detach/delete related records before delete (FKs not set to CASCADE/SET NULL in DB)
   await supabase.from('short_links').delete().eq('booking_id', id)
+  await supabase.from('conversation_sessions').update({ booking_id: null }).eq('booking_id', id)
   await supabase.from('message_logs').update({ booking_id: null }).eq('booking_id', id)
   await supabase.from('raw_messages').update({ booking_id: null }).eq('booking_id', id)
 
