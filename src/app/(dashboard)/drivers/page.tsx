@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useDrivers, useCreateDriver, useUpdateDriver } from '@/hooks/useDrivers'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { DriverCard } from '@/components/drivers/DriverCard'
@@ -51,6 +52,11 @@ export default function DriversPage() {
   const createDriver = useCreateDriver()
   const updateDriver = useUpdateDriver()
   const canEdit = useCanEdit()
+
+  const { data: vehicleNames = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['vehicle-names'],
+    queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
+  })
 
   const filtered = drivers.filter(d => {
     if (vehicleFilter !== 'all' && d.vehicle_type !== vehicleFilter) return false
@@ -275,10 +281,14 @@ export default function DriversPage() {
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-[#434654]">Vehicle Name *</Label>
-                    <div className="relative">
-                      <Car className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
-                      <Input value={form.vehicle_name} onChange={e => setField('vehicle_name', e.target.value)} placeholder="Toyota Innova" className="pl-8 border-[#C3C5D7] h-9 text-sm" required />
-                    </div>
+                    <Select value={form.vehicle_name} onValueChange={v => v !== null && setField('vehicle_name', v)}>
+                      <SelectTrigger className="border-[#C3C5D7] h-9 text-sm">
+                        <SelectValue placeholder="Select vehicle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-[#434654]">Plate Number *</Label>

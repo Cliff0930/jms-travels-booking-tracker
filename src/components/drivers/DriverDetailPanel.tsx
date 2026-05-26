@@ -60,6 +60,11 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
     enabled: open && !!driver,
   })
 
+  const { data: vehicleNames = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['vehicle-names'],
+    queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
+  })
+
   const canEdit = useCanEdit()
 
   if (!driver) return null
@@ -192,7 +197,17 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-[#737686]">Vehicle Name *</Label>
-                  <Input value={form.vehicle_name} onChange={e => setField('vehicle_name', e.target.value)} placeholder="Toyota Innova" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                  <Select value={form.vehicle_name} onValueChange={v => v !== null && setField('vehicle_name', v)}>
+                    <SelectTrigger className="border-[#C3C5D7] h-8 text-sm mt-1">
+                      <SelectValue placeholder="Select vehicle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {form.vehicle_name && !vehicleNames.some(v => v.name === form.vehicle_name) && (
+                        <SelectItem value={form.vehicle_name}>{form.vehicle_name}</SelectItem>
+                      )}
+                      {vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-xs text-[#737686]">Plate Number *</Label>
