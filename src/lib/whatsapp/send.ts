@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/utils/phone'
 import { logApiCost, calcWhatsAppCost } from '@/lib/api-costs'
 import { isWhatsAppWindowOpen } from './window'
+import { getCachedWhatsAppStatus } from './check-contact'
 
 interface WhatsAppTextMessage {
   to: string
@@ -47,6 +48,16 @@ export async function sendWhatsAppTemplate({
   costBookingId,
 }: TemplateMessage): Promise<SendResult> {
   const normalizedTo = normalizePhone(to)
+
+  // Skip send if this number is confirmed non-WhatsApp (cache only — never blocks on API error)
+  try {
+    const waStatus = await getCachedWhatsAppStatus(normalizedTo)
+    if (waStatus === 'invalid') {
+      console.log(`[WhatsApp] Skipping template to ${normalizedTo} — confirmed not on WhatsApp`)
+      return { ok: false, error: 'Number not registered on WhatsApp' }
+    }
+  } catch { /* proceed with send if check fails */ }
+
   const bodyParameters: TemplateParam[] = params.map(text => ({ type: 'text', text }))
 
   try {
@@ -173,6 +184,16 @@ export async function sendWhatsAppSmart({
 
 export async function sendWhatsAppMessage({ to, body, log }: WhatsAppTextMessage): Promise<SendResult> {
   const normalizedTo = normalizePhone(to)
+
+  // Skip send if this number is confirmed non-WhatsApp (cache only — never blocks on API error)
+  try {
+    const waStatus = await getCachedWhatsAppStatus(normalizedTo)
+    if (waStatus === 'invalid') {
+      console.log(`[WhatsApp] Skipping message to ${normalizedTo} — confirmed not on WhatsApp`)
+      return { ok: false, error: 'Number not registered on WhatsApp' }
+    }
+  } catch { /* proceed with send if check fails */ }
+
   try {
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,

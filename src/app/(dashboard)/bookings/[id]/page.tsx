@@ -20,6 +20,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2 } from 'lucide-react'
+import { WaBadge } from '@/components/shared/WaBadge'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -1063,6 +1064,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <div className="flex items-center gap-1 text-xs text-[#737686]">
                         <Phone className="w-3 h-3" />
                         <a href={`tel:${booking.guest_phone}`} className="hover:underline hover:text-[#1A56DB]">{booking.guest_phone}</a>
+                        <WaBadge phone={booking.guest_phone} />
                       </div>
                     )}
                     {booking.flags?.includes('guest_booking') && canEdit && (
@@ -1098,6 +1100,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <div className="flex items-center gap-1 text-xs text-[#737686] mt-0.5">
                     <Phone className="w-3 h-3" />
                     <a href={`tel:${booking.driver.phone}`} className="hover:underline hover:text-[#1A56DB]">{booking.driver.phone}</a>
+                    <WaBadge phone={booking.driver.phone} />
                   </div>
                 </div>
               </div>

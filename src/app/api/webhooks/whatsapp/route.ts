@@ -6,6 +6,8 @@ import { handleClientChange, handleDisambiguationReply, type PendingAction } fro
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { cacheWhatsAppStatus } from '@/lib/whatsapp/check-contact'
+import { normalizePhone } from '@/lib/utils/phone'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
@@ -74,6 +76,30 @@ async function processWebhook(body: unknown) {
             .from('message_logs')
             .update({ status: 'failed' })
             .eq('whatsapp_message_id', waMessageId)
+          // If error indicates the recipient is not on WhatsApp, cache that so future sends are skipped.
+          // 131047 = recipient not on WhatsApp. 131026 = undeliverable (check title to be sure).
+          const titleLower = errorTitle.toLowerCase()
+          const isNonWhatsApp =
+            errorCode === 131047 ||
+            (errorCode === 131026 && (
+              titleLower.includes('not a whatsapp') ||
+              titleLower.includes('not registered') ||
+              titleLower.includes('unknown user')
+            ))
+          if (isNonWhatsApp) {
+            const { data: msgLog } = await supabase
+              .from('message_logs')
+              .select('recipient')
+              .eq('whatsapp_message_id', waMessageId)
+              .maybeSingle()
+            if (msgLog?.recipient) {
+              const normalized = normalizePhone(msgLog.recipient)
+              if (normalized) {
+                await cacheWhatsAppStatus(normalized, 'invalid')
+                console.log(`[WA Check] Marked ${normalized} as non-WhatsApp (code=${errorCode})`)
+              }
+            }
+          }
         } else if (status === 'delivered') {
           await supabase
             .from('message_logs')
