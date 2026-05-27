@@ -220,7 +220,7 @@ export default function DashboardPage() {
 
   const shared = {
     onConfirm: async (id: string) => {
-      try { await confirmBooking.mutateAsync(id); toast.success('Booking confirmed') }
+      try { await confirmBooking.mutateAsync({ id }); toast.success('Booking confirmed') }
       catch { toast.error('Failed to confirm booking') }
     },
     onCancel: (id: string) => setCancelTarget(id),

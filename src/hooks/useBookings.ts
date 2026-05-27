@@ -65,8 +65,12 @@ export function useUpdateBooking() {
 export function useConfirmBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) =>
-      fetch(`/api/bookings/${id}/confirm`, { method: 'POST' }).then(r => r.json()),
+    mutationFn: ({ id, skipNotification }: { id: string; skipNotification?: boolean }) =>
+      fetch(`/api/bookings/${id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skip_notification: skipNotification ?? false }),
+      }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
   })
 }

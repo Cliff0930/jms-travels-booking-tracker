@@ -1356,18 +1356,32 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </Button>
               )}
               {(booking.status === 'draft' || booking.status === 'pending_approval') && (
-                <Button
-                  variant="outline"
-                  className="w-full rounded-sm"
-                  onClick={async () => {
-                    await confirmBooking.mutateAsync(id)
-                    toast.success('Booking confirmed')
-                  }}
-                  disabled={confirmBooking.isPending}
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Confirm Booking
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-sm"
+                    onClick={async () => {
+                      await confirmBooking.mutateAsync({ id })
+                      toast.success('Booking confirmed')
+                    }}
+                    disabled={confirmBooking.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Confirm Booking
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-sm text-amber-600 border-amber-300 hover:bg-amber-50"
+                    onClick={async () => {
+                      await confirmBooking.mutateAsync({ id, skipNotification: true })
+                      toast.success('Booking confirmed — no message sent. Assign driver to notify client.')
+                    }}
+                    disabled={confirmBooking.isPending}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Confirm Silently (Urgent)
+                  </Button>
+                </>
               )}
               {booking.status === 'pending_approval' && displayCompany?.approval_required && (
                 <Button

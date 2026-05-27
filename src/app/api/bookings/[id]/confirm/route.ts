@@ -6,9 +6,11 @@ import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import type { Client } from '@/types'
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
+  const body = await req.json().catch(() => ({}))
+  const skipNotification = !!body.skip_notification
 
   const { data: booking } = await supabase
     .from('bookings')
@@ -55,8 +57,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (legsError) console.error(`[confirm] Failed to create legs booking=${id}:`, legsError.message)
   }
 
-  // Send booking confirmed notification to client
-  {
+  // Send booking confirmed notification to client (skipped for silent confirms)
+  if (!skipNotification) {
     const client = booking.client as Client | null
 
     // Fallback: look up sender phone from raw_messages linked to this booking
@@ -189,7 +191,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         whatsapp_message_id: waMessageId ?? null,
       })
     }
-  }
+  } // end if (!skipNotification)
 
   return NextResponse.json(data)
 }

@@ -385,7 +385,7 @@ export default function BookingsPage() {
                     <BookingCard
                       key={b.id}
                       booking={b}
-                      onConfirm={canEdit ? async id => { await confirmBooking.mutateAsync(id); toast.success('Confirmed') } : undefined}
+                      onConfirm={canEdit ? async id => { await confirmBooking.mutateAsync({ id }); toast.success('Confirmed') } : undefined}
                       onCancel={canEdit ? id => setCancelTarget(id) : undefined}
                       onAssign={canEdit ? setAssignTarget : undefined}
                     />
