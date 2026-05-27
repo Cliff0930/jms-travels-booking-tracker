@@ -10,11 +10,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils/date'
 import type { Client, Company } from '@/types'
 import { Suspense } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useCreateClient } from '@/hooks/useClients'
+import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
 
@@ -69,11 +72,13 @@ function ClientSearchCombobox({
   companies,
   value,
   onChange,
+  onCreateNew,
 }: {
   clients: Client[]
   companies: import('@/types').Company[]
   value: string
   onChange: (clientId: string, companyId?: string) => void
+  onCreateNew?: () => void
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -164,15 +169,148 @@ function ClientSearchCombobox({
               </button>
             )
           })}
+          {onCreateNew && (
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { setOpen(false); onCreateNew() }}
+              className="w-full text-left px-3 py-2.5 hover:bg-[#F0FDF4] transition-colors flex items-center gap-2 border-t border-[#E5E7EB] bg-white sticky bottom-0"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#1A56DB] shrink-0" />
+              <span className="text-sm font-medium text-[#1A56DB]">+ New client</span>
+            </button>
+          )}
         </div>
       )}
 
       {open && query.trim().length > 0 && filtered.length === 0 && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-lg shadow-lg px-3 py-3 text-sm text-[#9CA3AF]">
-          No clients found for &ldquo;{query}&rdquo;
+        <div className="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-lg shadow-lg overflow-hidden">
+          <p className="px-3 py-3 text-sm text-[#9CA3AF]">No clients found for &ldquo;{query}&rdquo;</p>
+          {onCreateNew && (
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { setOpen(false); onCreateNew() }}
+              className="w-full text-left px-3 py-2.5 hover:bg-[#F0FDF4] transition-colors flex items-center gap-2 border-t border-[#E5E7EB]"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#1A56DB] shrink-0" />
+              <span className="text-sm font-medium text-[#1A56DB]">+ Add &ldquo;{query}&rdquo; as new client</span>
+            </button>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+function QuickAddClientDialog({
+  open,
+  onOpenChange,
+  companies,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  companies: Company[]
+  onCreated: (clientId: string, companyId?: string) => void
+}) {
+  const createClient = useCreateClient()
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [clientType, setClientType] = useState<'corporate' | 'walkin'>('corporate')
+  const [companyId, setCompanyId] = useState('')
+  const [nameError, setNameError] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      setName('')
+      setPhone('')
+      setEmail('')
+      setClientType('corporate')
+      setCompanyId('')
+      setNameError('')
+    }
+  }, [open])
+
+  async function handleSave() {
+    if (!name.trim()) { setNameError('Name is required'); return }
+    setNameError('')
+    try {
+      const result = await createClient.mutateAsync({
+        name: name.trim(),
+        primary_phone: phone.trim() || undefined,
+        primary_email: email.trim() || undefined,
+        client_type: clientType,
+        company_id: clientType === 'corporate' && companyId ? companyId : undefined,
+      }) as Client & { error?: string }
+      if (!result.id) throw new Error(result.error || 'Failed to create client')
+      toast.success(`${result.name} added`)
+      onCreated(result.id, result.company_id ?? undefined)
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create client')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => onOpenChange(Boolean(v))}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold text-[#191B23]">
+            <UserPlus className="w-4 h-4 text-[#1A56DB]" />
+            Quick Add Client
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <div className="flex gap-2">
+            <PillButton active={clientType === 'corporate'} onClick={() => setClientType('corporate')}>Corporate</PillButton>
+            <PillButton active={clientType === 'walkin'} onClick={() => setClientType('walkin')}>Walk-in</PillButton>
+          </div>
+          <div>
+            <Label className="text-xs text-[#737686] mb-1.5 block">Name <span className="text-red-500">*</span></Label>
+            <Input
+              value={name}
+              onChange={e => { setName(e.target.value); if (nameError) setNameError('') }}
+              placeholder="Client name"
+              className="border-[#C3C5D7] h-9"
+              autoFocus
+            />
+            {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-[#737686] mb-1.5 block">Phone</Label>
+              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="91XXXXXXXXXX" className="border-[#C3C5D7] h-9" />
+            </div>
+            <div>
+              <Label className="text-xs text-[#737686] mb-1.5 block">Email</Label>
+              <Input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@co.com" className="border-[#C3C5D7] h-9" />
+            </div>
+          </div>
+          {clientType === 'corporate' && (
+            <div>
+              <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
+              <CompanyCombobox value={companyId} companies={companies} onChange={id => setCompanyId(id)} />
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 justify-end mt-4">
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSave}
+            disabled={createClient.isPending}
+            className="bg-[#1A56DB] hover:bg-[#003FB1]"
+          >
+            {createClient.isPending ? 'Saving…' : 'Add Client'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -182,6 +320,7 @@ function NewBookingForm() {
   const prefillClientId = searchParams.get('client_id') || ''
   const createBooking = useCreateBooking()
   const [error, setError] = useState('')
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
 
   const [form, setForm] = useState<FormState>({
     booking_type: 'company',
@@ -337,6 +476,7 @@ function NewBookingForm() {
                       setField('client_id', clientId)
                       if (companyId && !form.company_id) setField('company_id', companyId)
                     }}
+                    onCreateNew={() => setShowQuickAdd(true)}
                   />
                 </div>
                 <div>
@@ -558,6 +698,16 @@ function NewBookingForm() {
 
         </div>
       </form>
+
+      <QuickAddClientDialog
+        open={showQuickAdd}
+        onOpenChange={setShowQuickAdd}
+        companies={companies}
+        onCreated={(clientId, companyId) => {
+          setField('client_id', clientId)
+          if (companyId) setField('company_id', companyId)
+        }}
+      />
     </div>
   )
 }
