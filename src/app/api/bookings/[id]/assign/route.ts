@@ -210,7 +210,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         `Please feel free to contact your driver directly for any assistance. For any other queries, we are always happy to help.`,
       ].join('\n')
 
-      const bookingCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
+      const bookingCc: string[] = (Array.isArray(booking.cc_emails) ? booking.cc_emails as string[] : [])
+        .filter((e: string) => { const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net' })
       const isEmailSource = booking.source === 'email'
 
       // Template params for jms_driver_assigned:

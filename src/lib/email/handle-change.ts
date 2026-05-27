@@ -42,6 +42,14 @@ type Threading = { replyToThreadId?: string; inReplyToMessageId?: string }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BookingRow = Record<string, any>
 
+function buildCC(passedIn: string[] | undefined, booking: BookingRow): string[] | undefined {
+  const stored: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
+  const merged = [...new Set([...(passedIn || []), ...stored])].filter(e => {
+    const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net'
+  })
+  return merged.length > 0 ? merged : undefined
+}
+
 export async function handleEmailCancel(
   supabase: ReturnType<typeof createAdminClient>,
   booking: BookingRow,
@@ -56,7 +64,7 @@ export async function handleEmailCancel(
   const driver = booking.driver as { name?: string; phone?: string } | null
   const hours = hoursUntilPickup(booking.pickup_date, booking.pickup_time)
 
-  const cc = ccEmails && ccEmails.length > 0 ? ccEmails : undefined
+  const cc = buildCC(ccEmails, booking)
   const subj = `Booking Cancellation - ${booking.booking_ref}`
 
   // Mark raw message as linked to this booking (caller sets booking_id on raw_message)
@@ -166,7 +174,7 @@ export async function handleEmailModify(
   threading: Threading,
   today: string,
 ): Promise<void> {
-  const cc = ccEmails && ccEmails.length > 0 ? ccEmails : undefined
+  const cc = buildCC(ccEmails, booking)
   const subj = `Booking Modification - ${booking.booking_ref}`
 
   if (!modReq?.changes?.length) {

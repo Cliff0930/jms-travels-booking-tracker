@@ -163,6 +163,12 @@ export async function POST(request: Request) {
   const supabase = createAdminClient()
 
   try {
+    // Hard block: never process emails from our own address — prevents booking loops
+    if (sender_email && sender_email.toLowerCase() === 'bookings@jmstravels.net') {
+      if (raw_message_id) await supabase.from('raw_messages').update({ ai_classification: 'junk', processed: true, processed_at: new Date().toISOString() }).eq('id', raw_message_id)
+      return NextResponse.json({ ok: true, classification: 'self_email_skip' })
+    }
+
     // Free regex pre-filter before Gemini — catches auto-replies, bank alerts, newsletters
     if (channel === 'email' && isObviousJunk(message, sender_email)) {
       await supabase.from('raw_messages').update({ ai_classification: 'junk', processed: true, processed_at: new Date().toISOString() }).eq('id', raw_message_id)
