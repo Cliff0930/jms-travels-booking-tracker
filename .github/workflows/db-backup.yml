@@ -96,6 +96,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if gh release view "backup-${{ env.BACKUP_DATE }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release already exists, replacing..."
+            gh release delete "backup-${{ env.BACKUP_DATE }}" \
+              --repo "${{ github.repository }}" \
+              --yes \
+              --cleanup-tag
+          fi
           gh release create "backup-${{ env.BACKUP_DATE }}" \
             "${{ env.BACKUP_FILE }}" \
             --repo "${{ github.repository }}" \
