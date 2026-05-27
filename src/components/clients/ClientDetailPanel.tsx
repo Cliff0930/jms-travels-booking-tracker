@@ -232,7 +232,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
     try {
       const res = await fetch(`/api/clients/${client!.id}/contacts/${contactId}/promote`, { method: 'POST' })
       if (!res.ok) throw new Error()
-      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      await qc.invalidateQueries({ queryKey: ['clients'] })
       toast.success('Primary contact updated')
     } catch {
       toast.error('Failed to update primary contact')
