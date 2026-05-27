@@ -1,0 +1,63 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *'  # 8:30 PM UTC = 2:00 AM IST every day
+  workflow_dispatch:        # allows manual trigger from GitHub Actions UI
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create and delete releases
+
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+
+      - name: Run pg_dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          echo "BACKUP_DATE=${DATE}" >> $GITHUB_ENV
+          echo "BACKUP_FILE=cabflow-backup-${DATE}.sql.gz" >> $GITHUB_ENV
+          pg_dump "$DATABASE_URL" \
+            --no-owner \
+            --no-acl \
+            --format=plain \
+            | gzip > "cabflow-backup-${DATE}.sql.gz"
+          SIZE=$(du -sh "cabflow-backup-${DATE}.sql.gz" | cut -f1)
+          echo "Backup complete: cabflow-backup-${DATE}.sql.gz (${SIZE})"
+
+      - name: Upload to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "backup-${{ env.BACKUP_DATE }}" \
+            "${{ env.BACKUP_FILE }}" \
+            --repo "${{ github.repository }}" \
+            --title "DB Backup ${{ env.BACKUP_DATE }}" \
+            --notes "Automated daily backup — CabFlow Supabase database" \
+            --prerelease
+
+      - name: Delete backups older than 7 days
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAGS=$(gh release list \
+            --repo "${{ github.repository }}" \
+            --limit 100 \
+            --json tagName \
+            | jq -r '.[].tagName | select(startswith("backup-"))' \
+            | sort -r \
+            | tail -n +8)
+          if [ -n "$TAGS" ]; then
+            echo "Deleting old backups: $TAGS"
+            echo "$TAGS" | xargs -I {} gh release delete {} \
+              --repo "${{ github.repository }}" \
+              --yes \
+              --cleanup-tag
+          else
+            echo "No old backups to delete"
+          fi
