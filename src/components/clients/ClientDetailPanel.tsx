@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge, Briefcase, User } from 'lucide-react'
+import { Phone, Mail, MapPin, Plus, X, UserCheck, Pencil, Trash2, GitMerge, Briefcase, User, ArrowUp } from 'lucide-react'
 import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 import { useClientBookings } from '@/hooks/useBookings'
 import { useClient, useUpdateClient } from '@/hooks/useClients'
@@ -65,6 +65,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   const [editContactType, setEditContactType] = useState<'phone' | 'email'>('phone')
   const [savingEditContact, setSavingEditContact] = useState(false)
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
+  const [promotingContactId, setPromotingContactId] = useState<string | null>(null)
 
   // Edit location dialog
   const [editingLocation, setEditingLocation] = useState<{ id: string; keyword: string; address: string } | null>(null)
@@ -223,6 +224,20 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       toast.error('Failed to remove contact')
     } finally {
       setDeletingContactId(null)
+    }
+  }
+
+  async function handlePromoteContact(contactId: string) {
+    setPromotingContactId(contactId)
+    try {
+      const res = await fetch(`/api/clients/${client!.id}/contacts/${contactId}/promote`, { method: 'POST' })
+      if (!res.ok) throw new Error()
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      toast.success('Primary contact updated')
+    } catch {
+      toast.error('Failed to update primary contact')
+    } finally {
+      setPromotingContactId(null)
     }
   }
 
@@ -409,6 +424,14 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <span className="text-[10px] text-[#737686] shrink-0">({ct.role})</span>
                     {canEdit && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => handlePromoteContact(ct.id)}
+                        disabled={promotingContactId === ct.id}
+                        className="p-1 rounded text-[#737686] hover:text-emerald-600 hover:bg-white transition-colors disabled:opacity-40"
+                        title="Set as primary"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
                       <button
                         onClick={() => openEditContact(ct)}
                         className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-white transition-colors"

@@ -82,6 +82,7 @@ export interface Driver {
   id: string
   name: string
   phone: string
+  secondary_phone: string | null
   email: string | null
   vehicle_type: VehicleType
   vehicle_name: string
