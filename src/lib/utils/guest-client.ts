@@ -1,0 +1,78 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { normalizePhone } from './phone'
+
+interface GuestClientParams {
+  guestName: string
+  guestPhone: string | null | undefined
+  companyId: string | null | undefined
+}
+
+/**
+ * Find an existing guest client or create a new one.
+ *
+ * Matching priority:
+ * 1. Normalized phone + all common format variants (bare 10-digit, 91-prefixed, raw)
+ * 2. Name (case-insensitive) + same company (fallback when no phone or no phone match)
+ * 3. Create new record if no match found
+ */
+export async function findOrCreateGuestClient(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  { guestName, guestPhone, companyId }: GuestClientParams,
+): Promise<string | null> {
+  // Layer 1: Phone matching with all format variants
+  if (guestPhone?.trim()) {
+    const normalized = normalizePhone(guestPhone)
+    const candidates = [...new Set([
+      normalized,
+      guestPhone.trim(),
+      // bare 10-digit (strip 91 prefix if present)
+      normalized.startsWith('91') && normalized.length === 12 ? normalized.slice(2) : null,
+      // 0-prefixed
+      normalized.startsWith('91') && normalized.length === 12 ? '0' + normalized.slice(2) : null,
+      // +91 format
+      normalized.startsWith('91') && normalized.length === 12 ? '+' + normalized : null,
+    ].filter(Boolean) as string[])]
+
+    const { data } = await supabase
+      .from('clients')
+      .select('id')
+      .in('primary_phone', candidates)
+      .limit(1)
+      .maybeSingle()
+
+    if (data?.id) return data.id
+  }
+
+  // Layer 2: Name + company fallback (no phone or phone didn't match)
+  if (companyId) {
+    const { data } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('client_type', 'guest')
+      .ilike('name', guestName.trim())
+      .eq('guest_of_company_id', companyId)
+      .limit(1)
+      .maybeSingle()
+
+    if (data?.id) return data.id
+  }
+
+  // Layer 3: Create new guest record
+  const normalizedPhone = guestPhone?.trim() ? normalizePhone(guestPhone) : null
+  const { data: newGuest } = await supabase
+    .from('clients')
+    .insert({
+      name: guestName.trim(),
+      primary_phone: normalizedPhone || null,
+      company_id: companyId ?? null,
+      guest_of_company_id: companyId ?? null,
+      client_type: 'guest',
+      is_verified: false,
+      is_vip: false,
+    })
+    .select('id')
+    .single()
+
+  return newGuest?.id ?? null
+}

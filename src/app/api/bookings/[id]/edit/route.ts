@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 
 const FIELD_LABELS: Record<string, string> = {
   pickup_location: 'Pickup Location',
@@ -134,24 +135,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           ...(guestPhone ? { primary_phone: guestPhone } : {}),
         }).eq('id', existingGuestClientId)
       } else {
-        // New guest (or no existing link) — find by phone or create fresh record
-        let guestClientId: string | null = null
-        if (guestPhone) {
-          const { data: byPhone } = await admin.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
-          if (byPhone) guestClientId = (byPhone as { id: string }).id
-        }
-        if (!guestClientId) {
-          const { data: newGuest } = await admin.from('clients').insert({
-            name: guestName,
-            primary_phone: guestPhone ?? null,
-            company_id: companyId,
-            guest_of_company_id: companyId,
-            client_type: 'guest',
-            is_verified: false,
-            is_vip: false,
-          }).select('id').single()
-          guestClientId = (newGuest as { id: string } | null)?.id ?? null
-        }
+        // New guest (or no existing link) — find by phone/name or create
+        const guestClientId = await findOrCreateGuestClient(admin, {
+          guestName,
+          guestPhone,
+          companyId,
+        })
         if (guestClientId) {
           await admin.from('bookings').update({ guest_client_id: guestClientId }).eq('id', id)
         }

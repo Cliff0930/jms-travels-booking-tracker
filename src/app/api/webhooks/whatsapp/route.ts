@@ -8,6 +8,7 @@ import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { cacheWhatsAppStatus } from '@/lib/whatsapp/check-contact'
 import { normalizePhone } from '@/lib/utils/phone'
+import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
@@ -859,33 +860,14 @@ async function createBookingFromResult(
 
   if (!booking) return null
 
-  // Auto-save guest as a client record linked to the same company
-  if (ext.guest_name && ext.guest_phone) {
+  // Auto-save or reuse guest client record linked to the same company
+  if (ext.guest_name) {
     try {
-      const { data: existingGuest } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('primary_phone', ext.guest_phone)
-        .maybeSingle()
-
-      let guestClientId = existingGuest?.id
-
-      if (!guestClientId) {
-        const { data: newGuest } = await supabase
-          .from('clients')
-          .insert({
-            name: ext.guest_name,
-            primary_phone: ext.guest_phone,
-            company_id: client.company_id ?? null,
-            client_type: 'guest',
-            is_verified: false,
-            is_vip: false,
-          })
-          .select('id')
-          .single()
-        guestClientId = newGuest?.id
-      }
-
+      const guestClientId = await findOrCreateGuestClient(supabase, {
+        guestName: ext.guest_name,
+        guestPhone: ext.guest_phone,
+        companyId: client.company_id ?? null,
+      })
       if (guestClientId) {
         await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)
       }

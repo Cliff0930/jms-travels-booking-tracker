@@ -8,6 +8,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
+import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
@@ -431,27 +432,14 @@ export async function POST(request: Request) {
 
       await supabase.from('booking_status_history').insert({ booking_id: booking.id, new_status: 'draft', changed_by: 'system' })
 
-      // Auto-create guest client profile and link to booking
+      // Auto-create or reuse guest client profile and link to booking
       if (bk.extracted.guest_name) {
         try {
-          const guestPhone = bk.extracted.guest_phone || null
-          let guestClientId: string | null = null
-          if (guestPhone) {
-            const { data } = await supabase.from('clients').select('id').eq('primary_phone', guestPhone).maybeSingle()
-            guestClientId = data?.id ?? null
-          }
-          if (!guestClientId) {
-            const { data: newGuest } = await supabase.from('clients').insert({
-              name: bk.extracted.guest_name,
-              primary_phone: guestPhone,
-              company_id: (client as Client)?.company_id ?? null,
-              guest_of_company_id: (client as Client)?.company_id ?? null,
-              client_type: 'guest',
-              is_verified: false,
-              is_vip: false,
-            }).select('id').single()
-            guestClientId = newGuest?.id ?? null
-          }
+          const guestClientId = await findOrCreateGuestClient(supabase, {
+            guestName: bk.extracted.guest_name,
+            guestPhone: bk.extracted.guest_phone,
+            companyId: (client as Client)?.company_id ?? null,
+          })
           if (guestClientId) {
             await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)
           }
