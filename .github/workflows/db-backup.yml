@@ -55,16 +55,12 @@ jobs:
           }
 
           async function main() {
-            // Get all table names in public schema
-            const tables = await get('/rest/v1/rpc/get_table_names')
-              .catch(async () => {
-                // Fallback: query information_schema directly
-                const res = await get("/rest/v1/information_schema/tables?table_schema=eq.public&select=table_name")
-                return res.map(r => r.table_name)
-              })
+            // Discover tables from PostgREST OpenAPI spec
+            const spec = await get('/rest/v1/')
+            const tableList = Object.keys(spec.definitions || spec.components?.schemas || {})
+              .filter(t => !t.endsWith('_relationships'))
 
             const backup = { exported_at: new Date().toISOString(), tables: {} }
-            const tableList = Array.isArray(tables) ? tables : Object.keys(tables)
 
             for (const table of tableList) {
               console.log(`Exporting table: ${table}`)
