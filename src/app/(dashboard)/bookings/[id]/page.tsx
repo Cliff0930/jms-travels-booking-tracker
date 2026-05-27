@@ -21,6 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2 } from 'lucide-react'
 import { WaBadge } from '@/components/shared/WaBadge'
+import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
 import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -970,11 +971,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                   <div>
                     <Label className="mb-1 block">Guest Name</Label>
-                    <Input
+                    <GuestSearchCombobox
+                      companyId={booking?.company_id ?? null}
                       value={f.guest_name}
-                      onChange={e => setEditForm(p => p ? { ...p, guest_name: e.target.value } : p)}
-                      className="border-[#1A56DB] bg-[#F0F4FF]"
+                      onChange={name => setEditForm(p => p ? { ...p, guest_name: name } : p)}
+                      onSelect={(name, phone) => setEditForm(p => p ? { ...p, guest_name: name, ...(phone ? { guest_phone: phone } : {}) } : p)}
                       placeholder="Override guest name"
+                      className="[&_input]:border-[#1A56DB] [&_input]:bg-[#F0F4FF]"
                     />
                   </div>
                   <div>

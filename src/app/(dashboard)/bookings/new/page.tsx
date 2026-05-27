@@ -18,6 +18,7 @@ import { Suspense } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useCreateClient } from '@/hooks/useClients'
 import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
+import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
 
@@ -492,11 +493,14 @@ function NewBookingForm() {
                 </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Guest Name <span className="text-[#9CA3AF]">(if different)</span></Label>
-                  <Input
+                  <GuestSearchCombobox
+                    companyId={form.company_id || null}
                     value={form.guest_name}
-                    onChange={e => setField('guest_name', e.target.value)}
-                    placeholder="Traveller name"
-                    className="border-[#C3C5D7] h-9"
+                    onChange={name => setField('guest_name', name)}
+                    onSelect={(name, phone) => {
+                      setField('guest_name', name)
+                      if (phone) setField('guest_phone', phone)
+                    }}
                   />
                 </div>
                 <div>
