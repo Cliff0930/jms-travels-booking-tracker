@@ -19,6 +19,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          set -euo pipefail
           DATE=$(date +%Y-%m-%d)
           echo "BACKUP_DATE=${DATE}" >> $GITHUB_ENV
           echo "BACKUP_FILE=cabflow-backup-${DATE}.sql.gz" >> $GITHUB_ENV
@@ -27,6 +28,11 @@ jobs:
             --no-acl \
             --format=plain \
             | gzip > "cabflow-backup-${DATE}.sql.gz"
+          SIZE_BYTES=$(stat -c%s "cabflow-backup-${DATE}.sql.gz")
+          if [ "$SIZE_BYTES" -lt 1000 ]; then
+            echo "ERROR: Backup file is only ${SIZE_BYTES} bytes — pg_dump likely failed silently"
+            exit 1
+          fi
           SIZE=$(du -sh "cabflow-backup-${DATE}.sql.gz" | cut -f1)
           echo "Backup complete: cabflow-backup-${DATE}.sql.gz (${SIZE})"
 
