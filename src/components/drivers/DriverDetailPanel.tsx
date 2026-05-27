@@ -115,15 +115,6 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       })
       toast.success('Driver updated')
       setEditing(false)
-      // Background WhatsApp check — fire-and-forget, never blocks save
-      const normalizedPhone = normalizePhone(form.phone)
-      if (normalizedPhone) {
-        fetch('/api/whatsapp/check-number', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: normalizedPhone }),
-        }).catch(() => {})
-      }
     } catch {
       toast.error('Failed to update driver')
     }

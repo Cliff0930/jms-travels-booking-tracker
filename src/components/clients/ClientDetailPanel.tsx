@@ -120,12 +120,11 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   async function handleEdit() {
     setSaving(true)
     try {
-      const normalizedPhone = normalizePhone(editForm.primary_phone.trim()) || null
       await updateClient.mutateAsync({
         id: client!.id,
         data: {
           name: editForm.name.trim(),
-          primary_phone: normalizedPhone,
+          primary_phone: normalizePhone(editForm.primary_phone.trim()) || null,
           primary_email: editForm.primary_email.trim() || null,
           designation: editForm.designation.trim() || null,
           client_type: editForm.client_type as ClientType,
@@ -134,14 +133,6 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       })
       toast.success('Client updated')
       setShowEdit(false)
-      // Background check — fire-and-forget, never blocks save
-      if (normalizedPhone) {
-        fetch('/api/whatsapp/check-number', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: normalizedPhone }),
-        }).catch(() => {})
-      }
     } catch {
       toast.error('Failed to update client')
     } finally {
@@ -161,14 +152,6 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       if (!res.ok) throw new Error()
       await qc.refetchQueries({ queryKey: ['clients', client!.id] })
       toast.success(`${contactType === 'phone' ? 'Phone' : 'Email'} added`)
-      // Background WhatsApp check for phone contacts — fire-and-forget
-      if (contactType === 'phone') {
-        fetch('/api/whatsapp/check-number', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: contactValue.trim() }),
-        }).catch(() => {})
-      }
       setContactValue('')
       setShowAddContact(false)
     } catch {
@@ -221,14 +204,6 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       if (!res.ok) throw new Error()
       await qc.refetchQueries({ queryKey: ['clients', client!.id] })
       toast.success('Contact updated')
-      // Background WhatsApp check for updated phone contacts — fire-and-forget
-      if (editContactType === 'phone') {
-        fetch('/api/whatsapp/check-number', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: editContactValue.trim() }),
-        }).catch(() => {})
-      }
       setEditingContact(null)
     } catch {
       toast.error('Failed to update contact')
