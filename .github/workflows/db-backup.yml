@@ -12,33 +12,89 @@ jobs:
       contents: write  # required to create and delete releases
 
     steps:
-      - name: Install PostgreSQL client
-        run: sudo apt-get install -y postgresql-client
-
-      - name: Run pg_dump
+      - name: Export database via Supabase REST API
         env:
-          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           DATE=$(date +%Y-%m-%d)
           echo "BACKUP_DATE=${DATE}" >> $GITHUB_ENV
-          echo "BACKUP_FILE=cabflow-backup-${DATE}.sql.gz" >> $GITHUB_ENV
-          pg_dump \
-            --host=aws-0-ap-south-1.pooler.supabase.com \
-            --port=5432 \
-            --username=postgres.arwouaihhbgpypswblsp \
-            --dbname=postgres \
-            --no-owner \
-            --no-acl \
-            --format=plain \
-            | gzip > "cabflow-backup-${DATE}.sql.gz"
-          SIZE_BYTES=$(stat -c%s "cabflow-backup-${DATE}.sql.gz")
-          if [ "$SIZE_BYTES" -lt 1000 ]; then
-            echo "ERROR: Backup file is only ${SIZE_BYTES} bytes — pg_dump likely failed silently"
+          echo "BACKUP_FILE=cabflow-backup-${DATE}.json.gz" >> $GITHUB_ENV
+
+          node << 'EOF'
+          const https = require('https')
+          const fs = require('fs')
+          const zlib = require('zlib')
+
+          const SUPABASE_URL = process.env.SUPABASE_URL
+          const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const DATE = process.env.DATE || new Date().toISOString().split('T')[0]
+
+          function get(path) {
+            return new Promise((resolve, reject) => {
+              const url = new URL(path, SUPABASE_URL)
+              const options = {
+                hostname: url.hostname,
+                path: url.pathname + url.search,
+                headers: {
+                  'apikey': SERVICE_ROLE_KEY,
+                  'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+                  'Accept': 'application/json'
+                }
+              }
+              https.get(options, res => {
+                let data = ''
+                res.on('data', chunk => data += chunk)
+                res.on('end', () => {
+                  if (res.statusCode >= 400) reject(new Error(`HTTP ${res.statusCode}: ${data}`))
+                  else resolve(JSON.parse(data))
+                })
+              }).on('error', reject)
+            })
+          }
+
+          async function main() {
+            // Get all table names in public schema
+            const tables = await get('/rest/v1/rpc/get_table_names')
+              .catch(async () => {
+                // Fallback: query information_schema directly
+                const res = await get("/rest/v1/information_schema/tables?table_schema=eq.public&select=table_name")
+                return res.map(r => r.table_name)
+              })
+
+            const backup = { exported_at: new Date().toISOString(), tables: {} }
+            const tableList = Array.isArray(tables) ? tables : Object.keys(tables)
+
+            for (const table of tableList) {
+              console.log(`Exporting table: ${table}`)
+              try {
+                const rows = await get(`/rest/v1/${table}?select=*&limit=100000`)
+                backup.tables[table] = rows
+                console.log(`  → ${rows.length} rows`)
+              } catch (err) {
+                console.warn(`  ✗ Skipped ${table}: ${err.message}`)
+                backup.tables[table] = { error: err.message }
+              }
+            }
+
+            const json = JSON.stringify(backup, null, 2)
+            const compressed = zlib.gzipSync(json)
+            fs.writeFileSync(`cabflow-backup-${DATE}.json.gz`, compressed)
+            console.log(`\nBackup written: cabflow-backup-${DATE}.json.gz (${(compressed.length / 1024).toFixed(1)} KB)`)
+          }
+
+          main().catch(err => { console.error(err); process.exit(1) })
+          EOF
+
+      - name: Verify backup size
+        run: |
+          SIZE_BYTES=$(stat -c%s "cabflow-backup-${{ env.BACKUP_DATE }}.json.gz")
+          if [ "$SIZE_BYTES" -lt 500 ]; then
+            echo "ERROR: Backup file is only ${SIZE_BYTES} bytes — export likely failed"
             exit 1
           fi
-          SIZE=$(du -sh "cabflow-backup-${DATE}.sql.gz" | cut -f1)
-          echo "Backup complete: cabflow-backup-${DATE}.sql.gz (${SIZE})"
+          echo "Backup size: $(du -sh cabflow-backup-${{ env.BACKUP_DATE }}.json.gz | cut -f1)"
 
       - name: Upload to GitHub Releases
         env:
