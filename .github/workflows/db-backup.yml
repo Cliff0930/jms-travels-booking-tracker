@@ -17,13 +17,17 @@ jobs:
 
       - name: Run pg_dump
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           set -euo pipefail
           DATE=$(date +%Y-%m-%d)
           echo "BACKUP_DATE=${DATE}" >> $GITHUB_ENV
           echo "BACKUP_FILE=cabflow-backup-${DATE}.sql.gz" >> $GITHUB_ENV
-          pg_dump "$DATABASE_URL" \
+          pg_dump \
+            --host=aws-0-ap-south-1.pooler.supabase.com \
+            --port=5432 \
+            --username=postgres.arwouaihhbgpypswblsp \
+            --dbname=postgres \
             --no-owner \
             --no-acl \
             --format=plain \
