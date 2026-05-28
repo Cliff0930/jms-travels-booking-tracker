@@ -28,13 +28,18 @@ function buildEmailBody(clientName: string, bookingRef: string): string {
   return [
     `Hi ${clientName},`,
     ``,
-    `Your booking (Ref: ${bookingRef}) was received after our office hours (9:30 PM IST).`,
+    `Thank you for your booking request.`,
     ``,
-    `For immediate action on your booking, please call us at 9845572207.`,
+    `We have successfully received your booking reference: ${bookingRef}.`,
     ``,
-    `If this is not urgent, your booking will be confirmed from 8:00 AM tomorrow.`,
+    `Please note that our office operates only between 8:00 AM IST and 9:30 PM IST. As this booking was received outside our working hours, our team will review and confirm it once operations resume at 8:00 AM IST.`,
     ``,
-    `Thank you for your patience.`,
+    `If your requirement is urgent and needs immediate attention, please contact us directly at 9845572207.`,
+    ``,
+    `We appreciate your patience and understanding.`,
+    ``,
+    `Regards,`,
+    `JMS Travels Team`,
   ].join('\n')
 }
 
