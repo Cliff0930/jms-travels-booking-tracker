@@ -20,6 +20,8 @@ interface TripSheetRow {
   closing_km: number | null
   opening_time: string | null
   closing_time: string | null
+  manual_opening_time: string | null
+  manual_closing_time: string | null
   office_to_pickup_km: number | null
   drop_to_office_km: number | null
   toll_amount: number | null
@@ -69,6 +71,24 @@ function fmtDuration(open: string, close: string): string {
   const h = Math.floor(diff / 3600000)
   const m = Math.floor((diff % 3600000) / 60000)
   return `${h}h ${m}m`
+}
+
+function fmtManualDuration(openStr: string, closeStr: string): string {
+  function toMin(t: string): number | null {
+    const m24 = t.trim().match(/^(\d{1,2}):(\d{2})$/)
+    if (m24) return parseInt(m24[1]) * 60 + parseInt(m24[2])
+    const m12 = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+    if (!m12) return null
+    let h = parseInt(m12[1])
+    if (m12[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m12[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return h * 60 + parseInt(m12[2])
+  }
+  const open = toMin(openStr), close = toMin(closeStr)
+  if (open === null || close === null) return '—'
+  let diff = close - open
+  if (diff < 0) diff += 24 * 60
+  return `${Math.floor(diff / 60)}h ${diff % 60}m`
 }
 
 export default function ReportsPage() {
@@ -458,12 +478,13 @@ export default function ReportsPage() {
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Parking</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Permit</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Bata</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Duration</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver Hrs</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">GPS Hrs</th>
               </tr>
             </thead>
             <tbody>
               {filteredBookings.length === 0 ? (
-                <tr><td colSpan={24} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
+                <tr><td colSpan={25} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
               ) : filteredBookings.map(b => {
                 const ts = b.trip_sheet
                 const driverKm = (ts?.closing_km != null && ts?.opening_km != null)
@@ -471,8 +492,8 @@ export default function ReportsPage() {
                 const totalKm = driverKm != null
                   ? driverKm + (ts?.office_to_pickup_km ?? 0) + (ts?.drop_to_office_km ?? 0)
                   : null
-                const duration = ts?.opening_time && ts?.closing_time
-                  ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
+                const gpsHrs    = ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
+                const driverHrs = ts?.manual_opening_time && ts?.manual_closing_time ? fmtManualDuration(ts.manual_opening_time, ts.manual_closing_time) : '—'
                 return (
                   <tr key={b.id} className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE]">
                     <td className="px-3 py-2 whitespace-nowrap">
@@ -492,8 +513,14 @@ export default function ReportsPage() {
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] capitalize">{b.source}</td>
                     {/* Tripsheet columns — lg+ */}
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap border-l border-[#C3C5D7]">{ts?.tripsheet_number || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{ts?.opening_time ? new Date(ts.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{ts?.closing_time ? new Date(ts.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 whitespace-nowrap">
+                      <div className="text-sm text-[#191B23]">{ts?.manual_opening_time ?? '—'}</div>
+                      {ts?.opening_time && <div className="text-[11px] text-[#9CA3AF]">GPS: {new Date(ts.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
+                    </td>
+                    <td className="hidden lg:table-cell px-3 py-2 whitespace-nowrap">
+                      <div className="text-sm text-[#191B23]">{ts?.manual_closing_time ?? '—'}</div>
+                      {ts?.closing_time && <div className="text-[11px] text-[#9CA3AF]">GPS: {new Date(ts.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
+                    </td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#191B23] font-medium text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
@@ -503,7 +530,8 @@ export default function ReportsPage() {
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.permit_amount != null ? `₹${ts.permit_amount}` : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-medium text-right">{ts?.bata_driver != null && ts.bata_driver > 0 ? `${ts.bata_driver}` : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{duration}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{driverHrs}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{gpsHrs}</td>
                   </tr>
                 )
               })}
