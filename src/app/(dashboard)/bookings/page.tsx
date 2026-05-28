@@ -362,7 +362,7 @@ export default function BookingsPage() {
       <Tabs defaultValue="all">
         <TabsList className="mb-4 bg-[#EDEDF8] flex-wrap h-auto gap-0.5">
           {TABS.map(t => {
-            const count = t.value === 'all' ? applyFilters(t.items) : sortByPickup(applyFilters(t.items)).length
+            const count = (t.value === 'all' ? applyFilters(t.items) : sortByPickup(applyFilters(t.items))).length
             return (
               <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs">
                 {t.label} <span className="ml-1 text-[#737686]">({count})</span>
