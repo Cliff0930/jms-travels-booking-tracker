@@ -137,8 +137,8 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       })
       toast.success('Client updated')
       setShowEdit(false)
-    } catch {
-      toast.error('Failed to update client')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update client')
     } finally {
       setSaving(false)
     }
@@ -234,12 +234,12 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
     setPromotingContactId(contactId)
     try {
       const res = await fetch(`/api/clients/${client!.id}/contacts/${contactId}/promote`, { method: 'POST' })
-      if (!res.ok) throw new Error()
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Unknown error') }
       await qc.refetchQueries({ queryKey: ['clients', client!.id] })
       qc.invalidateQueries({ queryKey: ['clients'] })
       toast.success('Primary contact updated')
-    } catch {
-      toast.error('Failed to update primary contact')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update primary contact')
     } finally {
       setPromotingContactId(null)
     }
