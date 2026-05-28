@@ -12,7 +12,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2 } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -44,6 +44,7 @@ export default function BookingsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>('')
   const [bookingTypeFilter, setBookingTypeFilter] = useState<'' | 'company' | 'personal'>('')
   const [legsFilter, setLegsFilter] = useState<'' | 'today_legs' | 'tomorrow_legs'>('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'pickup_asc'>('newest')
 
   const today = localDate(0)
   const tomorrow = localDate(1)
@@ -102,6 +103,15 @@ export default function BookingsPage() {
         if (!match) return false
       }
       return true
+    })
+  }
+
+  function applySort(items: Booking[]) {
+    if (sortOrder === 'newest') return items
+    return [...items].sort((a, b) => {
+      const aStr = (a.pickup_date || '') + 'T' + (a.pickup_time || '00:00')
+      const bStr = (b.pickup_date || '') + 'T' + (b.pickup_time || '00:00')
+      return aStr.localeCompare(bStr)
     })
   }
 
@@ -305,6 +315,20 @@ export default function BookingsPage() {
           </Select>
         )}
 
+        {/* Sort toggle */}
+        <button
+          onClick={() => setSortOrder(o => o === 'newest' ? 'pickup_asc' : 'newest')}
+          className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
+            sortOrder === 'pickup_asc'
+              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+              : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
+          }`}
+          title={sortOrder === 'pickup_asc' ? 'Sorted by pickup date (earliest first)' : 'Sorted by newest'}
+        >
+          <ArrowUpDown className="w-3.5 h-3.5" />
+          {sortOrder === 'pickup_asc' ? 'Date ↑' : 'Newest'}
+        </button>
+
         {/* Clear filters */}
         {hasFilters && (
           <button
@@ -354,7 +378,7 @@ export default function BookingsPage() {
       <Tabs defaultValue="all">
         <TabsList className="mb-4 bg-[#EDEDF8] flex-wrap h-auto gap-0.5">
           {TABS.map(t => {
-            const count = applyFilters(t.items).length
+            const count = applySort(applyFilters(t.items)).length
             return (
               <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs">
                 {t.label} <span className="ml-1 text-[#737686]">({count})</span>
@@ -364,7 +388,7 @@ export default function BookingsPage() {
         </TabsList>
 
         {TABS.map(t => {
-          const filtered = applyFilters(t.items)
+          const filtered = applySort(applyFilters(t.items))
           return (
             <TabsContent key={t.value} value={t.value}>
               {isLoading ? (
