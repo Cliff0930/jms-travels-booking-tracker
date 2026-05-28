@@ -596,6 +596,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          findOrCreate: true,
           name: booking.guest_name,
           primary_phone: booking.guest_phone || null,
           client_type: 'guest',
