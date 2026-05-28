@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { normalizePhone } from '@/lib/utils/phone'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string; contactId: string }> }) {
   const { id: clientId, contactId } = await params
@@ -15,18 +16,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const field = contact.contact_type === 'phone' ? 'primary_phone' : 'primary_email'
   const oldPrimary = client[field as 'primary_phone' | 'primary_email']
+  const newPrimary = contact.contact_type === 'phone'
+    ? (normalizePhone(contact.value) || contact.value)
+    : contact.value
 
-  if (oldPrimary) {
+  if (oldPrimary && oldPrimary !== newPrimary) {
     const { error: insertErr } = await supabase.from('client_contacts').insert({
       client_id: clientId,
       value: oldPrimary,
       contact_type: contact.contact_type,
       role: 'additional',
     })
-    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+    if (insertErr && !insertErr.message.includes('duplicate')) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 })
+    }
   }
 
-  const { error: updateErr } = await supabase.from('clients').update({ [field]: contact.value }).eq('id', clientId)
+  const { error: updateErr } = await supabase.from('clients').update({ [field]: newPrimary }).eq('id', clientId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
   const { error: deleteErr } = await supabase.from('client_contacts').delete().eq('id', contactId).eq('client_id', clientId)

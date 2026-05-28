@@ -25,6 +25,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .eq('id', id)
     .select()
     .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const msg = error.message.includes('idx_clients_primary_phone_unique')
+      ? 'This phone number is already registered to another client'
+      : error.message
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
   return NextResponse.json(data)
 }
