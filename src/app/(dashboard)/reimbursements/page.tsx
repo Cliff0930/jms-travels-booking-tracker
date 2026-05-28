@@ -60,55 +60,85 @@ export default function ReimbursementsPage() {
     return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [allDriverSheets])
 
+  const qKey = ['reimbursements', tab, driverId, search, dateFrom, dateTo] as const
+
+  async function patchSheet(sheetId: string, body: Record<string, unknown>) {
+    const res = await fetch(`/api/reimbursements/${sheetId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error()
+    return res.json() as Promise<Partial<ReimbursementSheet>>
+  }
+
   async function toggleFlag(sheetId: string, field: string, value: boolean) {
+    const prev = qc.getQueryData<ReimbursementSheet[]>(qKey)
+    qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
+      old?.map(s => s.sheet_id === sheetId ? { ...s, [field]: value } : s) ?? []
+    )
     try {
-      const res = await fetch(`/api/reimbursements/${sheetId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
-      })
-      if (!res.ok) throw new Error()
-      qc.invalidateQueries({ queryKey: ['reimbursements'] })
-      qc.invalidateQueries({ queryKey: ['reimbursements-all-drivers'] })
+      const data = await patchSheet(sheetId, { [field]: value })
+      const prevSheet = prev?.find(s => s.sheet_id === sheetId)
+      if (data.reimbursed_at !== (prevSheet?.reimbursed_at ?? null)) {
+        qc.invalidateQueries({ queryKey: ['reimbursements'] })
+      } else {
+        qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
+          old?.map(s => s.sheet_id === sheetId ? { ...s, ...data } : s) ?? []
+        )
+      }
     } catch {
+      qc.setQueryData(qKey, prev)
+      toast.error('Failed to update')
+    }
+  }
+
+  async function rejectItem(sheetId: string, itemKey: string, current: string | null) {
+    const rejSet = new Set((current ?? '').split(',').filter(Boolean))
+    rejSet.has(itemKey) ? rejSet.delete(itemKey) : rejSet.add(itemKey)
+    const newVal = Array.from(rejSet).join(',') || null
+    const prev = qc.getQueryData<ReimbursementSheet[]>(qKey)
+    qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
+      old?.map(s => s.sheet_id === sheetId ? { ...s, rejected_items: newVal } : s) ?? []
+    )
+    try {
+      const data = await patchSheet(sheetId, { rejected_items: newVal })
+      const prevSheet = prev?.find(s => s.sheet_id === sheetId)
+      if (data.reimbursed_at !== (prevSheet?.reimbursed_at ?? null)) {
+        qc.invalidateQueries({ queryKey: ['reimbursements'] })
+      }
+    } catch {
+      qc.setQueryData(qKey, prev)
       toast.error('Failed to update')
     }
   }
 
   async function settleAll(sheetId: string, sheet: ReimbursementSheet) {
-    const update: Record<string, boolean> = {
-      tripsheet_doc_received: true,
-    }
-    if (sheet.toll_amount != null) { update.toll_received = true; update.toll_paid = true }
-    if (sheet.parking_amount != null) { update.parking_received = true; update.parking_paid = true }
-    if (sheet.permit_amount != null) { update.permit_received = true; update.permit_paid = true }
-    if (sheet.bata_driver != null) { update.bata_received = true; update.bata_paid = true }
+    const rejected = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
+    const update: Record<string, boolean> = { tripsheet_doc_received: true }
+    if (sheet.toll_amount != null && !rejected.has('toll')) { update.toll_received = true; update.toll_paid = true }
+    if (sheet.parking_amount != null && !rejected.has('parking')) { update.parking_received = true; update.parking_paid = true }
+    if (sheet.permit_amount != null && !rejected.has('permit')) { update.permit_received = true; update.permit_paid = true }
+    if (sheet.bata_driver != null && !rejected.has('bata')) { update.bata_received = true; update.bata_paid = true }
+    const prev = qc.getQueryData<ReimbursementSheet[]>(qKey)
+    qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
+      old?.map(s => s.sheet_id === sheetId ? { ...s, ...update } : s) ?? []
+    )
     try {
-      const res = await fetch(`/api/reimbursements/${sheetId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(update),
-      })
-      if (!res.ok) throw new Error()
+      await patchSheet(sheetId, update)
       toast.success('Trip fully settled')
       qc.invalidateQueries({ queryKey: ['reimbursements'] })
-      qc.invalidateQueries({ queryKey: ['reimbursements-all-drivers'] })
     } catch {
+      qc.setQueryData(qKey, prev)
       toast.error('Failed to settle')
     }
   }
 
   async function revokeSettlement(sheetId: string) {
     try {
-      const res = await fetch(`/api/reimbursements/${sheetId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ revoke: true }),
-      })
-      if (!res.ok) throw new Error()
+      await patchSheet(sheetId, { revoke: true })
       toast.success('Settlement revoked — moved back to pending')
       qc.invalidateQueries({ queryKey: ['reimbursements'] })
-      qc.invalidateQueries({ queryKey: ['reimbursements-all-drivers'] })
     } catch {
       toast.error('Failed to revoke')
     }
@@ -259,6 +289,7 @@ export default function ReimbursementsPage() {
               onToggle={toggleFlag}
               onSettleAll={settleAll}
               onRevoke={revokeSettlement}
+              onReject={rejectItem}
             />
           ))}
         </div>
@@ -273,16 +304,23 @@ function TripCard({
   onToggle,
   onSettleAll,
   onRevoke,
+  onReject,
 }: {
   sheet: ReimbursementSheet
   settled: boolean
   onToggle: (sheetId: string, field: string, value: boolean) => void
   onSettleAll: (sheetId: string, sheet: ReimbursementSheet) => void
   onRevoke: (sheetId: string) => void
+  onReject: (sheetId: string, itemKey: string, current: string | null) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const rejectedSet = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
 
-  const totalOwed = (sheet.toll_amount ?? 0) + (sheet.parking_amount ?? 0) + (sheet.permit_amount ?? 0) + (sheet.bata_amount ?? 0)
+  const totalOwed =
+    (!rejectedSet.has('toll') ? (sheet.toll_amount ?? 0) : 0) +
+    (!rejectedSet.has('parking') ? (sheet.parking_amount ?? 0) : 0) +
+    (!rejectedSet.has('permit') ? (sheet.permit_amount ?? 0) : 0) +
+    (!rejectedSet.has('bata') ? (sheet.bata_amount ?? 0) : 0)
   const allSettled = !!sheet.reimbursed_at
 
   return (
@@ -344,7 +382,9 @@ function TripCard({
             received={sheet.tripsheet_doc_received}
             hasPaid={false}
             settled={settled}
+            rejected={false}
             onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+            onReject={() => {}}
           />
 
           {sheet.toll_amount != null && (
@@ -357,7 +397,9 @@ function TripCard({
               paid={sheet.toll_paid}
               hasPaid
               settled={settled}
+              rejected={rejectedSet.has('toll')}
               onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+              onReject={() => onReject(sheet.sheet_id, 'toll', sheet.rejected_items)}
             />
           )}
 
@@ -371,7 +413,9 @@ function TripCard({
               paid={sheet.parking_paid}
               hasPaid
               settled={settled}
+              rejected={rejectedSet.has('parking')}
               onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+              onReject={() => onReject(sheet.sheet_id, 'parking', sheet.rejected_items)}
             />
           )}
 
@@ -385,7 +429,9 @@ function TripCard({
               paid={sheet.permit_paid}
               hasPaid
               settled={settled}
+              rejected={rejectedSet.has('permit')}
               onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+              onReject={() => onReject(sheet.sheet_id, 'permit', sheet.rejected_items)}
             />
           )}
 
@@ -399,7 +445,9 @@ function TripCard({
               paid={sheet.bata_paid}
               hasPaid
               settled={settled}
+              rejected={rejectedSet.has('bata')}
               onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+              onReject={() => onReject(sheet.sheet_id, 'bata', sheet.rejected_items)}
             />
           )}
 
@@ -438,15 +486,8 @@ function TripCard({
 }
 
 function ItemRow({
-  label,
-  amount,
-  receivedField,
-  paidField,
-  received,
-  paid,
-  hasPaid,
-  settled,
-  onToggle,
+  label, amount, receivedField, paidField,
+  received, paid, hasPaid, settled, rejected, onToggle, onReject,
 }: {
   label: string
   amount?: number
@@ -456,32 +497,37 @@ function ItemRow({
   paid?: boolean
   hasPaid: boolean
   settled: boolean
+  rejected: boolean
   onToggle: (field: string, value: boolean) => void
+  onReject: () => void
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-[#F3F4F6] last:border-0">
+    <div className={`flex items-center justify-between py-2 border-b border-[#F3F4F6] last:border-0 ${rejected ? 'opacity-50' : ''}`}>
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm text-[#374151] font-medium">{label}</span>
-        {amount != null && <span className="text-sm font-bold text-[#191B23]">₹{amount.toFixed(0)}</span>}
+        <span className={`text-sm text-[#374151] font-medium ${rejected ? 'line-through' : ''}`}>{label}</span>
+        {amount != null && <span className={`text-sm font-bold text-[#191B23] ${rejected ? 'line-through' : ''}`}>₹{amount.toFixed(0)}</span>}
+        {rejected && <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-200">Rejected</span>}
       </div>
-      <div className="flex items-center gap-4 shrink-0">
-        {/* Received toggle */}
-        <Toggle
-          label="Received"
-          checked={received}
-          disabled={settled}
-          onChange={val => onToggle(receivedField, val)}
-          color="blue"
-        />
-        {/* Paid toggle */}
-        {hasPaid && paidField && (
-          <Toggle
-            label="Paid"
-            checked={!!paid}
-            disabled={settled || !received}
-            onChange={val => onToggle(paidField, val)}
-            color="green"
-          />
+      <div className="flex items-center gap-2 shrink-0">
+        {!rejected && (
+          <>
+            <Toggle label="Received" checked={received} disabled={settled} onChange={val => onToggle(receivedField, val)} color="blue" />
+            {hasPaid && paidField && (
+              <Toggle label="Paid" checked={!!paid} disabled={settled || !received} onChange={val => onToggle(paidField, val)} color="green" />
+            )}
+          </>
+        )}
+        {hasPaid && !settled && (
+          <button
+            onClick={onReject}
+            className={`text-[11px] px-2 py-1 rounded border font-semibold transition-colors ${
+              rejected
+                ? 'border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'border-[#FCA5A5] text-[#DC2626] hover:bg-red-50'
+            }`}
+          >
+            {rejected ? '↩ Restore' : '✕ Reject'}
+          </button>
         )}
       </div>
     </div>

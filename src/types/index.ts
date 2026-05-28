@@ -145,6 +145,7 @@ export interface ReimbursementSheet {
   bata_paid: boolean
   reimbursement_notes: string | null
   reimbursed_at: string | null
+  rejected_items: string | null
   created_at: string
 }
 

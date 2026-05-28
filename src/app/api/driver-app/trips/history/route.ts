@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   const [{ data: sheets }, { data: driverData }] = await Promise.all([
     supabase
       .from('trip_sheets')
-      .select('booking_id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time, toll_amount, parking_amount, permit_amount, opening_time, closing_time, bata_driver, tripsheet_doc_received, reimbursed_at')
+      .select('booking_id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time, toll_amount, parking_amount, permit_amount, opening_time, closing_time, bata_driver, tripsheet_doc_received, reimbursed_at, rejected_items')
       .in('booking_id', bookings.map(b => b.id))
       .order('created_at', { ascending: true }),
     supabase
@@ -50,7 +50,12 @@ export async function GET(request: Request) {
     let hasAmounts = false
 
     for (const s of bookingSheets) {
-      const sheetTotal = (s.toll_amount ?? 0) + (s.parking_amount ?? 0) + (s.permit_amount ?? 0) + (s.bata_driver ?? 0) * rate
+      const rej = new Set((s.rejected_items as string ?? '').split(',').filter(Boolean))
+      const toll    = rej.has('toll')    ? 0 : (s.toll_amount ?? 0)
+      const parking = rej.has('parking') ? 0 : (s.parking_amount ?? 0)
+      const permit  = rej.has('permit')  ? 0 : (s.permit_amount ?? 0)
+      const bata    = rej.has('bata')    ? 0 : (s.bata_driver ?? 0) * rate
+      const sheetTotal = toll + parking + permit + bata
       if (sheetTotal > 0) {
         hasAmounts = true
         total += sheetTotal
