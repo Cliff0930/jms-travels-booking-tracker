@@ -235,7 +235,8 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
     try {
       const res = await fetch(`/api/clients/${client!.id}/contacts/${contactId}/promote`, { method: 'POST' })
       if (!res.ok) throw new Error()
-      await qc.invalidateQueries({ queryKey: ['clients'] })
+      await qc.refetchQueries({ queryKey: ['clients', client!.id] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
       toast.success('Primary contact updated')
     } catch {
       toast.error('Failed to update primary contact')
@@ -426,30 +427,32 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     )}
                     <span className="text-[10px] text-[#737686] shrink-0">({ct.role})</span>
                     {canEdit && (
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         onClick={() => handlePromoteContact(ct.id)}
                         disabled={promotingContactId === ct.id}
-                        className="p-1 rounded text-[#737686] hover:text-emerald-600 hover:bg-white transition-colors disabled:opacity-40"
+                        className="p-1 rounded text-emerald-500 hover:text-emerald-700 hover:bg-white transition-colors disabled:opacity-40"
                         title="Set as primary"
                       >
                         <ArrowUp className="w-3 h-3" />
                       </button>
-                      <button
-                        onClick={() => openEditContact(ct)}
-                        className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-white transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteContact(ct.id)}
-                        disabled={deletingContactId === ct.id}
-                        className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-white transition-colors disabled:opacity-40"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEditContact(ct)}
+                          className="p-1 rounded text-[#737686] hover:text-[#1A56DB] hover:bg-white transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteContact(ct.id)}
+                          disabled={deletingContactId === ct.id}
+                          className="p-1 rounded text-[#737686] hover:text-red-600 hover:bg-white transition-colors disabled:opacity-40"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                     )}
                   </div>

@@ -32,7 +32,11 @@ export function useUpdateClient() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Client> }) =>
-      fetch(`/api/clients/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
+      fetch(`/api/clients/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+        .then(async r => {
+          if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed to update') }
+          return r.json()
+        }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['clients'] }),
   })
 }
