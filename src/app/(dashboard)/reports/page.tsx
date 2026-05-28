@@ -447,6 +447,8 @@ export default function ReportsPage() {
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Source</th>
                 {/* Tripsheet — lg+ only */}
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap border-l border-[#C3C5D7]">Sheet No.</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open Time</th>
+                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close Time</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open KM</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close KM</th>
                 <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver KM</th>
@@ -473,7 +475,9 @@ export default function ReportsPage() {
                   ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
                 return (
                   <tr key={b.id} className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE]">
-                    <td className="px-3 py-2 font-medium text-[#1A56DB] whitespace-nowrap">{b.booking_ref}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <a href={`/bookings/${b.id}`} className="font-medium text-[#1A56DB] hover:underline hover:text-[#003FB1]">{b.booking_ref}</a>
+                    </td>
                     <td className="px-3 py-2 text-[#191B23] whitespace-nowrap max-w-[100px] truncate">{b.client?.name || b.guest_name || '—'}</td>
                     <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_date || '—'}</td>
                     <td className="px-3 py-2"><BookingStatusBadge status={b.status} /></td>
@@ -488,6 +492,8 @@ export default function ReportsPage() {
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] capitalize">{b.source}</td>
                     {/* Tripsheet columns — lg+ */}
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap border-l border-[#C3C5D7]">{ts?.tripsheet_number || '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{ts?.opening_time ? new Date(ts.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</td>
+                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{ts?.closing_time ? new Date(ts.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
                     <td className="hidden lg:table-cell px-3 py-2 text-[#191B23] font-medium text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
