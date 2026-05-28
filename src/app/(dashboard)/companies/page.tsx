@@ -559,6 +559,36 @@ export default function CompaniesPage() {
                 {/* ── Settings (edit-gated) ── */}
                 <div className={!canEdit ? 'pointer-events-none opacity-60 space-y-4' : 'space-y-4'}>
 
+                  {/* Card 0: Company Info */}
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] divide-y divide-[#F3F4F6] overflow-hidden">
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Company Name</h3>
+                      <Input
+                        key={selectedCompany.id + '-name'}
+                        defaultValue={selectedCompany.name}
+                        placeholder="Company name"
+                        className="border-[#C3C5D7] text-sm"
+                        onBlur={e => {
+                          const val = e.target.value.trim()
+                          if (val && val !== selectedCompany.name) {
+                            updateCompany(selectedCompany.id, { name: val })
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Aliases</h3>
+                      <p className="text-xs text-[#9CA3AF]">Alternative names used to match this company in emails and messages.</p>
+                      <TagInput
+                        values={selectedCompany.aliases ?? []}
+                        onSave={list => updateCompany(selectedCompany.id, { aliases: list })}
+                        placeholder="e.g. Nirvana, NF Films"
+                        emptyLabel="No aliases configured"
+                        icon={Building2}
+                      />
+                    </div>
+                  </div>
+
                   {/* Card 1: Approval & Booking Rules */}
                   <div className="bg-white rounded-xl border border-[#E5E7EB] divide-y divide-[#F3F4F6] overflow-hidden">
                     <div className="p-4 space-y-3">
