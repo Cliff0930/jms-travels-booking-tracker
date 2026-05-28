@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -72,6 +72,35 @@ function fmtDuration(open: string, close: string): string {
 }
 
 export default function ReportsPage() {
+  const tableWrapRef  = useRef<HTMLDivElement>(null)
+  const stickyBarRef  = useRef<HTMLDivElement>(null)
+  const stickyInnerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const wrap = tableWrapRef.current
+    const bar  = stickyBarRef.current
+    const inner = stickyInnerRef.current
+    if (!wrap || !bar || !inner) return
+
+    function syncWidth() {
+      if (wrap && inner) inner.style.width = `${wrap.scrollWidth}px`
+    }
+    function onWrapScroll()  { if (bar)  bar.scrollLeft  = wrap!.scrollLeft }
+    function onBarScroll()   { if (wrap) wrap.scrollLeft = bar!.scrollLeft }
+
+    syncWidth()
+    const ro = new ResizeObserver(syncWidth)
+    ro.observe(wrap)
+
+    wrap.addEventListener('scroll', onWrapScroll)
+    bar.addEventListener('scroll', onBarScroll)
+    return () => {
+      ro.disconnect()
+      wrap.removeEventListener('scroll', onWrapScroll)
+      bar.removeEventListener('scroll', onBarScroll)
+    }
+  }, [])
+
   const [filters, setFilters] = useState({ date_from: '', date_to: '' })
   const [tableFilters, setTableFilters] = useState({
     search: '', status: '', trip_type: '', source: '', company: '', driver: '',
@@ -395,7 +424,8 @@ export default function ReportsPage() {
       {isLoading ? (
         <div className="py-12 text-center text-[#737686]">Loading report…</div>
       ) : (
-        <div className="bg-white rounded-lg border border-[#C3C5D7] overflow-x-auto">
+        <>
+        <div ref={tableWrapRef} className="bg-white rounded-lg border border-[#C3C5D7] overflow-x-auto">
           <table className="w-full text-sm min-w-[320px] sm:min-w-[640px] lg:min-w-[1400px]">
             <thead>
               <tr className="border-b border-[#C3C5D7] bg-[#F3F3FE]">
@@ -474,6 +504,15 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
+        {/* Sticky horizontal scrollbar — synced with table above */}
+        <div
+          ref={stickyBarRef}
+          className="sticky bottom-0 overflow-x-auto overflow-y-hidden border-t border-[#E5E7EB] bg-white z-10"
+          style={{ height: 14 }}
+        >
+          <div ref={stickyInnerRef} style={{ height: 1 }} />
+        </div>
+        </>
       )}
     </div>
   )
