@@ -12,7 +12,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2 } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -44,6 +44,7 @@ export default function BookingsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>('')
   const [bookingTypeFilter, setBookingTypeFilter] = useState<'' | 'company' | 'personal'>('')
   const [legsFilter, setLegsFilter] = useState<'' | 'today_legs' | 'tomorrow_legs'>('')
+  const [sortByDate, setSortByDate] = useState(false)
 
   const today = localDate(0)
   const tomorrow = localDate(1)
@@ -107,8 +108,14 @@ export default function BookingsPage() {
 
   function sortByPickup(items: Booking[]) {
     return [...items].sort((a, b) => {
-      const aStr = (a.pickup_date || '9999-99-99') + 'T' + (a.pickup_time || '99:99')
-      const bStr = (b.pickup_date || '9999-99-99') + 'T' + (b.pickup_time || '99:99')
+      const aDate = a.pickup_date || ''
+      const bDate = b.pickup_date || ''
+      const aPast = aDate && aDate < today
+      const bPast = bDate && bDate < today
+      if (aPast && !bPast) return 1   // past trips sink to bottom
+      if (!aPast && bPast) return -1
+      const aStr = (aDate || '9999-99-99') + 'T' + (a.pickup_time || '99:99')
+      const bStr = (bDate || '9999-99-99') + 'T' + (b.pickup_time || '99:99')
       return aStr.localeCompare(bStr)
     })
   }
@@ -313,6 +320,20 @@ export default function BookingsPage() {
           </Select>
         )}
 
+        {/* Sort by nearest travel date */}
+        <button
+          onClick={() => setSortByDate(v => !v)}
+          className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
+            sortByDate
+              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+              : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
+          }`}
+          title="Sort by nearest travel date & time"
+        >
+          <ArrowUpDown className="w-3.5 h-3.5" />
+          Date ↑
+        </button>
+
         {/* Clear filters */}
         {hasFilters && (
           <button
@@ -362,7 +383,7 @@ export default function BookingsPage() {
       <Tabs defaultValue="all">
         <TabsList className="mb-4 bg-[#EDEDF8] flex-wrap h-auto gap-0.5">
           {TABS.map(t => {
-            const count = (t.value === 'all' ? applyFilters(t.items) : sortByPickup(applyFilters(t.items))).length
+            const count = (sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)).length
             return (
               <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs">
                 {t.label} <span className="ml-1 text-[#737686]">({count})</span>
@@ -372,7 +393,7 @@ export default function BookingsPage() {
         </TabsList>
 
         {TABS.map(t => {
-          const filtered = t.value === 'all' ? applyFilters(t.items) : sortByPickup(applyFilters(t.items))
+          const filtered = sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)
           return (
             <TabsContent key={t.value} value={t.value}>
               {isLoading ? (
