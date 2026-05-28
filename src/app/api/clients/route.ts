@@ -18,7 +18,29 @@ export async function GET(request: Request) {
     .order('name')
 
   if (q) {
-    query = query.or(`name.ilike.%${q}%,primary_phone.ilike.%${q}%,primary_email.ilike.%${q}%`)
+    const normalized = q.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    const { data: allCompanies } = await supabase.from('companies').select('id, name, aliases')
+    const matchingCompanyIds = (allCompanies ?? [])
+      .filter(c => {
+        const qLower = q.toLowerCase()
+        const nameNorm = c.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+        if (c.name.toLowerCase().includes(qLower)) return true
+        if (normalized && nameNorm.includes(normalized)) return true
+        if (c.aliases?.some((a: string) =>
+          a.toLowerCase().includes(qLower) ||
+          (normalized && a.toLowerCase().replace(/[^a-z0-9]/g, '').includes(normalized))
+        )) return true
+        return false
+      })
+      .map(c => c.id)
+
+    let orFilter = `name.ilike.%${q}%,primary_phone.ilike.%${q}%,primary_email.ilike.%${q}%`
+    if (matchingCompanyIds.length > 0) {
+      const ids = matchingCompanyIds.join(',')
+      orFilter += `,company_id.in.(${ids}),guest_of_company_id.in.(${ids})`
+    }
+    query = query.or(orFilter)
   }
   if (client_type) query = query.eq('client_type', client_type)
   if (company_id) query = query.eq('company_id', company_id)
