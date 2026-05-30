@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { createAdminClient } from '@/lib/supabase/server'
 import { InvoicePDF } from '@/components/billing/InvoicePDF'
 import type { InvoicePDFData } from '@/components/billing/InvoicePDF'
+
+function getLogoDataUri(): string | undefined {
+  const logoPath = join(process.cwd(), 'public', 'jms-logo.png')
+  if (!existsSync(logoPath)) return undefined
+  return `data:image/png;base64,${readFileSync(logoPath).toString('base64')}`
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -38,6 +46,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   const data: InvoicePDFData = {
+    logoSrc: getLogoDataUri(),
     invoice_number: invoice.invoice_number,
     period_from: invoice.period_from,
     period_to: invoice.period_to,

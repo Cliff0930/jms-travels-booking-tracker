@@ -1,7 +1,4 @@
-// To add the JMS Travel logo: place logo file at public/jms-logo.png, then:
-// import { Image } from '@react-pdf/renderer'
-// Add <Image src="path/to/jms-logo.png" style={{ width: 60, height: 60 }} /> in the header
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 
 const JMS = {
   name: 'J M S TRAVELS',
@@ -46,12 +43,16 @@ const s = StyleSheet.create({
   },
 
   // ── Header ──────────────────────────────────────────────────────
-  headerWrap: { alignItems: 'center', marginBottom: 4 },
+  headerWrap: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  logoBox: { width: 72, height: 72, marginRight: 12 },
+  logo: { width: 72, height: 72, objectFit: 'contain' },
+  headerText: { flex: 1, alignItems: 'center' },
   companyName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: NAVY, letterSpacing: 2 },
   companyTagline: { fontSize: 6.5, fontFamily: 'Helvetica-Oblique', color: '#666', marginTop: 1 },
   addressLine: { fontSize: 6.5, color: '#444', marginTop: 2, textAlign: 'center' },
   hsnLine: { fontSize: 7, fontFamily: 'Helvetica-Bold', textDecoration: 'underline', marginTop: 3 },
   billTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', letterSpacing: 1, marginTop: 2 },
+  headerSpacer: { width: 72 },
 
   divider: { height: 1.5, backgroundColor: NAVY, marginVertical: 5 },
 
@@ -151,6 +152,7 @@ const s = StyleSheet.create({
 // ── Interfaces ────────────────────────────────────────────────────
 
 export interface InvoicePDFData {
+  logoSrc?: string
   invoice_number: string
   period_from: string
   period_to: string
@@ -305,12 +307,20 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
 
         {/* ── Company Header ── */}
         <View style={s.headerWrap}>
-          <Text style={s.companyName}>{JMS.name}</Text>
-          <Text style={s.companyTagline}>{JMS.tagline}</Text>
-          <Text style={s.addressLine}>{JMS.address}</Text>
-          <Text style={s.addressLine}>Ph: {JMS.phone}   e-Mail: {JMS.email}</Text>
-          <Text style={s.hsnLine}>H.S.N. CODE: {JMS.hsn}</Text>
-          <Text style={s.billTitle}>CASH / CREDIT BILL</Text>
+          {/* Logo left — balanced by spacer on right so text stays centred */}
+          {data.logoSrc
+            ? <Image src={data.logoSrc} style={s.logo} />
+            : <View style={s.logoBox} />
+          }
+          <View style={s.headerText}>
+            <Text style={s.companyName}>{JMS.name}</Text>
+            <Text style={s.companyTagline}>{JMS.tagline}</Text>
+            <Text style={s.addressLine}>{JMS.address}</Text>
+            <Text style={s.addressLine}>Ph: {JMS.phone}   e-Mail: {JMS.email}</Text>
+            <Text style={s.hsnLine}>H.S.N. CODE: {JMS.hsn}</Text>
+            <Text style={s.billTitle}>CASH / CREDIT BILL</Text>
+          </View>
+          <View style={s.headerSpacer} />
         </View>
 
         <View style={s.divider} />
