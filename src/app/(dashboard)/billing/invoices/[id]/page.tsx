@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
 interface LineItem {
-  id: string; booking_ref: string; trip_date: string; vehicle_type: string
+  id: string; booking_ref: string; tripsheet_number: string | null; trip_date: string; vehicle_type: string
   guest_name: string | null; pickup_location: string | null; drop_location: string | null
   package_type: string; actual_kms: number; actual_hrs: number; package_kms: number
   package_rate: number; extra_kms: number; extra_km_rate: number; extra_km_amount: number
@@ -264,7 +264,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['Date', 'Ref', 'Guest', 'Vehicle', 'Pkg', 'KMs', 'Hire', '+KM', '+Hr', 'Toll', 'Park', 'GST', 'Total'].map(h => (
+                {['Date', 'TS# / Ref', 'Guest', 'Vehicle', 'Pkg', 'KMs', 'Hire', '+KM', '+Hr', 'Toll', 'Park', 'GST', 'Total'].map(h => (
                   <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -273,7 +273,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               {inv.line_items.map(li => (
                 <tr key={li.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">{li.trip_date}</td>
-                  <td className="px-3 py-2 font-medium whitespace-nowrap">{li.booking_ref}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{li.tripsheet_number ?? li.booking_ref}</td>
                   <td className="px-3 py-2 max-w-[120px] truncate">{li.guest_name ?? '—'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{li.vehicle_type}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{li.package_type}</td>

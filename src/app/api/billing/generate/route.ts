@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
       vehicle_type, guest_name,
       driver:drivers!driver_id(vehicle_name, vehicle_number),
-      trip_sheets(id, opening_km, closing_km, manual_opening_time, manual_closing_time,
+      trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver)
     `)
     .eq('company_id', company_id)
@@ -177,6 +177,7 @@ export async function POST(request: Request) {
       trip_sheet_id: (sheet?.id as string | null) ?? null,
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
+      tripsheet_number: (sheet?.tripsheet_number as string | null) ?? null,
       vehicle_type: driverVehicleName || b.vehicle_type || '',
       vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
       guest_name: b.guest_name,

@@ -23,7 +23,7 @@ interface Invoice {
 }
 
 interface LineItemPreview {
-  trip_date: string; booking_ref: string; vehicle_type: string; guest_name: string | null
+  trip_date: string; booking_ref: string; tripsheet_number: string | null; vehicle_type: string; guest_name: string | null
   pickup_location: string | null; package_type: string; actual_kms: number; actual_hrs: number
   hire_charges: number; extra_km_amount: number; extra_hr_amount: number
   toll_amount: number; parking_amount: number; permit_amount: number
@@ -173,7 +173,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      {['Date', 'Ref', 'Vehicle', 'Guest', 'Package', 'KMs', 'Hire', 'Extras', 'GST', 'Total'].map(h => (
+                      {['Date', 'TS# / Ref', 'Vehicle', 'Guest', 'Package', 'KMs', 'Hire', 'Extras', 'GST', 'Total'].map(h => (
                         <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -182,7 +182,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
                     {preview.line_items.map((li, i) => (
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="px-2 py-1.5 whitespace-nowrap">{li.trip_date}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap font-medium">{li.booking_ref}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap font-medium">{li.tripsheet_number ?? li.booking_ref}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_type}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}</td>
