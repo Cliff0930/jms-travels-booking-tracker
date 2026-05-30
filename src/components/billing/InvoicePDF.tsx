@@ -21,14 +21,15 @@ const JMS = {
   bankIfsc: 'UBIN0903981',
 }
 
-// Column widths — landscape A4 (842pt), 20pt margins each side
+// Column widths — landscape A4 (842pt), 20pt margins = 802pt usable
+// Total = 788pt, leaving ~14pt natural right padding
 const W = {
-  no: 38, date: 52, cabNo: 64, cabType: 76,
-  kms: 28, hrs: 24,
-  slab: 30, slabRate: 44,
-  extHrs: 22, extHrRate: 30, extHrAmt: 42,
-  extKms: 26, extKmRate: 30, extKmAmt: 42,
-  bata: 42, parking: 46, permit: 32, total: 52,
+  no: 44, date: 56, cabNo: 68, cabType: 84,
+  kms: 32, hrs: 26,
+  slab: 32, slabRate: 46,
+  extHrs: 24, extHrRate: 32, extHrAmt: 44,
+  extKms: 28, extKmRate: 32, extKmAmt: 44,
+  bata: 48, parking: 50, permit: 34, total: 60,
 }
 
 const s = StyleSheet.create({
