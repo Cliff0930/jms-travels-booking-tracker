@@ -311,7 +311,6 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [type, setType] = useState<'advance' | 'collection'>('advance')
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<'cash' | 'phonepe' | 'gpay' | 'cc'>('cash')
-  const [bookingRef, setBookingRef] = useState('')
   const [note, setNote] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [saving, setSaving] = useState(false)
@@ -337,15 +336,76 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       })
     : activeDrivers
 
-  // Booking lookup by ref
+  // Booking combobox state
   const [bookingId, setBookingId] = useState<string | null>(null)
-  async function lookupBooking(ref: string) {
-    if (!ref.trim()) { setBookingId(null); return }
-    const res = await fetch(`/api/bookings?search=${encodeURIComponent(ref.trim())}&limit=1`).catch(() => null)
-    if (!res?.ok) return
-    const data = await res.json() as Array<{ id: string; booking_ref: string }>
-    const found = data.find((b: { booking_ref: string }) => b.booking_ref.toLowerCase() === ref.toLowerCase())
-    setBookingId(found?.id ?? null)
+  const [bookingSearch, setBookingSearch] = useState('')
+  const [bookingOpen, setBookingOpen] = useState(false)
+  const [selectedBookingLabel, setSelectedBookingLabel] = useState('')
+  const [bookingWrongDriver, setBookingWrongDriver] = useState(false)
+
+  interface DriverBooking {
+    id: string; booking_ref: string; pickup_date: string | null
+    pickup_location: string | null; trip_type: string | null
+    status: string; is_settlement_duty: boolean; tripsheet_number: string | null
+  }
+
+  const { data: driverBookings = [] } = useQuery<DriverBooking[]>({
+    queryKey: ['driver-bookings', driverId],
+    queryFn: () => fetch(`/api/driver-bookings?driver_id=${driverId}`).then(r => r.json()),
+    enabled: !!driverId,
+  })
+
+  function stripDigits(s: string) { return s.replace(/\D/g, '') }
+
+  const filteredBookings = bookingSearch.trim()
+    ? driverBookings.filter(b => {
+        const q = bookingSearch.toLowerCase()
+        const qDigits = stripDigits(bookingSearch)
+        const tsDigits = stripDigits(b.tripsheet_number ?? '')
+        return (
+          b.booking_ref.toLowerCase().includes(q) ||
+          (b.pickup_location ?? '').toLowerCase().includes(q) ||
+          (qDigits.length > 0 && tsDigits.length > 0 && tsDigits.includes(qDigits))
+        )
+      })
+    : driverBookings
+
+  function fmtBookingRow(b: DriverBooking) {
+    const parts = [
+      b.pickup_date ? new Date(b.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null,
+      b.trip_type ? b.trip_type.charAt(0).toUpperCase() + b.trip_type.slice(1) : null,
+      b.pickup_location ?? null,
+      b.tripsheet_number ? `TS: ${b.tripsheet_number}` : null,
+    ].filter(Boolean)
+    return parts.join(' · ')
+  }
+
+  function handleBookingSelect(b: DriverBooking) {
+    setBookingId(b.id)
+    setSelectedBookingLabel(b.booking_ref)
+    setBookingSearch('')
+    setBookingOpen(false)
+    setBookingWrongDriver(false)
+  }
+
+  function handleBookingClear() {
+    setBookingId(null)
+    setSelectedBookingLabel('')
+    setBookingSearch('')
+    setBookingWrongDriver(false)
+  }
+
+  // Validate manual-typed ref against driver's bookings
+  function handleBookingBlur() {
+    setTimeout(() => setBookingOpen(false), 150)
+    if (!bookingSearch.trim() || !driverId) return
+    const match = driverBookings.find(b => b.booking_ref.toLowerCase() === bookingSearch.toLowerCase())
+    if (match) {
+      handleBookingSelect(match)
+    } else if (bookingSearch.trim()) {
+      setBookingWrongDriver(true)
+      setBookingId(null)
+    }
   }
 
   async function handleSave() {
@@ -406,6 +466,7 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                         setDriverId(d.id)
                         setSelectedDriverLabel(d.name)
                         setDriverSearch('')
+                        setBookingId(null); setSelectedBookingLabel(''); setBookingSearch(''); setBookingWrongDriver(false)
                         setDriverOpen(false)
                       }}
                       className={cn(
@@ -461,11 +522,55 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           </div>
 
           <div className="space-y-1.5">
-            <Label>Booking Ref (optional)</Label>
-            <Input value={bookingRef} onChange={e => { setBookingRef(e.target.value); lookupBooking(e.target.value) }}
-              placeholder="e.g. BK-2026-0063"
-            />
-            {bookingRef && <p className="text-xs">{bookingId ? <span className="text-emerald-600">✓ Booking found</span> : <span className="text-gray-400">Not matched — entry will save without booking link</span>}</p>}
+            <Label>Booking Ref <span className="text-gray-400 font-normal">(optional)</span></Label>
+            <div className="relative">
+              {!driverId ? (
+                <Input disabled placeholder="Select a driver first" className="bg-gray-50 text-gray-400" />
+              ) : bookingId ? (
+                <div className="flex items-center gap-2 border border-blue-400 rounded-md px-3 py-2 bg-blue-50">
+                  <span className="flex-1 text-sm font-semibold text-blue-800">{selectedBookingLabel}</span>
+                  <button type="button" onClick={handleBookingClear} className="text-blue-400 hover:text-blue-700 text-xs font-bold">✕ Clear</button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    value={bookingOpen ? bookingSearch : ''}
+                    onFocus={() => { setBookingOpen(true); setBookingSearch(''); setBookingWrongDriver(false) }}
+                    onChange={e => { setBookingSearch(e.target.value); setBookingOpen(true); setBookingWrongDriver(false) }}
+                    onBlur={handleBookingBlur}
+                    placeholder="Search ref, location, or tripsheet…"
+                    autoComplete="off"
+                    className={cn(bookingWrongDriver ? 'border-red-400' : '')}
+                  />
+                  {bookingOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                      {filteredBookings.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-400">No bookings found for this driver</div>
+                      ) : filteredBookings.map(b => (
+                        <button key={b.id} type="button" onMouseDown={() => handleBookingSelect(b)}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">{b.booking_ref}</span>
+                            {b.is_settlement_duty && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">₹ SETTLEMENT</span>
+                            )}
+                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium ml-auto',
+                              b.status === 'completed' ? 'bg-green-50 text-green-700' :
+                              b.status === 'in_progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'
+                            )}>{b.status.replace('_', ' ')}</span>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5 truncate">{fmtBookingRow(b)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {bookingWrongDriver && (
+                    <p className="text-xs text-red-600 mt-1">"{bookingSearch}" is not assigned to this driver</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
