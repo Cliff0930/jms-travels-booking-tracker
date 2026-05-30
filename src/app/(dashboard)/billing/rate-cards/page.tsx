@@ -30,7 +30,6 @@ interface ClientRateCard {
   company?: { name: string }
 }
 
-const CATEGORIES = ['All', 'Sedan Small', 'Sedan Mid', 'Sedan Premium', 'MUV', 'MUV Premium', 'Group', 'Group 12-Seater']
 
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
@@ -110,7 +109,8 @@ function ClientRateModal({ companies, onClose, onSaved }: {
   })
   const [saving, setSaving] = useState(false)
 
-  const { data: defaultRates = [] } = useQuery<RateCard[]>({ queryKey: ['rate-cards'], queryFn: () => fetch('/api/billing/rate-cards').then(r => r.json()) })
+  const { data: driversForModal = [] } = useQuery<{ id: string; vehicle_name: string }[]>({ queryKey: ['drivers-for-rates'], queryFn: () => fetch('/api/drivers').then(r => r.json()) })
+  const uniqueVehicleNames = useMemo(() => [...new Set(driversForModal.filter(d => d.vehicle_name).map(d => d.vehicle_name))].sort(), [driversForModal])
 
   async function handleSave() {
     if (!form.company_id || !form.vehicle_type) { toast.error('Select company and vehicle type'); return }
@@ -151,7 +151,7 @@ function ClientRateModal({ companies, onClose, onSaved }: {
               <Label className="text-xs">Vehicle Type *</Label>
               <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
-                <SelectContent>{defaultRates.map(r => <SelectItem key={r.id} value={r.vehicle_type}>{r.vehicle_type}</SelectItem>)}</SelectContent>
+                <SelectContent>{uniqueVehicleNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             {(['package_4hr_rate', 'package_8hr_rate', 'extra_km_rate', 'extra_hr_rate', 'outstation_rate_per_km', 'outstation_min_kms_per_day', 'tds_percent'] as const).map(field => (
@@ -183,6 +183,73 @@ function ClientRateModal({ companies, onClose, onSaved }: {
   )
 }
 
+// Quick "Add Rate" for a driver vehicle that has no rate card yet
+function AddRateButton({ vehicleName, vehicleCategory, onSaved }: { vehicleName: string; vehicleCategory: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({
+    package_4hr_rate: '900', package_8hr_rate: '1900',
+    extra_km_rate: '14', extra_hr_rate: '250',
+    outstation_rate_per_km: '14', outstation_min_kms_per_day: '300',
+    local_bata: '300', outstation_bata_per_day: '450',
+  })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    const body = {
+      vehicle_type: vehicleName,
+      category: vehicleCategory,
+      ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, Number(v) || 0])),
+    }
+    const res = await fetch('/api/billing/rate-cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (res.ok) { toast.success(`Rate added for ${vehicleName}`); onSaved(); setOpen(false) }
+    else toast.error('Failed to save')
+    setSaving(false)
+  }
+
+  const F = ({ label, field }: { label: string; field: keyof typeof form }) => (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+        <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="text-xs font-semibold text-amber-700 hover:text-amber-900 whitespace-nowrap flex items-center gap-1">
+        <Plus className="w-3 h-3" />Add Rate
+      </button>
+      {open && (
+        <Dialog open onOpenChange={o => { if (!o) setOpen(false) }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Add Rate — {vehicleName} ({vehicleCategory})</DialogTitle></DialogHeader>
+            <div className="py-2 grid grid-cols-2 gap-3">
+              <F label="4hr/40km Package" field="package_4hr_rate" />
+              <F label="8hr/80km Package" field="package_8hr_rate" />
+              <F label="Extra KM Rate (/km)" field="extra_km_rate" />
+              <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
+              <F label="Outstation Rate (/km)" field="outstation_rate_per_km" />
+              <div className="space-y-1">
+                <Label className="text-xs">Min KMs/day (Outstation)</Label>
+                <Input className="h-8 text-sm" value={form.outstation_min_kms_per_day} onChange={e => setForm(f => ({ ...f, outstation_min_kms_per_day: e.target.value }))} type="number" />
+              </div>
+              <F label="Local Bata (/trip)" field="local_bata" />
+              <F label="Outstation Bata (/day)" field="outstation_bata_per_day" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Rate'}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  )
+}
+
 export default function RateCardsPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'default' | 'client'>('default')
@@ -202,8 +269,40 @@ export default function RateCardsPage() {
     queryKey: ['companies-list'],
     queryFn: () => fetch('/api/companies').then(r => r.json()),
   })
+  // Fetch drivers to build the live vehicle list (vehicle_name + vehicle_type)
+  const { data: drivers = [] } = useQuery<{ id: string; vehicle_name: string; vehicle_type: string; is_active: boolean }[]>({
+    queryKey: ['drivers-for-rates'],
+    queryFn: () => fetch('/api/drivers').then(r => r.json()),
+  })
 
-  const filteredRates = useMemo(() => categoryFilter === 'All' ? rates : rates.filter(r => r.category === categoryFilter), [rates, categoryFilter])
+  // Build unique vehicle list from active drivers, merged with existing rate card data
+  const rateMap = useMemo(() => {
+    const m: Record<string, RateCard> = {}
+    for (const r of rates) m[r.vehicle_type.toUpperCase()] = r
+    return m
+  }, [rates])
+
+  const driverVehicles = useMemo(() => {
+    const seen = new Map<string, { vehicle_name: string; vehicle_type: string }>()
+    for (const d of drivers) {
+      if (d.vehicle_name && !seen.has(d.vehicle_name.toUpperCase())) {
+        seen.set(d.vehicle_name.toUpperCase(), { vehicle_name: d.vehicle_name, vehicle_type: d.vehicle_type })
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.vehicle_name.localeCompare(b.vehicle_name))
+  }, [drivers])
+
+  // For the category filter, use driver vehicle_type values
+  const driverCategories = useMemo(() => {
+    const cats = new Set(driverVehicles.map(v => v.vehicle_type))
+    return ['All', ...Array.from(cats).sort()]
+  }, [driverVehicles])
+
+  const filteredVehicles = useMemo(() => {
+    return categoryFilter === 'All'
+      ? driverVehicles
+      : driverVehicles.filter(v => v.vehicle_type === categoryFilter)
+  }, [driverVehicles, categoryFilter])
 
   async function deleteClientRate(id: string) {
     if (!confirm('Remove this client rate override?')) return
@@ -237,9 +336,9 @@ export default function RateCardsPage() {
 
       {tab === 'default' && (
         <>
-          {/* Category filter */}
+          {/* Category filter — built from driver vehicle types */}
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map(c => (
+            {driverCategories.map(c => (
               <button key={c} onClick={() => setCategoryFilter(c)}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                   categoryFilter === c ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300')}
@@ -247,39 +346,61 @@ export default function RateCardsPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {['Vehicle Type', 'Category', '4hr/40km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
-                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredRates.map(r => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2.5 font-semibold text-gray-900 whitespace-nowrap">{r.vehicle_type}</td>
-                    <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{r.category}</td>
-                    <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_4hr_rate)}</td>
-                    <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_8hr_rate)}</td>
-                    <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_km_rate)}/km</td>
-                    <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_hr_rate)}/hr</td>
-                    <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.outstation_rate_per_km)}/km</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.outstation_min_kms_per_day} km</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{fmt(r.local_bata)}</td>
-                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{fmt(r.outstation_bata_per_day)}/day</td>
-                    <td className="px-3 py-2.5">
-                      <button onClick={() => setEditingRate(r)} className="text-blue-600 hover:text-blue-800">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
+          {driverVehicles.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-200">
+              No drivers added yet. Add drivers first — their vehicle types will appear here automatically.
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {['Vehicle Name', 'Type (from Driver)', '4hr/40km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
+                      <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-gray-400">* Etios/Dzire rates are confirmed. Review and update all other vehicle rates before generating invoices.</p>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredVehicles.map(v => {
+                    const r = rateMap[v.vehicle_name.toUpperCase()]
+                    return (
+                      <tr key={v.vehicle_name} className={cn('hover:bg-gray-50', !r && 'bg-amber-50')}>
+                        <td className="px-3 py-2.5 font-semibold text-gray-900 whitespace-nowrap">{v.vehicle_name}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{v.vehicle_type}</span>
+                        </td>
+                        {r ? (
+                          <>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_4hr_rate)}</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_8hr_rate)}</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_km_rate)}/km</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_hr_rate)}/hr</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.outstation_rate_per_km)}/km</td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.outstation_min_kms_per_day} km</td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{fmt(r.local_bata)}</td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{fmt(r.outstation_bata_per_day)}/day</td>
+                            <td className="px-3 py-2.5">
+                              <button onClick={() => setEditingRate(r)} className="text-blue-600 hover:text-blue-800">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td colSpan={8} className="px-3 py-2.5 text-amber-600 text-xs italic">No rate set — click Add Rate to configure</td>
+                            <td className="px-3 py-2.5">
+                              <AddRateButton vehicleName={v.vehicle_name} vehicleCategory={v.vehicle_type} onSaved={() => qc.invalidateQueries({ queryKey: ['rate-cards'] })} />
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-xs text-gray-400">Vehicle list is synced live from your driver profiles. Add a driver → their vehicle appears here automatically.</p>
         </>
       )}
 

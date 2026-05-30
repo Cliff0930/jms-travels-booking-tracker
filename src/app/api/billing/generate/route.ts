@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     .select(`
       id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
       vehicle_type, guest_name,
-      driver:drivers!driver_id(vehicle_number),
+      driver:drivers!driver_id(vehicle_name, vehicle_number),
       trip_sheets(id, opening_km, closing_km, manual_opening_time, manual_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver)
     `)
@@ -129,7 +129,9 @@ export async function POST(request: Request) {
   for (const b of bookings ?? []) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0] // use first sheet per booking
-    const vType = (b.vehicle_type ?? '').toUpperCase()
+    // Use driver's vehicle_name (specific model) for rate lookup, not booking vehicle_type (category)
+    const driverVehicleName = ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_name ?? '').toUpperCase()
+    const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
     const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
       package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
       package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
@@ -172,7 +174,7 @@ export async function POST(request: Request) {
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
       vehicle_type: b.vehicle_type,
-      vehicle_number: ((b.driver as { vehicle_number?: string } | null)?.vehicle_number) ?? null,
+      vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
       guest_name: b.guest_name,
       pickup_location: b.pickup_location,
       drop_location: b.drop_location,
