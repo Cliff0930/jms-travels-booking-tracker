@@ -96,20 +96,20 @@ const s = StyleSheet.create({
 
   groupRow: { flexDirection: 'row', backgroundColor: NAVY },
   groupCell: {
-    padding: '3 2', textAlign: 'center',
-    fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#fff',
+    padding: '3.5 2', textAlign: 'center',
+    fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#fff',
     borderRightWidth: 0.5, borderRightColor: '#2d5080',
   },
 
   subRow: { flexDirection: 'row', backgroundColor: '#2c5282' },
   subCell: {
-    padding: '2.5 2', textAlign: 'center',
-    fontSize: 5.5, fontFamily: 'Helvetica-Bold', color: '#cce0ff',
+    padding: '3 2', textAlign: 'center',
+    fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: '#cce0ff',
     borderRightWidth: 0.5, borderRightColor: '#3d6faa',
   },
 
   dataRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#EAECF0' },
-  dc: { padding: '3 2', fontSize: 6.5, borderRightWidth: 0.5, borderRightColor: '#EAECF0', overflow: 'hidden' },
+  dc: { padding: '3.5 2', fontSize: 8, borderRightWidth: 0.5, borderRightColor: '#EAECF0', overflow: 'hidden' },
   dcR: { textAlign: 'right' },
   dcC: { textAlign: 'center' },
 
