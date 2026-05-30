@@ -333,25 +333,27 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
     <Document>
       <Page size="A4" orientation="landscape" style={s.page}>
 
-        {/* ── HEADER (page 1 only — not fixed) ── */}
-        <View style={s.tealStripe} />
-        <View style={s.headerRow}>
-          {data.logoSrc
-            ? <Image src={data.logoSrc} style={s.logoImg} />
-            : <View style={s.logoBox} />
-          }
-          <View style={s.headerCenter}>
-            <Text style={s.companyName}>{JMS.name}</Text>
-            <Text style={s.taglineText}>{JMS.tagline}</Text>
-            <Text style={s.addrLine}>{JMS.address}</Text>
-            <Text style={s.addrLine}>Ph: {JMS.phone}   e-Mail: {JMS.email}</Text>
-            <Text style={s.hsnText}>H.S.N. CODE: {JMS.hsn}</Text>
+        {/* ── HEADER — fixed so it repeats on every page ── */}
+        <View fixed>
+          <View style={s.tealStripe} />
+          <View style={s.headerRow}>
+            {data.logoSrc
+              ? <Image src={data.logoSrc} style={s.logoImg} />
+              : <View style={s.logoBox} />
+            }
+            <View style={s.headerCenter}>
+              <Text style={s.companyName}>{JMS.name}</Text>
+              <Text style={s.taglineText}>{JMS.tagline}</Text>
+              <Text style={s.addrLine}>{JMS.address}</Text>
+              <Text style={s.addrLine}>Ph: {JMS.phone}   e-Mail: {JMS.email}</Text>
+              <Text style={s.hsnText}>H.S.N. CODE: {JMS.hsn}</Text>
+            </View>
+            <View style={s.billBadge}>
+              <Text style={s.billBadgeText}>CASH /{'\n'}CREDIT BILL</Text>
+            </View>
           </View>
-          <View style={s.billBadge}>
-            <Text style={s.billBadgeText}>CASH /{'\n'}CREDIT BILL</Text>
-          </View>
+          <View style={s.navyStripe} />
         </View>
-        <View style={s.navyStripe} />
 
         {/* ── CLIENT + INVOICE INFO ── */}
         <View style={s.pad}>
