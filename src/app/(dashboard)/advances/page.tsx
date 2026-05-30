@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, IndianRupee, ChevronRight, Check, Trash2 } from 'lucide-react'
+import { Plus, IndianRupee, ChevronRight, Check, Trash2, Search, Download, X, CalendarDays } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
+import { tokenMatch } from '@/lib/utils/search'
+import * as XLSX from 'xlsx'
 
 interface AdvanceEntry {
   id: string
@@ -60,6 +62,9 @@ function AdvancesContent() {
   const preDriverId = searchParams.get('driver_id') ?? 'all'
   const [tab, setTab] = useState<'outstanding' | 'settled'>('outstanding')
   const [driverFilter, setDriverFilter] = useState(preDriverId)
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [settleEntry, setSettleEntry] = useState<AdvanceEntry | null>(null)
   const [settleVia, setSettleVia] = useState('')
@@ -70,10 +75,12 @@ function AdvancesContent() {
   useEffect(() => { if (preDriverId !== 'all') setDriverFilter(preDriverId) }, [preDriverId])
 
   const { data: entries = [], isLoading } = useQuery<AdvanceEntry[]>({
-    queryKey: ['driver-advances', tab, driverFilter],
+    queryKey: ['driver-advances', tab, driverFilter, dateFrom, dateTo],
     queryFn: () => {
       const p = new URLSearchParams({ status: tab })
       if (driverFilter !== 'all') p.set('driver_id', driverFilter)
+      if (dateFrom) p.set('date_from', dateFrom)
+      if (dateTo) p.set('date_to', dateTo)
       return fetch(`/api/driver-advances?${p}`).then(r => r.json())
     },
   })
@@ -136,7 +143,39 @@ function AdvancesContent() {
     else toast.error('Delete failed')
   }
 
-  const filteredEntries = driverFilter !== 'all' ? entries.filter(e => e.driver_id === driverFilter) : entries
+  const filteredEntries = useMemo(() => {
+    let result = driverFilter !== 'all' ? entries.filter(e => e.driver_id === driverFilter) : entries
+    if (search.trim()) {
+      result = result.filter(e => tokenMatch(search,
+        e.driver?.name, e.booking?.booking_ref, e.note,
+        MODE_LABELS[e.payment_mode], TYPE_LABELS[e.type]
+      ))
+    }
+    return result
+  }, [entries, driverFilter, search])
+
+  const totalAmount = filteredEntries.reduce((sum, e) => sum + Number(e.amount), 0)
+  const advanceTotal = filteredEntries.filter(e => e.type === 'advance').reduce((sum, e) => sum + Number(e.amount), 0)
+  const collectionTotal = filteredEntries.filter(e => e.type === 'collection').reduce((sum, e) => sum + Number(e.amount), 0)
+
+  function exportExcel() {
+    const rows = filteredEntries.map(e => ({
+      'Date': fmtDate(e.created_at),
+      'Driver': e.driver?.name ?? '',
+      'Type': TYPE_LABELS[e.type],
+      'Amount (₹)': Number(e.amount),
+      'Payment Mode': MODE_LABELS[e.payment_mode],
+      'Booking Ref': e.booking?.booking_ref ?? '',
+      'Note': e.note ?? '',
+      'Status': e.status === 'settled' ? 'Settled' : 'Outstanding',
+      'Settled Via': e.settled_via ?? '',
+      'Settled On': e.settled_at ? fmtDate(e.settled_at) : '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Advances')
+    XLSX.writeFile(wb, `advances-${tab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
 
   return (
     <div className="space-y-6">
@@ -146,10 +185,20 @@ function AdvancesContent() {
         actions={<Button onClick={() => setShowAdd(true)} className="gap-2"><Plus className="w-4 h-4" />Add Entry</Button>}
       />
 
-      {/* Driver filter */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Controls row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Tabs */}
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+          {(['outstanding', 'settled'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={cn('px-4 py-2 text-sm font-semibold transition-colors capitalize', tab === t ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+            >{t}</button>
+          ))}
+        </div>
+
+        {/* Driver filter */}
         <Select value={driverFilter} onValueChange={(v: string | null) => { const val = v ?? 'all'; setDriverFilter(val); router.replace(val !== 'all' ? `/advances?driver_id=${val}` : '/advances') }}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-48 border-gray-200 h-9 text-sm">
             <SelectValue placeholder="All Drivers" />
           </SelectTrigger>
           <SelectContent>
@@ -158,17 +207,55 @@ function AdvancesContent() {
           </SelectContent>
         </Select>
 
-        {/* Tabs */}
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-          {(['outstanding', 'settled'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn('px-4 py-2 text-sm font-semibold transition-colors capitalize', tab === t ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
-            >{t}</button>
-          ))}
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search driver, ref, note…"
+            className="pl-9 h-9 text-sm border-gray-200"
+          />
+          {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"><X className="w-3.5 h-3.5" /></button>}
         </div>
+
+        {/* Date range */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="border border-gray-200 rounded-md h-9 px-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <span className="text-gray-400 text-sm">—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="border border-gray-200 rounded-md h-9 px-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo('') }}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-0.5"
+            ><X className="w-3 h-3" />Clear</button>
+          )}
+        </div>
+
+        {/* Export */}
+        <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5 shrink-0 h-9 text-sm border-gray-200">
+          <Download className="w-3.5 h-3.5" />Export
+        </Button>
       </div>
+
+      {/* Total summary */}
+      {filteredEntries.length > 0 && (
+        <div className="flex items-center gap-6 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 text-sm">
+          <div>
+            <span className="text-gray-500">{tab === 'outstanding' ? 'Total Outstanding' : 'Total Settled'}</span>
+            <span className="ml-2 font-bold text-gray-900 text-base">{fmt(totalAmount)}</span>
+          </div>
+          {tab === 'outstanding' && advanceTotal > 0 && (
+            <div className="text-gray-500">Advances: <span className="font-semibold text-blue-700">{fmt(advanceTotal)}</span></div>
+          )}
+          {tab === 'outstanding' && collectionTotal > 0 && (
+            <div className="text-gray-500">Collections: <span className="font-semibold text-orange-600">{fmt(collectionTotal)}</span></div>
+          )}
+          <div className="ml-auto text-gray-400">{filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}</div>
+        </div>
+      )}
 
       {/* Balance cards — only on outstanding tab */}
       {tab === 'outstanding' && balances.length > 0 && (
