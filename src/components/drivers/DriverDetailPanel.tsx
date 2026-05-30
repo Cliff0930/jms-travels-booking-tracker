@@ -85,6 +85,10 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       seating_capacity: String(driver!.seating_capacity),
       bata_rate: driver!.bata_rate != null ? String(driver!.bata_rate) : '',
       bata_rate_outstation: driver!.bata_rate_outstation != null ? String(driver!.bata_rate_outstation) : '',
+      driver_type: driver!.driver_type ?? 'owner',
+      commission_percent: driver!.commission_percent != null ? String(driver!.commission_percent) : '20',
+      monthly_salary: driver!.monthly_salary != null ? String(driver!.monthly_salary) : '',
+      advance_emi_amount: driver!.advance_emi_amount != null ? String(driver!.advance_emi_amount) : '',
     })
     setEditing(true)
   }
@@ -114,6 +118,10 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           seating_capacity: cap,
           bata_rate: form.bata_rate ? Number(form.bata_rate) : null,
           bata_rate_outstation: form.bata_rate_outstation ? Number(form.bata_rate_outstation) : null,
+          driver_type: form.driver_type,
+          commission_percent: form.driver_type === 'owner' && form.commission_percent ? Number(form.commission_percent) : null,
+          monthly_salary: form.driver_type === 'salary' && form.monthly_salary ? Number(form.monthly_salary) : null,
+          advance_emi_amount: form.advance_emi_amount ? Number(form.advance_emi_amount) : null,
         } as Partial<Driver>,
       })
       toast.success('Driver updated')
@@ -256,6 +264,42 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                   <Input type="number" min="0" value={form.bata_rate_outstation} onChange={e => setField('bata_rate_outstation', e.target.value)} placeholder="e.g. 500" className="border-[#C3C5D7] h-8 text-sm mt-1" />
                 </div>
               </div>
+
+              {/* Settlement fields */}
+              <div className="border-t border-[#E5E7EB] pt-3">
+                <p className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">Settlement Settings</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-[#737686]">Driver Type</Label>
+                    <select
+                      value={form.driver_type}
+                      onChange={e => setField('driver_type', e.target.value)}
+                      className="mt-1 w-full h-8 px-2 text-sm border border-[#C3C5D7] rounded-md bg-white focus:outline-none focus:border-[#1A56DB]"
+                    >
+                      <option value="owner">Owner-Driver (pays commission to JMS)</option>
+                      <option value="salary">Salary Driver (JMS-owned vehicle)</option>
+                    </select>
+                  </div>
+                  {form.driver_type === 'owner' && (
+                    <div>
+                      <Label className="text-xs text-[#737686]">JMS Commission % (kept by JMS from hire)</Label>
+                      <Input type="number" min="0" max="100" value={form.commission_percent} onChange={e => setField('commission_percent', e.target.value)} placeholder="e.g. 20" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                      <p className="text-xs text-[#9CA3AF] mt-0.5">Driver gets {100 - Number(form.commission_percent || 0)}% of hire charges</p>
+                    </div>
+                  )}
+                  {form.driver_type === 'salary' && (
+                    <div>
+                      <Label className="text-xs text-[#737686]">Monthly Salary (₹)</Label>
+                      <Input type="number" min="0" value={form.monthly_salary} onChange={e => setField('monthly_salary', e.target.value)} placeholder="e.g. 18000" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs text-[#737686]">Advance EMI Amount (₹/month) — leave blank for full deduction</Label>
+                    <Input type="number" min="0" value={form.advance_emi_amount} onChange={e => setField('advance_emi_amount', e.target.value)} placeholder="e.g. 2000 (blank = deduct full balance)" className="border-[#C3C5D7] h-8 text-sm mt-1" />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <Button
                   className="flex-1 bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"

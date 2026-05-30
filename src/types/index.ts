@@ -93,6 +93,10 @@ export interface Driver {
   seating_capacity: number
   bata_rate: number | null
   bata_rate_outstation: number | null
+  driver_type: string
+  commission_percent: number | null
+  monthly_salary: number | null
+  advance_emi_amount: number | null
   status: DriverStatus
   is_active: boolean
   uses_app: boolean
@@ -111,6 +115,7 @@ export interface CompanyBataRate {
   vehicle_name: string
   trip_type: string | null
   rate_per_bata: number
+  driver_bata_rate: number | null
 }
 
 export interface ReimbursementSheet {

@@ -346,6 +346,7 @@ function BillingSettings({ settings }: { settings: Record<string, string> }) {
   const [eveningCutoff, setEveningCutoff] = useState(settings.bata_evening_cutoff ?? '21:00')
   const [gstin, setGstin] = useState(settings.company_gstin ?? '')
   const [pan, setPan] = useState(settings.company_pan ?? '')
+  const [interestRate, setInterestRate] = useState(settings.advance_interest_rate_pct ?? '2')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -353,6 +354,7 @@ function BillingSettings({ settings }: { settings: Record<string, string> }) {
     setEveningCutoff(settings.bata_evening_cutoff ?? '21:00')
     setGstin(settings.company_gstin ?? '')
     setPan(settings.company_pan ?? '')
+    setInterestRate(settings.advance_interest_rate_pct ?? '2')
   }, [settings])
 
   async function saveSetting(key: string, value: string) {
@@ -367,6 +369,7 @@ function BillingSettings({ settings }: { settings: Record<string, string> }) {
       saveSetting('bata_evening_cutoff', eveningCutoff),
       saveSetting('company_gstin', gstin),
       saveSetting('company_pan', pan),
+      saveSetting('advance_interest_rate_pct', interestRate),
     ])
     toast.success('Billing settings saved')
     setSaving(false)
@@ -401,6 +404,20 @@ function BillingSettings({ settings }: { settings: Record<string, string> }) {
           <div className="space-y-1.5">
             <Label>PAN Number</Label>
             <Input value={pan} onChange={e => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" maxLength={10} />
+          </div>
+        </div>
+      </div>
+      <div className="bg-white rounded-lg border border-[#C3C5D7] p-5 space-y-4">
+        <h3 className="font-semibold text-[#191B23]">Driver Settlement</h3>
+        <p className="text-sm text-[#737686]">Interest charged on driver advances. Applied monthly on the outstanding balance when generating a driver statement.</p>
+        <div className="flex items-center gap-3">
+          <div className="space-y-1.5">
+            <Label>Advance Interest Rate (% per month)</Label>
+            <div className="flex items-center gap-2">
+              <Input type="number" min="0" max="100" step="0.5" value={interestRate} onChange={e => setInterestRate(e.target.value)} className="w-28" />
+              <span className="text-sm text-[#737686]">% / month</span>
+            </div>
+            <p className="text-xs text-[#737686]">e.g. 2 means 2% per month on outstanding advance balance</p>
           </div>
         </div>
       </div>

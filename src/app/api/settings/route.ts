@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-const ALLOWED_KEYS = ['office_location', 'distance_calculation_enabled', 'email_signature', 'ai_processing_enabled']
+const ALLOWED_KEYS = ['office_location', 'distance_calculation_enabled', 'email_signature', 'ai_processing_enabled', 'bata_morning_cutoff', 'bata_evening_cutoff', 'company_gstin', 'company_pan', 'advance_interest_rate_pct']
 
 export async function GET() {
   const supabase = createAdminClient()

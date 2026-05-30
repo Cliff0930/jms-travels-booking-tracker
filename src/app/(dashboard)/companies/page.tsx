@@ -989,6 +989,7 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
   const [vehicleName, setVehicleName] = useState('')
   const [tripType, setTripType] = useState<string>('local')
   const [rate, setRate] = useState('')
+  const [driverRate, setDriverRate] = useState('')
   const [saving, setSaving] = useState(false)
 
   const { data: vehicleNames = [] } = useQuery<{ id: string; name: string }[]>({
@@ -996,7 +997,7 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
     queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
 
-  const { data: rates = [] } = useQuery<{ id: string; vehicle_name: string; trip_type: string | null; rate_per_bata: number }[]>({
+  const { data: rates = [] } = useQuery<{ id: string; vehicle_name: string; trip_type: string | null; rate_per_bata: number; driver_bata_rate: number | null }[]>({
     queryKey: ['company-bata-rates', companyId],
     queryFn: () => fetch(`/api/companies/${companyId}/bata-rates`).then(r => r.json()),
   })
@@ -1008,7 +1009,7 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
       const res = await fetch(`/api/companies/${companyId}/bata-rates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicle_name: vehicleName, rate_per_bata: Number(rate), trip_type: tripType || null }),
+        body: JSON.stringify({ vehicle_name: vehicleName, rate_per_bata: Number(rate), driver_bata_rate: driverRate ? Number(driverRate) : null, trip_type: tripType || null }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       qc.invalidateQueries({ queryKey: ['company-bata-rates', companyId] })
@@ -1049,7 +1050,12 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-[#059669]">₹{r.rate_per_bata}/bata</span>
+              <div className="text-right">
+                <div className="text-xs font-bold text-[#059669]">Client: ₹{r.rate_per_bata}/bata</div>
+                {r.driver_bata_rate != null && (
+                  <div className="text-xs text-[#6B7280]">Driver: ₹{r.driver_bata_rate}/bata</div>
+                )}
+              </div>
               <button onClick={() => handleDelete(r.id)} className="text-[#737686] hover:text-red-500">
                 <X className="w-3 h-3" />
               </button>
@@ -1081,13 +1087,21 @@ function CompanyBataRates({ companyId }: { companyId: string }) {
           type="number"
           value={rate}
           onChange={e => setRate(e.target.value)}
-          placeholder="₹/bata"
-          className="border-[#C3C5D7] h-8 text-xs w-24"
+          placeholder="Client ₹/bata"
+          className="border-[#C3C5D7] h-8 text-xs w-28"
+        />
+        <Input
+          type="number"
+          value={driverRate}
+          onChange={e => setDriverRate(e.target.value)}
+          placeholder="Driver ₹/bata"
+          className="border-[#C3C5D7] h-8 text-xs w-28"
         />
         <Button size="sm" className="bg-[#059669] hover:bg-[#047857] rounded-sm h-8 gap-1" onClick={handleAdd} disabled={saving || !vehicleName || !rate}>
           <Plus className="w-3.5 h-3.5" /> Add
         </Button>
       </div>
+      <p className="text-xs text-[#9CA3AF] mt-1">Client rate = what you bill the client. Driver rate = what you pay the driver. Both can differ.</p>
     </section>
   )
 }
