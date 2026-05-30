@@ -577,6 +577,23 @@ export default function CompaniesPage() {
                       />
                     </div>
                     <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">GSTIN</h3>
+                      <p className="text-xs text-[#9CA3AF]">15-character GST registration number. Printed on invoices.</p>
+                      <Input
+                        key={selectedCompany.id + '-gstin'}
+                        defaultValue={selectedCompany.gstin ?? ''}
+                        placeholder="e.g. 29AABCT1332L1ZN"
+                        className="border-[#C3C5D7] text-sm uppercase"
+                        maxLength={15}
+                        onBlur={e => {
+                          const val = e.target.value.trim().toUpperCase() || null
+                          if (val !== (selectedCompany.gstin ?? null)) {
+                            updateCompany(selectedCompany.id, { gstin: val })
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="p-4 space-y-2">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Aliases</h3>
                       <p className="text-xs text-[#9CA3AF]">Alternative names used to match this company in emails and messages.</p>
                       <TagInput

@@ -36,6 +36,7 @@ export interface Company {
   direct_booking_emails: string[]
   driver_notify_target: 'booker' | 'guest' | 'both'
   pickup_origin_address: string | null
+  gstin: string | null
   created_at: string
   updated_at: string
 }
