@@ -101,19 +101,17 @@ export async function POST(request: Request) {
       }
 
       const ownEmailLower = ownEmail
-      const ccEmails = cc ? cc.split(',').map(e => e.trim()).filter(e => {
-        const m = e.match(/([^\s<]+@[^\s>]+)/)
-        return m ? m[1].toLowerCase() !== ownEmailLower : e.toLowerCase() !== ownEmailLower
-      }).filter(Boolean) : []
+      const ccEmails = cc ? cc.split(',').map(e => e.trim()).filter(e =>
+        e.length > 0 && (!ownEmailLower || !e.toLowerCase().includes(ownEmailLower))
+      ) : []
       const replyToEmails = replyTo ? replyTo.split(',').map(e => e.trim()).filter(Boolean) : []
 
       // Extract extra To recipients (beyond our own address) and merge with CC
       // so all parties on the original email receive our reply
       const toHeader = headers.find(h => h.name === 'To')?.value || ''
-      const extraToEmails = toHeader ? toHeader.split(',').map(e => e.trim()).filter(e => {
-        const m = e.match(/([^\s<]+@[^\s>]+)/)
-        return m ? m[1].toLowerCase() !== ownEmailLower : e.toLowerCase() !== ownEmailLower
-      }).filter(Boolean) : []
+      const extraToEmails = toHeader ? toHeader.split(',').map(e => e.trim()).filter(e =>
+        e.length > 0 && (!ownEmailLower || !e.toLowerCase().includes(ownEmailLower))
+      ) : []
       const allCcEmails = [...ccEmails, ...extraToEmails]
 
       function extractPlainText(payload: typeof msg.payload): string {

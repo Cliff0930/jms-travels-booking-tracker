@@ -44,9 +44,9 @@ type BookingRow = Record<string, any>
 
 function buildCC(passedIn: string[] | undefined, booking: BookingRow): string[] | undefined {
   const stored: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails : []
-  const merged = [...new Set([...(passedIn || []), ...stored])].filter(e => {
-    const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net'
-  })
+  const merged = [...new Set([...(passedIn || []), ...stored])].filter(e =>
+    !e.toLowerCase().includes('bookings@jmstravels.net')
+  )
   return merged.length > 0 ? merged : undefined
 }
 

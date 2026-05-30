@@ -66,7 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = fillTemplate(clientTmpl.body, { ...vars, client_name: clientName })
     const subject = fillTemplate(clientTmpl.subject || '', vars)
     const bookingCc: string[] = (Array.isArray(booking.cc_emails) ? booking.cc_emails as string[] : [])
-      .filter((e: string) => { const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net' })
+      .filter((e: string) => !e.toLowerCase().includes('bookings@jmstravels.net'))
 
     // Template params for jms_booking_cancelled:
     // {{1}}=client_name {{2}}=booking_ref {{3}}=date {{4}}=time

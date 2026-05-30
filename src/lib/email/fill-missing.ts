@@ -97,9 +97,9 @@ export async function fillMissingFromReply(
   const clientName = (client?.name as string | undefined) || senderEmail.split('@')[0]
   const bookingRef = booking.booking_ref as string
   const storedCc: string[] = Array.isArray(booking.cc_emails) ? booking.cc_emails as string[] : []
-  const mergedCc = [...new Set([...ccEmails, ...storedCc])].filter(e => {
-    const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net'
-  })
+  const mergedCc = [...new Set([...ccEmails, ...storedCc])].filter(e =>
+    !e.toLowerCase().includes('bookings@jmstravels.net')
+  )
   const emailCc = mergedCc.length > 0 ? mergedCc : undefined
   const threading = { replyToThreadId: threadId, inReplyToMessageId: originalMessageId }
 

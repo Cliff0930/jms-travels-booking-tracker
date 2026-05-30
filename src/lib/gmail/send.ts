@@ -55,7 +55,8 @@ export async function sendEmail({ to, subject, body, cc, skipSignature = false, 
   const signature = skipSignature ? '' : await getSignature()
   const fullBody = skipSignature ? body : `${body}\n\n${signature}`
 
-  const ccLine = cc?.length ? `Cc: ${cc.join(', ')}\r\n` : ''
+  const safeCc = cc?.filter(e => !e.toLowerCase().includes(from.toLowerCase()))
+  const ccLine = safeCc?.length ? `Cc: ${safeCc.join(', ')}\r\n` : ''
   const threadingLines = inReplyToMessageId
     ? `In-Reply-To: ${inReplyToMessageId}\r\nReferences: ${inReplyToMessageId}\r\n`
     : ''

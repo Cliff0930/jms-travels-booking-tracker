@@ -110,7 +110,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const phones = [adminPhone].filter(Boolean) as string[]
     const email = client?.primary_email
     const bookingCc: string[] = (Array.isArray(booking.cc_emails) ? booking.cc_emails as string[] : [])
-      .filter((e: string) => { const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net' })
+      .filter((e: string) => !e.toLowerCase().includes('bookings@jmstravels.net'))
 
     console.log(`[confirm] booking=${id} source=${booking.source} guest_phone=${booking.guest_phone} admin_phone=${adminPhone}`)
 

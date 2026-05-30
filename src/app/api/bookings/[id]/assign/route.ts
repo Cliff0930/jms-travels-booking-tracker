@@ -211,7 +211,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ].join('\n')
 
       const bookingCc: string[] = (Array.isArray(booking.cc_emails) ? booking.cc_emails as string[] : [])
-        .filter((e: string) => { const m = e.match(/([^\s<]+@[^\s>]+)/); return (m ? m[1] : e).toLowerCase() !== 'bookings@jmstravels.net' })
+        .filter((e: string) => !e.toLowerCase().includes('bookings@jmstravels.net'))
       const isEmailSource = booking.source === 'email'
 
       // Template params for jms_driver_assigned:
