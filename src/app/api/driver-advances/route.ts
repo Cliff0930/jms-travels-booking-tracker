@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const driverId = searchParams.get('driver_id')
+  const bookingId = searchParams.get('booking_id')
   const status = searchParams.get('status') ?? 'outstanding'
   const dateFrom = searchParams.get('date_from')
   const dateTo = searchParams.get('date_to')
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
 
   if (driverId) q = q.eq('driver_id', driverId)
+  if (bookingId) q = q.eq('booking_id', bookingId)
   if (dateFrom) q = q.gte('created_at', dateFrom)
   if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59')
 
