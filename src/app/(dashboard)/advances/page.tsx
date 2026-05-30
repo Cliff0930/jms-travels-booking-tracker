@@ -301,8 +301,13 @@ function AdvancesContent() {
   )
 }
 
+function stripPlate(s: string) { return s.replace(/[\s\-_]/g, '').toUpperCase() }
+
 function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [driverId, setDriverId] = useState('')
+  const [driverSearch, setDriverSearch] = useState('')
+  const [driverOpen, setDriverOpen] = useState(false)
+  const [selectedDriverLabel, setSelectedDriverLabel] = useState('')
   const [type, setType] = useState<'advance' | 'collection'>('advance')
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<'cash' | 'phonepe' | 'gpay' | 'cc'>('cash')
@@ -312,11 +317,25 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const { data: drivers = [] } = useQuery<{ id: string; name: string; is_active: boolean }[]>({
+  const { data: drivers = [] } = useQuery<{ id: string; name: string; phone: string; vehicle_name: string; vehicle_number: string; is_active: boolean }[]>({
     queryKey: ['drivers-list-active'],
     queryFn: () => fetch('/api/drivers').then(r => r.json()),
   })
-  const activeDrivers = drivers.filter((d: { is_active: boolean }) => d.is_active)
+  const activeDrivers = drivers.filter(d => d.is_active)
+
+  const filteredDrivers = driverSearch.trim()
+    ? activeDrivers.filter(d => {
+        const q = driverSearch.toLowerCase()
+        const plateQ = stripPlate(driverSearch)
+        const plateD = stripPlate(d.vehicle_number || '')
+        return (
+          d.name.toLowerCase().includes(q) ||
+          (d.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
+          plateD.includes(plateQ) ||
+          plateD.endsWith(plateQ.slice(-4))
+        )
+      })
+    : activeDrivers
 
   // Booking lookup by ref
   const [bookingId, setBookingId] = useState<string | null>(null)
@@ -365,12 +384,44 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>Driver *</Label>
-            <Select value={driverId} onValueChange={(v: string | null) => setDriverId(v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
-              <SelectContent>
-                {activeDrivers.map((d: { id: string; name: string }) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Input
+                value={driverOpen ? driverSearch : selectedDriverLabel}
+                onFocus={() => { setDriverOpen(true); setDriverSearch('') }}
+                onChange={e => { setDriverSearch(e.target.value); setDriverOpen(true) }}
+                onBlur={() => setTimeout(() => setDriverOpen(false), 150)}
+                placeholder="Search by name, phone, or plate…"
+                className={cn(driverId ? 'border-blue-400' : '')}
+                autoComplete="off"
+              />
+              {driverOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                  {filteredDrivers.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-400">No drivers found</div>
+                  ) : filteredDrivers.map(d => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onMouseDown={() => {
+                        setDriverId(d.id)
+                        setSelectedDriverLabel(d.name)
+                        setDriverSearch('')
+                        setDriverOpen(false)
+                      }}
+                      className={cn(
+                        'w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors',
+                        driverId === d.id && 'bg-blue-50'
+                      )}
+                    >
+                      <div className="text-sm font-semibold text-gray-900">{d.name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {[d.vehicle_name, d.vehicle_number, d.phone].filter(Boolean).join(' · ')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
