@@ -320,18 +320,19 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     queryKey: ['drivers-list-active'],
     queryFn: () => fetch('/api/drivers').then(r => r.json()),
   })
-  const activeDrivers = drivers.filter(d => d.is_active)
+  const activeDrivers = drivers.filter(d => d.is_active !== false)
 
   const filteredDrivers = driverSearch.trim()
     ? activeDrivers.filter(d => {
         const q = driverSearch.toLowerCase()
+        const qDigits = q.replace(/\D/g, '')
         const plateQ = stripPlate(driverSearch)
         const plateD = stripPlate(d.vehicle_number || '')
         return (
           d.name.toLowerCase().includes(q) ||
-          (d.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
-          plateD.includes(plateQ) ||
-          plateD.endsWith(plateQ.slice(-4))
+          (qDigits.length > 0 && (d.phone || '').replace(/\D/g, '').includes(qDigits)) ||
+          (plateQ.length > 0 && plateD.includes(plateQ)) ||
+          (plateQ.length >= 4 && plateD.endsWith(plateQ.slice(-4)))
         )
       })
     : activeDrivers
