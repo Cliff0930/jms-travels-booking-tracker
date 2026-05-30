@@ -103,7 +103,6 @@ export async function POST(request: Request) {
 
   // Get TDS percent from client rate card (use first found or 0)
   const tdsPercent = (clientRates ?? [])[0]?.tds_percent ?? 0
-  const billBata = (clientRates ?? [])[0]?.bill_bata_to_client ?? false
 
   // Fetch completed bookings in period for this company
   const { data: bookings, error: bookingsErr } = await supabase
@@ -158,7 +157,7 @@ export async function POST(request: Request) {
       calc = { ...localCalc, bataAmount: roundTo2(bataCount * (rate.local_bata ?? 300)) }
     }
 
-    const bataForInvoice = billBata ? calc.bataAmount : 0
+    const bataForInvoice = calc.bataAmount
 
     // RCM: no GST on invoice — client pays directly to government
     const gstResult = reverse_charge
@@ -200,7 +199,7 @@ export async function POST(request: Request) {
       parking_amount: parking,
       permit_amount: permit,
       bata_amount: calc.bataAmount,
-      bill_bata: billBata,
+      bill_bata: true,
       gst_taxable: gstTaxable,
       cgst_rate: cgstRate,
       sgst_rate: sgstRate,

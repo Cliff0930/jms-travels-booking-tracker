@@ -368,7 +368,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
               <Text style={[s.dc, s.dcR, { width: W.extKms }]}>{n(li.extra_kms) > 0 ? n(li.extra_kms).toFixed(0) : '0'}</Text>
               <Text style={[s.dc, s.dcR, { width: W.extKmRate }]}>{n(li.extra_km_rate).toFixed(0)}</Text>
               <Text style={[s.dc, s.dcR, { width: W.extKmAmt }]}>{n(li.extra_km_amount) > 0 ? fmt(li.extra_km_amount) : '—'}</Text>
-              <Text style={[s.dc, s.dcR, { width: W.bata }]}>{li.bill_bata && n(li.bata_amount) > 0 ? fmt(li.bata_amount) : '—'}</Text>
+              <Text style={[s.dc, s.dcR, { width: W.bata }]}>{n(li.bata_amount) > 0 ? fmt(li.bata_amount) : '—'}</Text>
               <Text style={[s.dc, s.dcR, { width: W.parking }]}>{(n(li.toll_amount)+n(li.parking_amount)) > 0 ? fmt(n(li.toll_amount)+n(li.parking_amount)) : '—'}</Text>
               <Text style={[s.dc, s.dcR, { width: W.permit }]}>{n(li.permit_amount) > 0 ? fmt(li.permit_amount) : '—'}</Text>
               <Text style={[s.dc, s.dcR, { width: W.total, borderRightWidth: 0 }]}>{fmt(preGstTotals[i])}</Text>
