@@ -51,6 +51,7 @@ function fmtDate(d: string) {
 function GenerateModal({ companies, onClose, onSaved }: {
   companies: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
 }) {
+  const router = useRouter()
   const [companyId, setCompanyId] = useState('')
   const [periodFrom, setPeriodFrom] = useState('')
   const [periodTo, setPeriodTo] = useState('')
@@ -81,8 +82,14 @@ function GenerateModal({ companies, onClose, onSaved }: {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...preview, company_id: companyId, period_from: periodFrom, period_to: periodTo, due_date: dueDate || null, notes: notes || null, reverse_charge: reverseCharge }),
     })
-    if (res.ok) { toast.success('Invoice created'); onSaved() }
-    else toast.error('Failed to create invoice')
+    if (res.ok) {
+      const inv = await res.json()
+      toast.success('Draft saved — review and finalise')
+      onSaved()
+      router.push(`/billing/invoices/${inv.id}`)
+    } else {
+      toast.error('Failed to save draft')
+    }
     setSaving(false)
   }
 
@@ -94,10 +101,14 @@ function GenerateModal({ companies, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1">
               <Label className="text-xs">Company *</Label>
-              <Select value={companyId} onValueChange={(v: string | null) => setCompanyId(v ?? '')}>
-                <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
-                <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <select
+                value={companyId}
+                onChange={e => setCompanyId(e.target.value)}
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select company…</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Period From *</Label>
@@ -191,7 +202,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={!preview || saving}>
-            {saving ? 'Creating…' : 'Create Invoice'}
+            {saving ? 'Saving…' : 'Save as Draft'}
           </Button>
         </DialogFooter>
       </DialogContent>

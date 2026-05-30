@@ -142,7 +142,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   async function markSent() {
     await fetch(`/api/billing/invoices/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'sent' }) })
-    toast.success('Marked as Sent'); qc.invalidateQueries({ queryKey: ['invoice', id] })
+    toast.success('Invoice finalised'); qc.invalidateQueries({ queryKey: ['invoice', id] })
   }
 
   function exportExcel() {
@@ -214,7 +214,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />Excel
           </Button>
-          {inv.status === 'draft' && <Button size="sm" onClick={markSent} variant="outline">Mark Sent</Button>}
+          {inv.status === 'draft' && (
+            <Button size="sm" onClick={markSent} className="gap-1.5 bg-green-700 hover:bg-green-800 text-white">
+              <Check className="w-3.5 h-3.5" />Finalise Invoice
+            </Button>
+          )}
           {(inv.status === 'sent' || inv.status === 'partially_paid' || inv.status === 'overdue') && (
             <Button size="sm" onClick={() => setShowPayment(true)} className="gap-1.5">
               <IndianRupee className="w-3.5 h-3.5" />Record Payment
