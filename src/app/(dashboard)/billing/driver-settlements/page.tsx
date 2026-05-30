@@ -55,7 +55,7 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const router = useRouter()
   const { data: drivers = [] } = useQuery<{ id: string; name: string; vehicle_name: string }[]>({
     queryKey: ['drivers-active'],
-    queryFn: () => fetch('/api/drivers?status=active').then(r => r.json()),
+    queryFn: () => fetch('/api/drivers').then(r => r.json()),
   })
   const [driverId, setDriverId] = useState('')
   const [periodFrom, setPeriodFrom] = useState(() => {
