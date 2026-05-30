@@ -58,6 +58,12 @@ export default function DriversPage() {
     queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
 
+  const { data: advanceTotals = {} } = useQuery<Record<string, number>>({
+    queryKey: ['advance-totals'],
+    queryFn: () => fetch('/api/driver-advances?totals=1').then(r => r.json()),
+    refetchInterval: 60000,
+  })
+
   const filtered = drivers.filter(d => {
     if (vehicleFilter !== 'all' && d.vehicle_type !== vehicleFilter) return false
     if (search.trim()) {
@@ -188,6 +194,7 @@ export default function DriversPage() {
               driver={driver}
               onSelect={setSelectedDriver}
               onDeactivate={handleDeactivate}
+              outstandingAmount={advanceTotals[driver.id] ?? 0}
             />
           ))}
         </div>

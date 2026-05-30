@@ -117,6 +117,9 @@ function DriverStatusContent() {
   const [tollAmount, setTollAmount] = useState('')
   const [parkingAmount, setParkingAmount] = useState('')
   const [permitAmount, setPermitAmount] = useState('')
+  const [collectionAmount, setCollectionAmount] = useState('')
+  const [collectionMode, setCollectionMode] = useState<'cash' | 'phonepe' | 'gpay' | 'cc'>('cash')
+  const [isSettlementDuty, setIsSettlementDuty] = useState(false)
 
   // Opening data for direct completed links
   const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
@@ -130,6 +133,14 @@ function DriverStatusContent() {
   useEffect(() => {
     getGps().then(c => { if (c) setGpsCoords(c) })
   }, [])
+
+  useEffect(() => {
+    if (!bookingId || status !== 'completed') return
+    fetch(`/api/bookings/${bookingId}`)
+      .then(r => r.json())
+      .then((b: { is_settlement_duty?: boolean }) => { if (b.is_settlement_duty) setIsSettlementDuty(true) })
+      .catch(() => {})
+  }, [bookingId, status])
 
   useEffect(() => {
     if (!bookingId || !status) return
@@ -237,6 +248,9 @@ function DriverStatusContent() {
   async function handleCompletedSubmit() {
     if (!bookingId) return
     if (!closingKm) { setError('Please enter the closing KM reading'); return }
+    if (isSettlementDuty && (!collectionAmount || parseFloat(collectionAmount) <= 0)) {
+      setError('Please enter the amount collected from the client'); return
+    }
 
     const knownOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
     if (knownOpeningKm != null && parseFloat(closingKm) <= knownOpeningKm) {
@@ -262,6 +276,7 @@ function DriverStatusContent() {
       if (tollAmount) body.toll_amount = parseFloat(tollAmount)
       if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
       if (permitAmount) body.permit_amount = parseFloat(permitAmount)
+      if (isSettlementDuty && collectionAmount) { body.collection_amount = parseFloat(collectionAmount); body.collection_mode = collectionMode }
       if (gps) { body.lat = gps.lat; body.lng = gps.lng }
 
       const res = await fetch('/api/driver-status', {
@@ -585,6 +600,27 @@ function DriverStatusContent() {
                 </div>
               </div>
             </>
+          )}
+
+          {isSettlementDuty && status === 'completed' && (
+            <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 space-y-3">
+              <p className="text-sm font-bold text-amber-800">⚠ Settlement Duty — Collect Payment from Client</p>
+              <p className="text-xs text-amber-700">Enter the exact trip fare amount the client paid you (not toll/parking).</p>
+              <div>
+                <Label htmlFor="collection_amount" className="text-sm font-medium text-[#191B23]">Amount Collected (₹) *</Label>
+                <Input id="collection_amount" type="number" inputMode="decimal" value={collectionAmount} onChange={e => setCollectionAmount(e.target.value)} placeholder="0" className="mt-1.5 border-amber-300 h-12 text-base" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-[#191B23] block mb-2">How did client pay? *</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['cash', 'phonepe', 'gpay', 'cc'] as const).map(m => (
+                    <button key={m} type="button" onClick={() => setCollectionMode(m)}
+                      className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${collectionMode === m ? 'bg-amber-700 text-white border-amber-700' : 'border-amber-300 text-amber-800 bg-white'}`}
+                    >{{ cash: 'Cash', phonepe: 'PhonePe', gpay: 'GPay', cc: 'Card/CC' }[m]}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {error && <p className="text-sm text-red-600 text-center bg-red-50 rounded-md py-2 px-3">{error}</p>}

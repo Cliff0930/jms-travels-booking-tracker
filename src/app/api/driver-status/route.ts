@@ -117,6 +117,8 @@ export async function POST(request: Request) {
     lat, lng,
     link_code,
     leg_id,
+    collection_amount,
+    collection_mode,
   } = await request.json()
   const supabase = createAdminClient()
 
@@ -309,6 +311,19 @@ export async function POST(request: Request) {
     } else {
       // Trip-completed client notification is currently disabled
     }
+  }
+
+  // Auto-insert collection entry if settlement duty and driver recorded collection
+  if (status === 'completed' && booking.is_settlement_duty && collection_amount > 0 && collection_mode) {
+    await supabase.from('driver_advances').insert({
+      driver_id: booking.driver_id,
+      booking_id: booking_id,
+      type: 'collection',
+      amount: collection_amount,
+      payment_mode: collection_mode,
+      note: `Client payment collected at trip completion – ${booking.booking_ref}`,
+      status: 'outstanding',
+    })
   }
 
   // Push notification to operator on trip completion

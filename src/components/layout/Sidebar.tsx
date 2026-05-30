@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: '/clients',   label: 'Clients',   icon: Users },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/drivers',   label: 'Drivers',   icon: Car },
+  { href: '/advances',         label: 'Advances',        icon: IndianRupee },
   { href: '/reports',          label: 'Reports',         icon: BarChart3 },
   { href: '/reimbursements',   label: 'Reimbursements',  icon: Wallet },
   { href: '/notifications',    label: 'Notifications',   icon: Bell },

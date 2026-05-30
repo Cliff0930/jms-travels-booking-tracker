@@ -45,6 +45,9 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             {booking.trip_type === 'airport' && (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E]">Airport</span>
             )}
+            {booking.is_settlement_duty && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-400">₹ SETTLEMENT</span>
+            )}
             <BookingStatusBadge status={booking.status} />
           </div>
 

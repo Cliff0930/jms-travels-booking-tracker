@@ -177,6 +177,23 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     enabled: !!id,
     refetchInterval: booking?.status === 'in_progress' ? 15000 : false,
   })
+
+  interface CollectionEntry { id: string; amount: number; payment_mode: string; status: string }
+  const { data: collectionEntries = [] } = useQuery<CollectionEntry[]>({
+    queryKey: ['booking-collection', id],
+    queryFn: () => fetch(`/api/driver-advances?status=outstanding&booking_id=${id}`)
+      .then(r => r.json())
+      .then((d: CollectionEntry[]) => d.filter((e: CollectionEntry & { type?: string }) => e.type === 'collection')),
+    enabled: !!id && booking?.status === 'completed',
+  })
+  const settledCollection = useQuery<CollectionEntry[]>({
+    queryKey: ['booking-collection-settled', id],
+    queryFn: () => fetch(`/api/driver-advances?status=settled&booking_id=${id}`)
+      .then(r => r.json())
+      .then((d: CollectionEntry[]) => d.filter((e: CollectionEntry & { type?: string }) => e.type === 'collection')),
+    enabled: !!id && booking?.status === 'completed',
+  })
+  const allCollections = [...collectionEntries, ...(settledCollection.data ?? [])]
   const [selectedSheetIdx, setSelectedSheetIdx] = useState(0)
   const tripSheet = tripSheets[selectedSheetIdx] ?? null
 
@@ -450,6 +467,20 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.success(enabled ? 'GPS tracking enabled' : 'GPS tracking disabled')
     } catch {
       toast.error('Failed to update GPS setting')
+    }
+  }
+
+  async function handleSettlementToggle(enabled: boolean) {
+    try {
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_settlement_duty: enabled }),
+      })
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success(enabled ? 'Settlement duty enabled' : 'Settlement duty disabled')
+    } catch {
+      toast.error('Failed to update settlement duty')
     }
   }
 
@@ -1540,6 +1571,29 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           </div>
           )}
 
+          {canEdit && (
+          <div className={cn('rounded-lg border p-5', booking.is_settlement_duty ? 'bg-amber-50 border-amber-300' : 'bg-white border-[#C3C5D7]')}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${booking.is_settlement_duty ? 'text-amber-600' : 'text-[#737686]'}`} />
+                <div>
+                  <h2 className="text-base font-semibold text-[#191B23]">Settlement Duty</h2>
+                  <p className="text-xs text-[#737686] mt-0.5">
+                    {booking.is_settlement_duty
+                      ? 'Driver will collect trip fare from client directly at trip end'
+                      : 'Enable if client will pay driver directly at trip end'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={!!booking.is_settlement_duty}
+                onCheckedChange={handleSettlementToggle}
+                className="ml-4 shrink-0"
+              />
+            </div>
+          </div>
+          )}
+
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <h2 className="text-base font-semibold text-[#191B23] mb-3">Booking Info</h2>
             <dl className="space-y-2 text-sm">
@@ -1591,6 +1645,24 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <dt className="text-[#737686]">Days</dt>
                   <dd className="text-[#434654]">{booking.total_days}</dd>
                 </div>
+              )}
+              {booking.is_settlement_duty && (
+                <>
+                  <Separator className="my-1" />
+                  <div className="flex justify-between items-start">
+                    <dt className="text-amber-700 font-medium">Settlement Duty</dt>
+                    <dd className="text-right">
+                      {allCollections.length > 0 ? allCollections.map(c => (
+                        <div key={c.id} className="text-xs">
+                          <span className="font-semibold text-gray-900">₹{Number(c.amount).toLocaleString('en-IN')} via {c.payment_mode === 'cc' ? 'Card' : c.payment_mode.charAt(0).toUpperCase() + c.payment_mode.slice(1)}</span>
+                          {' '}<span className={c.status === 'settled' ? 'text-emerald-600' : 'text-orange-600'}>● {c.status === 'settled' ? 'Settled' : 'Outstanding'}</span>
+                        </div>
+                      )) : (
+                        <span className="text-xs text-amber-600">Driver to collect from client</span>
+                      )}
+                    </dd>
+                  </div>
+                </>
               )}
               <Separator className="my-1" />
               <div className="flex justify-between">

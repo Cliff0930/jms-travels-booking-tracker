@@ -1,11 +1,13 @@
 'use client'
 import { Car, Phone, Users } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import type { Driver } from '@/types'
 
 interface DriverCardProps {
   driver: Driver
   onSelect: (driver: Driver) => void
   onDeactivate?: (id: string) => void
+  outstandingAmount?: number
 }
 
 function statusConfig(status: Driver['status'], isActive: boolean) {
@@ -15,7 +17,8 @@ function statusConfig(status: Driver['status'], isActive: boolean) {
   return                              { gradient: 'from-gray-400 to-slate-500',      pill: 'bg-gray-100 text-gray-600 border border-gray-200',           label: 'Off Duty' }
 }
 
-export function DriverCard({ driver, onSelect }: DriverCardProps) {
+export function DriverCard({ driver, onSelect, outstandingAmount = 0 }: DriverCardProps) {
+  const router = useRouter()
   const initials = driver.name.split(' ').map(n => n[0]).slice(0, 2).join('')
   const { gradient, pill, label } = statusConfig(driver.status, driver.is_active)
 
@@ -63,6 +66,15 @@ export function DriverCard({ driver, onSelect }: DriverCardProps) {
             <Users className="w-3 h-3" />{driver.seating_capacity}
           </span>
         </div>
+        {outstandingAmount > 0 && (
+          <button
+            onClick={e => { e.stopPropagation(); router.push(`/advances?driver_id=${driver.id}`) }}
+            className="mt-2 w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-colors"
+          >
+            <span className="text-xs font-semibold text-amber-800">Outstanding</span>
+            <span className="text-xs font-bold text-amber-900">₹{outstandingAmount.toLocaleString('en-IN')} ↗</span>
+          </button>
+        )}
       </div>
     </div>
   )
