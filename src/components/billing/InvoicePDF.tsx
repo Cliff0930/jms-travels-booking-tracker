@@ -212,8 +212,7 @@ function fmtDateShort(d: string | null): string {
   if (!d) return '—'
   try {
     const [y, m, dy] = d.slice(0, 10).split('-').map(Number)
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    return `${String(dy).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`
+    return `${String(dy).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
   } catch { return d }
 }
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -67,9 +68,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     })),
   }
 
-  const buffer = await renderToBuffer(createElement(InvoicePDF, { data }))
+  // Cast needed: renderToBuffer expects DocumentProps root but wrapper component is valid
+  const buffer = await renderToBuffer(createElement(InvoicePDF, { data }) as any)
 
-  return new Response(buffer, {
+  // Convert Node Buffer → Uint8Array for the Web API Response
+  return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${invoice.invoice_number}.pdf"`,
