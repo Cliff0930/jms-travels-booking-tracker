@@ -117,12 +117,28 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const qc = useQueryClient()
   const [showPayment, setShowPayment] = useState(false)
+  const [showCancel, setShowCancel] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
     queryFn: () => fetch(`/api/billing/invoices/${id}`).then(r => r.json()),
     enabled: !!id,
   })
+
+  async function cancelInvoice() {
+    setCancelling(true)
+    const res = await fetch(`/api/billing/invoices/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      toast.success('Invoice cancelled')
+      qc.invalidateQueries({ queryKey: ['invoice', id] })
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      setShowCancel(false)
+    } else {
+      toast.error('Failed to cancel invoice')
+    }
+    setCancelling(false)
+  }
 
   async function markSent() {
     await fetch(`/api/billing/invoices/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'sent' }) })
@@ -202,6 +218,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           {(inv.status === 'sent' || inv.status === 'partially_paid' || inv.status === 'overdue') && (
             <Button size="sm" onClick={() => setShowPayment(true)} className="gap-1.5">
               <IndianRupee className="w-3.5 h-3.5" />Record Payment
+            </Button>
+          )}
+          {['draft', 'sent', 'overdue', 'partially_paid'].includes(inv.status) && (
+            <Button size="sm" variant="outline" onClick={() => setShowCancel(true)} className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50">
+              Cancel Invoice
             </Button>
           )}
         </div>
@@ -311,6 +332,29 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {showPayment && <PaymentModal invoiceId={id} balanceDue={inv.balance_due} onClose={() => setShowPayment(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }); setShowPayment(false) }} />}
+
+      {showCancel && (
+        <Dialog open onOpenChange={o => { if (!o) setShowCancel(false) }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Cancel Invoice?</DialogTitle></DialogHeader>
+            <div className="py-2 space-y-3">
+              <p className="text-sm text-gray-700">
+                This will mark <strong>{inv.invoice_number}</strong> as cancelled.
+                The invoice stays on record but cannot be paid or sent.
+              </p>
+              <p className="text-sm text-gray-500">
+                You can generate a new corrected invoice for the same period afterwards.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCancel(false)}>Keep Invoice</Button>
+              <Button onClick={cancelInvoice} disabled={cancelling} className="bg-red-600 hover:bg-red-700 text-white">
+                {cancelling ? 'Cancelling…' : 'Yes, Cancel Invoice'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
