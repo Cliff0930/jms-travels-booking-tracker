@@ -214,6 +214,7 @@ export default function InvoicesPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('all')
+  const [view, setView] = useState<'list' | 'aged'>('list')
   const [search, setSearch] = useState('')
   const [showGenerate, setShowGenerate] = useState(false)
 
@@ -233,6 +234,26 @@ export default function InvoicesPage() {
   }, [invoices, search])
 
   const totalOutstanding = useMemo(() => invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + Number(i.balance_due), 0), [invoices])
+
+  // Aged receivables: group unpaid invoices by company
+  const agedReceivables = useMemo(() => {
+    const today = new Date()
+    const unpaid = invoices.filter(i => Number(i.balance_due) > 0 && i.status !== 'cancelled')
+    const map = new Map<string, { company_id: string; company_name: string; total: number; paid: number; balance: number; oldest: Date; invoices: Invoice[] }>()
+    for (const inv of unpaid) {
+      const cid = inv.company_id
+      if (!map.has(cid)) map.set(cid, { company_id: cid, company_name: inv.company?.name ?? '—', total: 0, paid: 0, balance: 0, oldest: new Date(inv.created_at), invoices: [] })
+      const row = map.get(cid)!
+      row.total += Number(inv.grand_total)
+      row.paid += Number(inv.amount_paid)
+      row.balance += Number(inv.balance_due)
+      if (new Date(inv.created_at) < row.oldest) row.oldest = new Date(inv.created_at)
+      row.invoices.push(inv)
+    }
+    return Array.from(map.values())
+      .map(r => ({ ...r, ageDays: Math.floor((today.getTime() - r.oldest.getTime()) / 86400000) }))
+      .sort((a, b) => b.balance - a.balance)
+  }, [invoices])
 
   function exportExcel() {
     const rows = filtered.map(i => ({
@@ -278,13 +299,21 @@ export default function InvoicesPage() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm shrink-0">
+          <button onClick={() => setView('list')}
+            className={cn('px-3 py-2 font-semibold transition-colors', view === 'list' ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+          >Invoices</button>
+          <button onClick={() => setView('aged')}
+            className={cn('px-3 py-2 font-semibold transition-colors', view === 'aged' ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+          >Aged Receivables</button>
+        </div>
+        {view === 'list' && <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm shrink-0">
           {['all', 'draft', 'sent', 'paid', 'partially_paid', 'overdue'].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={cn('px-3 py-2 font-semibold capitalize transition-colors',
                 statusFilter === s ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
             >{s.replace('_', ' ')}</button>
           ))}
-        </div>
+        </div>}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoice, company…" className="pl-9 h-9 text-sm" />
@@ -296,8 +325,56 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {/* Aged Receivables view */}
+      {view === 'aged' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">Aged Receivables — Companies with Outstanding Balances</h2>
+            <span className="text-xs text-gray-500">{agedReceivables.length} companies</span>
+          </div>
+          {agedReceivables.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No outstanding balances</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {['Company', 'Total Invoiced', 'Collected', 'Outstanding', 'Oldest Unpaid', 'Age'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {agedReceivables.map(row => (
+                  <tr key={row.company_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-900">{row.company_name}</td>
+                    <td className="px-4 py-3 text-gray-700">{fmt(row.total)}</td>
+                    <td className="px-4 py-3 text-green-700">{fmt(row.paid)}</td>
+                    <td className="px-4 py-3 font-bold text-orange-600">{fmt(row.balance)}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{row.oldest.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', row.ageDays > 60 ? 'bg-red-50 text-red-700' : row.ageDays > 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700')}>
+                        {row.ageDays}d
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td className="px-4 py-3 font-semibold text-gray-700">Total</td>
+                  <td className="px-4 py-3 font-bold">{fmt(agedReceivables.reduce((s, r) => s + r.total, 0))}</td>
+                  <td className="px-4 py-3 font-bold text-green-700">{fmt(agedReceivables.reduce((s, r) => s + r.paid, 0))}</td>
+                  <td className="px-4 py-3 font-bold text-orange-600">{fmt(agedReceivables.reduce((s, r) => s + r.balance, 0))}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Invoice list */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {view === 'list' && <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading…</div>
         ) : filtered.length === 0 ? (
@@ -334,7 +411,7 @@ export default function InvoicesPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </div>}
 
       {showGenerate && <GenerateModal companies={companies} onClose={() => setShowGenerate(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoices'] }); setShowGenerate(false) }} />}
     </div>

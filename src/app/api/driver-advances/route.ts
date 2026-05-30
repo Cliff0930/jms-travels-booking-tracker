@@ -30,9 +30,10 @@ export async function GET(request: Request) {
   let q = supabase
     .from('driver_advances')
     .select('*, driver:drivers!driver_id(id, name), booking:bookings!booking_id(booking_ref)')
-    .eq('status', status)
     .order('created_at', { ascending: false })
     .limit(500)
+
+  if (status !== 'all') q = q.eq('status', status)
 
   if (driverId) q = q.eq('driver_id', driverId)
   if (bookingId) q = q.eq('booking_id', bookingId)

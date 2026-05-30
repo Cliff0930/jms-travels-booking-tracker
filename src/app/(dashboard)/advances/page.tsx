@@ -60,7 +60,7 @@ function AdvancesContent() {
   const isAdmin = useIsAdmin()
 
   const preDriverId = searchParams.get('driver_id') ?? 'all'
-  const [tab, setTab] = useState<'outstanding' | 'settled'>('outstanding')
+  const [tab, setTab] = useState<'outstanding' | 'settled' | 'ledger'>('outstanding')
   const [driverFilter, setDriverFilter] = useState(preDriverId)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -77,13 +77,34 @@ function AdvancesContent() {
   const { data: entries = [], isLoading } = useQuery<AdvanceEntry[]>({
     queryKey: ['driver-advances', tab, driverFilter, dateFrom, dateTo],
     queryFn: () => {
-      const p = new URLSearchParams({ status: tab })
+      const p = new URLSearchParams({ status: tab === 'ledger' ? 'all' : tab })
       if (driverFilter !== 'all') p.set('driver_id', driverFilter)
-      if (dateFrom) p.set('date_from', dateFrom)
-      if (dateTo) p.set('date_to', dateTo)
+      if (tab !== 'ledger') {
+        if (dateFrom) p.set('date_from', dateFrom)
+        if (dateTo) p.set('date_to', dateTo)
+      }
       return fetch(`/api/driver-advances?${p}`).then(r => r.json())
     },
+    enabled: tab !== 'ledger' || true,
   })
+
+  // Ledger: per-driver aggregates from all entries
+  const ledger = useMemo(() => {
+    if (tab !== 'ledger') return []
+    const map = new Map<string, { driver_id: string; driver_name: string; total_given: number; total_settled: number; outstanding: number }>()
+    for (const e of entries) {
+      if (!map.has(e.driver_id)) {
+        map.set(e.driver_id, { driver_id: e.driver_id, driver_name: e.driver?.name ?? '—', total_given: 0, total_settled: 0, outstanding: 0 })
+      }
+      const row = map.get(e.driver_id)!
+      if (e.type === 'advance') {
+        row.total_given += Number(e.amount)
+        if (e.status === 'settled') row.total_settled += Number(e.amount)
+        else row.outstanding += Number(e.amount)
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.outstanding - a.outstanding)
+  }, [entries, tab])
 
   // Fetch outstanding entries for balance cards — scoped to selected driver if one is chosen
   const { data: allOutstanding = [] } = useQuery<AdvanceEntry[]>({
@@ -193,7 +214,7 @@ function AdvancesContent() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Tabs */}
         <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
-          {(['outstanding', 'settled'] as const).map(t => (
+          {(['outstanding', 'settled', 'ledger'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={cn('px-4 py-2 text-sm font-semibold transition-colors capitalize', tab === t ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
             >{t}</button>
@@ -286,8 +307,54 @@ function AdvancesContent() {
         </div>
       )}
 
+      {/* Ledger view */}
+      {tab === 'ledger' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b">
+            <h2 className="text-sm font-semibold text-gray-700">Driver Advance Ledger</h2>
+          </div>
+          {isLoading ? (
+            <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+          ) : ledger.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No advance data found</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {['Driver', 'Total Advances Given', 'Settled / Deducted', 'Outstanding Balance'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {ledger.map(row => (
+                  <tr key={row.driver_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-900">{row.driver_name}</td>
+                    <td className="px-4 py-3 text-gray-700">{fmt(row.total_given)}</td>
+                    <td className="px-4 py-3 text-emerald-600 font-medium">{fmt(row.total_settled)}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn('font-bold text-base', row.outstanding > 0 ? 'text-orange-600' : 'text-gray-400')}>
+                        {fmt(row.outstanding)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td className="px-4 py-3 font-semibold text-gray-700">Total</td>
+                  <td className="px-4 py-3 font-bold">{fmt(ledger.reduce((s, r) => s + r.total_given, 0))}</td>
+                  <td className="px-4 py-3 font-bold text-emerald-600">{fmt(ledger.reduce((s, r) => s + r.total_settled, 0))}</td>
+                  <td className="px-4 py-3 font-bold text-orange-600">{fmt(ledger.reduce((s, r) => s + r.outstanding, 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Entry table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className={cn('bg-white rounded-xl border border-gray-200 overflow-hidden', tab === 'ledger' ? 'hidden' : '')}>
         {isLoading ? (
           <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
         ) : filteredEntries.length === 0 ? (

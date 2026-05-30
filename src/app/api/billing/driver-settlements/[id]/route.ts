@@ -37,6 +37,54 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-settle outstanding advances (FIFO) when settlement is marked paid
+  if (body.status === 'paid' && Number(data.advance_principal_deduction) > 0) {
+    const { data: advances } = await supabase
+      .from('driver_advances')
+      .select('id, amount, type, payment_mode')
+      .eq('driver_id', data.driver_id)
+      .eq('status', 'outstanding')
+      .order('created_at', { ascending: true })
+
+    let remaining = Number(data.advance_principal_deduction)
+    const periodLabel = `${data.period_from} to ${data.period_to}`
+
+    for (const adv of advances ?? []) {
+      if (remaining <= 0) break
+      const advAmt = Number(adv.amount)
+      if (remaining >= advAmt) {
+        await supabase.from('driver_advances').update({
+          status: 'settled',
+          settled_at: data.paid_at,
+          settled_via: 'Settlement deduction',
+          settlement_id: id,
+          note: `Auto-settled via statement ${periodLabel}`,
+        }).eq('id', adv.id)
+        remaining -= advAmt
+      } else {
+        // Partial: settle the consumed portion, create new row for the remainder
+        await supabase.from('driver_advances').update({
+          amount: remaining,
+          status: 'settled',
+          settled_at: data.paid_at,
+          settled_via: 'Settlement deduction',
+          settlement_id: id,
+          note: `Partially settled via statement ${periodLabel}`,
+        }).eq('id', adv.id)
+        await supabase.from('driver_advances').insert({
+          driver_id: data.driver_id,
+          type: adv.type,
+          amount: advAmt - remaining,
+          payment_mode: adv.payment_mode,
+          status: 'outstanding',
+          note: `Remainder after statement ${periodLabel}`,
+        })
+        remaining = 0
+      }
+    }
+  }
+
   return NextResponse.json(data)
 }
 
