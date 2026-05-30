@@ -1,6 +1,8 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import Fuse from 'fuse.js'
+import { tokenMatch } from '@/lib/utils/search'
 import {
   Mail, MessageCircle, ArrowUpRight, ArrowDownLeft,
   CheckCircle, XCircle, Clock, RefreshCw, X, User, Search, Car,
@@ -94,12 +96,16 @@ function ClientPicker({ value, onChange }: { value: Client | null; onChange: (c:
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const filtered = clients.filter(c =>
-    !search ||
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.primary_phone?.includes(search) ||
-    c.primary_email?.toLowerCase().includes(search.toLowerCase())
-  )
+  const clientFuse = useMemo(() => new Fuse(clients, {
+    keys: ['name', 'primary_phone', 'primary_email'],
+    threshold: 0.35,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
+  }), [clients])
+
+  const filtered = search.trim()
+    ? clientFuse.search(search).map(r => r.item)
+    : clients
 
   if (value) {
     const initials = value.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -179,12 +185,16 @@ function DriverPicker({ value, onChange }: { value: Driver | null; onChange: (d:
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const filtered = drivers.filter(d =>
-    !search ||
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.phone.includes(search) ||
-    (d.vehicle_number || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const driverFuse = useMemo(() => new Fuse(drivers, {
+    keys: ['name', 'phone', 'vehicle_number', 'vehicle_name'],
+    threshold: 0.35,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
+  }), [drivers])
+
+  const filtered = search.trim()
+    ? driverFuse.search(search).map(r => r.item)
+    : drivers
 
   if (value) {
     const initials = value.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -351,12 +361,11 @@ export default function MessagesPage() {
       if (channelFilter !== 'all') items = items.filter(r => r.channel === channelFilter)
     }
     if (searchQuery) {
-      const q = searchQuery.toLowerCase()
       items = items.filter(r =>
-        r.content?.toLowerCase().includes(q) ||
-        r.contact?.toLowerCase().includes(q) ||
-        r.client_name?.toLowerCase().includes(q) ||
-        (r.template ? (TEMPLATE_LABELS[r.template] ?? r.template).toLowerCase().includes(q) : false)
+        tokenMatch(searchQuery,
+          r.content, r.contact, r.client_name,
+          r.template ? (TEMPLATE_LABELS[r.template] ?? r.template) : null
+        )
       )
     }
     return items

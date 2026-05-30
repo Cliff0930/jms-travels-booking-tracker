@@ -149,7 +149,10 @@ export async function GET(request: Request) {
         const searchDigits = search.replace(/\D/g, '')
         const tsDigits = (entry.tripsheet_number ?? '').replace(/\D/g, '')
         const tripsheetMatch = searchDigits.length > 0 && tsDigits.length > 0 && tsDigits.includes(searchDigits)
-        if (!haystack.includes(search) && !tripsheetMatch) continue
+        // Token-based: every word in the query must appear somewhere in the haystack
+        const tokens = search.split(/\s+/).filter(Boolean)
+        const tokenMatch = tokens.every(t => haystack.includes(t))
+        if (!tokenMatch && !tripsheetMatch) continue
       }
 
       result.push(entry)

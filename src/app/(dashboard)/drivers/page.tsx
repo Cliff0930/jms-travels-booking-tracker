@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { tokenMatch } from '@/lib/utils/search'
 import { useDrivers, useCreateDriver, useUpdateDriver } from '@/hooks/useDrivers'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { DriverCard } from '@/components/drivers/DriverCard'
@@ -67,8 +68,7 @@ export default function DriversPage() {
   const filtered = drivers.filter(d => {
     if (vehicleFilter !== 'all' && d.vehicle_type !== vehicleFilter) return false
     if (search.trim()) {
-      const q = search.toLowerCase()
-      if (!d.name.toLowerCase().includes(q) && !d.phone.includes(q) && !(d.vehicle_number || '').toLowerCase().includes(q)) return false
+      if (!tokenMatch(search, d.name, d.phone, d.vehicle_number)) return false
     }
     return true
   })

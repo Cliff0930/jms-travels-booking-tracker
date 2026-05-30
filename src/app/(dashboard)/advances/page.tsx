@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import Fuse from 'fuse.js'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -322,20 +323,27 @@ function AddEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   })
   const activeDrivers = drivers.filter(d => d.is_active !== false)
 
-  const filteredDrivers = driverSearch.trim()
-    ? activeDrivers.filter(d => {
-        const q = driverSearch.toLowerCase()
-        const qDigits = q.replace(/\D/g, '')
-        const plateQ = stripPlate(driverSearch)
-        const plateD = stripPlate(d.vehicle_number || '')
-        return (
-          d.name.toLowerCase().includes(q) ||
-          (qDigits.length > 0 && (d.phone || '').replace(/\D/g, '').includes(qDigits)) ||
-          (plateQ.length > 0 && plateD.includes(plateQ)) ||
-          (plateQ.length >= 4 && plateD.endsWith(plateQ.slice(-4)))
-        )
-      })
-    : activeDrivers
+  const driverFuse = useMemo(() => new Fuse(activeDrivers, {
+    keys: ['name', 'phone', 'vehicle_name', 'vehicle_number'],
+    threshold: 0.35,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
+  }), [activeDrivers])
+
+  const filteredDrivers = useMemo(() => {
+    if (!driverSearch.trim()) return activeDrivers
+    const plateQ = stripPlate(driverSearch)
+    const plateMatches = plateQ.length >= 2
+      ? activeDrivers.filter(d => {
+          const plateD = stripPlate(d.vehicle_number || '')
+          return plateD.includes(plateQ) || (plateQ.length >= 4 && plateD.endsWith(plateQ.slice(-4)))
+        })
+      : []
+    const fuseMatches = driverFuse.search(driverSearch).map(r => r.item)
+    // Merge: plate matches first (preserving order), then fuse results, deduplicated
+    const seen = new Set(plateMatches.map(d => d.id))
+    return [...plateMatches, ...fuseMatches.filter(d => !seen.has(d.id))]
+  }, [driverSearch, activeDrivers, driverFuse])
 
   // Booking combobox state
   const [bookingId, setBookingId] = useState<string | null>(null)

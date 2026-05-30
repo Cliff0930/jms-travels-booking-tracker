@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { tokenMatch } from '@/lib/utils/search'
 import { useBookings, useConfirmBooking, useCancelBooking } from '@/hooks/useBookings'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { BookingCard } from '@/components/dashboard/BookingCard'
@@ -85,21 +86,13 @@ export default function BookingsPage() {
       if (companyFilter && derivedCompany !== companyFilter) return false
       if (bookingTypeFilter && b.booking_type !== bookingTypeFilter) return false
       if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        const match =
-          b.booking_ref?.toLowerCase().includes(q) ||
-          b.guest_name?.toLowerCase().includes(q) ||
-          b.guest_phone?.toLowerCase().includes(q) ||
-          b.client?.name?.toLowerCase().includes(q) ||
-          b.client?.primary_phone?.toLowerCase().includes(q) ||
-          b.client?.primary_email?.toLowerCase().includes(q) ||
-          b.company?.name?.toLowerCase().includes(q) ||
-          b.client?.company?.name?.toLowerCase().includes(q) ||
-          b.driver?.name?.toLowerCase().includes(q) ||
-          b.driver?.phone?.toLowerCase().includes(q) ||
-          b.driver?.vehicle_number?.toLowerCase().includes(q) ||
-          b.pickup_location?.toLowerCase().includes(q) ||
-          b.drop_location?.toLowerCase().includes(q)
+        const match = tokenMatch(searchQuery,
+          b.booking_ref, b.guest_name, b.guest_phone,
+          b.client?.name, b.client?.primary_phone, b.client?.primary_email,
+          b.company?.name, b.client?.company?.name,
+          b.driver?.name, b.driver?.phone, b.driver?.vehicle_number,
+          b.pickup_location, b.drop_location
+        )
         if (!match) return false
       }
       return true
