@@ -178,7 +178,7 @@ export async function POST(request: Request) {
       trip_sheet_id: (sheet?.id as string | null) ?? null,
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
-      vehicle_type: b.vehicle_type,
+      vehicle_type: driverVehicleName || b.vehicle_type || '',
       vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
       guest_name: b.guest_name,
       pickup_location: b.pickup_location,

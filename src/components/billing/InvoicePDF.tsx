@@ -165,6 +165,7 @@ export interface InvoicePDFData {
 
 export interface InvoicePDFLineItem {
   booking_ref: string
+  tripsheet_number: string | null
   trip_date: string | null
   vehicle_number: string | null
   vehicle_type: string | null
@@ -353,7 +354,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
 
           {data.line_items.map((li, i) => (
             <View key={i} style={[s.dataRow, i % 2 === 1 ? { backgroundColor: ROW_EVEN } : {}]}>
-              <Text style={[s.dc, s.dcC, { width: W.no }]}>{li.booking_ref}</Text>
+              <Text style={[s.dc, s.dcC, { width: W.no }]}>{li.tripsheet_number ?? li.booking_ref}</Text>
               <Text style={[s.dc, { width: W.date }]}>{fmtDateShort(li.trip_date)}</Text>
               <Text style={[s.dc, { width: W.cabNo }]}>{li.vehicle_number ?? '—'}</Text>
               <Text style={[s.dc, { width: W.cabType }]}>{li.vehicle_type ?? '—'}</Text>

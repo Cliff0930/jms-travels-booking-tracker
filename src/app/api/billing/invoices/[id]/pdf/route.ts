@@ -26,6 +26,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new Response('Invoice not found', { status: 404 })
   }
 
+  // Fetch tripsheet numbers from trip_sheets using the stored trip_sheet_id
+  const sheetIds = (lineItems ?? []).map(li => li.trip_sheet_id).filter(Boolean) as string[]
+  const tripsheetMap: Record<string, string | null> = {}
+  if (sheetIds.length > 0) {
+    const { data: sheets } = await supabase
+      .from('trip_sheets')
+      .select('id, tripsheet_number')
+      .in('id', sheetIds)
+    for (const s of sheets ?? []) tripsheetMap[s.id] = s.tripsheet_number ?? null
+  }
+
   const data: InvoicePDFData = {
     invoice_number: invoice.invoice_number,
     period_from: invoice.period_from,
@@ -41,6 +52,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     grand_total: Number(invoice.grand_total),
     line_items: (lineItems ?? []).map(li => ({
       booking_ref: li.booking_ref ?? '',
+      tripsheet_number: li.trip_sheet_id ? (tripsheetMap[li.trip_sheet_id] ?? null) : null,
       trip_date: li.trip_date,
       vehicle_number: li.vehicle_number,
       vehicle_type: li.vehicle_type,
