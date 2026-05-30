@@ -90,13 +90,15 @@ export async function POST(request: Request) {
   const defaultRateMap: Record<string, RateCard> = {}
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = r
 
-  // Fetch client-specific rate overrides
+  // Fetch client-specific rate overrides effective at the start of the billing period
+  // Order ascending so the most recent effective rate wins when building the map
   const { data: clientRates } = await supabase
     .from('client_rate_cards')
     .select('*')
     .eq('company_id', company_id)
     .eq('is_active', true)
-    .lte('effective_from', period_to)
+    .lte('effective_from', period_from)
+    .order('effective_from', { ascending: true })
 
   const clientRateMap: Record<string, RateCard> = {}
   for (const r of clientRates ?? []) clientRateMap[r.vehicle_type.toUpperCase()] = { ...defaultRateMap[r.vehicle_type.toUpperCase()], ...r }

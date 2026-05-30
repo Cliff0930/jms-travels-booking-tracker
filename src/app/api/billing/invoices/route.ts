@@ -4,9 +4,16 @@ import { createAdminClient } from '@/lib/supabase/server'
 async function nextInvoiceNumber(supabase: ReturnType<typeof createAdminClient>): Promise<string> {
   const year = new Date().getFullYear()
   const fy = new Date().getMonth() >= 3 ? `${year}-${String(year + 1).slice(2)}` : `${year - 1}-${String(year).slice(2)}`
-  const { count } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
-  const seq = String((count ?? 0) + 1).padStart(4, '0')
-  return `INV-${fy}-${seq}`
+  const key = `invoice_last_seq_${fy}`
+
+  // Read current seq
+  const { data: setting } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle()
+  const nextSeq = (parseInt(setting?.value ?? '0') + 1)
+
+  // Persist incremented seq
+  await supabase.from('app_settings').upsert({ key, value: String(nextSeq) }, { onConflict: 'key' })
+
+  return `INV-${fy}-${String(nextSeq).padStart(4, '0')}`
 }
 
 export async function GET(request: Request) {
@@ -14,6 +21,14 @@ export async function GET(request: Request) {
   const companyId = searchParams.get('company_id')
   const status = searchParams.get('status')
   const supabase = createAdminClient()
+
+  // Auto-flag overdue: any sent invoice past its due date → overdue
+  await supabase
+    .from('invoices')
+    .update({ status: 'overdue' })
+    .eq('status', 'sent')
+    .not('due_date', 'is', null)
+    .lt('due_date', new Date().toISOString().slice(0, 10))
 
   let q = supabase
     .from('invoices')

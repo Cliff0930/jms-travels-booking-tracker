@@ -1,3 +1,6 @@
+// To add the JMS Travel logo: place logo file at public/jms-logo.png, then:
+// import { Image } from '@react-pdf/renderer'
+// Add <Image src="path/to/jms-logo.png" style={{ width: 60, height: 60 }} /> in the header
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 
 const JMS = {
