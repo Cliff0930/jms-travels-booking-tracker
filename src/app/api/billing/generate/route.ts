@@ -77,8 +77,8 @@ function calcGST(hireCharges: number, isInterState: boolean) {
 
 export async function POST(request: Request) {
   const supabase = createAdminClient()
-  const { company_id, period_from, period_to, is_inter_state = false } = await request.json() as {
-    company_id: string; period_from: string; period_to: string; is_inter_state?: boolean
+  const { company_id, period_from, period_to, is_inter_state = false, reverse_charge = false } = await request.json() as {
+    company_id: string; period_from: string; period_to: string; is_inter_state?: boolean; reverse_charge?: boolean
   }
 
   if (!company_id || !period_from || !period_to) {
@@ -159,7 +159,12 @@ export async function POST(request: Request) {
     }
 
     const bataForInvoice = billBata ? calc.bataAmount : 0
-    const { gstTaxable, cgstAmount, sgstAmount, igstAmount, cgstRate, sgstRate, igstRate } = calcGST(calc.hireCharges, is_inter_state)
+
+    // RCM: no GST on invoice — client pays directly to government
+    const gstResult = reverse_charge
+      ? { gstTaxable: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, cgstRate: 0, sgstRate: 0, igstRate: 0 }
+      : calcGST(calc.hireCharges, is_inter_state)
+    const { gstTaxable, cgstAmount, sgstAmount, igstAmount, cgstRate, sgstRate, igstRate } = gstResult
 
     const lineTotal = roundTo2(calc.hireCharges + cgstAmount + sgstAmount + igstAmount + toll + parking + permit + bataForInvoice)
 
@@ -215,6 +220,7 @@ export async function POST(request: Request) {
     period_from,
     period_to,
     is_inter_state,
+    reverse_charge,
     tds_percent: tdsPercent,
     line_items: lineItems,
     subtotal: roundTo2(totalSubtotal),

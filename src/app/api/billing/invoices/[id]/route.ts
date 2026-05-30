@@ -6,7 +6,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = createAdminClient()
 
   const [{ data: invoice, error }, { data: lineItems }, { data: payments }] = await Promise.all([
-    supabase.from('invoices').select('*, company:companies!company_id(name, gstin)').eq('id', id).single(),
+    supabase.from('invoices').select('*, company:companies!company_id(name, gstin, address)').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order', { ascending: true }),
     supabase.from('billing_payments').select('*').eq('invoice_id', id).order('payment_date', { ascending: true }),
   ])

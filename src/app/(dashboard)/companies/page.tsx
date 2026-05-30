@@ -594,6 +594,23 @@ export default function CompaniesPage() {
                       />
                     </div>
                     <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Billing Address</h3>
+                      <p className="text-xs text-[#9CA3AF]">Printed on invoices under the client's name.</p>
+                      <textarea
+                        key={selectedCompany.id + '-address'}
+                        defaultValue={selectedCompany.address ?? ''}
+                        placeholder={'No.259, Amarjyothi, HBCS Layout,\nDomlur, Bengaluru - 560071'}
+                        rows={3}
+                        className="w-full px-3 py-2 text-sm border border-[#C3C5D7] rounded-md outline-none focus:border-[#1A56DB] placeholder:text-[#9CA3AF] resize-none"
+                        onBlur={e => {
+                          const val = e.target.value.trim() || null
+                          if (val !== (selectedCompany.address ?? null)) {
+                            updateCompany(selectedCompany.id, { address: val })
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="p-4 space-y-2">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Aliases</h3>
                       <p className="text-xs text-[#9CA3AF]">Alternative names used to match this company in emails and messages.</p>
                       <TagInput

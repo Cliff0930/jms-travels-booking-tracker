@@ -55,6 +55,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
   const [periodFrom, setPeriodFrom] = useState('')
   const [periodTo, setPeriodTo] = useState('')
   const [isInterState, setIsInterState] = useState(false)
+  const [reverseCharge, setReverseCharge] = useState(true)
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
   const [preview, setPreview] = useState<{ line_items: LineItemPreview[]; subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number; tds_amount: number; grand_total: number; trip_count: number } | null>(null)
@@ -66,7 +67,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
     setPreviewing(true)
     const res = await fetch('/api/billing/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: companyId, period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState }),
+      body: JSON.stringify({ company_id: companyId, period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState, reverse_charge: reverseCharge }),
     })
     const data = await res.json()
     setPreview(data)
@@ -78,7 +79,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
     setSaving(true)
     const res = await fetch('/api/billing/invoices', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...preview, company_id: companyId, period_from: periodFrom, period_to: periodTo, due_date: dueDate || null, notes: notes || null }),
+      body: JSON.stringify({ ...preview, company_id: companyId, period_from: periodFrom, period_to: periodTo, due_date: dueDate || null, notes: notes || null, reverse_charge: reverseCharge }),
     })
     if (res.ok) { toast.success('Invoice created'); onSaved() }
     else toast.error('Failed to create invoice')
@@ -110,10 +111,31 @@ function GenerateModal({ companies, onClose, onSaved }: {
               <Label className="text-xs">Payment Due Date</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="interstate" checked={isInterState} onChange={e => setIsInterState(e.target.checked)} />
-              <Label htmlFor="interstate" className="text-sm">Inter-state client (IGST 5% instead of CGST+SGST)</Label>
+            {/* RCM toggle */}
+            <div className="col-span-2 flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Reverse Charge Mechanism (RCM)</p>
+                <p className="text-xs text-gray-500 mt-0.5">Client pays GST directly. No GST added to invoice. (Most corporate clients.)</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReverseCharge(v => !v)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none',
+                  reverseCharge ? 'bg-blue-700 border-blue-700' : 'bg-gray-200 border-gray-200'
+                )}
+              >
+                <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
+              </button>
             </div>
+
+            {/* Interstate only shown when RCM is OFF */}
+            {!reverseCharge && (
+              <div className="col-span-2 flex items-center gap-2">
+                <input type="checkbox" id="interstate" checked={isInterState} onChange={e => setIsInterState(e.target.checked)} />
+                <Label htmlFor="interstate" className="text-sm">Inter-state client (IGST 5% instead of CGST+SGST)</Label>
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
               <Label className="text-xs">Notes (optional)</Label>
               <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any invoice notes…" />

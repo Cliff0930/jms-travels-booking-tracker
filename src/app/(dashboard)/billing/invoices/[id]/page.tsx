@@ -35,7 +35,8 @@ interface InvoiceDetail {
   subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
   tds_amount: number; grand_total: number; amount_paid: number; balance_due: number
   status: string; due_date: string | null; notes: string | null; created_at: string
-  company?: { name: string; gstin?: string }
+  reverse_charge: boolean
+  company?: { name: string; gstin?: string; address?: string | null }
   line_items: LineItem[]
   payments: Payment[]
 }
@@ -191,8 +192,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </span>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
-            <Printer className="w-3.5 h-3.5" />Print / PDF
+          <Button variant="outline" size="sm" onClick={() => window.open(`/api/billing/invoices/${id}/pdf`, '_blank')} className="gap-1.5">
+            <Printer className="w-3.5 h-3.5" />Download PDF
           </Button>
           <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />Excel
@@ -205,6 +206,14 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
       </div>
+
+      {/* RCM notice */}
+      {inv.reverse_charge && (
+        <div className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm">
+          <span className="font-bold">RCM</span>
+          <span>Reverse Charge Mechanism — GST paid by client. No GST charged on this invoice.</span>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     company_id: string; period_from: string; period_to: string
     subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
     tds_amount: number; grand_total: number; notes?: string; due_date?: string
+    reverse_charge?: boolean
     line_items: Record<string, unknown>[]
     created_by?: string
   }
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       balance_due: body.grand_total,
       notes: body.notes ?? null,
       due_date: body.due_date ?? null,
+      reverse_charge: body.reverse_charge ?? false,
       created_by: body.created_by ?? null,
     })
     .select()
