@@ -61,7 +61,7 @@ function fmtDate(d: string) {
 }
 
 export interface TripLine {
-  trip_date: string; booking_ref: string; company_name: string
+  trip_date: string; booking_ref: string; tripsheet_number: string | null; company_name: string
   actual_kms: number; actual_hrs: number
   client_hire_charges: number; commission_percent: number; hire_earnings: number
   bata_count: number; bata_earnings: number
@@ -94,8 +94,8 @@ export interface DriverSettlementPDFData {
 }
 
 // Column widths for portrait A4 (595pt), 20pt margins = 555pt usable
-const C = { no: 18, date: 46, ref: 46, company: 80, kms: 28, hire: 46, comm: 28, share: 46, bata: 36, reimb: 36, total: 45 }
-// Sum = 459, fine for portrait
+const C = { no: 18, date: 44, ref: 44, ts: 34, company: 72, kms: 26, hire: 44, comm: 26, share: 44, bata: 34, reimb: 34, total: 44 }
+// Sum = 464, fine for portrait
 
 const MODE_LABELS: Record<string, string> = { cash: 'Cash', bank_transfer: 'Bank Transfer', upi: 'UPI', cheque: 'Cheque', neft: 'NEFT', rtgs: 'RTGS' }
 
@@ -152,6 +152,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
             <Text style={[s.tableHeaderCell, { width: C.no }]}>#</Text>
             <Text style={[s.tableHeaderCell, { width: C.date }]}>Date</Text>
             <Text style={[s.tableHeaderCell, { width: C.ref }]}>Ref</Text>
+            <Text style={[s.tableHeaderCell, { width: C.ts }]}>TS#</Text>
             <Text style={[s.tableHeaderCell, { width: C.company }]}>Company</Text>
             <Text style={[s.tableHeaderCell, { width: C.kms, textAlign: 'right' }]}>KMs</Text>
             <Text style={[s.tableHeaderCell, { width: C.hire, textAlign: 'right' }]}>Hire Chg</Text>
@@ -167,6 +168,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={[s.cell, { width: C.no, color: '#aaa' }]}>{i + 1}</Text>
               <Text style={[s.cell, { width: C.date }]}>{t.trip_date}</Text>
               <Text style={[s.cell, { width: C.ref, fontFamily: 'Helvetica-Bold' }]}>{t.booking_ref}</Text>
+              <Text style={[s.cell, { width: C.ts, color: '#555' }]}>{t.tripsheet_number ?? '—'}</Text>
               <Text style={[s.cell, { width: C.company }]}>{t.company_name}</Text>
               <Text style={[s.cell, { width: C.kms, textAlign: 'right' }]}>{t.actual_kms}</Text>
               <Text style={[s.cell, { width: C.hire, textAlign: 'right' }]}>{rupees(t.client_hire_charges)}</Text>
@@ -180,7 +182,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
 
           {/* Totals row */}
           <View style={[s.tableRow, { backgroundColor: '#eef2fb', borderTopWidth: 1.5, borderTopColor: NAVY }]}>
-            <Text style={[s.cell, { width: C.no + C.date + C.ref + C.company + C.kms, fontFamily: 'Helvetica-Bold', color: NAVY }]}>TOTALS</Text>
+            <Text style={[s.cell, { width: C.no + C.date + C.ref + C.ts + C.company + C.kms, fontFamily: 'Helvetica-Bold', color: NAVY }]}>TOTALS</Text>
             <Text style={[s.cell, { width: C.hire, textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>{rupees(data.trips.reduce((a, t) => a + t.client_hire_charges, 0))}</Text>
             <Text style={[s.cell, { width: C.comm, textAlign: 'right' }]}></Text>
             <Text style={[s.cell, { width: C.share, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: NAVY }]}>{rupees(data.hire_earnings)}</Text>

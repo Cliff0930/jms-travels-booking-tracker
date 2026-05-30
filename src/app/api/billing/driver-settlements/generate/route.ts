@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       booking_id: b.id,
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
+      tripsheet_number: (sheet?.tripsheet_number as string | null) ?? null,
       company_name: company?.name ?? '',
       trip_type: tripType,
       vehicle_type: driver.vehicle_name,

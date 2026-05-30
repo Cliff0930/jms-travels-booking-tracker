@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
 interface TripRow {
-  id: string; trip_date: string; booking_ref: string; company_name: string
+  id: string; trip_date: string; booking_ref: string; tripsheet_number: string | null; company_name: string
   trip_type: string; vehicle_type: string; actual_kms: number; actual_hrs: number
   client_hire_charges: number; commission_percent: number; hire_earnings: number
   bata_count: number; driver_bata_rate: number; bata_earnings: number
@@ -153,6 +153,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
       '#': i + 1,
       'Date': t.trip_date,
       'Booking Ref': t.booking_ref,
+      'TS#': t.tripsheet_number ?? '',
       'Company': t.company_name,
       'KMs': t.actual_kms,
       'Hrs': t.actual_hrs,
@@ -256,7 +257,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
             <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['#', 'Date', 'Ref', 'Company', 'KMs', 'Hire Chg', 'Comm%', 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
+                  {['#', 'Date', 'Ref', 'TS#', 'Company', 'KMs', 'Hire Chg', 'Comm%', 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -267,6 +268,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{t.trip_date}</td>
                     <td className="px-3 py-2 font-medium whitespace-nowrap">{t.booking_ref}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500">{t.tripsheet_number ?? '—'}</td>
                     <td className="px-3 py-2 max-w-[120px] truncate">{t.company_name}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{t.actual_kms}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{fmt(t.client_hire_charges)}</td>

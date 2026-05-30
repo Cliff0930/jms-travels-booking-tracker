@@ -50,6 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     trips: (trips ?? []).map(t => ({
       trip_date: t.trip_date ?? '',
       booking_ref: t.booking_ref ?? '',
+      tripsheet_number: t.tripsheet_number ?? null,
       company_name: t.company_name ?? '',
       actual_kms: Number(t.actual_kms ?? 0),
       actual_hrs: Number(t.actual_hrs ?? 0),

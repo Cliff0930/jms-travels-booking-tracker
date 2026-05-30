@@ -21,7 +21,7 @@ interface Settlement {
 }
 
 interface TripPreview {
-  trip_date: string; booking_ref: string; company_name: string
+  trip_date: string; booking_ref: string; tripsheet_number: string | null; company_name: string
   vehicle_type: string; actual_kms: number; actual_hrs: number
   client_hire_charges: number; commission_percent: number; hire_earnings: number
   bata_count: number; driver_bata_rate: number; bata_earnings: number
@@ -186,7 +186,7 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                     <table className="w-full text-xs">
                       <thead className="bg-gray-50 border-b">
                         <tr>
-                          {['Date', 'Ref', 'Company', 'KMs', 'Hire Chg', `Comm ${preview.trip_details[0]?.commission_percent}%`, 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
+                          {['Date', 'Ref', 'TS#', 'Company', 'KMs', 'Hire Chg', `Comm ${preview.trip_details[0]?.commission_percent}%`, 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
                             <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -196,6 +196,7 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                           <tr key={i} className={i % 2 === 1 ? 'bg-gray-50' : ''}>
                             <td className="px-2 py-1.5 whitespace-nowrap">{t.trip_date}</td>
                             <td className="px-2 py-1.5 whitespace-nowrap font-medium">{t.booking_ref}</td>
+                            <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">{t.tripsheet_number ?? '—'}</td>
                             <td className="px-2 py-1.5 whitespace-nowrap max-w-[100px] truncate">{t.company_name}</td>
                             <td className="px-2 py-1.5 whitespace-nowrap">{t.actual_kms}</td>
                             <td className="px-2 py-1.5 whitespace-nowrap">{fmt(t.client_hire_charges)}</td>
