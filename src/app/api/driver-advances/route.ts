@@ -32,6 +32,7 @@ export async function GET(request: Request) {
     .select('*, driver:drivers!driver_id(id, name), booking:bookings!booking_id(booking_ref)')
     .eq('status', status)
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (driverId) q = q.eq('driver_id', driverId)
   if (bookingId) q = q.eq('booking_id', bookingId)

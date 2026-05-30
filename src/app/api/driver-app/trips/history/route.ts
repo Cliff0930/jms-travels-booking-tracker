@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { extractDriverToken } from '@/lib/utils/driver-app-auth'
 
+const PAGE_SIZE = 60
+
 export async function GET(request: Request) {
   const verified = extractDriverToken(request)
   if (!verified) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const offset = parseInt(searchParams.get('offset') ?? '0', 10)
 
   const supabase = createAdminClient()
 
@@ -14,7 +19,7 @@ export async function GET(request: Request) {
     .eq('driver_id', verified.driverId)
     .in('status', ['completed', 'cancelled'])
     .order('pickup_date', { ascending: false })
-    .limit(200)
+    .range(offset, offset + PAGE_SIZE - 1)
 
   if (!bookings || bookings.length === 0) return NextResponse.json([])
 
@@ -40,7 +45,7 @@ export async function GET(request: Request) {
     sheetsByBooking[sheet.booking_id]!.push(sheet)
   }
 
-  return NextResponse.json(bookings.map(({ pickup_date, pickup_time, pax_count, company, ...b }) => {
+  const mapped = (bookings ?? []).map(({ pickup_date, pickup_time, pax_count, company, ...b }) => {
     const bookingSheets = sheetsByBooking[b.id] ?? []
     const rate = b.trip_type === 'outstation' ? bataRateOut : bataRate
 
@@ -81,5 +86,11 @@ export async function GET(request: Request) {
       reimbursement_status,
       reimbursement_total: hasAmounts ? Math.round(total) : 0,
     }
-  }))
+  })
+
+  return NextResponse.json({
+    trips: mapped,
+    hasMore: (bookings ?? []).length === PAGE_SIZE,
+    offset,
+  })
 }

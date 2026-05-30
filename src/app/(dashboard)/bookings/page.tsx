@@ -23,8 +23,16 @@ function localDate(offset = 0) {
   return d.toLocaleDateString('en-CA') // YYYY-MM-DD in local timezone
 }
 
+function get60DaysAgo(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 60)
+  return d.toISOString().slice(0, 10) + 'T00:00:00'
+}
+
 export default function BookingsPage() {
-  const { data: bookings = [], isLoading, isError, refetch } = useBookings()
+  const [showAll, setShowAll] = useState(false)
+  const createdFrom = showAll ? undefined : get60DaysAgo()
+  const { data: bookings = [], isLoading, isError, refetch } = useBookings({ createdFrom })
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
   const canEdit = useCanEdit()
@@ -153,6 +161,24 @@ export default function BookingsPage() {
           </div>
         }
       />
+
+      {/* 60-day window banner */}
+      {!showAll && (
+        <div className="mb-2 flex items-center gap-2 text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <span>Showing bookings created in the last 60 days.</span>
+          <button onClick={() => setShowAll(true)} className="text-blue-600 hover:text-blue-800 font-semibold underline-offset-2 hover:underline">
+            Show all time →
+          </button>
+        </div>
+      )}
+      {showAll && (
+        <div className="mb-2 flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span>Showing all bookings.</span>
+          <button onClick={() => setShowAll(false)} className="text-gray-500 hover:text-gray-700 font-semibold underline-offset-2 hover:underline">
+            Back to last 60 days
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="mb-4 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">

@@ -85,10 +85,14 @@ function AdvancesContent() {
     },
   })
 
-  // Also fetch all outstanding to build balance cards
+  // Fetch outstanding entries for balance cards — scoped to selected driver if one is chosen
   const { data: allOutstanding = [] } = useQuery<AdvanceEntry[]>({
-    queryKey: ['driver-advances', 'outstanding', 'all'],
-    queryFn: () => fetch('/api/driver-advances?status=outstanding').then(r => r.json()),
+    queryKey: ['driver-advances', 'outstanding', driverFilter],
+    queryFn: () => {
+      const p = new URLSearchParams({ status: 'outstanding' })
+      if (driverFilter !== 'all') p.set('driver_id', driverFilter)
+      return fetch(`/api/driver-advances?${p}`).then(r => r.json())
+    },
   })
 
   // Build per-driver balance map

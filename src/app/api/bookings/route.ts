@@ -11,21 +11,26 @@ export async function GET(request: Request) {
   const clientId = searchParams.get('client_id')
   const dateFrom = searchParams.get('date_from')
   const dateTo = searchParams.get('date_to')
+  const createdFrom = searchParams.get('created_from')  // ISO date — default 60-day window
   const tripType = searchParams.get('trip_type')
   const source = searchParams.get('source')
+  const search = searchParams.get('search')
 
   let query = supabase
     .from('bookings')
     .select('*, client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)')
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (status) query = query.eq('status', status)
   if (date) query = query.eq('pickup_date', date)
   if (clientId) query = query.or(`client_id.eq.${clientId},guest_client_id.eq.${clientId}`)
   if (dateFrom) query = query.gte('pickup_date', dateFrom)
   if (dateTo) query = query.lte('pickup_date', dateTo)
+  if (createdFrom) query = query.gte('created_at', createdFrom)
   if (tripType) query = query.eq('trip_type', tripType)
   if (source) query = query.eq('source', source)
+  if (search) query = query.ilike('booking_ref', `%${search}%`)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
