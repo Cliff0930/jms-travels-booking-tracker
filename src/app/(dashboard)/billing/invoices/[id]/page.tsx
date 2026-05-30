@@ -1,0 +1,307 @@
+'use client'
+import { use, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { toast } from 'sonner'
+import { ArrowLeft, Printer, Download, IndianRupee, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import * as XLSX from 'xlsx'
+
+interface LineItem {
+  id: string; booking_ref: string; trip_date: string; vehicle_type: string
+  guest_name: string | null; pickup_location: string | null; drop_location: string | null
+  package_type: string; actual_kms: number; actual_hrs: number; package_kms: number
+  package_rate: number; extra_kms: number; extra_km_rate: number; extra_km_amount: number
+  extra_hrs: number; extra_hr_rate: number; extra_hr_amount: number
+  hire_charges: number; toll_amount: number; parking_amount: number; permit_amount: number
+  bata_amount: number; bill_bata: boolean; gst_taxable: number
+  cgst_rate: number; sgst_rate: number; igst_rate: number
+  cgst_amount: number; sgst_amount: number; igst_amount: number; line_total: number
+  trip_type: string; vehicle_number: string | null
+}
+
+interface Payment {
+  id: string; amount: number; payment_mode: string; payment_date: string
+  reference_number: string | null; tds_amount: number; notes: string | null
+}
+
+interface InvoiceDetail {
+  id: string; invoice_number: string; period_from: string; period_to: string
+  subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
+  tds_amount: number; grand_total: number; amount_paid: number; balance_due: number
+  status: string; due_date: string | null; notes: string | null; created_at: string
+  company?: { name: string; gstin?: string }
+  line_items: LineItem[]
+  payments: Payment[]
+}
+
+const MODE_LABELS: Record<string, string> = { cash: 'Cash', bank_transfer: 'Bank Transfer', upi: 'UPI', cheque: 'Cheque', neft: 'NEFT', rtgs: 'RTGS' }
+const STATUS_COLORS: Record<string, string> = { draft: 'bg-gray-100 text-gray-600', sent: 'bg-blue-50 text-blue-700', paid: 'bg-green-50 text-green-700', partially_paid: 'bg-yellow-50 text-yellow-700', overdue: 'bg-red-50 text-red-700' }
+
+function fmt(n: number | null | undefined) {
+  if (n == null) return '₹0.00'
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function PaymentModal({ invoiceId, balanceDue, onClose, onSaved }: { invoiceId: string; balanceDue: number; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ amount: String(balanceDue.toFixed(2)), payment_mode: 'bank_transfer', payment_date: new Date().toISOString().slice(0, 10), reference_number: '', tds_amount: '0', notes: '' })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!form.amount || Number(form.amount) <= 0) { toast.error('Enter a valid amount'); return }
+    setSaving(true)
+    const res = await fetch('/api/billing/payments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: invoiceId, amount: Number(form.amount), payment_mode: form.payment_mode, payment_date: form.payment_date, reference_number: form.reference_number || null, tds_amount: Number(form.tds_amount) || 0, notes: form.notes || null }),
+    })
+    if (res.ok) { toast.success('Payment recorded'); onSaved() }
+    else toast.error('Failed to record payment')
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Amount Received (₹) *</Label>
+              <Input value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} type="number" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">TDS Deducted (₹)</Label>
+              <Input value={form.tds_amount} onChange={e => setForm(f => ({ ...f, tds_amount: e.target.value }))} type="number" placeholder="0" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Payment Mode *</Label>
+              <Select value={form.payment_mode} onValueChange={(v: string | null) => setForm(f => ({ ...f, payment_mode: v ?? '' }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(MODE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Payment Date *</Label>
+              <Input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Reference / Cheque Number</Label>
+            <Input value={form.reference_number} onChange={e => setForm(f => ({ ...f, reference_number: e.target.value }))} placeholder="UTR / cheque no." />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Notes</Label>
+            <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional note" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Record Payment'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const router = useRouter()
+  const qc = useQueryClient()
+  const [showPayment, setShowPayment] = useState(false)
+
+  const { data: inv, isLoading } = useQuery<InvoiceDetail>({
+    queryKey: ['invoice', id],
+    queryFn: () => fetch(`/api/billing/invoices/${id}`).then(r => r.json()),
+    enabled: !!id,
+  })
+
+  async function markSent() {
+    await fetch(`/api/billing/invoices/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'sent' }) })
+    toast.success('Marked as Sent'); qc.invalidateQueries({ queryKey: ['invoice', id] })
+  }
+
+  function exportExcel() {
+    if (!inv) return
+    const rows = inv.line_items.map(li => ({
+      'Date': li.trip_date,
+      'Booking Ref': li.booking_ref,
+      'Guest Name': li.guest_name ?? '',
+      'Vehicle Type': li.vehicle_type,
+      'Vehicle No': li.vehicle_number ?? '',
+      'Pickup': li.pickup_location ?? '',
+      'Drop': li.drop_location ?? '',
+      'Trip Type': li.trip_type,
+      'Package': li.package_type,
+      'Actual KMs': li.actual_kms,
+      'Actual Hrs': li.actual_hrs,
+      'Package KMs': li.package_kms,
+      'Package Rate (₹)': li.package_rate,
+      'Extra KMs': li.extra_kms,
+      'Extra KM Rate': li.extra_km_rate,
+      'Extra KM Amount (₹)': li.extra_km_amount,
+      'Extra Hrs': li.extra_hrs,
+      'Extra Hr Amount (₹)': li.extra_hr_amount,
+      'Hire Charges (₹)': li.hire_charges,
+      'Toll (₹)': li.toll_amount,
+      'Parking (₹)': li.parking_amount,
+      'Permit (₹)': li.permit_amount,
+      'Bata (₹)': li.bill_bata ? li.bata_amount : 0,
+      'GST Taxable (₹)': li.gst_taxable,
+      'CGST (₹)': li.cgst_amount,
+      'SGST (₹)': li.sgst_amount,
+      'IGST (₹)': li.igst_amount,
+      'Line Total (₹)': li.line_total,
+    }))
+
+    // Summary row
+    rows.push({} as typeof rows[0])
+    rows.push({ 'Date': '', 'Booking Ref': 'INVOICE SUMMARY', 'Guest Name': '', 'Vehicle Type': '', 'Vehicle No': '', 'Pickup': '', 'Drop': '', 'Trip Type': '', 'Package': '', 'Actual KMs': 0, 'Actual Hrs': 0, 'Package KMs': 0, 'Package Rate (₹)': 0, 'Extra KMs': 0, 'Extra KM Rate': 0, 'Extra KM Amount (₹)': 0, 'Extra Hrs': 0, 'Extra Hr Amount (₹)': 0, 'Hire Charges (₹)': inv.subtotal, 'Toll (₹)': 0, 'Parking (₹)': 0, 'Permit (₹)': 0, 'Bata (₹)': 0, 'GST Taxable (₹)': inv.subtotal, 'CGST (₹)': inv.cgst_amount, 'SGST (₹)': inv.sgst_amount, 'IGST (₹)': inv.igst_amount, 'Line Total (₹)': inv.grand_total })
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, `${inv.invoice_number}`)
+    XLSX.writeFile(wb, `${inv.invoice_number}.xlsx`)
+  }
+
+  if (isLoading) return <div className="p-8 text-center text-gray-400">Loading invoice…</div>
+  if (!inv) return <div className="p-8 text-center text-gray-400">Invoice not found</div>
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => router.push('/billing/invoices')} className="gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" />Back
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{inv.invoice_number}</h1>
+            <p className="text-sm text-gray-500">{inv.company?.name} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}</p>
+          </div>
+          <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold capitalize', STATUS_COLORS[inv.status] ?? 'bg-gray-100 text-gray-600')}>
+            {inv.status.replace('_', ' ')}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
+            <Printer className="w-3.5 h-3.5" />Print / PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
+            <Download className="w-3.5 h-3.5" />Excel
+          </Button>
+          {inv.status === 'draft' && <Button size="sm" onClick={markSent} variant="outline">Mark Sent</Button>}
+          {(inv.status === 'sent' || inv.status === 'partially_paid' || inv.status === 'overdue') && (
+            <Button size="sm" onClick={() => setShowPayment(true)} className="gap-1.5">
+              <IndianRupee className="w-3.5 h-3.5" />Record Payment
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Hire Charges', value: fmt(inv.subtotal) },
+          { label: inv.igst_amount > 0 ? 'IGST (5%)' : 'GST (5%)', value: fmt(inv.igst_amount > 0 ? inv.igst_amount : inv.cgst_amount + inv.sgst_amount) },
+          { label: 'Grand Total', value: fmt(inv.grand_total), highlight: true },
+          { label: 'Balance Due', value: fmt(inv.balance_due), red: inv.balance_due > 0 },
+        ].map(c => (
+          <div key={c.label} className={cn('rounded-xl border p-4', c.highlight ? 'bg-blue-700 border-blue-700' : 'bg-white border-gray-200')}>
+            <div className={cn('text-xs font-medium mb-1', c.highlight ? 'text-blue-200' : 'text-gray-500')}>{c.label}</div>
+            <div className={cn('text-xl font-bold', c.highlight ? 'text-white' : c.red ? 'text-orange-600' : 'text-gray-900')}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Trip Line Items */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-700">Trip Details ({inv.line_items.length} trips)</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                {['Date', 'Ref', 'Guest', 'Vehicle', 'Pkg', 'KMs', 'Hire', '+KM', '+Hr', 'Toll', 'Park', 'GST', 'Total'].map(h => (
+                  <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {inv.line_items.map(li => (
+                <tr key={li.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 whitespace-nowrap">{li.trip_date}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{li.booking_ref}</td>
+                  <td className="px-3 py-2 max-w-[120px] truncate">{li.guest_name ?? '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.vehicle_type}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.package_type}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.actual_kms}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmt(li.hire_charges)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.toll_amount > 0 ? fmt(li.toll_amount) : '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{li.parking_amount > 0 ? fmt(li.parking_amount) : '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmt((li.cgst_amount || 0) + (li.sgst_amount || 0) + (li.igst_amount || 0))}</td>
+                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{fmt(li.line_total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+              <tr>
+                <td colSpan={6} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                <td className="px-3 py-2 font-bold">{fmt(inv.subtotal)}</td>
+                <td colSpan={5} className="px-3 py-2 font-semibold text-gray-500 text-xs">
+                  {inv.cgst_amount > 0 ? `CGST ${fmt(inv.cgst_amount)} + SGST ${fmt(inv.sgst_amount)}` : `IGST ${fmt(inv.igst_amount)}`}
+                  {inv.tds_amount > 0 ? ` − TDS ${fmt(inv.tds_amount)}` : ''}
+                </td>
+                <td className="px-3 py-2 font-bold text-blue-700">{fmt(inv.grand_total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Payments */}
+      {inv.payments.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b"><h2 className="text-sm font-semibold text-gray-700">Payments Received</h2></div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b"><tr>
+              {['Date', 'Mode', 'Amount', 'TDS', 'Reference', 'Notes'].map(h => (
+                <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+              ))}
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {inv.payments.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5">{fmtDate(p.payment_date)}</td>
+                  <td className="px-4 py-2.5">{MODE_LABELS[p.payment_mode] ?? p.payment_mode}</td>
+                  <td className="px-4 py-2.5 font-semibold text-green-700">{fmt(p.amount)}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{p.tds_amount > 0 ? fmt(p.tds_amount) : '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{p.reference_number ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-400">{p.notes ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {inv.status === 'paid' && (
+        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <Check className="w-4 h-4" /><span className="font-semibold">Fully Paid</span>
+        </div>
+      )}
+
+      {showPayment && <PaymentModal invoiceId={id} balanceDue={inv.balance_due} onClose={() => setShowPayment(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }); setShowPayment(false) }} />}
+    </div>
+  )
+}

@@ -146,6 +146,7 @@ export default function SettingsPage() {
           <TabsTrigger value="general" className="data-[state=active]:bg-white">General</TabsTrigger>
           <TabsTrigger value="templates" className="data-[state=active]:bg-white">Message Templates</TabsTrigger>
           <TabsTrigger value="vehicle-names" className="data-[state=active]:bg-white">Vehicle Names</TabsTrigger>
+          <TabsTrigger value="billing" className="data-[state=active]:bg-white">Billing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -225,6 +226,10 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <BillingSettings settings={generalSettings ?? {}} />
         </TabsContent>
 
         <TabsContent value="templates">
@@ -331,6 +336,75 @@ export default function SettingsPage() {
           <VehicleNamesTab />
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+function BillingSettings({ settings }: { settings: Record<string, string> }) {
+  const qc = useQueryClient()
+  const [morningCutoff, setMorningCutoff] = useState(settings.bata_morning_cutoff ?? '06:00')
+  const [eveningCutoff, setEveningCutoff] = useState(settings.bata_evening_cutoff ?? '21:00')
+  const [gstin, setGstin] = useState(settings.company_gstin ?? '')
+  const [pan, setPan] = useState(settings.company_pan ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setMorningCutoff(settings.bata_morning_cutoff ?? '06:00')
+    setEveningCutoff(settings.bata_evening_cutoff ?? '21:00')
+    setGstin(settings.company_gstin ?? '')
+    setPan(settings.company_pan ?? '')
+  }, [settings])
+
+  async function saveSetting(key: string, value: string) {
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value }) })
+    qc.invalidateQueries({ queryKey: ['app-settings'] })
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await Promise.all([
+      saveSetting('bata_morning_cutoff', morningCutoff),
+      saveSetting('bata_evening_cutoff', eveningCutoff),
+      saveSetting('company_gstin', gstin),
+      saveSetting('company_pan', pan),
+    ])
+    toast.success('Billing settings saved')
+    setSaving(false)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-lg border border-[#C3C5D7] p-5 space-y-4">
+        <h3 className="font-semibold text-[#191B23]">Bata Cutoff Times</h3>
+        <p className="text-sm text-[#737686]">Trips starting before morning cutoff or ending after evening cutoff qualify for extra bata. Default: 06:00 AM / 21:00 PM.</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Morning Bata — Trip starts before</Label>
+            <Input type="time" value={morningCutoff} onChange={e => setMorningCutoff(e.target.value)} className="w-40" />
+            <p className="text-xs text-[#737686]">e.g. 06:00 means trips before 6 AM get bata</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Evening Bata — Trip ends after</Label>
+            <Input type="time" value={eveningCutoff} onChange={e => setEveningCutoff(e.target.value)} className="w-40" />
+            <p className="text-xs text-[#737686]">e.g. 21:00 means trips ending after 9 PM get bata</p>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white rounded-lg border border-[#C3C5D7] p-5 space-y-4">
+        <h3 className="font-semibold text-[#191B23]">Company Billing Details</h3>
+        <p className="text-sm text-[#737686]">Shown on invoice headers. SAC Code: 996601 (fixed). State: Karnataka (29).</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Company GSTIN</Label>
+            <Input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} placeholder="29XXXXX0000X1ZX" maxLength={15} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>PAN Number</Label>
+            <Input value={pan} onChange={e => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" maxLength={10} />
+          </div>
+        </div>
+      </div>
+      <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Billing Settings'}</Button>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -17,9 +17,13 @@ const NAV_ITEMS = [
   { href: '/clients',   label: 'Clients',   icon: Users },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/drivers',   label: 'Drivers',   icon: Car },
-  { href: '/advances',         label: 'Advances',        icon: IndianRupee },
-  { href: '/reports',          label: 'Reports',         icon: BarChart3 },
-  { href: '/reimbursements',   label: 'Reimbursements',  icon: Wallet },
+  { href: '/advances',              label: 'Advances',        icon: IndianRupee },
+  { href: '/reports',               label: 'Reports',         icon: BarChart3 },
+  { href: '/reimbursements',        label: 'Reimbursements',  icon: Wallet },
+  { href: '/billing/invoices',      label: 'Invoices',        icon: Receipt },
+  { href: '/billing/rate-cards',    label: 'Rate Cards',      icon: IndianRupee },
+  { href: '/billing/payments',      label: 'Bill Payments',   icon: Wallet },
+  { href: '/billing/gst',           label: 'GST Working',     icon: BarChart3 },
   { href: '/notifications',    label: 'Notifications',   icon: Bell },
   { href: '/settings',      label: 'Settings',      icon: Settings },
 ]
