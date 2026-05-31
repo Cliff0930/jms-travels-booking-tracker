@@ -1,90 +1,107 @@
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 
-const BK = '#000000'
-const GR = '#d4d4d4'  // header / total row background
-const LG = '#f5f5f5'  // alternating row tint
-const WH = '#ffffff'
-const BOLD = 'Helvetica-Bold'
-const REG  = 'Helvetica'
+// ── Palette ──────────────────────────────────────────────────────────────────
+const NAVY   = '#1e3a5c'
+const NAV2   = '#2a4d70'   // column header row bg (slightly lighter navy)
+const ACCENT = '#1565a8'   // left accent bar on driver name
+const GR     = '#edf2f7'   // alternating row tint
+const GR2    = '#dce5ef'   // totals / gross earnings row
+const WH     = '#ffffff'
+const BK     = '#1a202c'   // near-black text
+const BORDER = '#b8c4d0'   // cell borders
+const NEG    = '#b91c1c'   // commission / negative values
+const BOLD   = 'Helvetica-Bold'
+const REG    = 'Helvetica'
 
 const JMS = {
-  name: 'J M S TRAVELS',
+  name:    'J M S TRAVELS',
+  tagline: 'we take pride in your ride',
   address: '#14/17, 15th Cross, Eshwar Layout, Indira Nagar, Bangalore-560038',
-  contact: 'Ph: +91 98455 72207 / 809540 3101 / 9480 165 207    e-Mail: jmstravelprabhu@gmail.com',
+  contact: '+91 98455 72207 / 809540 3101',
 }
 
-// ── Column widths (A4 portrait, 20pt margins → 555pt usable) ────────────────
-// Left trip table
-const LW = { no: 18, date: 48, ts: 56, kms: 34, hrs: 36, credit: 62, toll: 50 } // = 304
-// Gap between the two tables
+// ── Column widths ─────────────────────────────────────────────────────────────
+// Trip table: A4 portrait 555pt usable (20pt padding each side)
+const TW = {
+  no: 16, date: 44, ref: 62, ts: 36, company: 70,
+  kms: 28, hrs: 26, hire: 50, comm: 44, share: 50,
+  bata: 34, reimb: 34, total: 61,
+}
+// 16+44+62+36+70+28+26+50+44+50+34+34+61 = 555 ✓
+const TW_LABEL = TW.no + TW.date + TW.ref + TW.ts + TW.company  // 228, for TOTALS cell
+
+// Bottom section: DW + GAP + SBW = 555
+const DW  = 310   // deductions table width
 const GAP = 8
-// Right expense reference table
-const RW = { vno: 65, name: 115, amount: 63 } // = 243
-// Total: 304 + 8 + 243 = 555 ✓
+const SBW = 237   // summary box width
+
+// Deductions table columns inside DW = 310
+const DD = { no: 24, desc: 198, amt: 88 }  // 24+198+88 = 310 ✓
+const DD_LABEL = DD.no + DD.desc            // 222, for TOTAL DEDUCTIONS cell
+
+// Summary box columns inside SBW = 237
+const SB = { label: 157, val: 80 }  // 157+80 = 237 ✓
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt2(n: number): string {
-  return n.toFixed(2)
-}
+function fmt2(n: number): string { return n.toFixed(2) }
 
 function fmtDateShort(d: string): string {
   if (!d) return ''
-  const [y, m, day] = d.split('-')
-  return `${day}/${m}/${y.slice(2)}`
+  const parts = d.split('-')
+  return `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`
 }
 
 function fmtDateFull(d: string): string {
   if (!d) return ''
-  const [y, m, day] = d.split('-')
-  return `${day}/${m}/${y}`
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const parts = d.split('-')
+  return `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]} ${parts[0]}`
 }
 
 function fmtHrs(hrs: number, tripType: string, totalDays: number): string {
-  if (tripType === 'outstation') {
-    return `${totalDays} day${totalDays !== 1 ? 's' : ''}`
-  }
-  return hrs > 0 ? String(Math.round(hrs)) : ''
+  if (tripType === 'outstation') return `${totalDays}d`
+  return hrs > 0 ? `${Math.round(hrs)}h` : ''
 }
 
-// Shared base for a data cell
-function dc(
+// Header cell (white text on navy background)
+function th(width: number, align: 'left' | 'center' | 'right' = 'left', last = false) {
+  return {
+    width,
+    fontSize: 6.5,
+    fontFamily: BOLD,
+    color: WH,
+    textAlign: align,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
+    borderRightWidth: last ? 0 : 0.5,
+    borderRightColor: NAV2,
+  }
+}
+
+// Data cell
+function td(
   width: number,
-  opts: { bold?: boolean; right?: boolean; center?: boolean; bg?: string; noBorderRight?: boolean } = {}
+  align: 'left' | 'center' | 'right' = 'left',
+  bg = WH,
+  opts: { bold?: boolean; last?: boolean; color?: string; sz?: number } = {}
 ) {
   return {
     width,
+    fontSize: opts.sz ?? 7,
     fontFamily: opts.bold ? BOLD : REG,
-    fontSize: 7,
-    textAlign: (opts.right ? 'right' : opts.center ? 'center' : 'left') as 'right' | 'center' | 'left',
-    backgroundColor: opts.bg ?? WH,
+    color: opts.color ?? BK,
+    textAlign: align,
+    backgroundColor: bg,
     paddingHorizontal: 3,
-    paddingVertical: 2,
-    borderRightWidth: opts.noBorderRight ? 0 : 0.5,
-    borderRightColor: BK,
+    paddingVertical: 2.5,
+    borderRightWidth: opts.last ? 0 : 0.5,
+    borderRightColor: BORDER,
   }
 }
 
-// Shared base for a header cell
-function hc(
-  width: number,
-  opts: { right?: boolean; center?: boolean; noBorderRight?: boolean } = {}
-) {
-  return {
-    ...dc(width, { bold: true, bg: GR, right: opts.right, center: opts.center, noBorderRight: opts.noBorderRight }),
-    fontSize: 6.5,
-    paddingVertical: 3,
-  }
-}
+const bRow = { flexDirection: 'row' as const, borderBottomWidth: 0.5, borderBottomColor: BORDER }
 
-const bRow = {
-  flexDirection: 'row' as const,
-  borderBottomWidth: 0.5,
-  borderBottomColor: BK,
-}
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
+// ── Types ─────────────────────────────────────────────────────────────────────
 export interface TripLine {
   trip_date: string
   booking_ref: string
@@ -130,287 +147,269 @@ export interface DriverSettlementPDFData {
   status: string
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
+// ── Component ─────────────────────────────────────────────────────────────────
 export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData }) {
-  // Totals from trip rows
-  const totalKms    = data.trips.reduce((a, t) => a + t.actual_kms, 0)
-  const totalCredit = data.trips.reduce((a, t) => a + t.client_hire_charges, 0)
-  const totalToll   = data.trips.reduce((a, t) => a + t.toll_amount + t.parking_amount + t.permit_amount, 0)
-  const totalTollBreakdown = {
-    toll:    data.trips.reduce((a, t) => a + t.toll_amount, 0),
-    parking: data.trips.reduce((a, t) => a + t.parking_amount, 0),
-    permit:  data.trips.reduce((a, t) => a + t.permit_amount, 0),
-  }
+  const totalKms   = data.trips.reduce((a, t) => a + t.actual_kms, 0)
+  const totalHire  = data.trips.reduce((a, t) => a + t.client_hire_charges, 0)
+  const totalComm  = data.trips.reduce((a, t) => a + (t.client_hire_charges - t.hire_earnings), 0)
+  const totalShare = data.trips.reduce((a, t) => a + t.hire_earnings, 0)
+  const totalBata  = data.trips.reduce((a, t) => a + t.bata_earnings, 0)
+  const totalReimb = data.trips.reduce((a, t) => a + t.toll_amount + t.parking_amount + t.permit_amount, 0)
+  const totalRow   = data.trips.reduce((a, t) => a + t.trip_total, 0)
+  const commPct    = data.trips[0]?.commission_percent ?? 0
+  const iRate      = data.interest_rate_pct ?? 2
 
-  const commPct        = data.trips[0]?.commission_percent ?? 0
-  const totalCommission = data.trips.reduce((a, t) => a + (t.client_hire_charges - t.hire_earnings), 0)
-  const interestPct     = data.interest_rate_pct ?? 2
-
-  // Grand total = all money owed to driver before deductions
-  const grandTotal    = totalCredit + data.bata_earnings + totalToll + data.salary_amount
-  const totalDeductions = totalCommission
-    + data.advance_principal_deduction
+  const hasDed   = data.advance_principal_deduction > 0
+    || data.advance_interest_deduction > 0
+    || data.other_deductions > 0
+  const totalDed = data.advance_principal_deduction
     + data.advance_interest_deduction
-    + (data.other_deductions ?? 0)
+    + data.other_deductions
 
-  // Statement date (IST)
+  const dedRows = [
+    ...(data.advance_principal_deduction > 0
+      ? [{ label: 'Advance Deduction (Principal)', amount: data.advance_principal_deduction }]
+      : []),
+    ...(data.advance_interest_deduction > 0
+      ? [{ label: `Advance Interest  (${iRate}% / month)`, amount: data.advance_interest_deduction }]
+      : []),
+    ...(data.other_deductions > 0
+      ? [{ label: 'Other Deductions', amount: data.other_deductions }]
+      : []),
+  ]
+
   const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
   const stmtDate = `${String(now.getUTCDate()).padStart(2,'0')}/${String(now.getUTCMonth()+1).padStart(2,'0')}/${now.getUTCFullYear()}`
 
   return (
     <Document>
       <Page size="A4" style={{ fontFamily: REG, fontSize: 7, color: BK, padding: 20, backgroundColor: WH }}>
-        {/* ═══ Outer border box ═══ */}
-        <View style={{ borderWidth: 1, borderColor: BK, flex: 1 }}>
 
-          {/* ── Header ── */}
-          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: BK, alignItems: 'center', padding: 6 }}>
-            {/* Logo area */}
-            <View style={{ width: 52, alignItems: 'center', borderWidth: 1, borderColor: BK, paddingVertical: 3, marginRight: 8 }}>
-              {data.logoSrc
-                ? <Image src={data.logoSrc} style={{ width: 48, height: 48, objectFit: 'contain' }} />
-                : ['J', 'M', 'S'].map(l => (
-                    <Text key={l} style={{ fontSize: 20, fontFamily: BOLD, lineHeight: 1.15 }}>{l}</Text>
-                  ))
-              }
-            </View>
-            {/* Company info */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontFamily: BOLD }}>{JMS.name}</Text>
-              <Text style={{ fontSize: 6.5, marginTop: 3 }}>{JMS.address}</Text>
-              <Text style={{ fontSize: 6.5, marginTop: 1 }}>{JMS.contact}</Text>
-            </View>
+        {/* ══════════ HEADER ══════════ */}
+        <View style={{ flexDirection: 'row', backgroundColor: NAVY, marginBottom: 10, alignItems: 'stretch' }}>
+          {/* Logo */}
+          <View style={{
+            width: 70, alignItems: 'center', justifyContent: 'center',
+            borderRightWidth: 0.5, borderRightColor: NAV2, paddingVertical: 8,
+          }}>
+            {data.logoSrc
+              ? <Image src={data.logoSrc} style={{ width: 54, height: 54, objectFit: 'contain' }} />
+              : ['J', 'M', 'S'].map(l => (
+                  <Text key={l} style={{ fontSize: 20, fontFamily: BOLD, color: WH, lineHeight: 1.15 }}>{l}</Text>
+                ))
+            }
           </View>
 
-          {/* ── Title: VEHICLE STATEMENT ── */}
-          <View style={{ alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: BK }}>
-            <View style={{ borderWidth: 1, borderColor: BK, paddingHorizontal: 18, paddingVertical: 3 }}>
-              <Text style={{ fontSize: 9, fontFamily: BOLD, letterSpacing: 1.5 }}>VEHICLE STATEMENT</Text>
-            </View>
+          {/* Company info */}
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+            <Text style={{ fontSize: 15, fontFamily: BOLD, color: WH, letterSpacing: 2 }}>{JMS.name}</Text>
+            <Text style={{ fontSize: 6.5, color: '#8ab0cc', marginTop: 2 }}>{JMS.tagline}</Text>
+            <Text style={{ fontSize: 6.5, color: '#c5d9e8', marginTop: 3 }}>{JMS.address}</Text>
+            <Text style={{ fontSize: 6.5, color: '#c5d9e8', marginTop: 1 }}>{JMS.contact}</Text>
           </View>
 
-          {/* ── Info rows ── */}
-          {/* Row 1: Name of Owner  |  No: */}
-          <View style={{ ...bRow, minHeight: 16 }}>
-            <Text style={{ width: 92, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>NAME OF OWNER</Text>
-            <Text style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>{data.driver_name}</Text>
-            <Text style={{ width: 28, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>No:</Text>
-            <Text style={{ width: 70, paddingHorizontal: 4, paddingVertical: 3 }}></Text>
+          {/* DRIVER STATEMENT badge */}
+          <View style={{
+            width: 70, alignItems: 'center', justifyContent: 'center',
+            borderLeftWidth: 0.5, borderLeftColor: NAV2, paddingVertical: 8,
+          }}>
+            <View style={{ borderWidth: 1.5, borderColor: WH, paddingHorizontal: 6, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 8, fontFamily: BOLD, color: WH, textAlign: 'center' }}>DRIVER</Text>
+              <Text style={{ fontSize: 8, fontFamily: BOLD, color: WH, textAlign: 'center' }}>STATEMENT</Text>
+            </View>
           </View>
-          {/* Row 2: Vehicle No  |  Date */}
-          <View style={{ ...bRow, minHeight: 16 }}>
-            <Text style={{ width: 92, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>VEHICLE NO.</Text>
-            <Text style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>
-              {data.vehicle_number}{data.vehicle_name ? `  (${data.vehicle_name})` : ''}
-            </Text>
-            <Text style={{ width: 28, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>Date:</Text>
-            <Text style={{ width: 70, paddingHorizontal: 4, paddingVertical: 3 }}>{stmtDate}</Text>
-          </View>
-          {/* Row 3: Period */}
-          <View style={{ ...bRow, minHeight: 16 }}>
-            <Text style={{ width: 92, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BK }}>PERIOD</Text>
-            <Text style={{ flex: 1, fontFamily: BOLD, paddingHorizontal: 4, paddingVertical: 3 }}>
-              {fmtDateFull(data.period_from)}  To  {fmtDateFull(data.period_to)}
+        </View>
+
+        {/* ══════════ DRIVER INFO ══════════ */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 2 }}>
+          <View style={{ width: 4, height: 38, backgroundColor: ACCENT, marginRight: 8 }} />
+          <View>
+            <Text style={{ fontSize: 14, fontFamily: BOLD, color: NAVY }}>{data.driver_name}</Text>
+            <Text style={{ fontSize: 7.5, color: '#4a5568', marginTop: 3 }}>
+              {[
+                data.vehicle_name || null,
+                data.vehicle_number || null,
+                `Period: ${fmtDateFull(data.period_from)} to ${fmtDateFull(data.period_to)}`,
+                `Statement Date: ${stmtDate}`,
+              ].filter(Boolean).join('  ·  ')}
             </Text>
           </View>
+        </View>
 
-          {/* ── Table header ── */}
-          <View style={{ ...bRow, backgroundColor: GR, borderTopWidth: 1, borderTopColor: BK }}>
-            <Text style={hc(LW.no,     { center: true })}>{'Sl.\nNo.'}</Text>
-            <Text style={hc(LW.date,   { center: true })}>Date</Text>
-            <Text style={hc(LW.ts,     { center: true })}>{'TRIP\nSHEET No.'}</Text>
-            <Text style={hc(LW.kms,    { right: true })}>KMS.</Text>
-            <Text style={hc(LW.hrs,    { right: true })}>HRS.</Text>
-            <Text style={hc(LW.credit, { right: true })}>CREDIT</Text>
-            <Text style={hc(LW.toll,   { right: true })}>toll</Text>
-            {/* Gap */}
-            <View style={{ width: GAP, backgroundColor: GR, borderRightWidth: 0.5, borderRightColor: BK }} />
-            {/* Right table */}
-            <Text style={hc(RW.vno,    { center: true })}>v.no</Text>
-            <Text style={hc(RW.name,   { center: true })}>EXPENSE NAME</Text>
-            <Text style={hc(RW.amount, { right: true, noBorderRight: true })}>AMOUNT</Text>
-          </View>
+        {/* ══════════ SECTION 1: TRIP DETAILS ══════════ */}
+        <View style={{ backgroundColor: NAVY, paddingHorizontal: 8, paddingVertical: 4 }}>
+          <Text style={{ fontSize: 7.5, fontFamily: BOLD, color: WH, letterSpacing: 0.8 }}>TRIP DETAILS</Text>
+        </View>
 
-          {/* ── Trip rows ── */}
-          {data.trips.map((t, i) => {
-            const toll = t.toll_amount + t.parking_amount + t.permit_amount
-            const bg   = i % 2 === 1 ? LG : WH
-            return (
-              <View key={i} style={{ ...bRow, backgroundColor: bg, minHeight: 13 }}>
-                <Text style={{ ...dc(LW.no,     { bg }), textAlign: 'center' }}>{i + 1}</Text>
-                <Text style={dc(LW.date,   { bg })}>{fmtDateShort(t.trip_date)}</Text>
-                <Text style={dc(LW.ts,     { bg })}>{t.tripsheet_number ?? ''}</Text>
-                <Text style={{ ...dc(LW.kms, { bg }), textAlign: 'right' }}>{t.actual_kms > 0 ? t.actual_kms.toFixed(2) : ''}</Text>
-                <Text style={{ ...dc(LW.hrs, { bg }), textAlign: 'right' }}>{fmtHrs(t.actual_hrs, t.trip_type, t.total_days)}</Text>
-                <Text style={{ ...dc(LW.credit, { bg }), textAlign: 'right' }}>{t.client_hire_charges > 0 ? fmt2(t.client_hire_charges) : ''}</Text>
-                <Text style={{ ...dc(LW.toll,   { bg }), textAlign: 'right' }}>{toll > 0 ? fmt2(toll) : ''}</Text>
-                {/* Gap */}
-                <View style={{ width: GAP, backgroundColor: bg, borderRightWidth: 0.5, borderRightColor: BK }} />
-                {/* Right: booking ref as v.no, expense cols empty */}
-                <Text style={{ ...dc(RW.vno,  { bg }), fontSize: 6.5 }}>{t.booking_ref}</Text>
-                <Text style={dc(RW.name,   { bg })}></Text>
-                <Text style={{ ...dc(RW.amount, { bg, noBorderRight: true }), textAlign: 'right' }}></Text>
-              </View>
-            )
-          })}
+        {/* Trip table column headers */}
+        <View style={{ flexDirection: 'row', backgroundColor: NAV2, borderBottomWidth: 1, borderBottomColor: NAVY }}>
+          <Text style={th(TW.no,      'center')}>{'#'}</Text>
+          <Text style={th(TW.date,    'left')}>{'Date'}</Text>
+          <Text style={th(TW.ref,     'left')}>{'Ref'}</Text>
+          <Text style={th(TW.ts,      'left')}>{'TS#'}</Text>
+          <Text style={th(TW.company, 'left')}>{'Company'}</Text>
+          <Text style={th(TW.kms,     'right')}>{'KMs'}</Text>
+          <Text style={th(TW.hrs,     'right')}>{'Hrs'}</Text>
+          <Text style={th(TW.hire,    'right')}>{'Hire Chg'}</Text>
+          <Text style={th(TW.comm,    'right')}>{commPct > 0 ? `Comm\n${commPct}%` : 'Comm'}</Text>
+          <Text style={th(TW.share,   'right')}>{'Drv Share'}</Text>
+          <Text style={th(TW.bata,    'right')}>{'Bata'}</Text>
+          <Text style={th(TW.reimb,   'right')}>{'Reimb'}</Text>
+          <Text style={th(TW.total,   'right', true)}>{'Total'}</Text>
+        </View>
 
-          {/* ── TOTAL row ── */}
-          <View style={{ ...bRow, backgroundColor: GR, borderTopWidth: 1, borderTopColor: BK }}>
-            <Text style={dc(LW.no + LW.date, { bold: true, bg: GR })}></Text>
-            <Text style={dc(LW.ts,     { bold: true, bg: GR })}>TOTAL</Text>
-            <Text style={{ ...dc(LW.kms, { bold: true, bg: GR }), textAlign: 'right' }}>{totalKms.toFixed(2)}</Text>
-            <Text style={{ ...dc(LW.hrs, { bold: true, bg: GR }), textAlign: 'right' }}></Text>
-            <Text style={{ ...dc(LW.credit, { bold: true, bg: GR }), textAlign: 'right' }}>{fmt2(totalCredit)}</Text>
-            <Text style={{ ...dc(LW.toll,   { bold: true, bg: GR }), textAlign: 'right' }}>{fmt2(totalToll)}</Text>
-            <View style={{ width: GAP, backgroundColor: GR, borderRightWidth: 0.5, borderRightColor: BK }} />
-            <Text style={{ ...dc(RW.vno + RW.name, { bold: true, bg: GR }) }}>TOTAL</Text>
-            <Text style={{ ...dc(RW.amount, { bold: true, bg: GR, noBorderRight: true }), textAlign: 'right' }}>0.00</Text>
-          </View>
+        {/* Trip data rows */}
+        {data.trips.map((t, i) => {
+          const comm  = t.client_hire_charges - t.hire_earnings
+          const reimb = t.toll_amount + t.parking_amount + t.permit_amount
+          const bg    = i % 2 === 1 ? GR : WH
+          return (
+            <View key={i} style={{ ...bRow, backgroundColor: bg, minHeight: 13 }}>
+              <Text style={{ ...td(TW.no,      'center', bg), color: '#718096' }}>{i + 1}</Text>
+              <Text style={td(TW.date,          'left',   bg)}>{fmtDateShort(t.trip_date)}</Text>
+              <Text style={td(TW.ref,           'left',   bg, { bold: true, sz: 6.5 })}>{t.booking_ref}</Text>
+              <Text style={td(TW.ts,            'left',   bg, { sz: 6.5 })}>{t.tripsheet_number ?? ''}</Text>
+              <Text style={td(TW.company,       'left',   bg, { sz: 6.5 })}>{t.company_name}</Text>
+              <Text style={td(TW.kms,           'right',  bg)}>{t.actual_kms > 0 ? t.actual_kms.toFixed(1) : ''}</Text>
+              <Text style={td(TW.hrs,           'right',  bg)}>{fmtHrs(t.actual_hrs, t.trip_type, t.total_days)}</Text>
+              <Text style={td(TW.hire,          'right',  bg)}>{t.client_hire_charges > 0 ? fmt2(t.client_hire_charges) : ''}</Text>
+              <Text style={{ ...td(TW.comm,     'right',  bg), color: comm > 0 ? NEG : BK }}>
+                {comm > 0 ? `-${fmt2(comm)}` : ''}
+              </Text>
+              <Text style={td(TW.share,         'right',  bg, { bold: true })}>{t.hire_earnings > 0 ? fmt2(t.hire_earnings) : ''}</Text>
+              <Text style={td(TW.bata,          'right',  bg)}>{t.bata_earnings > 0 ? fmt2(t.bata_earnings) : ''}</Text>
+              <Text style={td(TW.reimb,         'right',  bg)}>{reimb > 0 ? fmt2(reimb) : ''}</Text>
+              <Text style={td(TW.total,         'right',  bg, { bold: true, last: true })}>{t.trip_total > 0 ? fmt2(t.trip_total) : ''}</Text>
+            </View>
+          )
+        })}
 
-          {/* ═══ Bottom section ═══ */}
-          <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BK }}>
+        {/* TOTALS row */}
+        <View style={{ flexDirection: 'row', backgroundColor: GR2, borderTopWidth: 1, borderTopColor: NAVY, borderBottomWidth: 1, borderBottomColor: NAVY }}>
+          <Text style={td(TW_LABEL,  'right', GR2, { bold: true, sz: 7.5 })}>TOTALS</Text>
+          <Text style={td(TW.kms,   'right', GR2, { bold: true })}>{totalKms > 0 ? totalKms.toFixed(1) : ''}</Text>
+          <Text style={td(TW.hrs,   'right', GR2)}>{''}</Text>
+          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalHire)}</Text>
+          <Text style={{ ...td(TW.comm,  'right', GR2, { bold: true }), color: NEG }}>{totalComm > 0 ? `-${fmt2(totalComm)}` : ''}</Text>
+          <Text style={td(TW.share, 'right', GR2, { bold: true })}>{fmt2(totalShare)}</Text>
+          <Text style={td(TW.bata,  'right', GR2, { bold: true })}>{fmt2(totalBata)}</Text>
+          <Text style={td(TW.reimb, 'right', GR2, { bold: true })}>{fmt2(totalReimb)}</Text>
+          <Text style={td(TW.total, 'right', GR2, { bold: true, last: true, sz: 7.5 })}>{fmt2(totalRow)}</Text>
+        </View>
 
-            {/* ── LEFT: Expense Summary ── */}
-            <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: BK }}>
-              {/* Expense table header */}
-              <View style={{ ...bRow, backgroundColor: GR }}>
-                <Text style={hc(20)}>{'  '}</Text>
-                <Text style={{ ...hc(0), flex: 1 }}>Expense Name</Text>
-                <Text style={{ ...hc(76, { right: true, noBorderRight: true }) }}>Total</Text>
-              </View>
+        {/* ══════════ BOTTOM SECTION ══════════ */}
+        <View style={{ flexDirection: 'row', marginTop: 12 }}>
 
-              {/* Row 1: Office Commission */}
-              <View style={{ ...bRow, minHeight: 14 }}>
-                <Text style={{ ...dc(20), textAlign: 'center' }}>1</Text>
-                <Text style={{ ...dc(0, { bold: true }), flex: 1 }}>
-                  Office Commission{commPct > 0 ? ` (${commPct}%)` : ''}
-                </Text>
-                <Text style={{ ...dc(76, { noBorderRight: true }), textAlign: 'right' }}>{fmt2(totalCommission)}</Text>
-              </View>
-
-              {/* Row 2: Advance Deduction */}
-              <View style={{ ...bRow, minHeight: 14 }}>
-                <Text style={{ ...dc(20), textAlign: 'center' }}>2</Text>
-                <Text style={{ ...dc(0), flex: 1 }}>Advance Deduction</Text>
-                <Text style={{ ...dc(76, { noBorderRight: true }), textAlign: 'right' }}>{fmt2(data.advance_principal_deduction)}</Text>
-              </View>
-
-              {/* Row 3: Advance Interest */}
-              <View style={{ ...bRow, minHeight: 14 }}>
-                <Text style={{ ...dc(20), textAlign: 'center' }}>3</Text>
-                <Text style={{ ...dc(0), flex: 1 }}>Advance Interest ({interestPct}%/mo)</Text>
-                <Text style={{ ...dc(76, { noBorderRight: true }), textAlign: 'right' }}>{fmt2(data.advance_interest_deduction)}</Text>
-              </View>
-
-              {/* Optional: other deductions */}
-              {data.other_deductions > 0 && (
-                <View style={{ ...bRow, minHeight: 14 }}>
-                  <Text style={{ ...dc(20), textAlign: 'center' }}>4</Text>
-                  <Text style={{ ...dc(0), flex: 1 }}>Other Deductions</Text>
-                  <Text style={{ ...dc(76, { noBorderRight: true }), textAlign: 'right' }}>{fmt2(data.other_deductions)}</Text>
-                </View>
-              )}
-
-              {/* Empty filler rows */}
-              {[...Array(4)].map((_, i) => (
-                <View key={i} style={{ ...bRow, minHeight: 14 }}>
-                  <View style={{ width: 20, borderRightWidth: 0.5, borderRightColor: BK }} />
-                  <View style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: BK }} />
-                  <View style={{ width: 76 }} />
-                </View>
-              ))}
-
-              {/* TOTAL (Expenses Summary) */}
-              <View style={{ ...bRow, backgroundColor: GR, borderTopWidth: 1, borderTopColor: BK }}>
-                <Text style={dc(20, { bold: true, bg: GR })}></Text>
-                <Text style={{ ...dc(0, { bold: true, bg: GR }), flex: 1 }}>TOTAL (Expenses Summary)</Text>
-                <Text style={{ ...dc(76, { bold: true, bg: GR, noBorderRight: true }), textAlign: 'right' }}>{fmt2(totalDeductions)}</Text>
-              </View>
-
-              {/* Cash / Cheque & Accounts lines */}
-              <View style={{ paddingHorizontal: 6, paddingTop: 5, paddingBottom: 2, borderTopWidth: 0.5, borderTopColor: BK }}>
-                <Text>By Cash/Cheque No. _______________________________</Text>
-              </View>
-              <View style={{ paddingHorizontal: 6, paddingBottom: 5 }}>
-                <Text>Accounts _______________________________________</Text>
-              </View>
+          {/* ── LEFT: ADVANCE & DEDUCTIONS ── */}
+          <View style={{ width: DW }}>
+            <View style={{ backgroundColor: NAVY, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 7.5, fontFamily: BOLD, color: WH, letterSpacing: 0.8 }}>ADVANCE &amp; DEDUCTIONS</Text>
             </View>
 
-            {/* ── RIGHT: Grand Total boxes ── */}
-            <View style={{ width: 220 }}>
-              {/* Hire Credit */}
-              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 18, alignItems: 'center' }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>HIRE CREDIT</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(totalCredit)}</Text>
-              </View>
-
-              {/* Bata Earnings */}
-              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 18, alignItems: 'center' }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>BATA EARNINGS</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(data.bata_earnings)}</Text>
-              </View>
-
-              {/* Toll, Parking & Permit breakdown */}
-              {totalTollBreakdown.toll > 0 && (
-                <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 15, alignItems: 'center' }}>
-                  <Text style={{ flex: 1, fontSize: 6.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>  Toll</Text>
-                  <Text style={{ width: 88, fontSize: 6.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(totalTollBreakdown.toll)}</Text>
+            {hasDed ? (
+              <>
+                {/* Column headers */}
+                <View style={{ flexDirection: 'row', backgroundColor: NAV2, borderBottomWidth: 0.5, borderBottomColor: BORDER }}>
+                  <Text style={th(DD.no,   'center')}>#</Text>
+                  <Text style={th(DD.desc, 'left')}>Description</Text>
+                  <Text style={th(DD.amt,  'right', true)}>Amount</Text>
                 </View>
-              )}
-              {totalTollBreakdown.parking > 0 && (
-                <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 15, alignItems: 'center' }}>
-                  <Text style={{ flex: 1, fontSize: 6.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>  Parking</Text>
-                  <Text style={{ width: 88, fontSize: 6.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(totalTollBreakdown.parking)}</Text>
+
+                {/* Deduction rows */}
+                {dedRows.map((r, i) => {
+                  const bg = i % 2 === 1 ? GR : WH
+                  return (
+                    <View key={i} style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
+                      <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>{i + 1}</Text>
+                      <Text style={td(DD.desc, 'left',  bg)}>{r.label}</Text>
+                      <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(r.amount)}</Text>
+                    </View>
+                  )
+                })}
+
+                {/* Total deductions */}
+                <View style={{ flexDirection: 'row', backgroundColor: GR2, borderTopWidth: 1, borderTopColor: NAVY, borderBottomWidth: 0.5, borderBottomColor: BORDER }}>
+                  <Text style={td(DD_LABEL, 'right', GR2, { bold: true })}>TOTAL DEDUCTIONS</Text>
+                  <Text style={td(DD.amt,   'right', GR2, { bold: true, last: true, sz: 7.5 })}>{fmt2(totalDed)}</Text>
                 </View>
-              )}
-              {totalTollBreakdown.permit > 0 && (
-                <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 15, alignItems: 'center' }}>
-                  <Text style={{ flex: 1, fontSize: 6.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>  Permit</Text>
-                  <Text style={{ width: 88, fontSize: 6.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(totalTollBreakdown.permit)}</Text>
-                </View>
-              )}
-              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 18, alignItems: 'center' }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>TOLL, PARKING &amp; PERMIT</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(totalToll)}</Text>
+              </>
+            ) : (
+              <View style={{ borderWidth: 0.5, borderTopWidth: 0, borderColor: BORDER, padding: 10 }}>
+                <Text style={{ fontSize: 7, color: '#718096' }}>No advance deductions for this settlement period.</Text>
               </View>
+            )}
 
-              {/* Salary (if salary driver) */}
-              {data.salary_amount > 0 && (
-                <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 18, alignItems: 'center' }}>
-                  <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>MONTHLY SALARY</Text>
-                  <Text style={{ width: 88, fontFamily: BOLD, fontSize: 7.5, paddingHorizontal: 6, textAlign: 'right' }}>{fmt2(data.salary_amount)}</Text>
-                </View>
-              )}
-
-              {/* Grand Total */}
-              <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: BK, minHeight: 22, alignItems: 'center', backgroundColor: GR }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 8.5, paddingHorizontal: 6, paddingVertical: 4, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>GRAND TOTAL</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 8.5, paddingHorizontal: 6, paddingVertical: 4, textAlign: 'right' }}>{fmt2(grandTotal)}</Text>
-              </View>
-
-              {/* Deductions */}
-              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BK, minHeight: 22, alignItems: 'center' }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 8.5, paddingHorizontal: 6, paddingVertical: 4, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>DEDUCTIONS</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 8.5, paddingHorizontal: 6, paddingVertical: 4, textAlign: 'right' }}>{fmt2(totalDeductions)}</Text>
-              </View>
-
-              {/* Balance */}
-              <View style={{ flexDirection: 'row', minHeight: 26, alignItems: 'center', backgroundColor: GR, borderTopWidth: 1, borderTopColor: BK }}>
-                <Text style={{ flex: 1, fontFamily: BOLD, fontSize: 9.5, paddingHorizontal: 6, paddingVertical: 5, borderRightWidth: 0.5, borderRightColor: BK, textAlign: 'right' }}>BALANCE</Text>
-                <Text style={{ width: 88, fontFamily: BOLD, fontSize: 9.5, paddingHorizontal: 6, paddingVertical: 5, textAlign: 'right' }}>{fmt2(data.net_payable)}</Text>
-              </View>
+            {/* Signature lines */}
+            <View style={{ marginTop: 14, paddingHorizontal: 4 }}>
+              <Text style={{ fontSize: 7, color: '#555', marginBottom: 10 }}>By Cash / Cheque No.  ________________________________</Text>
+              <Text style={{ fontSize: 7, color: '#555' }}>Accounts  _________________________________________</Text>
             </View>
           </View>
 
-          {/* ── Signature row ── */}
-          <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BK, paddingVertical: 10 }}>
-            <Text style={{ flex: 1, fontSize: 7, textAlign: 'center' }}>Proprietor</Text>
-            <Text style={{ flex: 1, fontSize: 7, textAlign: 'center' }}>Manager</Text>
-            <Text style={{ flex: 1, fontSize: 7, textAlign: 'center' }}>{"Receiver's Signature"}</Text>
+          {/* Gap between the two panels */}
+          <View style={{ width: GAP }} />
+
+          {/* ── RIGHT: SETTLEMENT SUMMARY ── */}
+          <View style={{ width: SBW }}>
+            <View style={{ backgroundColor: NAVY, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 7.5, fontFamily: BOLD, color: WH, letterSpacing: 0.8 }}>SETTLEMENT SUMMARY</Text>
+            </View>
+
+            {/* Earnings rows */}
+            {([
+              { label: 'Hire Earnings',  value: data.hire_earnings },
+              { label: 'Bata Earnings',  value: data.bata_earnings },
+              { label: 'Reimbursements', value: data.reimbursements },
+              ...(data.salary_amount > 0 ? [{ label: 'Monthly Salary', value: data.salary_amount }] : []),
+            ] as { label: string; value: number }[]).map((r, i) => (
+              <View key={i} style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>{r.label}</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(r.value)}</Text>
+              </View>
+            ))}
+
+            {/* Gross Earnings */}
+            <View style={{ flexDirection: 'row', backgroundColor: GR2, borderTopWidth: 1, borderTopColor: NAVY, borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 18, alignItems: 'center' }}>
+              <Text style={{ width: SB.label, fontSize: 8, fontFamily: BOLD, paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: 0.5, borderRightColor: BORDER }}>Gross Earnings</Text>
+              <Text style={{ width: SB.val,   fontSize: 8, fontFamily: BOLD, paddingHorizontal: 8, paddingVertical: 4, textAlign: 'right' }}>{fmt2(data.gross_earnings)}</Text>
+            </View>
+
+            {/* Total Advance Deductions line (only if any) */}
+            {hasDed && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Total Advance Deductions</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(totalDed)}</Text>
+              </View>
+            )}
+
+            {/* NET PAYABLE TO DRIVER */}
+            <View style={{ flexDirection: 'row', backgroundColor: NAVY, minHeight: 24, alignItems: 'center' }}>
+              <Text style={{ width: SB.label, fontSize: 9, fontFamily: BOLD, color: WH, paddingHorizontal: 8, paddingVertical: 5, borderRightWidth: 0.5, borderRightColor: NAV2 }}>
+                NET PAYABLE TO DRIVER
+              </Text>
+              <Text style={{ width: SB.val, fontSize: 9, fontFamily: BOLD, color: WH, paddingHorizontal: 8, paddingVertical: 5, textAlign: 'right' }}>
+                {fmt2(data.net_payable)}
+              </Text>
+            </View>
           </View>
 
         </View>
+
+        {/* ══════════ SIGNATURE ROW ══════════ */}
+        <View style={{ flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: BORDER, marginTop: 16, paddingTop: 10 }}>
+          <Text style={{ flex: 1, fontSize: 7, textAlign: 'center', color: '#555' }}>Proprietor</Text>
+          <Text style={{ flex: 1, fontSize: 7, textAlign: 'center', color: '#555' }}>Manager</Text>
+          <Text style={{ flex: 1, fontSize: 7, textAlign: 'center', color: '#555' }}>{"Receiver's Signature"}</Text>
+        </View>
+
+        {/* ══════════ DOCUMENT FOOTER ══════════ */}
+        <View style={{ flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: '#dde3eb', marginTop: 8, paddingTop: 4 }}>
+          <Text style={{ flex: 1, fontSize: 6, color: '#aaa' }}>
+            {JMS.name}{'  ·  '}Driver Statement{'  ·  '}{data.driver_name}{'  ·  '}{fmtDateFull(data.period_from)} {'–'} {fmtDateFull(data.period_to)}
+          </Text>
+          <Text style={{ fontSize: 6, color: '#aaa' }}>Driver Statement</Text>
+        </View>
+
       </Page>
     </Document>
   )
