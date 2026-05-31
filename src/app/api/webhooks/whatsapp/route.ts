@@ -336,7 +336,7 @@ async function processClientMessage(
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
     const { data: recentBookingAny } = await supabase
       .from('bookings')
-      .select('id, booking_ref, trip_type, special_instructions')
+      .select('id, booking_ref, trip_type, special_instructions, pickup_date, pickup_time')
       .eq('client_id', client.id)
       .gt('created_at', thirtyMinsAgo)
       .not('status', 'in', '("completed","cancelled")')
@@ -344,12 +344,18 @@ async function processClientMessage(
       .limit(1)
       .maybeSingle()
 
-    const isCancelOrModifyMsg = /\b(cancel|modify|change|reschedule|postpone|update booking)\b/i.test(rawContent)
+    // Explicit modify/cancel keywords
+    const hasExplicitModifyKeyword = /\b(cancel|modify|change|reschedule|postpone|update booking)\b/i.test(rawContent)
+    // Date patterns: DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YY, YYYY-MM-DD, day names, month names, relative dates
+    const hasDatePattern = /\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|day after tomorrow|next week|next month|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}|\d{1,2}(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i.test(rawContent)
+    // Time patterns: 9am, 9 AM, 9:00, 9:30 pm, 9.30 am, 09:00
+    const hasTimePattern = /\b(\d{1,2}[:.]\d{2}\s*(?:am|pm|hours|hrs)?|\d{1,2}\s*(?:am|pm))\b/i.test(rawContent)
 
-    if (recentBookingAny && !isCancelOrModifyMsg) {
-      // If message contains useful notes (flight info, instructions) — append to special_instructions
+    if (recentBookingAny) {
       const hasFlightInfo = /\b(flight|terminal|gate|airline|pnr|departure|arrival)\b/i.test(rawContent)
-      if (hasFlightInfo) {
+
+      // Flight/travel info → append to special_instructions (takes priority over date/time detection)
+      if (hasFlightInfo && !hasExplicitModifyKeyword) {
         const existing = recentBookingAny.special_instructions ?? ''
         const updated = [existing, rawContent.trim()].filter(Boolean).join('\n')
         await supabase
@@ -361,15 +367,20 @@ async function processClientMessage(
           body: `Thanks! We've noted those details for booking ${recentBookingAny.booking_ref} and will pass them to your driver. Our team will confirm your booking shortly.`,
           log: { client_id: client.id },
         })
-      } else {
+        return
+      }
+
+      // Date or time pattern → treat as a correction/modification, fall through to Gemini
+      if (!hasExplicitModifyKeyword && !hasDatePattern && !hasTimePattern) {
         // General question or remark after booking — friendly acknowledgment
         await sendWhatsAppMessage({
           to: senderPhone,
           body: `Thanks for your message! Your booking ${recentBookingAny.booking_ref} has been received and our team will confirm it shortly.\n\nIf you have any additional details to add (such as flight number or special instructions), feel free to share them here.`,
           log: { client_id: client.id },
         })
+        return
       }
-      return
+      // Has explicit modify keyword, or a date/time pattern — fall through to Gemini processing
     }
 
     const { data: newSession } = await supabase

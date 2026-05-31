@@ -623,7 +623,7 @@ Default to "booking" when in doubt.
 "booking"        — client wants to book a cab, is replying to a booking question, sent a greeting ("Hi", "Hello"), or intent is unclear → DEFAULT
 "enquiry"        — ONLY if they EXPLICITLY ask about rates, prices, or service info with NO booking intent
 "cancel_request" — client clearly wants to cancel an existing booking ("cancel my booking", "don't need cab", "not needed", "scratch that", "cancel it")
-"modify_request" — client wants to change a detail of an existing booking ("change my time", "make it 3pm instead", "update pickup", "different date")
+"modify_request" — client wants to change a detail of an existing booking. Explicit: "change my time", "make it 3pm instead", "update pickup", "different date". ALSO classify as modify_request when the client sends a standalone date or time correction without explicit modify keywords — e.g. "It's on 01-06-2026", "Not Monday, it's Tuesday", "Make it 9 AM", "Actually 1st June", "It should be 2pm", "No, the 3rd" — these are corrections to an existing booking.
 "other"          — ONLY if they are asking for help with an existing booking in a way that is NOT a modification or cancellation
 
 IMPORTANT: If the client says "cancel" but immediately gives new trip details → treat as "booking" (new request), not "cancel_request".
@@ -638,12 +638,15 @@ TODAY (IST): {today} ({day_of_week})
 === DATE RULES ===
 - "today" → {today}
 - "tomorrow" → {tomorrow}
-- Day names ("Monday" etc.) → next upcoming occurrence of that day, counting forward from {today} ({day_of_week})
+- Day names ("Monday" etc.) → use the pre-computed lookup below — do NOT calculate yourself
 - DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY ("07-02-2026", "07/02/2026", "15.04.2026") → always treat as day-month-year (Indian standard); "07-02-2026" = 2026-02-07
 - DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26") → expand to 20YY; "09.05.26" = 2026-05-09
 - Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.
 - Dates before {today} → set pickup_date to null, add "pickup_date" to missing_mandatory
 - In next_question text: when referencing the date, always write it in readable format (e.g. "3 May 2026") — NEVER write "today" or "tomorrow" in your replies
+
+DAY NAME LOOKUP — pre-computed, use exactly as given, do NOT recalculate:
+{day_occurrences}
 
 === TRIP TYPE — BANGALORE BASE RULES ===
 JMS Travels is based in Bangalore. Classify every trip as:

@@ -56,6 +56,19 @@ function getDayOfWeekIST(): string {
   return days[ist.getUTCDay()]
 }
 
+// Pre-compute next occurrence of each weekday so Gemini never has to calculate it
+function getNextDayOccurrences(today: string): string {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const todayDayIdx = new Date(today + 'T00:00:00Z').getUTCDay()
+  return dayNames.map((name, i) => {
+    let daysAhead = (i - todayDayIdx + 7) % 7
+    if (daysAhead === 0) daysAhead = 7 // same day as today → next week
+    const d = new Date(today + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() + daysAhead)
+    return `${name} → ${d.toISOString().slice(0, 10)}`
+  }).join(' | ')
+}
+
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() + days)
@@ -89,6 +102,7 @@ export async function converseBooking(
   const today = getTodayIST()
   const tomorrow = addDays(today, 1)
   const dayOfWeek = getDayOfWeekIST()
+  const dayOccurrences = getNextDayOccurrences(today)
 
   const conversationText = messages
     .map(m => `${m.role === 'client' ? 'Client' : 'Agent'}: ${m.content}`)
@@ -111,6 +125,7 @@ export async function converseBooking(
     .replace(/{today}/g, today)
     .replace(/{tomorrow}/g, tomorrow)
     .replace(/{day_of_week}/g, dayOfWeek)
+    .replace(/{day_occurrences}/g, dayOccurrences)
     .replace('{conversation}', conversationText)
     .replace('{client_profile}', clientProfile)
     .replace('{saved_locations}', locationsJson)
