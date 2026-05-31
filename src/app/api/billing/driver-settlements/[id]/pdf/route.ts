@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .single(),
     supabase
       .from('driver_settlement_trips')
-      .select('*')
+      .select('*, booking:bookings!booking_id(total_days)')
       .eq('settlement_id', id)
       .order('trip_date', { ascending: true }),
   ])
@@ -52,8 +52,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       booking_ref: t.booking_ref ?? '',
       tripsheet_number: t.tripsheet_number ?? null,
       company_name: t.company_name ?? '',
+      trip_type: t.trip_type ?? 'local',
       actual_kms: Number(t.actual_kms ?? 0),
       actual_hrs: Number(t.actual_hrs ?? 0),
+      total_days: Number((t.booking as { total_days: number | null } | null)?.total_days ?? 1),
       client_hire_charges: Number(t.client_hire_charges ?? 0),
       commission_percent: Number(t.commission_percent ?? 0),
       hire_earnings: Number(t.hire_earnings ?? 0),
