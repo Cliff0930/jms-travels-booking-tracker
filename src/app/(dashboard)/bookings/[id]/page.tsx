@@ -206,6 +206,28 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     prevBookingStatus.current = booking?.status
   }, [booking?.status])
 
+  // Auto-calculate and auto-save bata whenever times change or edit form opens
+  const lastAutoSavedBata = useRef<number | null>(null)
+  useEffect(() => {
+    if (!editingSheet || !sheetEditForm || !tripSheet) return
+    const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
+    const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
+    const lateNight     = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
+    const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
+    const outstationDays = booking?.trip_type === 'outstation' ? (booking.total_days || 1) : 0
+    const autoBata = lateNight + earlyMorn + outstationDays
+    setSheetEditForm(f => f ? { ...f, bata_driver: String(autoBata) } : f)
+    if (lastAutoSavedBata.current !== autoBata) {
+      lastAutoSavedBata.current = autoBata
+      void fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bata_driver: autoBata }),
+      }).then(() => void refetchTripSheet())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingSheet, sheetEditForm?.manual_opening_time, sheetEditForm?.manual_closing_time, tripSheet?.id])
+
   const updateBooking = useUpdateBooking()
   const confirmBooking = useConfirmBooking()
   const cancelBooking = useCancelBooking()
@@ -1750,37 +1772,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   </div>
 
-                  {/* Bata auto-calculation */}
+                  {/* Bata — auto-calculated, shown as info */}
                   {(() => {
                     const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
                     const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
-                    const lateNight    = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
-                    const earlyMorn    = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
+                    const lateNight     = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
+                    const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
                     const outstationDays = booking.trip_type === 'outstation' ? (booking.total_days || 1) : 0
-                    const autoBata  = lateNight + earlyMorn + outstationDays
+                    const autoBata = lateNight + earlyMorn + outstationDays
+                    const driverRate = booking.trip_type === 'outstation'
+                      ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
+                      : (booking.driver?.bata_rate ?? 300)
+                    const bataRs = autoBata * driverRate
                     const breakdown = [
-                      lateNight > 0     && `Late night +1`,
-                      earlyMorn > 0     && `Early start +1`,
+                      lateNight > 0      && `Late night +1`,
+                      earlyMorn > 0      && `Early start +1`,
                       outstationDays > 0 && `Outstation ${outstationDays} day${outstationDays > 1 ? 's' : ''} +${outstationDays}`,
                     ].filter(Boolean).join(' · ')
-                    const showCalc = autoBata > 0 || sheetEditForm.manual_opening_time || sheetEditForm.manual_closing_time
-                    if (!showCalc) return null
+                    if (autoBata === 0 && !sheetEditForm.manual_opening_time && !sheetEditForm.manual_closing_time) return null
                     return (
                       <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs text-[#4F46E5]">
-                            <span className="font-semibold">Auto-calculated bata: {autoBata}</span>
-                            {breakdown && <span className="ml-1 text-[#6366F1]">({breakdown})</span>}
-                          </div>
-                          {autoBata > 0 && (
-                            <button
-                              type="button"
-                              className="text-[10px] font-semibold text-[#4F46E5] hover:text-[#3730A3] underline shrink-0"
-                              onClick={() => setSheetEditForm(f => f && ({ ...f, bata_driver: String(autoBata) }))}
-                            >
-                              Use this
-                            </button>
-                          )}
+                        <div className="text-xs text-[#4F46E5]">
+                          <span className="font-semibold">Bata: {autoBata} × ₹{driverRate} = ₹{bataRs}</span>
+                          {breakdown && <span className="ml-1 text-[#6366F1]">({breakdown})</span>}
+                          <span className="ml-1 text-[#818CF8]">· auto-saved</span>
                         </div>
                       </div>
                     )
@@ -1788,7 +1803,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs text-[#737686]">Bata Count</Label>
+                      <Label className="text-xs text-[#737686]">Bata Count <span className="text-[#818CF8]">(auto)</span></Label>
                       <Input
                         type="number"
                         min="0"
@@ -1887,12 +1902,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
                   )}
-                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && (
-                    <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
-                      <span className="text-[#737686]">Bata (Driver)</span>
-                      <span className="font-medium text-[#1A56DB]">{tripSheet.bata_driver} bata</span>
-                    </div>
-                  )}
+                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && (() => {
+                    const driverRate = booking.trip_type === 'outstation'
+                      ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
+                      : (booking.driver?.bata_rate ?? 300)
+                    const bataRs = tripSheet.bata_driver * driverRate
+                    return (
+                      <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
+                        <span className="text-[#737686]">Bata (Driver)</span>
+                        <span className="font-medium text-[#1A56DB]">{tripSheet.bata_driver} × ₹{driverRate} = ₹{bataRs}</span>
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* RIGHT: System / GPS */}
