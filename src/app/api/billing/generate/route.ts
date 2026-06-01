@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     let calc
     if (b.trip_type === 'outstation') {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
-      const { bataAmount: _b, ...outstationCalc } = { bataAmount: 0, ...calcOutstationTrip(actualKms, days, rate) }
+      const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * days) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
