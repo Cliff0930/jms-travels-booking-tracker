@@ -514,6 +514,20 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleExcludeFromBillingToggle(excluded: boolean) {
+    try {
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exclude_from_billing: excluded }),
+      })
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success(excluded ? 'Booking excluded from billing' : 'Booking included in billing')
+    } catch {
+      toast.error('Failed to update billing exclusion')
+    }
+  }
+
   async function handleSettlementToggle(enabled: boolean) {
     try {
       await fetch(`/api/bookings/${id}`, {
@@ -1651,6 +1665,29 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               <Switch
                 checked={!!booking.is_settlement_duty}
                 onCheckedChange={handleSettlementToggle}
+                className="ml-4 shrink-0"
+              />
+            </div>
+          </div>
+          )}
+
+          {canEdit && (
+          <div className={cn('rounded-lg border p-5', booking.exclude_from_billing ? 'bg-red-50 border-red-300' : 'bg-white border-[#C3C5D7]')}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <X className={`w-4 h-4 mt-0.5 shrink-0 ${booking.exclude_from_billing ? 'text-red-500' : 'text-[#737686]'}`} />
+                <div>
+                  <h2 className="text-base font-semibold text-[#191B23]">Exclude from Billing</h2>
+                  <p className="text-xs text-[#737686] mt-0.5">
+                    {booking.exclude_from_billing
+                      ? 'This trip will not appear in invoice generation or unbilled alerts'
+                      : 'Enable to permanently exclude this trip from being invoiced'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={!!booking.exclude_from_billing}
+                onCheckedChange={handleExcludeFromBillingToggle}
                 className="ml-4 shrink-0"
               />
             </div>

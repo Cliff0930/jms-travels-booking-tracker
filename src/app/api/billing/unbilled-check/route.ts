@@ -34,12 +34,13 @@ export async function GET() {
 
   const invoicedIds = new Set<string>((invoicedItems ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean))
 
-  // Find completed corporate bookings from previous complete months
+  // Find completed corporate bookings from previous complete months (not excluded from billing)
   const { data: bookings } = await supabase
     .from('bookings')
     .select('id, pickup_date, company_id, company:companies!company_id(id, name)')
     .eq('status', 'completed')
     .not('company_id', 'is', null)
+    .neq('exclude_from_billing', true)
     .lt('pickup_date', cutoff)
     .order('pickup_date', { ascending: true })
 
@@ -61,7 +62,7 @@ export async function GET() {
   }> = {}
 
   for (const b of unbilled) {
-    const company = b.company as { id: string; name: string } | null
+    const company = Array.isArray(b.company) ? b.company[0] as { id: string; name: string } | undefined : b.company as { id: string; name: string } | null
     if (!company) continue
     const ms = monthStart(b.pickup_date)
     const key = `${company.id}::${ms}`

@@ -199,6 +199,7 @@ export interface Booking {
   cancelled_at: string | null
   gps_tracking_enabled: boolean
   is_settlement_duty: boolean
+  exclude_from_billing: boolean
   created_at: string
   updated_at: string
   client?: Client

@@ -145,6 +145,7 @@ export async function POST(request: Request) {
     `)
     .eq('company_id', company_id)
     .eq('status', 'completed')
+    .neq('exclude_from_billing', true)
     .gte('pickup_date', period_from)
     .lte('pickup_date', period_to)
     .order('pickup_date', { ascending: true })
@@ -180,6 +181,7 @@ export async function POST(request: Request) {
   const { data: olderBookings } = await supabase
     .from('bookings').select(bookingSelect)
     .eq('company_id', company_id).eq('status', 'completed')
+    .neq('exclude_from_billing', true)
     .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
   const missedBookings = (olderBookings ?? []).filter(b => !invoicedBookingIds.has(b.id))
 
