@@ -1790,10 +1790,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       outstationDays > 0 && `Outstation ${outstationDays} day${outstationDays > 1 ? 's' : ''} +${outstationDays}`,
                     ].filter(Boolean).join(' · ')
                     if (autoBata === 0 && !sheetEditForm.manual_opening_time && !sheetEditForm.manual_closing_time) return null
+                    const isAirport = booking.trip_type === 'airport'
                     return (
                       <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-3 py-2">
                         <div className="text-xs text-[#4F46E5]">
-                          <span className="font-semibold">Bata: {autoBata} × ₹{driverRate} = ₹{bataRs}</span>
+                          {isAirport ? (
+                            <span className="font-semibold">Bata: {autoBata} · client billed only, driver not paid</span>
+                          ) : (
+                            <span className="font-semibold">Bata: {autoBata} × ₹{driverRate} = ₹{bataRs}</span>
+                          )}
                           {breakdown && <span className="ml-1 text-[#6366F1]">({breakdown})</span>}
                           <span className="ml-1 text-[#818CF8]">· auto-saved</span>
                         </div>
@@ -1902,7 +1907,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
                   )}
-                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && (() => {
+                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && booking.trip_type !== 'airport' && (() => {
                     const driverRate = booking.trip_type === 'outstation'
                       ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
                       : (booking.driver?.bata_rate ?? 300)

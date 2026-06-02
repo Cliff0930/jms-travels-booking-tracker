@@ -66,7 +66,8 @@ export async function GET(request: Request) {
       const toll = (sheet.toll_amount as number | null) ?? 0
       const parking = (sheet.parking_amount as number | null) ?? 0
       const permit = (sheet.permit_amount as number | null) ?? 0
-      const bataCount = (sheet.bata_driver as number | null) ?? 0
+      // Airport bata is collected from client only — excluded from driver reimbursements
+      const bataCount = tripType === 'airport' ? 0 : ((sheet.bata_driver as number | null) ?? 0)
 
       // Only include sheets with at least one reimbursable item
       if (toll <= 0 && parking <= 0 && permit <= 0 && bataCount <= 0) continue

@@ -169,7 +169,8 @@ export async function POST(request: Request) {
     const bataKey = `${companyId}:${driverVehicle}:${tripType}`
     const bataKeyAll = `${companyId}:${driverVehicle}:all`
     const driverBataRate = bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
-    const bataEarnings = r2(bataCount * driverBataRate)
+    // Airport bata is collected from client only — driver is not paid
+    const bataEarnings = tripType === 'airport' ? 0 : r2(bataCount * driverBataRate)
 
     const toll = Number(sheet?.toll_amount ?? 0)
     const parking = Number(sheet?.parking_amount ?? 0)
