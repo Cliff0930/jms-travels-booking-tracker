@@ -101,7 +101,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent style={{ width: '95vw', maxWidth: '95vw' }} className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Generate Invoice</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
