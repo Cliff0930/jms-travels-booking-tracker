@@ -1,5 +1,5 @@
 'use client'
-import { use, useState } from 'react'
+import { use, useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ interface LineItem {
   cgst_rate: number; sgst_rate: number; igst_rate: number
   cgst_amount: number; sgst_amount: number; igst_amount: number; line_total: number
   trip_type: string; vehicle_number: string | null
+  reviewed: boolean
 }
 
 interface Payment {
@@ -122,6 +123,28 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
+  const invIdRef = useRef<string | null>(null)
+
+  // Sync reviewed state from server data when invoice first loads or id changes
+  useEffect(() => {
+    if (inv && invIdRef.current !== inv.id) {
+      invIdRef.current = inv.id
+      setReviewedIds(new Set(inv.line_items.filter(li => li.reviewed).map(li => li.id)))
+    }
+  }, [inv])
+
+  async function toggleReviewed(liId: string) {
+    const isReviewed = !reviewedIds.has(liId)
+    setReviewedIds(prev => { const n = new Set(prev); isReviewed ? n.add(liId) : n.delete(liId); return n })
+    await fetch(`/api/billing/invoices/${id}/line-items/${liId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewed: isReviewed }),
+    }).catch(() => {
+      // Revert on failure
+      setReviewedIds(prev => { const n = new Set(prev); isReviewed ? n.delete(liId) : n.add(liId); return n })
+    })
+  }
 
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
@@ -260,21 +283,50 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Trip Line Items */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-700">Trip Details ({inv.line_items.length} trips)</h2>
+          {inv.status === 'draft' && (
+            <span className={cn(
+              'text-xs font-semibold px-2.5 py-1 rounded-full',
+              reviewedIds.size === inv.line_items.length && inv.line_items.length > 0
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-500'
+            )}>
+              {reviewedIds.size} / {inv.line_items.length} reviewed
+            </span>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b">
               <tr>
+                {inv.status === 'draft' && <th className="px-2 py-2 text-center w-8" title="Mark as reviewed">✓</th>}
                 {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
                   <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {inv.line_items.map(li => (
-                <tr key={li.id} className="hover:bg-gray-50">
+              {inv.line_items.map(li => {
+                const isReviewed = reviewedIds.has(li.id)
+                return (
+                <tr key={li.id} className={cn(isReviewed ? 'bg-green-50/60' : 'hover:bg-gray-50')}>
+                  {inv.status === 'draft' && (
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        onClick={() => toggleReviewed(li.id)}
+                        title={isReviewed ? 'Mark as not reviewed' : 'Mark as reviewed'}
+                        className={cn(
+                          'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+                          isReviewed
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : 'border-gray-300 hover:border-green-400'
+                        )}
+                      >
+                        {isReviewed && <span className="text-[10px] font-bold leading-none">✓</span>}
+                      </button>
+                    </td>
+                  )}
                   <td className="px-2 py-2 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.trip_date}</td>
                   <td className="px-2 py-2 whitespace-nowrap">
@@ -309,11 +361,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   <td className="px-2 py-2 whitespace-nowrap text-right">{li.permit_amount > 0 ? fmt(li.permit_amount) : '—'}</td>
                   <td className="px-2 py-2 font-semibold whitespace-nowrap text-right">{fmt(li.line_total)}</td>
                 </tr>
-              ))}
+              )})}
+
             </tbody>
             <tfoot className="bg-gray-50 border-t-2 border-gray-200">
               <tr>
-                <td colSpan={6} className="px-2 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                <td colSpan={inv.status === 'draft' ? 7 : 6} className="px-2 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
                 <td colSpan={10} />
                 <td className="px-2 py-2 font-bold text-right">{fmt(inv.subtotal)}</td>
                 <td colSpan={2} className="px-2 py-2 font-semibold text-gray-500 text-xs">
