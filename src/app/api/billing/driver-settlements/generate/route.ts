@@ -81,7 +81,8 @@ export async function POST(request: Request) {
       trip_sheets(id, tripsheet_number, opening_km, closing_km,
         manual_opening_time, manual_closing_time,
         driver_opening_km, driver_closing_km, driver_opening_time, driver_closing_time,
-        toll_amount, parking_amount, permit_amount, bata_driver)
+        toll_amount, parking_amount, permit_amount, bata_driver,
+        driver_toll_amount, driver_parking_amount, driver_permit_amount)
     `)
     .eq('driver_id', driver_id)
     .eq('status', 'completed')
@@ -177,9 +178,9 @@ export async function POST(request: Request) {
     // Airport bata is collected from client only — driver is not paid
     const bataEarnings = tripType === 'airport' ? 0 : r2(bataCount * driverBataRate)
 
-    const toll = Number(sheet?.toll_amount ?? 0)
-    const parking = Number(sheet?.parking_amount ?? 0)
-    const permit = Number(sheet?.permit_amount ?? 0)
+    const toll    = Number(sheet?.driver_toll_amount    ?? sheet?.toll_amount    ?? 0)
+    const parking = Number(sheet?.driver_parking_amount ?? sheet?.parking_amount ?? 0)
+    const permit  = Number(sheet?.driver_permit_amount  ?? sheet?.permit_amount  ?? 0)
     const reimbursements = r2(toll + parking + permit)
     const tripTotal = r2(hireEarnings + bataEarnings + reimbursements)
 

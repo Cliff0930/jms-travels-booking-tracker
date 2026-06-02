@@ -127,7 +127,8 @@ export async function POST(request: Request) {
       driver:drivers!driver_id(vehicle_name, vehicle_number),
       trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
         client_opening_km, client_closing_km, client_opening_time, client_closing_time,
-        toll_amount, parking_amount, permit_amount, bata_driver, bata_client)
+        toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
+        client_toll_amount, client_parking_amount, client_permit_amount)
     `)
     .eq('company_id', company_id)
     .eq('status', 'completed')
@@ -164,9 +165,9 @@ export async function POST(request: Request) {
     )
     // For outstation, store total_days in actual_hrs (hrs unused in billing; PDF uses this to show "X Day/s")
     const displayHrs = b.trip_type === 'outstation' ? (b.total_days ?? 1) : actualHrs
-    const toll = Number(sheet?.toll_amount ?? 0)
-    const parking = Number(sheet?.parking_amount ?? 0)
-    const permit = Number(sheet?.permit_amount ?? 0)
+    const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
+    const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
+    const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
     // Use bata_client for invoicing (client threshold: open<06:00, close>22:00)
     // Fall back to bata_driver for older records that don't have bata_client yet
     const bataClientCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)

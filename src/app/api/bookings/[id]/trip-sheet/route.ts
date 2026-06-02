@@ -44,7 +44,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     'tripsheet_number', 'opening_km', 'closing_km', 'manual_opening_time', 'manual_closing_time',
     'toll_amount', 'parking_amount', 'permit_amount', 'bata_driver', 'bata_client',
     'driver_opening_km', 'driver_closing_km', 'driver_opening_time', 'driver_closing_time',
+    'driver_toll_amount', 'driver_parking_amount', 'driver_permit_amount',
     'client_opening_km', 'client_closing_km', 'client_opening_time', 'client_closing_time',
+    'client_toll_amount', 'client_parking_amount', 'client_permit_amount',
   ]
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {

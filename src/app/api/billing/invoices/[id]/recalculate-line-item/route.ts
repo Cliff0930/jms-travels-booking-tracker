@@ -113,9 +113,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   )
   const days = booking?.total_days ?? 1
   const displayHrs = booking?.trip_type === 'outstation' ? days : actualHrs
-  const toll    = Number(sheet?.toll_amount    ?? 0)
-  const parking = Number(sheet?.parking_amount ?? 0)
-  const permit  = Number(sheet?.permit_amount  ?? 0)
+  const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
+  const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
+  const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
   const bataCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)
 
   const cbKey    = `${driverVehicleName}:${booking?.trip_type ?? 'local'}`
