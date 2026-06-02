@@ -63,9 +63,14 @@ function GenerateModal({ companies, onClose, onSaved }: {
   const [reverseCharge, setReverseCharge] = useState(true)
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
-  const [preview, setPreview] = useState<{ line_items: LineItemPreview[]; subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number; tds_amount: number; grand_total: number; trip_count: number } | null>(null)
+  const [preview, setPreview] = useState<{
+    line_items: LineItemPreview[]; missed_line_items: LineItemPreview[]
+    subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
+    tds_amount: number; tds_percent: number; grand_total: number; trip_count: number; missed_count: number
+  } | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [tripsheetPopup, setTripsheetPopup] = useState<{ bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
 
   async function handlePreview() {
@@ -77,15 +82,52 @@ function GenerateModal({ companies, onClose, onSaved }: {
     })
     const data = await res.json()
     setPreview(data)
+    setSelectedIds(new Set<string>([
+      ...(data.line_items ?? []).map((li: LineItemPreview) => li.booking_id),
+      ...(data.missed_line_items ?? []).map((li: LineItemPreview) => li.booking_id),
+    ]))
     setPreviewing(false)
   }
 
+  function toggleOne(id: string) {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleGroup(items: LineItemPreview[], checked: boolean) {
+    setSelectedIds(prev => { const n = new Set(prev); items.forEach(li => checked ? n.add(li.booking_id) : n.delete(li.booking_id)); return n })
+  }
+
+  const selectedItems = useMemo(() => {
+    if (!preview) return []
+    return [...preview.line_items, ...(preview.missed_line_items ?? [])].filter(li => selectedIds.has(li.booking_id))
+  }, [preview, selectedIds])
+
+  const selTotals = useMemo(() => {
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const sub  = selectedItems.reduce((s, li) => s + Number(li.hire_charges), 0)
+    const cgst = selectedItems.reduce((s, li) => s + Number(li.cgst_amount), 0)
+    const sgst = selectedItems.reduce((s, li) => s + Number(li.sgst_amount), 0)
+    const igst = selectedItems.reduce((s, li) => s + Number(li.igst_amount), 0)
+    const ext  = selectedItems.reduce((s, li) => s + Number(li.toll_amount) + Number(li.parking_amount) + Number(li.permit_amount) + Number(li.bata_amount), 0)
+    const raw  = Math.round(sub + ext + cgst + sgst + igst)
+    const tds  = r2(raw * (preview?.tds_percent ?? 0) / 100)
+    return { sub: r2(sub), cgst: r2(cgst), sgst: r2(sgst), igst: r2(igst), tds, grand: r2(raw - tds) }
+  }, [selectedItems, preview])
+
   async function handleSave() {
     if (!preview) return
+    if (selectedItems.length === 0) { toast.error('Select at least one trip'); return }
     setSaving(true)
     const res = await fetch('/api/billing/invoices', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...preview, company_id: companyId, period_from: periodFrom, period_to: periodTo, due_date: dueDate || null, notes: notes || null, reverse_charge: reverseCharge }),
+      body: JSON.stringify({
+        company_id: companyId, period_from: periodFrom, period_to: periodTo,
+        due_date: dueDate || null, notes: notes || null,
+        reverse_charge: reverseCharge, is_inter_state: isInterState,
+        tds_percent: preview.tds_percent,
+        line_items: selectedItems,
+        subtotal: selTotals.sub, cgst_amount: selTotals.cgst, sgst_amount: selTotals.sgst,
+        igst_amount: selTotals.igst, tds_amount: selTotals.tds, grand_total: selTotals.grand,
+      }),
     })
     if (res.ok) {
       const inv = await res.json()
@@ -99,6 +141,62 @@ function GenerateModal({ companies, onClose, onSaved }: {
     setSaving(false)
   }
 
+  function renderTripRows(items: LineItemPreview[], isMissed = false) {
+    return items.map((li, i) => {
+      const checked = selectedIds.has(li.booking_id)
+      return (
+        <tr key={i} className={cn(!checked && 'opacity-40', isMissed ? 'bg-amber-50/40' : 'hover:bg-gray-50')}>
+          <td className="px-2 py-1.5 text-center">
+            <input type="checkbox" checked={checked} onChange={() => toggleOne(li.booking_id)} className="cursor-pointer" />
+          </td>
+          <td className="px-2 py-1.5 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">{li.trip_date}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">
+            {li.booking_id && li.trip_sheet_id
+              ? <button onClick={() => setTripsheetPopup({ bookingId: li.booking_id, tripSheetId: li.trip_sheet_id!, bookingRef: li.booking_ref, tripType: li.trip_type })} className="text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium">{li.booking_ref}</button>
+              : <span className="text-gray-500">{li.booking_ref}</span>}
+          </td>
+          <td className="px-2 py-1.5 max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_type}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}{li.package_kms > 0 ? `/${li.package_kms}` : ''}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.package_rate).toFixed(0)}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hrs) > 0 ? Number(li.extra_hrs).toFixed(0) : '0'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hr_rate).toFixed(0)}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_kms) > 0 ? Number(li.extra_kms).toFixed(0) : '0'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_km_rate).toFixed(0)}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.bata_amount > 0 ? fmt(li.bata_amount) : '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{(li.toll_amount + li.parking_amount) > 0 ? fmt(li.toll_amount + li.parking_amount) : '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.permit_amount > 0 ? fmt(li.permit_amount) : '—'}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap font-semibold text-right">{fmt(li.line_total)}</td>
+        </tr>
+      )
+    })
+  }
+
+  function renderTableHead(items: LineItemPreview[], isMissed = false) {
+    const allChecked = items.length > 0 && items.every(li => selectedIds.has(li.booking_id))
+    const someChecked = items.some(li => selectedIds.has(li.booking_id))
+    return (
+      <thead className={cn('border-b sticky top-0', isMissed ? 'bg-amber-100' : 'bg-gray-50')}>
+        <tr>
+          <th className="px-2 py-2 text-center">
+            <input type="checkbox" checked={allChecked}
+              ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked }}
+              onChange={e => toggleGroup(items, e.target.checked)} className="cursor-pointer" />
+          </th>
+          {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
+            <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+          ))}
+        </tr>
+      </thead>
+    )
+  }
+
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent style={{ width: '95vw', maxWidth: '95vw' }} className="max-h-[90vh] overflow-y-auto">
@@ -107,11 +205,8 @@ function GenerateModal({ companies, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1">
               <Label className="text-xs">Company *</Label>
-              <select
-                value={companyId}
-                onChange={e => setCompanyId(e.target.value)}
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
+              <select value={companyId} onChange={e => setCompanyId(e.target.value)}
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
                 <option value="">Select company…</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -128,25 +223,17 @@ function GenerateModal({ companies, onClose, onSaved }: {
               <Label className="text-xs">Payment Due Date</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
-            {/* RCM toggle */}
             <div className="col-span-2 flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
               <div>
                 <p className="text-sm font-semibold text-gray-800">Reverse Charge Mechanism (RCM)</p>
                 <p className="text-xs text-gray-500 mt-0.5">Client pays GST directly. No GST added to invoice. (Most corporate clients.)</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setReverseCharge(v => !v)}
-                className={cn(
-                  'relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none',
-                  reverseCharge ? 'bg-blue-700 border-blue-700' : 'bg-gray-200 border-gray-200'
-                )}
-              >
+              <button type="button" onClick={() => setReverseCharge(v => !v)}
+                className={cn('relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none',
+                  reverseCharge ? 'bg-blue-700 border-blue-700' : 'bg-gray-200 border-gray-200')}>
                 <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
               </button>
             </div>
-
-            {/* Interstate only shown when RCM is OFF */}
             {!reverseCharge && (
               <div className="col-span-2 flex items-center gap-2">
                 <input type="checkbox" id="interstate" checked={isInterState} onChange={e => setIsInterState(e.target.checked)} />
@@ -164,67 +251,44 @@ function GenerateModal({ companies, onClose, onSaved }: {
           </Button>
 
           {preview && (
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 flex items-center justify-between flex-wrap gap-2">
-                <span className="text-sm font-semibold">{preview.trip_count} trips found</span>
-                <div className="text-sm text-gray-600 flex flex-wrap gap-4">
-                  <span>Subtotal: <strong>{fmt(preview.subtotal)}</strong></span>
-                  {preview.cgst_amount > 0 && <span>GST: <strong>{fmt(preview.cgst_amount + preview.sgst_amount)}</strong></span>}
-                  {preview.igst_amount > 0 && <span>IGST: <strong>{fmt(preview.igst_amount)}</strong></span>}
-                  {preview.tds_amount > 0 && <span>TDS: <strong>−{fmt(preview.tds_amount)}</strong></span>}
-                  <span className="font-bold text-gray-900">Total: {fmt(preview.grand_total)}</span>
+            <div className="space-y-3">
+              {/* Period trips */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-sm font-semibold">{preview.trip_count} trips in period</span>
+                  <div className="text-sm text-gray-600 flex flex-wrap gap-4">
+                    <span>{selectedItems.length} selected · Subtotal: <strong>{fmt(selTotals.sub)}</strong></span>
+                    {selTotals.cgst > 0 && <span>GST: <strong>{fmt(selTotals.cgst + selTotals.sgst)}</strong></span>}
+                    {selTotals.igst > 0 && <span>IGST: <strong>{fmt(selTotals.igst)}</strong></span>}
+                    {selTotals.tds > 0 && <span>TDS: <strong>−{fmt(selTotals.tds)}</strong></span>}
+                    <span className="font-bold text-gray-900">Total: {fmt(selTotals.grand)}</span>
+                  </div>
                 </div>
+                {preview.line_items.length === 0
+                  ? <div className="p-6 text-center text-sm text-gray-400">No uninvoiced trips found for this period</div>
+                  : <div className="overflow-x-auto max-h-[40vh]">
+                      <table className="w-full text-xs">
+                        {renderTableHead(preview.line_items)}
+                        <tbody className="divide-y divide-gray-50">{renderTripRows(preview.line_items)}</tbody>
+                      </table>
+                    </div>}
               </div>
-              <div className="overflow-x-auto max-h-[50vh]">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b sticky top-0">
-                    <tr>
-                      {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
-                        <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {preview.line_items.map((li, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-2 py-1.5 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.trip_date}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">
-                          {li.booking_id && li.trip_sheet_id ? (
-                            <button
-                              onClick={() => setTripsheetPopup({ bookingId: li.booking_id, tripSheetId: li.trip_sheet_id!, bookingRef: li.booking_ref, tripType: li.trip_type })}
-                              className="text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium"
-                            >
-                              {li.booking_ref}
-                            </button>
-                          ) : (
-                            <span className="text-gray-500">{li.booking_ref}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_type}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">
-                          {li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}
-                        </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}{li.package_kms > 0 ? `/${li.package_kms}` : ''}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.package_rate).toFixed(0)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hrs) > 0 ? Number(li.extra_hrs).toFixed(0) : '0'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hr_rate).toFixed(0)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_kms) > 0 ? Number(li.extra_kms).toFixed(0) : '0'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_km_rate).toFixed(0)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.bata_amount > 0 ? fmt(li.bata_amount) : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{(li.toll_amount + li.parking_amount) > 0 ? fmt(li.toll_amount + li.parking_amount) : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.permit_amount > 0 ? fmt(li.permit_amount) : '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap font-semibold text-right">{fmt(li.line_total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+
+              {/* Missed trips from earlier periods */}
+              {(preview.missed_line_items ?? []).length > 0 && (
+                <div className="border border-amber-300 rounded-xl overflow-hidden">
+                  <div className="bg-amber-50 px-4 py-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-amber-800 font-semibold text-sm">⚠️ {preview.missed_count} unbilled trip{preview.missed_count !== 1 ? 's' : ''} from earlier periods</span>
+                    <span className="text-amber-600 text-xs">— not yet invoiced · check any you want to include</span>
+                  </div>
+                  <div className="overflow-x-auto max-h-[40vh]">
+                    <table className="w-full text-xs">
+                      {renderTableHead(preview.missed_line_items ?? [], true)}
+                      <tbody className="divide-y divide-amber-50">{renderTripRows(preview.missed_line_items ?? [], true)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -241,8 +305,8 @@ function GenerateModal({ companies, onClose, onSaved }: {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!preview || saving}>
-            {saving ? 'Saving…' : 'Save as Draft'}
+          <Button onClick={handleSave} disabled={!preview || saving || selectedItems.length === 0}>
+            {saving ? 'Saving…' : `Save as Draft${selectedItems.length > 0 ? ` (${selectedItems.length})` : ''}`}
           </Button>
         </DialogFooter>
       </DialogContent>

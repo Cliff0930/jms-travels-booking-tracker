@@ -151,10 +151,42 @@ export async function POST(request: Request) {
 
   if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 })
 
+  // Build set of booking IDs already in a finalised invoice for this company
+  const invoicedBookingIds = new Set<string>()
+  const { data: finalisedInvs } = await supabase
+    .from('invoices').select('id').eq('company_id', company_id)
+    .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
+  if (finalisedInvs && finalisedInvs.length > 0) {
+    const { data: invoicedItems } = await supabase
+      .from('invoice_line_items').select('booking_id')
+      .in('invoice_id', finalisedInvs.map(i => i.id))
+    for (const item of invoicedItems ?? []) {
+      if (item.booking_id) invoicedBookingIds.add(item.booking_id)
+    }
+  }
+
+  // Exclude already-invoiced bookings from this period
+  const filteredBookings = (bookings ?? []).filter(b => !invoicedBookingIds.has(b.id))
+
+  // Fetch older completed bookings for this company (before period_from) not yet invoiced
+  const bookingSelect = `
+    id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
+    vehicle_type, guest_name,
+    driver:drivers!driver_id(vehicle_name, vehicle_number),
+    trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
+      client_opening_km, client_closing_km, client_opening_time, client_closing_time,
+      toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
+      client_toll_amount, client_parking_amount, client_permit_amount)`
+  const { data: olderBookings } = await supabase
+    .from('bookings').select(bookingSelect)
+    .eq('company_id', company_id).eq('status', 'completed')
+    .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
+  const missedBookings = (olderBookings ?? []).filter(b => !invoicedBookingIds.has(b.id))
+
   const lineItems = []
   let totalSubtotal = 0, totalExtras = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0
 
-  for (const b of bookings ?? []) {
+  for (const b of filteredBookings) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0] // use first sheet per booking
     // Use driver's vehicle_name (specific model) for rate lookup, not booking vehicle_type (category)
@@ -260,18 +292,74 @@ export async function POST(request: Request) {
     })
   }
 
+  // Process missed (older, never-invoiced) bookings — same calculation logic, separate list
+  const missedLineItems: Record<string, unknown>[] = []
+  for (const b of missedBookings) {
+    const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
+    const sheet = sheets[0]
+    const driverVehicleName = ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_name ?? '').toUpperCase()
+    const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
+    const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
+      package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+      package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
+      extra_km_rate: 14, extra_hr_rate: 250,
+      outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
+      local_bata: 300, outstation_bata_per_day: 450,
+    }
+    const openKm  = Number(sheet?.client_opening_km  ?? sheet?.opening_km  ?? 0)
+    const closeKm = Number(sheet?.client_closing_km  ?? sheet?.closing_km  ?? 0)
+    const actualKms = closeKm > openKm ? closeKm - openKm : 0
+    const actualHrs = calcHours((sheet?.client_opening_time ?? sheet?.manual_opening_time) as string | null, (sheet?.client_closing_time ?? sheet?.manual_closing_time) as string | null)
+    const actualMinutes = calcMinutes((sheet?.client_opening_time ?? sheet?.manual_opening_time) as string | null, (sheet?.client_closing_time ?? sheet?.manual_closing_time) as string | null)
+    const displayHrs = b.trip_type === 'outstation' ? (b.total_days ?? 1) : actualHrs
+    const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
+    const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
+    const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
+    const bataClientCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)
+    const days = b.total_days ?? 1
+    const cbKey = `${driverVehicleName}:${b.trip_type ?? 'local'}`
+    const cbKeyAll = `${driverVehicleName}:all`
+    let calc
+    if (b.trip_type === 'outstation') {
+      const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
+      const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
+      calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
+    } else {
+      const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }
+      calc = { ...localCalc, bataAmount: roundTo2(bataClientCount * localBataRate) }
+    }
+    const gstResult = reverse_charge
+      ? { gstTaxable: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, cgstRate: 0, sgstRate: 0, igstRate: 0 }
+      : calcGST(calc.hireCharges, is_inter_state)
+    const { gstTaxable, cgstAmount, sgstAmount, igstAmount, cgstRate, sgstRate, igstRate } = gstResult
+    const lineTotal = roundTo2(calc.hireCharges + cgstAmount + sgstAmount + igstAmount + toll + parking + permit + calc.bataAmount)
+    missedLineItems.push({
+      booking_id: b.id, trip_sheet_id: (sheet?.id as string | null) ?? null,
+      trip_date: b.pickup_date, booking_ref: b.booking_ref,
+      vehicle_type: driverVehicleName || b.vehicle_type || '',
+      vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
+      guest_name: b.guest_name, pickup_location: b.pickup_location, drop_location: b.drop_location,
+      trip_type: b.trip_type, package_type: calc.packageType, actual_kms: actualKms, actual_hrs: displayHrs,
+      package_kms: calc.packageKms, package_rate: calc.packageRate,
+      extra_kms: calc.extraKms, extra_km_rate: rate.extra_km_rate, extra_km_amount: calc.extraKmAmount,
+      extra_hrs: calc.extraHrs, extra_hr_rate: rate.extra_hr_rate, extra_hr_amount: calc.extraHrAmount,
+      hire_charges: calc.hireCharges, toll_amount: toll, parking_amount: parking, permit_amount: permit,
+      bata_amount: calc.bataAmount, bill_bata: true, gst_taxable: gstTaxable,
+      cgst_rate: cgstRate, sgst_rate: sgstRate, igst_rate: igstRate,
+      cgst_amount: cgstAmount, sgst_amount: sgstAmount, igst_amount: igstAmount, line_total: lineTotal,
+    })
+  }
+
   // Grand total = (hire + extras + GST) rounded to nearest whole rupee
   const grandTotal = Math.round(totalSubtotal + totalExtras + totalCgst + totalSgst + totalIgst)
   const tdsAmount = roundTo2(grandTotal * tdsPercent / 100)
 
   return NextResponse.json({
-    company_id,
-    period_from,
-    period_to,
-    is_inter_state,
-    reverse_charge,
+    company_id, period_from, period_to, is_inter_state, reverse_charge,
     tds_percent: tdsPercent,
     line_items: lineItems,
+    missed_line_items: missedLineItems,
     subtotal: roundTo2(totalSubtotal),
     cgst_amount: roundTo2(totalCgst),
     sgst_amount: roundTo2(totalSgst),
@@ -279,5 +367,6 @@ export async function POST(request: Request) {
     tds_amount: tdsAmount,
     grand_total: roundTo2(grandTotal - tdsAmount),
     trip_count: lineItems.length,
+    missed_count: missedLineItems.length,
   })
 }
