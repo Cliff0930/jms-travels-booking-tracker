@@ -184,8 +184,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, `${inv.invoice_number}`)
-    XLSX.writeFile(wb, `${inv.invoice_number}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, ws, `${inv.invoice_number ?? 'DRAFT'}`)
+    XLSX.writeFile(wb, `${inv.invoice_number ?? 'DRAFT'}.xlsx`)
   }
 
   if (isLoading) return <div className="p-8 text-center text-gray-400">Loading invoice…</div>
@@ -200,7 +200,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <ArrowLeft className="w-3.5 h-3.5" />Back
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{inv.invoice_number}</h1>
+            <h1 className="text-xl font-bold text-gray-900">{inv.invoice_number ?? <span className="text-gray-400 italic">DRAFT</span>}</h1>
             <p className="text-sm text-gray-500">{inv.company?.name} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}</p>
           </div>
           <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold capitalize', STATUS_COLORS[inv.status] ?? 'bg-gray-100 text-gray-600')}>
@@ -343,7 +343,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <DialogHeader><DialogTitle>Cancel Invoice?</DialogTitle></DialogHeader>
             <div className="py-2 space-y-3">
               <p className="text-sm text-gray-700">
-                This will mark <strong>{inv.invoice_number}</strong> as cancelled.
+                This will mark <strong>{inv.invoice_number ?? 'this draft'}</strong> as cancelled.
                 The invoice stays on record but cannot be paid or sent.
               </p>
               <p className="text-sm text-gray-500">

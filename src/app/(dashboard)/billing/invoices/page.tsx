@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
 interface Invoice {
-  id: string; invoice_number: string; company_id: string
+  id: string; invoice_number: string | null; company_id: string
   period_from: string; period_to: string; subtotal: number
   cgst_amount: number; sgst_amount: number; igst_amount: number
   tds_amount: number; grand_total: number; amount_paid: number; balance_due: number
@@ -231,7 +231,7 @@ export default function InvoicesPage() {
   const filtered = useMemo(() => {
     if (!search.trim()) return invoices
     const q = search.toLowerCase()
-    return invoices.filter(i => i.invoice_number.toLowerCase().includes(q) || i.company?.name?.toLowerCase().includes(q))
+    return invoices.filter(i => (i.invoice_number ?? '').toLowerCase().includes(q) || i.company?.name?.toLowerCase().includes(q))
   }, [invoices, search])
 
   const totalOutstanding = useMemo(() => invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + Number(i.balance_due), 0), [invoices])
@@ -258,7 +258,7 @@ export default function InvoicesPage() {
 
   function exportExcel() {
     const rows = filtered.map(i => ({
-      'Invoice #': i.invoice_number,
+      'Invoice #': i.invoice_number ?? 'DRAFT',
       'Company': i.company?.name ?? '',
       'Period From': i.period_from,
       'Period To': i.period_to,
@@ -392,7 +392,7 @@ export default function InvoicesPage() {
             <tbody className="divide-y divide-gray-100">
               {filtered.map(inv => (
                 <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/billing/invoices/${inv.id}`)}>
-                  <td className="px-4 py-3 font-semibold text-blue-700 whitespace-nowrap">{inv.invoice_number}</td>
+                  <td className="px-4 py-3 font-semibold whitespace-nowrap">{inv.invoice_number ? <span className="text-blue-700">{inv.invoice_number}</span> : <span className="text-gray-400 italic">Draft</span>}</td>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{inv.company?.name ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{fmtDate(inv.period_from)} — {fmtDate(inv.period_to)}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{fmt(inv.grand_total)}</td>

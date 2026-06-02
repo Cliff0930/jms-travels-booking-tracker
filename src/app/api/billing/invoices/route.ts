@@ -55,12 +55,11 @@ export async function POST(request: Request) {
     created_by?: string
   }
 
-  const invoice_number = await nextInvoiceNumber(supabase)
-
+  // Invoice number is assigned only when finalised (status → sent), not on draft save
   const { data: invoice, error: invErr } = await supabase
     .from('invoices')
     .insert({
-      invoice_number,
+      invoice_number: null,
       company_id: body.company_id,
       period_from: body.period_from,
       period_to: body.period_to,

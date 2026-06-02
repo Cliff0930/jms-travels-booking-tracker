@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
+async function nextInvoiceNumber(supabase: ReturnType<typeof createAdminClient>): Promise<string> {
+  const year = new Date().getFullYear()
+  const fy = new Date().getMonth() >= 3 ? `${year}-${String(year + 1).slice(2)}` : `${year - 1}-${String(year).slice(2)}`
+  const key = `invoice_last_seq_${fy}`
+  const { data: setting } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle()
+  const nextSeq = (parseInt(setting?.value ?? '0') + 1)
+  await supabase.from('app_settings').upsert({ key, value: String(nextSeq) }, { onConflict: 'key' })
+  return `INV-${fy}-${String(nextSeq).padStart(4, '0')}`
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
@@ -37,7 +47,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = await req.json()
   const supabase = createAdminClient()
 
-  if (body.status === 'sent' && !body.sent_at) body.sent_at = new Date().toISOString()
+  if (body.status === 'sent') {
+    if (!body.sent_at) body.sent_at = new Date().toISOString()
+    // Assign invoice number when finalising if not already set
+    const { data: existing } = await supabase.from('invoices').select('invoice_number').eq('id', id).single()
+    if (!existing?.invoice_number) {
+      body.invoice_number = await nextInvoiceNumber(supabase)
+    }
+  }
 
   const { data, error } = await supabase.from('invoices').update(body).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
