@@ -12,15 +12,26 @@ function parseHHMM(t: string | null): number | null {
   return h * 60 + min
 }
 
-function calcHours(open: string | null, close: string | null): number {
+function calcMinutes(open: string | null, close: string | null): number {
   const o = parseHHMM(open), c = parseHHMM(close)
   if (o === null || c === null) return 0
   let diff = c - o
   if (diff < 0) diff += 24 * 60
-  return Math.round((diff / 60) * 100) / 100
+  return diff
+}
+
+function calcHours(open: string | null, close: string | null): number {
+  return Math.round((calcMinutes(open, close) / 60) * 100) / 100
 }
 
 function r2(n: number) { return Math.round(n * 100) / 100 }
+
+// Client billing: fraction > 20 min rounds up to next full hour
+function roundExtraHrsClient(extraMins: number): number {
+  if (extraMins <= 0) return 0
+  const full = Math.floor(extraMins / 60)
+  return (extraMins % 60) > 20 ? full + 1 : full
+}
 
 interface RateCard {
   package_4hr_kms: number; package_4hr_hrs: number; package_4hr_rate: number
@@ -30,14 +41,19 @@ interface RateCard {
   local_bata: number; outstation_bata_per_day: number
 }
 
-function calcLocal(kms: number, hrs: number, rate: RateCard) {
-  const use4 = hrs <= rate.package_4hr_hrs && kms <= rate.package_4hr_kms
+function calcLocal(kms: number, actualMinutes: number, rate: RateCard) {
+  const pkg4Mins = rate.package_4hr_hrs * 60
+  const extraMinsOver4 = Math.max(0, actualMinutes - pkg4Mins)
+  // 4hr/40km slab: stay on 4hr if kms fit AND overtime ≤ 1hr 45min (105 min); otherwise upgrade to 8hr
+  const use4 = kms <= rate.package_4hr_kms && extraMinsOver4 <= 105
   const pkgKms  = use4 ? rate.package_4hr_kms  : rate.package_8hr_kms
   const pkgHrs  = use4 ? rate.package_4hr_hrs  : rate.package_8hr_hrs
   const pkgRate = use4 ? rate.package_4hr_rate : rate.package_8hr_rate
   const pkgType = use4 ? '4HR' : '8HR'
+  const pkgMins = pkgHrs * 60
+  const extMins = Math.max(0, actualMinutes - pkgMins)
   const extKms = Math.max(0, kms - pkgKms)
-  const extHrs = Math.max(0, hrs - pkgHrs)
+  const extHrs = roundExtraHrsClient(extMins)
   const extKmAmt = r2(extKms * rate.extra_km_rate)
   const extHrAmt = r2(extHrs * rate.extra_hr_rate)
   return { pkgType, pkgKms, pkgHrs, pkgRate, extKms, extKmAmt, extHrs, extHrAmt, hire: r2(pkgRate + extKmAmt + extHrAmt) }
@@ -111,6 +127,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     (sheet?.client_opening_time  ?? sheet?.manual_opening_time)  as string | null,
     (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null,
   )
+  const actualMinutes = calcMinutes(
+    (sheet?.client_opening_time  ?? sheet?.manual_opening_time)  as string | null,
+    (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null,
+  )
   const days = booking?.total_days ?? 1
   const displayHrs = booking?.trip_type === 'outstation' ? days : actualHrs
   const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
@@ -129,7 +149,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     void hire
   } else {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
-    calc = { ...calcLocal(actualKms, actualHrs, rate), bata: r2(bataCount * bataRate) }
+    calc = { ...calcLocal(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
   }
 
   const gst = calcGST(calc.hire, isInterState, reverseCharge)

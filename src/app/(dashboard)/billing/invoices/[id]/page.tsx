@@ -11,7 +11,6 @@ import { toast } from 'sonner'
 import { ArrowLeft, Printer, Download, IndianRupee, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
-import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
 interface LineItem {
   id: string; booking_id: string; trip_sheet_id: string | null
@@ -121,7 +120,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showPayment, setShowPayment] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
-  const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
 
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
@@ -277,18 +275,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 <tr key={li.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.trip_date}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">
-                    {li.booking_id && li.trip_sheet_id ? (
-                      <button
-                        onClick={() => setTripsheetPopup({ lineItemId: li.id, bookingId: li.booking_id, tripSheetId: li.trip_sheet_id!, bookingRef: li.booking_ref, tripType: li.trip_type })}
-                        className="text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium"
-                      >
-                        {li.booking_ref}
-                      </button>
-                    ) : (
-                      <span className="text-gray-500">{li.booking_ref}</span>
-                    )}
-                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap font-medium">{li.booking_ref}</td>
                   <td className="px-2 py-2 max-w-[110px] truncate">{li.guest_name ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_type}</td>
@@ -357,19 +344,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <Check className="w-4 h-4" /><span className="font-semibold">Fully Paid</span>
         </div>
-      )}
-
-      {tripsheetPopup && (
-        <TripsheetEditPopup
-          bookingId={tripsheetPopup.bookingId}
-          tripSheetId={tripsheetPopup.tripSheetId}
-          bookingRef={tripsheetPopup.bookingRef}
-          tripType={tripsheetPopup.tripType}
-          invoiceId={id}
-          lineItemId={tripsheetPopup.lineItemId}
-          onClose={() => setTripsheetPopup(null)}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }) }}
-        />
       )}
 
       {showPayment && <PaymentModal invoiceId={id} balanceDue={inv.balance_due} onClose={() => setShowPayment(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }); setShowPayment(false) }} />}

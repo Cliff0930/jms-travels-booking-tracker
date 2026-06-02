@@ -28,6 +28,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
+  // Attach invoiced flag — true if booking is in any non-cancelled invoice
+  let bookingInvoiced = false
+  const { data: liRows } = await supabase
+    .from('invoice_line_items')
+    .select('invoice_id')
+    .eq('booking_id', id)
+  if (liRows && liRows.length > 0) {
+    const invoiceIds = [...new Set(liRows.map((r: { invoice_id: string }) => r.invoice_id))]
+    const { data: activeInv } = await supabase
+      .from('invoices')
+      .select('id')
+      .in('id', invoiceIds)
+      .neq('status', 'cancelled')
+      .limit(1)
+    bookingInvoiced = !!(activeInv && activeInv.length > 0)
+  }
+  for (const sheet of sheets) {
+    (sheet as Record<string, unknown>).invoiced = bookingInvoiced
+  }
+
   return NextResponse.json(sheets)
 }
 
@@ -38,6 +58,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!sheetId) return NextResponse.json({ error: 'sheetId required' }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // Block edit if booking is in any active (non-cancelled) invoice
+  const { data: liRows } = await supabase
+    .from('invoice_line_items')
+    .select('invoice_id')
+    .eq('booking_id', id)
+  if (liRows && liRows.length > 0) {
+    const invoiceIds = [...new Set(liRows.map((r: { invoice_id: string }) => r.invoice_id))]
+    const { data: activeInv } = await supabase
+      .from('invoices')
+      .select('id')
+      .in('id', invoiceIds)
+      .neq('status', 'cancelled')
+      .limit(1)
+    if (activeInv && activeInv.length > 0) {
+      return NextResponse.json({ error: 'Tripsheet is locked — cancel the invoice to edit' }, { status: 403 })
+    }
+  }
+
   const body = await request.json() as Record<string, unknown>
 
   const allowed = [

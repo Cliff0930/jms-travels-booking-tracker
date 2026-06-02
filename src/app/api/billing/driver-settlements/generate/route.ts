@@ -12,15 +12,26 @@ function parseHHMM(t: string | null): number | null {
   return h * 60 + min
 }
 
-function calcHours(open: string | null, close: string | null): number {
+function calcMinutes(open: string | null, close: string | null): number {
   const o = parseHHMM(open), c = parseHHMM(close)
   if (o === null || c === null) return 0
   let diff = c - o
   if (diff < 0) diff += 24 * 60
-  return Math.round((diff / 60) * 100) / 100
+  return diff
+}
+
+function calcHours(open: string | null, close: string | null): number {
+  return Math.round((calcMinutes(open, close) / 60) * 100) / 100
 }
 
 function r2(n: number) { return Math.round(n * 100) / 100 }
+
+// Driver billing: fraction > 40 min rounds up to next full hour
+function roundExtraHrsDriver(extraMins: number): number {
+  if (extraMins <= 0) return 0
+  const full = Math.floor(extraMins / 60)
+  return (extraMins % 60) > 40 ? full + 1 : full
+}
 
 interface RateCard {
   package_4hr_kms: number; package_4hr_hrs: number; package_4hr_rate: number
@@ -36,17 +47,23 @@ const DEFAULT_RATE: RateCard = {
   outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
 }
 
-function calcHireCharges(actualKms: number, actualHrs: number, days: number, tripType: string, rate: RateCard): number {
+function calcHireCharges(actualKms: number, actualMinutes: number, days: number, tripType: string, rate: RateCard): number {
   if (tripType === 'outstation') {
     const billable = Math.max(actualKms, rate.outstation_min_kms_per_day * days)
     return r2(billable * rate.outstation_rate_per_km)
   }
-  const use4 = actualHrs <= rate.package_4hr_hrs && actualKms <= rate.package_4hr_kms
-  const pkgKms = use4 ? rate.package_4hr_kms : rate.package_8hr_kms
-  const pkgHrs = use4 ? rate.package_4hr_hrs : rate.package_8hr_hrs
+  const pkg4Mins = rate.package_4hr_hrs * 60
+  const extraMinsOver4 = Math.max(0, actualMinutes - pkg4Mins)
+  // 4hr/40km slab: stay on 4hr if kms fit AND overtime ≤ 1hr 45min (105 min); otherwise upgrade to 8hr
+  const use4 = actualKms <= rate.package_4hr_kms && extraMinsOver4 <= 105
+  const pkgKms  = use4 ? rate.package_4hr_kms  : rate.package_8hr_kms
+  const pkgHrs  = use4 ? rate.package_4hr_hrs  : rate.package_8hr_hrs
   const pkgRate = use4 ? rate.package_4hr_rate : rate.package_8hr_rate
+  const pkgMins = pkgHrs * 60
+  const extMins = Math.max(0, actualMinutes - pkgMins)
+  const extHrs = roundExtraHrsDriver(extMins)
   const extraKmAmt = r2(Math.max(0, actualKms - pkgKms) * rate.extra_km_rate)
-  const extraHrAmt = r2(Math.max(0, actualHrs - pkgHrs) * rate.extra_hr_rate)
+  const extraHrAmt = r2(extHrs * rate.extra_hr_rate)
   return r2(pkgRate + extraKmAmt + extraHrAmt)
 }
 
@@ -165,9 +182,13 @@ export async function POST(request: Request) {
       (sheet?.driver_opening_time ?? sheet?.manual_opening_time) as string | null,
       (sheet?.driver_closing_time ?? sheet?.manual_closing_time) as string | null
     )
+    const actualMinutes = calcMinutes(
+      (sheet?.driver_opening_time ?? sheet?.manual_opening_time) as string | null,
+      (sheet?.driver_closing_time ?? sheet?.manual_closing_time) as string | null
+    )
     const days = b.total_days ?? 1
 
-    const hireCharges = calcHireCharges(actualKms, actualHrs, days, b.trip_type, rate)
+    const hireCharges = calcHireCharges(actualKms, actualMinutes, days, b.trip_type, rate)
     const hireEarnings = r2(hireCharges * (1 - commissionPct / 100))
 
     const bataCount = Number(sheet?.bata_driver ?? 0)

@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2 } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock } from 'lucide-react'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
@@ -146,6 +146,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     gps_km: number | null
     route_image_url: string | null
     leg?: { day_number: number; leg_date: string } | null
+    invoiced?: boolean
   }
 
   function parseHHMM(t: string): number | null {
@@ -1747,10 +1748,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   Tripsheet
                 </h2>
                 <div className="flex items-center gap-3">
-                  {canEdit && tripSheet && !editingSheet && (
+                  {canEdit && tripSheet && !editingSheet && !tripSheet.invoiced && (
                     <button onClick={() => startEditSheet(tripSheet)} className="text-xs text-[#1A56DB] hover:underline flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Edit
                     </button>
+                  )}
+                  {tripSheet?.invoiced && (
+                    <span className="text-xs text-gray-400 flex items-center gap-1" title="Cancel the invoice to edit this tripsheet">
+                      <Lock className="w-3 h-3" /> Invoiced
+                    </span>
                   )}
                   <button onClick={() => void refetchTripSheet()} className="text-xs text-[#737686] hover:text-[#1A56DB] flex items-center gap-1">
                     <RefreshCw className="w-3 h-3" /> Refresh
