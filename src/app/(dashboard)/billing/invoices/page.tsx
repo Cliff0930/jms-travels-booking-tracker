@@ -9,10 +9,15 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, FileText, Download, Search } from 'lucide-react'
+import { Plus, FileText, Download, Search, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
+
+interface UnbilledAlert {
+  company_id: string; company_name: string; month: string
+  period_from: string; period_to: string; trip_count: number
+}
 
 interface Invoice {
   id: string; invoice_number: string | null; company_id: string
@@ -52,13 +57,14 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function GenerateModal({ companies, onClose, onSaved }: {
+function GenerateModal({ companies, onClose, onSaved, prefill }: {
   companies: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
+  prefill?: { companyId: string; periodFrom: string; periodTo: string }
 }) {
   const router = useRouter()
-  const [companyId, setCompanyId] = useState('')
-  const [periodFrom, setPeriodFrom] = useState('')
-  const [periodTo, setPeriodTo] = useState('')
+  const [companyId, setCompanyId] = useState(prefill?.companyId ?? '')
+  const [periodFrom, setPeriodFrom] = useState(prefill?.periodFrom ?? '')
+  const [periodTo, setPeriodTo] = useState(prefill?.periodTo ?? '')
   const [isInterState, setIsInterState] = useState(false)
   const [reverseCharge, setReverseCharge] = useState(true)
   const [dueDate, setDueDate] = useState('')
@@ -321,6 +327,7 @@ export default function InvoicesPage() {
   const [view, setView] = useState<'list' | 'aged'>('list')
   const [search, setSearch] = useState('')
   const [showGenerate, setShowGenerate] = useState(false)
+  const [generatePrefill, setGeneratePrefill] = useState<{ companyId: string; periodFrom: string; periodTo: string } | undefined>()
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ['invoices', statusFilter],
@@ -329,6 +336,11 @@ export default function InvoicesPage() {
   const { data: companies = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['companies-list'],
     queryFn: () => fetch('/api/companies').then(r => r.json()),
+  })
+  const { data: unbilledAlerts = [] } = useQuery<UnbilledAlert[]>({
+    queryKey: ['unbilled-check'],
+    queryFn: () => fetch('/api/billing/unbilled-check').then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
   })
 
   const filtered = useMemo(() => {
@@ -393,12 +405,42 @@ export default function InvoicesPage() {
             <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
               <Download className="w-3.5 h-3.5" />Excel
             </Button>
-            <Button size="sm" onClick={() => setShowGenerate(true)} className="gap-1.5">
+            <Button size="sm" onClick={() => { setGeneratePrefill(undefined); setShowGenerate(true) }} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" />Generate Invoice
             </Button>
           </div>
         }
       />
+
+      {/* Unbilled alert banner */}
+      {unbilledAlerts.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-100 border-b border-amber-200">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+            <span className="text-sm font-semibold text-amber-800">
+              {unbilledAlerts.length} pending invoice{unbilledAlerts.length !== 1 ? 's' : ''} — completed trips not yet billed
+            </span>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {unbilledAlerts.map((a, i) => (
+              <div key={i} className="flex items-center justify-between px-4 py-2.5 flex-wrap gap-2">
+                <div>
+                  <span className="font-semibold text-sm text-gray-900">{a.company_name}</span>
+                  <span className="ml-2 text-xs text-amber-700 font-medium">{a.month}</span>
+                  <span className="ml-2 text-xs text-gray-500">{a.trip_count} trip{a.trip_count !== 1 ? 's' : ''} unbilled</span>
+                </div>
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-7 text-xs"
+                  onClick={() => {
+                    setGeneratePrefill({ companyId: a.company_id, periodFrom: a.period_from, periodTo: a.period_to })
+                    setShowGenerate(true)
+                  }}>
+                  <Plus className="w-3 h-3" />Generate Invoice
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
@@ -517,7 +559,17 @@ export default function InvoicesPage() {
         )}
       </div>}
 
-      {showGenerate && <GenerateModal companies={companies} onClose={() => setShowGenerate(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoices'] }); setShowGenerate(false) }} />}
+      {showGenerate && <GenerateModal
+        companies={companies}
+        prefill={generatePrefill}
+        onClose={() => { setShowGenerate(false); setGeneratePrefill(undefined) }}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ['invoices'] })
+          qc.invalidateQueries({ queryKey: ['unbilled-check'] })
+          setShowGenerate(false)
+          setGeneratePrefill(undefined)
+        }}
+      />}
     </div>
   )
 }
