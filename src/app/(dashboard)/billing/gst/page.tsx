@@ -27,7 +27,7 @@ export default function GSTWorkingPage() {
   })
 
   const filtered = useMemo(() => {
-    return invoices.filter(i => i.status !== 'cancelled' && (i.period_from.startsWith(month) || i.period_to.startsWith(month)))
+    return invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && (i.period_from.startsWith(month) || i.period_to.startsWith(month)))
   }, [invoices, month])
 
   const totals = useMemo(() => filtered.reduce((acc, i) => ({
