@@ -162,6 +162,8 @@ export async function POST(request: Request) {
       (sheet?.client_opening_time  ?? sheet?.manual_opening_time)  as string | null,
       (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null
     )
+    // For outstation, store total_days in actual_hrs (hrs unused in billing; PDF uses this to show "X Day/s")
+    const displayHrs = b.trip_type === 'outstation' ? (b.total_days ?? 1) : actualHrs
     const toll = Number(sheet?.toll_amount ?? 0)
     const parking = Number(sheet?.parking_amount ?? 0)
     const permit = Number(sheet?.permit_amount ?? 0)
@@ -214,7 +216,7 @@ export async function POST(request: Request) {
       trip_type: b.trip_type,
       package_type: calc.packageType,
       actual_kms: actualKms,
-      actual_hrs: actualHrs,
+      actual_hrs: displayHrs,
       package_kms: calc.packageKms,
       package_rate: calc.packageRate,
       extra_kms: calc.extraKms,

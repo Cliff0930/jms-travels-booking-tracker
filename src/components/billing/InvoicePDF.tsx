@@ -350,7 +350,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
               <Text style={s.hsnText}>H.S.N. CODE: {JMS.hsn}</Text>
             </View>
             <View style={s.billBadge}>
-              <Text style={s.billBadgeText}>CASH /{'\n'}CREDIT BILL</Text>
+              <Text style={s.billBadgeText}>INVOICE</Text>
             </View>
           </View>
           <View style={s.navyStripe} />
@@ -403,7 +403,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
                 <Text style={[s.dc,        { width: W.cabNo }]}>{li.vehicle_number ?? '—'}</Text>
                 <Text style={[s.dc,        { width: W.cabType }]}>{li.vehicle_type ?? '—'}</Text>
                 <Text style={[s.dc, s.dcR, { width: W.kms }]}>{n(li.actual_kms).toFixed(0)}</Text>
-                <Text style={[s.dc, s.dcR, { width: W.hrs }]}>{n(li.actual_hrs).toFixed(0)}</Text>
+                <Text style={[s.dc, s.dcR, { width: W.hrs }]}>{li.trip_type === 'outstation' ? `${n(li.actual_hrs).toFixed(0)}D` : n(li.actual_hrs).toFixed(0)}</Text>
                 <Text style={[s.dc, s.dcC, { width: W.slab }]}>{slabLabel(li.package_type, li.package_kms)}</Text>
                 <Text style={[s.dc, s.dcR, { width: W.slabRate }]}>{fmt(li.package_rate)}</Text>
                 <Text style={[s.dc, s.dcR, { width: W.extHrs }]}>{n(li.extra_hrs) > 0 ? n(li.extra_hrs).toFixed(0) : '0'}</Text>
@@ -472,15 +472,43 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
             </View>
           )}
 
-          {/* Amount in words + Grand total */}
+          {/* Calculation breakdown + Grand total */}
           <View style={s.bottomRow}>
             <View style={s.amtBox}>
               <Text style={s.amtLbl}>RUPEES</Text>
               <Text style={s.amtText}>{numToWords(data.grand_total)}</Text>
             </View>
-            <View style={s.grandBox}>
-              <Text style={s.grandLbl}>INVOICE AMOUNT</Text>
-              <Text style={s.grandVal}>Rs. {fmt(data.grand_total)}</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              {/* Calculation breakdown */}
+              <View style={{ marginBottom: 4, alignItems: 'flex-end' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: 200, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 7, color: '#555' }}>Trip Total (Hire + Bata + Extras)</Text>
+                  <Text style={{ fontSize: 7, color: '#555' }}>Rs. {fmt(tableTotal)}</Text>
+                </View>
+                {n(data.cgst_amount) > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: 200, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 7, color: '#555' }}>CGST @ 2.5%</Text>
+                    <Text style={{ fontSize: 7, color: '#555' }}>Rs. {fmt(data.cgst_amount)}</Text>
+                  </View>
+                )}
+                {n(data.sgst_amount) > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: 200, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 7, color: '#555' }}>SGST @ 2.5%</Text>
+                    <Text style={{ fontSize: 7, color: '#555' }}>Rs. {fmt(data.sgst_amount)}</Text>
+                  </View>
+                )}
+                {n(data.igst_amount) > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: 200, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 7, color: '#555' }}>IGST @ 5%</Text>
+                    <Text style={{ fontSize: 7, color: '#555' }}>Rs. {fmt(data.igst_amount)}</Text>
+                  </View>
+                )}
+                <View style={{ width: 200, borderTopWidth: 0.5, borderTopColor: NAVY, marginTop: 2 }} />
+              </View>
+              <View style={s.grandBox}>
+                <Text style={s.grandLbl}>INVOICE AMOUNT</Text>
+                <Text style={s.grandVal}>Rs. {fmt(data.grand_total)}</Text>
+              </View>
             </View>
           </View>
 
