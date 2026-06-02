@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Plus, FileText, Download, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
+import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
 interface Invoice {
   id: string; invoice_number: string | null; company_id: string
@@ -23,11 +24,14 @@ interface Invoice {
 }
 
 interface LineItemPreview {
-  trip_date: string; booking_ref: string; tripsheet_number: string | null; vehicle_type: string; guest_name: string | null
-  pickup_location: string | null; package_type: string; actual_kms: number; actual_hrs: number
-  hire_charges: number; extra_km_amount: number; extra_hr_amount: number
-  toll_amount: number; parking_amount: number; permit_amount: number
-  cgst_amount: number; sgst_amount: number; igst_amount: number; line_total: number
+  trip_date: string; booking_ref: string; booking_id: string; trip_sheet_id: string | null
+  tripsheet_number: string | null; vehicle_type: string; vehicle_number: string | null
+  guest_name: string | null; pickup_location: string | null; trip_type: string | null
+  package_type: string; actual_kms: number; actual_hrs: number; package_kms: number; package_rate: number
+  extra_kms: number; extra_km_rate: number; extra_km_amount: number
+  extra_hrs: number; extra_hr_rate: number; extra_hr_amount: number
+  hire_charges: number; toll_amount: number; parking_amount: number; permit_amount: number
+  bata_amount: number; cgst_amount: number; sgst_amount: number; igst_amount: number; line_total: number
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -62,6 +66,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
   const [preview, setPreview] = useState<{ line_items: LineItemPreview[]; subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number; tds_amount: number; grand_total: number; trip_count: number } | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [tripsheetPopup, setTripsheetPopup] = useState<{ bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
 
   async function handlePreview() {
     if (!companyId || !periodFrom || !periodTo) { toast.error('Fill all fields'); return }
@@ -160,9 +165,9 @@ function GenerateModal({ companies, onClose, onSaved }: {
 
           {preview && (
             <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 flex items-center justify-between">
+              <div className="bg-gray-50 px-4 py-2 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm font-semibold">{preview.trip_count} trips found</span>
-                <div className="text-sm text-gray-600 flex gap-4">
+                <div className="text-sm text-gray-600 flex flex-wrap gap-4">
                   <span>Subtotal: <strong>{fmt(preview.subtotal)}</strong></span>
                   {preview.cgst_amount > 0 && <span>GST: <strong>{fmt(preview.cgst_amount + preview.sgst_amount)}</strong></span>}
                   {preview.igst_amount > 0 && <span>IGST: <strong>{fmt(preview.igst_amount)}</strong></span>}
@@ -170,11 +175,11 @@ function GenerateModal({ companies, onClose, onSaved }: {
                   <span className="font-bold text-gray-900">Total: {fmt(preview.grand_total)}</span>
                 </div>
               </div>
-              <div className="overflow-x-auto max-h-64">
+              <div className="overflow-x-auto max-h-72">
                 <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-gray-50 border-b sticky top-0">
                     <tr>
-                      {['Date', 'TS# / Ref', 'Vehicle', 'Guest', 'Package', 'KMs', 'Hire', 'Extras', 'GST', 'Total'].map(h => (
+                      {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
                         <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -182,22 +187,56 @@ function GenerateModal({ companies, onClose, onSaved }: {
                   <tbody className="divide-y divide-gray-50">
                     {preview.line_items.map((li, i) => (
                       <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-2 py-1.5 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{li.trip_date}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap font-medium">{li.tripsheet_number ?? li.booking_ref}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          {li.booking_id && li.trip_sheet_id ? (
+                            <button
+                              onClick={() => setTripsheetPopup({ bookingId: li.booking_id, tripSheetId: li.trip_sheet_id!, bookingRef: li.booking_ref, tripType: li.trip_type })}
+                              className="text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium"
+                            >
+                              {li.booking_ref}
+                            </button>
+                          ) : (
+                            <span className="text-gray-500">{li.booking_ref}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_type}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{li.actual_kms}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{fmt(li.hire_charges)}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{fmt((li.extra_km_amount || 0) + (li.extra_hr_amount || 0))}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{fmt((li.cgst_amount || 0) + (li.sgst_amount || 0) + (li.igst_amount || 0))}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap font-semibold">{fmt(li.line_total)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">
+                          {li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}{li.package_kms > 0 ? `/${li.package_kms}` : ''}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.package_rate).toFixed(0)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hrs) > 0 ? Number(li.extra_hrs).toFixed(0) : '0'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_hr_rate).toFixed(0)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_kms) > 0 ? Number(li.extra_kms).toFixed(0) : '0'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.extra_km_rate).toFixed(0)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.bata_amount > 0 ? fmt(li.bata_amount) : '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{(li.toll_amount + li.parking_amount) > 0 ? fmt(li.toll_amount + li.parking_amount) : '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.permit_amount > 0 ? fmt(li.permit_amount) : '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap font-semibold text-right">{fmt(li.line_total)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
+          )}
+
+          {tripsheetPopup && (
+            <TripsheetEditPopup
+              bookingId={tripsheetPopup.bookingId}
+              tripSheetId={tripsheetPopup.tripSheetId}
+              bookingRef={tripsheetPopup.bookingRef}
+              tripType={tripsheetPopup.tripType}
+              onClose={() => setTripsheetPopup(null)}
+              onSaved={() => { setTripsheetPopup(null); void handlePreview() }}
+            />
           )}
         </div>
         <DialogFooter>

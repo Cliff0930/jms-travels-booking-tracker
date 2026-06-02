@@ -11,9 +11,11 @@ import { toast } from 'sonner'
 import { ArrowLeft, Printer, Download, IndianRupee, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
+import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
 interface LineItem {
-  id: string; booking_ref: string; tripsheet_number: string | null; trip_date: string; vehicle_type: string
+  id: string; booking_id: string; trip_sheet_id: string | null
+  booking_ref: string; tripsheet_number: string | null; trip_date: string; vehicle_type: string
   guest_name: string | null; pickup_location: string | null; drop_location: string | null
   package_type: string; actual_kms: number; actual_hrs: number; package_kms: number
   package_rate: number; extra_kms: number; extra_km_rate: number; extra_km_amount: number
@@ -119,6 +121,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showPayment, setShowPayment] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
 
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
@@ -264,39 +267,60 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['Date', 'TS# / Ref', 'Guest', 'Vehicle', 'Pkg', 'KMs', 'Hire', '+KM', '+Hr', 'Toll', 'Park', 'GST', 'Total'].map(h => (
-                  <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
+                  <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {inv.line_items.map(li => (
                 <tr key={li.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap">{li.trip_date}</td>
-                  <td className="px-3 py-2 font-medium whitespace-nowrap">{li.tripsheet_number ?? li.booking_ref}</td>
-                  <td className="px-3 py-2 max-w-[120px] truncate">{li.guest_name ?? '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.vehicle_type}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.package_type}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.actual_kms}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{fmt(li.hire_charges)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.toll_amount > 0 ? fmt(li.toll_amount) : '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{li.parking_amount > 0 ? fmt(li.parking_amount) : '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{fmt((li.cgst_amount || 0) + (li.sgst_amount || 0) + (li.igst_amount || 0))}</td>
-                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{fmt(li.line_total)}</td>
+                  <td className="px-2 py-2 font-medium whitespace-nowrap">{li.tripsheet_number ?? '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{li.trip_date}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    {li.booking_id && li.trip_sheet_id ? (
+                      <button
+                        onClick={() => setTripsheetPopup({ lineItemId: li.id, bookingId: li.booking_id, tripSheetId: li.trip_sheet_id!, bookingRef: li.booking_ref, tripType: li.trip_type })}
+                        className="text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium"
+                      >
+                        {li.booking_ref}
+                      </button>
+                    ) : (
+                      <span className="text-gray-500">{li.booking_ref}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 max-w-[110px] truncate">{li.guest_name ?? '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_type}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">
+                    {li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap">{li.package_type}{li.package_kms > 0 ? `/${li.package_kms}` : ''}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.package_rate).toFixed(0)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.extra_hrs) > 0 ? Number(li.extra_hrs).toFixed(0) : '0'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.extra_hr_rate).toFixed(0)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{li.extra_hr_amount > 0 ? fmt(li.extra_hr_amount) : '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.extra_kms) > 0 ? Number(li.extra_kms).toFixed(0) : '0'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.extra_km_rate).toFixed(0)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{li.extra_km_amount > 0 ? fmt(li.extra_km_amount) : '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{li.bata_amount > 0 ? fmt(li.bata_amount) : '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{(li.toll_amount + li.parking_amount) > 0 ? fmt(li.toll_amount + li.parking_amount) : '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right">{li.permit_amount > 0 ? fmt(li.permit_amount) : '—'}</td>
+                  <td className="px-2 py-2 font-semibold whitespace-nowrap text-right">{fmt(li.line_total)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="bg-gray-50 border-t-2 border-gray-200">
               <tr>
-                <td colSpan={6} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
-                <td className="px-3 py-2 font-bold">{fmt(inv.subtotal)}</td>
-                <td colSpan={5} className="px-3 py-2 font-semibold text-gray-500 text-xs">
+                <td colSpan={6} className="px-2 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                <td colSpan={10} />
+                <td className="px-2 py-2 font-bold text-right">{fmt(inv.subtotal)}</td>
+                <td colSpan={2} className="px-2 py-2 font-semibold text-gray-500 text-xs">
                   {inv.cgst_amount > 0 ? `CGST ${fmt(inv.cgst_amount)} + SGST ${fmt(inv.sgst_amount)}` : `IGST ${fmt(inv.igst_amount)}`}
                   {inv.tds_amount > 0 ? ` − TDS ${fmt(inv.tds_amount)}` : ''}
                 </td>
-                <td className="px-3 py-2 font-bold text-blue-700">{fmt(inv.grand_total)}</td>
+                <td className="px-2 py-2 font-bold text-blue-700 text-right">{fmt(inv.grand_total)}</td>
               </tr>
             </tfoot>
           </table>
@@ -333,6 +357,19 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <Check className="w-4 h-4" /><span className="font-semibold">Fully Paid</span>
         </div>
+      )}
+
+      {tripsheetPopup && (
+        <TripsheetEditPopup
+          bookingId={tripsheetPopup.bookingId}
+          tripSheetId={tripsheetPopup.tripSheetId}
+          bookingRef={tripsheetPopup.bookingRef}
+          tripType={tripsheetPopup.tripType}
+          invoiceId={id}
+          lineItemId={tripsheetPopup.lineItemId}
+          onClose={() => setTripsheetPopup(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }) }}
+        />
       )}
 
       {showPayment && <PaymentModal invoiceId={id} balanceDue={inv.balance_due} onClose={() => setShowPayment(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }); setShowPayment(false) }} />}
