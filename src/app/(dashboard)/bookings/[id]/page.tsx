@@ -135,6 +135,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     permit_amount: number | null
     bata_driver: number | null
     bata_client: number | null
+    driver_opening_km: number | null
+    driver_closing_km: number | null
+    driver_opening_time: string | null
+    driver_closing_time: string | null
+    client_opening_km: number | null
+    client_closing_km: number | null
+    client_opening_time: string | null
+    client_closing_time: string | null
     gps_km: number | null
     route_image_url: string | null
     leg?: { day_number: number; leg_date: string } | null
@@ -256,7 +264,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     manual_opening_time: string; manual_closing_time: string
     toll_amount: string; parking_amount: string; permit_amount: string
     bata_driver: string; bata_client: string
+    driver_opening_km: string; driver_closing_km: string
+    driver_opening_time: string; driver_closing_time: string
+    client_opening_km: string; client_closing_km: string
+    client_opening_time: string; client_closing_time: string
   } | null>(null)
+  const [sheetViewTab, setSheetViewTab] = useState<'actual' | 'driver' | 'client'>('actual')
   const [savingSheet, setSavingSheet] = useState(false)
   const canEdit = useCanEdit()
   const isAdmin = useIsAdmin()
@@ -614,6 +627,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       permit_amount:       sheet.permit_amount       != null ? String(sheet.permit_amount) : '',
       bata_driver:         sheet.bata_driver         != null ? String(sheet.bata_driver)   : '',
       bata_client:         sheet.bata_client         != null ? String(sheet.bata_client)   : '',
+      // Pre-fill driver/client adjustments from their saved values, falling back to actual
+      driver_opening_km:   String(sheet.driver_opening_km  ?? sheet.opening_km  ?? ''),
+      driver_closing_km:   String(sheet.driver_closing_km  ?? sheet.closing_km  ?? ''),
+      driver_opening_time: sheet.driver_opening_time  ?? sheet.manual_opening_time ?? '',
+      driver_closing_time: sheet.driver_closing_time  ?? sheet.manual_closing_time ?? '',
+      client_opening_km:   String(sheet.client_opening_km  ?? sheet.opening_km  ?? ''),
+      client_closing_km:   String(sheet.client_closing_km  ?? sheet.closing_km  ?? ''),
+      client_opening_time: sheet.client_opening_time  ?? sheet.manual_opening_time ?? '',
+      client_closing_time: sheet.client_closing_time  ?? sheet.manual_closing_time ?? '',
     })
     setEditingSheet(true)
   }
@@ -633,6 +655,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         permit_amount:       sheetEditForm.permit_amount       !== '' ? Number(sheetEditForm.permit_amount) : null,
         bata_driver:         sheetEditForm.bata_driver         !== '' ? Number(sheetEditForm.bata_driver)   : null,
         bata_client:         sheetEditForm.bata_client         !== '' ? Number(sheetEditForm.bata_client)   : null,
+        driver_opening_km:   sheetEditForm.driver_opening_km   !== '' ? Number(sheetEditForm.driver_opening_km)  : null,
+        driver_closing_km:   sheetEditForm.driver_closing_km   !== '' ? Number(sheetEditForm.driver_closing_km)  : null,
+        driver_opening_time: sheetEditForm.driver_opening_time  || null,
+        driver_closing_time: sheetEditForm.driver_closing_time  || null,
+        client_opening_km:   sheetEditForm.client_opening_km   !== '' ? Number(sheetEditForm.client_opening_km)  : null,
+        client_closing_km:   sheetEditForm.client_closing_km   !== '' ? Number(sheetEditForm.client_closing_km)  : null,
+        client_opening_time: sheetEditForm.client_opening_time  || null,
+        client_closing_time: sheetEditForm.client_closing_time  || null,
       }
       const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
@@ -1858,6 +1888,70 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.permit_amount} onChange={e => setSheetEditForm(f => f && ({ ...f, permit_amount: e.target.value }))} placeholder="0" />
                     </div>
                   </div>
+
+                  {/* Driver Adjustment */}
+                  <div className="border-t border-[#FDE68A] pt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#92400E]">Driver Adjustment <span className="font-normal normal-case text-[#B45309]">(used in driver settlement)</span></p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-[#737686]">Opening KM</Label>
+                        <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.driver_opening_km} onChange={e => setSheetEditForm(f => f && ({ ...f, driver_opening_km: e.target.value }))} placeholder="0" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Closing KM</Label>
+                        <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.driver_closing_km} onChange={e => setSheetEditForm(f => f && ({ ...f, driver_closing_km: e.target.value }))} placeholder="0" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Opening Time</Label>
+                        <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.driver_opening_time} onChange={e => setSheetEditForm(f => f && ({ ...f, driver_opening_time: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Closing Time</Label>
+                        <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.driver_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, driver_closing_time: e.target.value }))} />
+                      </div>
+                    </div>
+                    {(() => {
+                      const driverRate = booking.trip_type === 'outstation'
+                        ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
+                        : (booking.driver?.bata_rate ?? 300)
+                      const drv = sheetEditForm.bata_driver !== '' ? Number(sheetEditForm.bata_driver) : 0
+                      if (drv === 0 || booking.trip_type === 'airport') return null
+                      return (
+                        <p className="text-xs text-[#92400E]">Bata: <span className="font-semibold">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span></p>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Client Adjustment */}
+                  <div className="border-t border-[#FDE68A] pt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#1E40AF]">Client Adjustment <span className="font-normal normal-case text-[#3B82F6]">(used in invoice)</span></p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-[#737686]">Opening KM</Label>
+                        <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.client_opening_km} onChange={e => setSheetEditForm(f => f && ({ ...f, client_opening_km: e.target.value }))} placeholder="0" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Closing KM</Label>
+                        <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.client_closing_km} onChange={e => setSheetEditForm(f => f && ({ ...f, client_closing_km: e.target.value }))} placeholder="0" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Opening Time</Label>
+                        <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.client_opening_time} onChange={e => setSheetEditForm(f => f && ({ ...f, client_opening_time: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[#737686]">Closing Time</Label>
+                        <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.client_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, client_closing_time: e.target.value }))} />
+                      </div>
+                    </div>
+                    {(() => {
+                      const cli = sheetEditForm.bata_client !== '' ? Number(sheetEditForm.bata_client) : 0
+                      if (cli === 0) return null
+                      return (
+                        <p className="text-xs text-[#1E40AF]">Client bata: <span className="font-semibold">{cli} bata billed</span></p>
+                      )
+                    })()}
+                  </div>
+
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm" onClick={handleSaveSheet} disabled={savingSheet}>
                       {savingSheet ? 'Saving…' : 'Save Changes'}
@@ -1870,32 +1964,44 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               )}
 
               {tripSheet && <div>
-              {/* Two-column layout: Driver entry | System/GPS */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              {/* Three-tab layout: Actual | Driver | Client | GPS */}
+              <div className="mb-3">
+                <div className="flex gap-0.5 border-b border-[#E5E7EB] mb-3">
+                  {(['actual', 'driver', 'client'] as const).map(tab => {
+                    const hasAdj = tab === 'driver'
+                      ? (tripSheet.driver_opening_km != null || tripSheet.driver_closing_km != null || tripSheet.driver_opening_time != null || tripSheet.driver_closing_time != null)
+                      : tab === 'client'
+                        ? (tripSheet.client_opening_km != null || tripSheet.client_closing_km != null || tripSheet.client_opening_time != null || tripSheet.client_closing_time != null)
+                        : false
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setSheetViewTab(tab)}
+                        className={`px-3 py-1.5 text-xs font-semibold capitalize rounded-t-md border-b-2 -mb-px transition-colors flex items-center gap-1 ${
+                          sheetViewTab === tab ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-transparent text-[#737686] hover:text-[#434654]'
+                        }`}
+                      >
+                        {tab === 'actual' ? 'Actual' : tab === 'driver' ? 'Driver' : 'Client'}
+                        {hasAdj && <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold">ADJ</span>}
+                      </button>
+                    )
+                  })}
+                </div>
 
-                {/* LEFT: Driver manual entry */}
-                <div className="bg-[#F9F9FE] rounded-lg border border-[#C3C5D7] p-3 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A56DB] mb-1">Driver Entry</p>
+                {/* TAB: Actual */}
+                {sheetViewTab === 'actual' && (
+                <div className="bg-[#F9F9FE] rounded-lg border border-[#C3C5D7] p-3 space-y-2 text-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A56DB] mb-1">Actual — Driver Entry</p>
                   <div className="flex justify-between items-center">
                     <span className="text-[#737686]">Opening KM</span>
                     <span className="font-medium text-[#191B23]">{tripSheet.opening_km != null ? tripSheet.opening_km.toLocaleString() : '—'}</span>
                   </div>
-                  {tripSheet.manual_opening_time && (
-                    <div className="flex justify-between">
-                      <span className="text-[#737686]">Opening Time</span>
-                      <span className="text-[#434654]">{tripSheet.manual_opening_time}</span>
-                    </div>
-                  )}
+                  {tripSheet.manual_opening_time && <div className="flex justify-between"><span className="text-[#737686]">Opening Time</span><span className="text-[#434654]">{tripSheet.manual_opening_time}</span></div>}
                   <div className="flex justify-between items-center">
                     <span className="text-[#737686]">Closing KM</span>
                     <span className="font-medium text-[#191B23]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
                   </div>
-                  {tripSheet.manual_closing_time && (
-                    <div className="flex justify-between">
-                      <span className="text-[#737686]">Closing Time</span>
-                      <span className="text-[#434654]">{tripSheet.manual_closing_time}</span>
-                    </div>
-                  )}
+                  {tripSheet.manual_closing_time && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className="text-[#434654]">{tripSheet.manual_closing_time}</span></div>}
                   {tripSheet.manual_opening_time && tripSheet.manual_closing_time && (
                     <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5 mt-1">
                       <span className="text-[#737686]">Total Hours</span>
@@ -1904,61 +2010,96 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {tripSheet.opening_km != null && tripSheet.closing_km != null && (
                     <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
-                      <span className="text-[#737686]">Driver KM</span>
+                      <span className="text-[#737686]">Total KM</span>
                       <span className="font-semibold text-[#191B23]">{(tripSheet.closing_km - tripSheet.opening_km).toFixed(1)} km</span>
                     </div>
                   )}
                   {(tripSheet.toll_amount != null || tripSheet.parking_amount != null || tripSheet.permit_amount != null) && (
                     <div className="border-t border-[#C3C5D7] pt-1.5 space-y-1.5">
-                      {tripSheet.toll_amount != null && (
-                        <div className="flex justify-between">
-                          <span className="text-[#737686]">Toll</span>
-                          <span className="text-[#434654]">₹{tripSheet.toll_amount}</span>
-                        </div>
-                      )}
-                      {tripSheet.parking_amount != null && (
-                        <div className="flex justify-between">
-                          <span className="text-[#737686]">Parking</span>
-                          <span className="text-[#434654]">₹{tripSheet.parking_amount}</span>
-                        </div>
-                      )}
-                      {tripSheet.permit_amount != null && (
-                        <div className="flex justify-between">
-                          <span className="text-[#737686]">Permit</span>
-                          <span className="text-[#434654]">₹{tripSheet.permit_amount}</span>
-                        </div>
-                      )}
+                      {tripSheet.toll_amount != null && <div className="flex justify-between"><span className="text-[#737686]">Toll</span><span className="text-[#434654]">₹{tripSheet.toll_amount}</span></div>}
+                      {tripSheet.parking_amount != null && <div className="flex justify-between"><span className="text-[#737686]">Parking</span><span className="text-[#434654]">₹{tripSheet.parking_amount}</span></div>}
+                      {tripSheet.permit_amount != null && <div className="flex justify-between"><span className="text-[#737686]">Permit</span><span className="text-[#434654]">₹{tripSheet.permit_amount}</span></div>}
                     </div>
                   )}
                   {(() => {
-                    const driverRate = booking.trip_type === 'outstation'
-                      ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
-                      : (booking.driver?.bata_rate ?? 300)
+                    const driverRate = booking.trip_type === 'outstation' ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300) : (booking.driver?.bata_rate ?? 300)
                     const isAirport = booking.trip_type === 'airport'
                     const drv = tripSheet.bata_driver ?? 0
                     const cli = tripSheet.bata_client ?? 0
                     if (drv === 0 && cli === 0) return null
                     return (
                       <div className="border-t border-[#C3C5D7] pt-1.5 space-y-1">
-                        {!isAirport && drv > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-[#737686]">Bata — Driver</span>
-                            <span className="font-medium text-[#1A56DB]">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span>
-                          </div>
-                        )}
-                        {cli > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-[#737686]">Bata — Client{isAirport ? ' only' : ''}</span>
-                            <span className="font-medium text-[#0E9F6E]">{cli} bata billed</span>
-                          </div>
-                        )}
+                        {!isAirport && drv > 0 && <div className="flex justify-between"><span className="text-[#737686]">Bata — Driver</span><span className="font-medium text-[#1A56DB]">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span></div>}
+                        {cli > 0 && <div className="flex justify-between"><span className="text-[#737686]">Bata — Client{isAirport ? ' only' : ''}</span><span className="font-medium text-[#0E9F6E]">{cli} bata billed</span></div>}
                       </div>
                     )
                   })()}
                 </div>
+                )}
 
-                {/* RIGHT: System / GPS */}
-                <div className="bg-[#F0FDF4] rounded-lg border border-[#BBF7D0] p-3 space-y-2">
+                {/* TAB: Driver */}
+                {sheetViewTab === 'driver' && (() => {
+                  const dOKm = tripSheet.driver_opening_km ?? tripSheet.opening_km
+                  const dCKm = tripSheet.driver_closing_km ?? tripSheet.closing_km
+                  const dOTime = tripSheet.driver_opening_time ?? tripSheet.manual_opening_time
+                  const dCTime = tripSheet.driver_closing_time ?? tripSheet.manual_closing_time
+                  const isAdjKm = tripSheet.driver_opening_km != null || tripSheet.driver_closing_km != null
+                  const isAdjTime = tripSheet.driver_opening_time != null || tripSheet.driver_closing_time != null
+                  const driverRate = booking.trip_type === 'outstation' ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300) : (booking.driver?.bata_rate ?? 300)
+                  const drv = tripSheet.bata_driver ?? 0
+                  return (
+                    <div className="bg-[#FFFBEB] rounded-lg border border-[#FDE68A] p-3 space-y-2 text-sm">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#92400E] mb-1">Driver View — Settlement</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#737686]">Opening KM</span>
+                        <span className={`font-medium ${isAdjKm ? 'text-amber-700' : 'text-[#191B23]'}`}>{dOKm != null ? dOKm.toLocaleString() : '—'}{isAdjKm && tripSheet.driver_opening_km != null ? ' ⚠' : ''}</span>
+                      </div>
+                      {dOTime && <div className="flex justify-between"><span className="text-[#737686]">Opening Time</span><span className={isAdjTime && tripSheet.driver_opening_time ? 'text-amber-700' : 'text-[#434654]'}>{dOTime}{isAdjTime && tripSheet.driver_opening_time ? ' ⚠' : ''}</span></div>}
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#737686]">Closing KM</span>
+                        <span className={`font-medium ${isAdjKm ? 'text-amber-700' : 'text-[#191B23]'}`}>{dCKm != null ? dCKm.toLocaleString() : '—'}{isAdjKm && tripSheet.driver_closing_km != null ? ' ⚠' : ''}</span>
+                      </div>
+                      {dCTime && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className={isAdjTime && tripSheet.driver_closing_time ? 'text-amber-700' : 'text-[#434654]'}>{dCTime}{isAdjTime && tripSheet.driver_closing_time ? ' ⚠' : ''}</span></div>}
+                      {dOTime && dCTime && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(dOTime, dCTime)}</span></div>}
+                      {dOKm != null && dCKm != null && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5"><span className="text-[#737686]">Total KM</span><span className="font-semibold text-[#191B23]">{(dCKm - dOKm).toFixed(1)} km</span></div>}
+                      {drv > 0 && booking.trip_type !== 'airport' && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5"><span className="text-[#737686]">Bata</span><span className="font-medium text-[#1A56DB]">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span></div>}
+                    </div>
+                  )
+                })()}
+
+                {/* TAB: Client */}
+                {sheetViewTab === 'client' && (() => {
+                  const cOKm = tripSheet.client_opening_km ?? tripSheet.opening_km
+                  const cCKm = tripSheet.client_closing_km ?? tripSheet.closing_km
+                  const cOTime = tripSheet.client_opening_time ?? tripSheet.manual_opening_time
+                  const cCTime = tripSheet.client_closing_time ?? tripSheet.manual_closing_time
+                  const isAdjKm = tripSheet.client_opening_km != null || tripSheet.client_closing_km != null
+                  const isAdjTime = tripSheet.client_opening_time != null || tripSheet.client_closing_time != null
+                  const cli = tripSheet.bata_client ?? 0
+                  const isAirport = booking.trip_type === 'airport'
+                  return (
+                    <div className="bg-[#EFF6FF] rounded-lg border border-[#BFDBFE] p-3 space-y-2 text-sm">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#1E40AF] mb-1">Client View — Invoice</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#737686]">Opening KM</span>
+                        <span className={`font-medium ${isAdjKm ? 'text-blue-700' : 'text-[#191B23]'}`}>{cOKm != null ? cOKm.toLocaleString() : '—'}{isAdjKm && tripSheet.client_opening_km != null ? ' ⚠' : ''}</span>
+                      </div>
+                      {cOTime && <div className="flex justify-between"><span className="text-[#737686]">Opening Time</span><span className={isAdjTime && tripSheet.client_opening_time ? 'text-blue-700' : 'text-[#434654]'}>{cOTime}{isAdjTime && tripSheet.client_opening_time ? ' ⚠' : ''}</span></div>}
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#737686]">Closing KM</span>
+                        <span className={`font-medium ${isAdjKm ? 'text-blue-700' : 'text-[#191B23]'}`}>{cCKm != null ? cCKm.toLocaleString() : '—'}{isAdjKm && tripSheet.client_closing_km != null ? ' ⚠' : ''}</span>
+                      </div>
+                      {cCTime && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className={isAdjTime && tripSheet.client_closing_time ? 'text-blue-700' : 'text-[#434654]'}>{cCTime}{isAdjTime && tripSheet.client_closing_time ? ' ⚠' : ''}</span></div>}
+                      {cOTime && cCTime && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(cOTime, cCTime)}</span></div>}
+                      {cOKm != null && cCKm != null && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5"><span className="text-[#737686]">Total KM</span><span className="font-semibold text-[#191B23]">{(cCKm - cOKm).toFixed(1)} km</span></div>}
+                      {cli > 0 && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5"><span className="text-[#737686]">Bata{isAirport ? ' (client only)' : ''}</span><span className="font-medium text-[#0E9F6E]">{cli} bata billed</span></div>}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* System / GPS */}
+              <div className="bg-[#F0FDF4] rounded-lg border border-[#BBF7D0] p-3 space-y-2 text-sm mt-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#059669] mb-1">System / GPS</p>
                   {tripSheet.opening_time && (
                     <div className="flex justify-between items-center">
@@ -2018,9 +2159,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       </span>
                     </div>
                   )}
-                </div>
               </div>
-                <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
+              <div className="mt-3 pt-3 border-t border-[#C3C5D7]">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-[#737686]">Route Map</p>
                     <button

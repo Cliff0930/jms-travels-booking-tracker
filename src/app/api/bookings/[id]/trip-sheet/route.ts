@@ -40,7 +40,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const supabase = createAdminClient()
   const body = await request.json() as Record<string, unknown>
 
-  const allowed = ['tripsheet_number', 'opening_km', 'closing_km', 'manual_opening_time', 'manual_closing_time', 'toll_amount', 'parking_amount', 'permit_amount', 'bata_driver', 'bata_client']
+  const allowed = [
+    'tripsheet_number', 'opening_km', 'closing_km', 'manual_opening_time', 'manual_closing_time',
+    'toll_amount', 'parking_amount', 'permit_amount', 'bata_driver', 'bata_client',
+    'driver_opening_km', 'driver_closing_km', 'driver_opening_time', 'driver_closing_time',
+    'client_opening_km', 'client_closing_km', 'client_opening_time', 'client_closing_time',
+  ]
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (key in body) update[key] = body[key] === '' ? null : body[key]

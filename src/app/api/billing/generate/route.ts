@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       vehicle_type, guest_name,
       driver:drivers!driver_id(vehicle_name, vehicle_number),
       trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
+        client_opening_km, client_closing_km, client_opening_time, client_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver, bata_client)
     `)
     .eq('company_id', company_id)
@@ -153,10 +154,14 @@ export async function POST(request: Request) {
       local_bata: 300, outstation_bata_per_day: 450,
     }
 
-    const openKm = (sheet?.opening_km as number | null) ?? 0
-    const closeKm = (sheet?.closing_km as number | null) ?? 0
+    // Use client-adjusted KM/time for invoicing; fall back to actual if not set
+    const openKm  = Number(sheet?.client_opening_km  ?? sheet?.opening_km  ?? 0)
+    const closeKm = Number(sheet?.client_closing_km  ?? sheet?.closing_km  ?? 0)
     const actualKms = closeKm > openKm ? closeKm - openKm : 0
-    const actualHrs = calcHours(sheet?.manual_opening_time as string | null, sheet?.manual_closing_time as string | null)
+    const actualHrs = calcHours(
+      (sheet?.client_opening_time  ?? sheet?.manual_opening_time)  as string | null,
+      (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null
+    )
     const toll = Number(sheet?.toll_amount ?? 0)
     const parking = Number(sheet?.parking_amount ?? 0)
     const permit = Number(sheet?.permit_amount ?? 0)

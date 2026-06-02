@@ -80,6 +80,7 @@ export async function POST(request: Request) {
       company:companies!company_id(id, name),
       trip_sheets(id, tripsheet_number, opening_km, closing_km,
         manual_opening_time, manual_closing_time,
+        driver_opening_km, driver_closing_km, driver_opening_time, driver_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver)
     `)
     .eq('driver_id', driver_id)
@@ -155,10 +156,14 @@ export async function POST(request: Request) {
       defaultRateMap[driverVehicle] ??
       DEFAULT_RATE
 
-    const openKm = Number(sheet?.opening_km ?? 0)
-    const closeKm = Number(sheet?.closing_km ?? 0)
+    // Use driver-adjusted KM/time for settlement; fall back to actual if not set
+    const openKm  = Number(sheet?.driver_opening_km  ?? sheet?.opening_km  ?? 0)
+    const closeKm = Number(sheet?.driver_closing_km  ?? sheet?.closing_km  ?? 0)
     const actualKms = closeKm > openKm ? closeKm - openKm : 0
-    const actualHrs = calcHours(sheet?.manual_opening_time as string | null, sheet?.manual_closing_time as string | null)
+    const actualHrs = calcHours(
+      (sheet?.driver_opening_time ?? sheet?.manual_opening_time) as string | null,
+      (sheet?.driver_closing_time ?? sheet?.manual_closing_time) as string | null
+    )
     const days = b.total_days ?? 1
 
     const hireCharges = calcHireCharges(actualKms, actualHrs, days, b.trip_type, rate)
