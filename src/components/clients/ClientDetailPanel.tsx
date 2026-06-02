@@ -44,7 +44,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
   // Edit client dialog
   const [showEdit, setShowEdit] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', primary_phone: '', primary_email: '', designation: '', client_type: 'corporate', company_id: '' })
+  const [editForm, setEditForm] = useState({ name: '', prefix: '', primary_phone: '', primary_email: '', designation: '', client_type: 'corporate', company_id: '' })
   const [saving, setSaving] = useState(false)
 
   // Add contact dialog
@@ -112,6 +112,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
   function openEdit() {
     setEditForm({
       name: client!.name,
+      prefix: client!.prefix || '',
       primary_phone: client!.primary_phone || '',
       primary_email: client!.primary_email || '',
       designation: client!.designation || '',
@@ -128,6 +129,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
         id: client!.id,
         data: {
           name: editForm.name.trim(),
+          prefix: editForm.prefix.trim() || null,
           primary_phone: normalizePhone(editForm.primary_phone.trim()) || null,
           primary_email: editForm.primary_email.trim() || null,
           designation: editForm.designation.trim() || null,
@@ -685,15 +687,29 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
           <div className="px-5 py-4 space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#434654]">Full Name *</Label>
-              <div className="relative">
-                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
-                <Input
-                  value={editForm.name}
-                  onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
-                  className="pl-8 border-[#C3C5D7] h-9 text-sm"
-                  placeholder="Client name"
-                />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#434654]">Prefix</Label>
+                  <Select value={editForm.prefix || '__none__'} onValueChange={(v: string | null) => setEditForm(p => ({ ...p, prefix: v === '__none__' ? '' : (v ?? '') }))}>
+                    <SelectTrigger className="border-[#C3C5D7] h-9 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">—</SelectItem>
+                      {['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#434654]">Full Name *</Label>
+                  <div className="relative">
+                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF] pointer-events-none" />
+                    <Input
+                      value={editForm.name}
+                      onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                      className="pl-8 border-[#C3C5D7] h-9 text-sm"
+                      placeholder="Client name"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -50,6 +50,7 @@ export interface Client {
   primary_phone: string | null
   primary_email: string | null
   client_type: ClientType
+  prefix: string | null
   designation: string | null
   default_pax: number | null
   default_vehicle_type: string | null

@@ -39,6 +39,10 @@ interface InvoiceDetail {
   tds_amount: number; grand_total: number; amount_paid: number; balance_due: number
   status: string; due_date: string | null; notes: string | null; created_at: string
   reverse_charge: boolean
+  guest_client_id?: string | null
+  addressee_prefix?: string | null
+  addressee_name?: string | null
+  addressee_designation?: string | null
   company?: { name: string; gstin?: string; address?: string | null }
   line_items: LineItem[]
   payments: Payment[]
@@ -226,7 +230,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </Button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{inv.invoice_number ?? <span className="text-gray-400 italic">DRAFT</span>}</h1>
-            <p className="text-sm text-gray-500">{inv.company?.name} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}</p>
+            <p className="text-sm text-gray-500">
+              {inv.addressee_name
+                ? <><span className="font-medium text-gray-700">{inv.addressee_prefix ? inv.addressee_prefix + ' ' : ''}{inv.addressee_name}</span>{inv.addressee_designation && <span className="text-gray-400"> · {inv.addressee_designation}</span>} · </>
+                : null}
+              {inv.company?.name} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}
+            </p>
           </div>
           <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold capitalize', STATUS_COLORS[inv.status] ?? 'bg-gray-100 text-gray-600')}>
             {inv.status.replace('_', ' ')}

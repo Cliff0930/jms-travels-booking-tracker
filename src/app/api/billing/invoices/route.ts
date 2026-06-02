@@ -51,6 +51,10 @@ export async function POST(request: Request) {
     subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
     tds_amount: number; grand_total: number; notes?: string; due_date?: string
     reverse_charge?: boolean
+    guest_client_id?: string
+    addressee_prefix?: string | null
+    addressee_name?: string | null
+    addressee_designation?: string | null
     line_items: Record<string, unknown>[]
     created_by?: string
   }
@@ -73,6 +77,10 @@ export async function POST(request: Request) {
       notes: body.notes ?? null,
       due_date: body.due_date ?? null,
       reverse_charge: body.reverse_charge ?? false,
+      guest_client_id: body.guest_client_id ?? null,
+      addressee_prefix: body.addressee_prefix ?? null,
+      addressee_name: body.addressee_name ?? null,
+      addressee_designation: body.addressee_designation ?? null,
       created_by: body.created_by ?? null,
     })
     .select()

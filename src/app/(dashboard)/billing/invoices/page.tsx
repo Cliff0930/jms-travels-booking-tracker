@@ -57,6 +57,10 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+interface EligibleIndividual {
+  id: string; name: string; prefix: string | null; designation: string | null; primary_phone: string | null
+}
+
 function GenerateModal({ companies, onClose, onSaved, prefill }: {
   companies: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
   prefill?: { companyId: string; periodFrom: string; periodTo: string }
@@ -69,22 +73,44 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
   const [reverseCharge, setReverseCharge] = useState(true)
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
+  const [billToIndividual, setBillToIndividual] = useState(false)
+  const [individuals, setIndividuals] = useState<EligibleIndividual[]>([])
+  const [guestClientId, setGuestClientId] = useState('')
+  const [indSearch, setIndSearch] = useState('')
+  const [indOpen, setIndOpen] = useState(false)
   const [preview, setPreview] = useState<{
     line_items: LineItemPreview[]; missed_line_items: LineItemPreview[]
     subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
     tds_amount: number; tds_percent: number; grand_total: number; trip_count: number; missed_count: number
+    guest_client: { name: string; prefix: string | null; designation: string | null } | null
   } | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [tripsheetPopup, setTripsheetPopup] = useState<{ bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
 
+  const selectedIndividual = individuals.find(i => i.id === guestClientId) ?? null
+
+  const filteredIndividuals = individuals.filter(i => {
+    if (!indSearch) return true
+    const q = indSearch.toLowerCase()
+    return i.name.toLowerCase().includes(q) || (i.primary_phone ?? '').includes(q)
+  })
+
+  async function loadIndividuals(cId: string, from: string, to: string) {
+    if (!cId || !from || !to) { setIndividuals([]); return }
+    const res = await fetch(`/api/billing/generate/individuals?company_id=${cId}&period_from=${from}&period_to=${to}`)
+    const data = await res.json()
+    setIndividuals(Array.isArray(data) ? data : [])
+  }
+
   async function handlePreview() {
     if (!companyId || !periodFrom || !periodTo) { toast.error('Fill all fields'); return }
+    if (billToIndividual && !guestClientId) { toast.error('Select an individual or uncheck Bill to individual'); return }
     setPreviewing(true)
     const res = await fetch('/api/billing/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: companyId, period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState, reverse_charge: reverseCharge }),
+      body: JSON.stringify({ company_id: companyId, period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState, reverse_charge: reverseCharge, ...(billToIndividual && guestClientId ? { guest_client_id: guestClientId } : {}) }),
     })
     const data = await res.json()
     setPreview(data)
@@ -130,6 +156,12 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
         due_date: dueDate || null, notes: notes || null,
         reverse_charge: reverseCharge, is_inter_state: isInterState,
         tds_percent: preview.tds_percent,
+        ...(billToIndividual && guestClientId ? {
+          guest_client_id: guestClientId,
+          addressee_prefix: selectedIndividual?.prefix ?? null,
+          addressee_name: selectedIndividual?.name ?? null,
+          addressee_designation: selectedIndividual?.designation ?? null,
+        } : {}),
         line_items: selectedItems,
         subtotal: selTotals.sub, cgst_amount: selTotals.cgst, sgst_amount: selTotals.sgst,
         igst_amount: selTotals.igst, tds_amount: selTotals.tds, grand_total: selTotals.grand,
@@ -249,6 +281,50 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
             <div className="col-span-2 space-y-1">
               <Label className="text-xs">Notes (optional)</Label>
               <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any invoice notes…" />
+            </div>
+
+            {/* Bill to individual */}
+            <div className="col-span-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="billToInd" checked={billToIndividual}
+                  onChange={e => {
+                    setBillToIndividual(e.target.checked)
+                    setGuestClientId('')
+                    setIndSearch('')
+                    if (e.target.checked) loadIndividuals(companyId, periodFrom, periodTo)
+                  }} />
+                <Label htmlFor="billToInd" className="text-sm font-medium">Bill to individual (guest/employee)</Label>
+              </div>
+              {billToIndividual && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedIndividual ? `${selectedIndividual.prefix ? selectedIndividual.prefix + ' ' : ''}${selectedIndividual.name}${selectedIndividual.designation ? ' · ' + selectedIndividual.designation : ''}` : indSearch}
+                    onChange={e => { setIndSearch(e.target.value); setGuestClientId(''); setIndOpen(true) }}
+                    onFocus={() => { if (!guestClientId) setIndOpen(true) }}
+                    placeholder="Search by name or phone…"
+                    className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {indOpen && filteredIndividuals.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {filteredIndividuals.map(ind => (
+                        <button key={ind.id} type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex flex-col"
+                          onClick={() => { setGuestClientId(ind.id); setIndSearch(''); setIndOpen(false) }}>
+                          <span className="font-medium">{ind.prefix ? ind.prefix + ' ' : ''}{ind.name}</span>
+                          {ind.designation && <span className="text-xs text-gray-500">{ind.designation}</span>}
+                          {ind.primary_phone && <span className="text-xs text-gray-400">{ind.primary_phone}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {indOpen && filteredIndividuals.length === 0 && !guestClientId && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-sm px-3 py-2 text-sm text-gray-400">
+                      {individuals.length === 0 ? 'No uninvoiced individuals found for this company + period' : 'No matches'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

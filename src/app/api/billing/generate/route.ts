@@ -90,8 +90,8 @@ function calcGST(hireCharges: number, isInterState: boolean) {
 
 export async function POST(request: Request) {
   const supabase = createAdminClient()
-  const { company_id, period_from, period_to, is_inter_state = false, reverse_charge = false } = await request.json() as {
-    company_id: string; period_from: string; period_to: string; is_inter_state?: boolean; reverse_charge?: boolean
+  const { company_id, period_from, period_to, is_inter_state = false, reverse_charge = false, guest_client_id } = await request.json() as {
+    company_id: string; period_from: string; period_to: string; is_inter_state?: boolean; reverse_charge?: boolean; guest_client_id?: string
   }
 
   if (!company_id || !period_from || !period_to) {
@@ -152,6 +152,13 @@ export async function POST(request: Request) {
 
   if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 })
 
+  // Fetch guest client snapshot for individual invoice
+  let guestClient: { name: string; prefix: string | null; designation: string | null } | null = null
+  if (guest_client_id) {
+    const { data: gc } = await supabase.from('clients').select('name, prefix, designation').eq('id', guest_client_id).single()
+    guestClient = gc ?? null
+  }
+
   // Build set of booking IDs already in a finalised invoice for this company
   const invoicedBookingIds = new Set<string>()
   const { data: finalisedInvs } = await supabase
@@ -166,8 +173,11 @@ export async function POST(request: Request) {
     }
   }
 
-  // Exclude already-invoiced bookings from this period
-  const filteredBookings = (bookings ?? []).filter(b => !invoicedBookingIds.has(b.id))
+  // Exclude already-invoiced bookings; also filter by guest if individual invoice
+  const filteredBookings = (bookings ?? []).filter(b =>
+    !invoicedBookingIds.has(b.id) &&
+    (!guest_client_id || (b as Record<string, unknown>).guest_client_id === guest_client_id)
+  )
 
   // Fetch older completed bookings for this company (before period_from) not yet invoiced
   const bookingSelect = `
@@ -183,7 +193,10 @@ export async function POST(request: Request) {
     .eq('company_id', company_id).eq('status', 'completed')
     .neq('exclude_from_billing', true)
     .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
-  const missedBookings = (olderBookings ?? []).filter(b => !invoicedBookingIds.has(b.id))
+  const missedBookings = (olderBookings ?? []).filter(b =>
+    !invoicedBookingIds.has(b.id) &&
+    (!guest_client_id || (b as Record<string, unknown>).guest_client_id === guest_client_id)
+  )
 
   const lineItems = []
   let totalSubtotal = 0, totalExtras = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0
@@ -360,6 +373,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     company_id, period_from, period_to, is_inter_state, reverse_charge,
     tds_percent: tdsPercent,
+    guest_client: guestClient,
     line_items: lineItems,
     missed_line_items: missedLineItems,
     subtotal: roundTo2(totalSubtotal),

@@ -186,6 +186,9 @@ export interface InvoicePDFData {
   period_to: string
   created_at: string
   reverse_charge: boolean
+  addressee_prefix?: string | null
+  addressee_name?: string | null
+  addressee_designation?: string | null
   company: { name: string; gstin?: string | null; address?: string | null }
   subtotal: number
   cgst_amount: number
@@ -361,8 +364,15 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         <View style={s.pad}>
           <View style={s.infoSection}>
             <View style={s.clientBox}>
-              <Text style={s.toLine}>TO   M/s</Text>
-              <Text style={s.clientName}>{data.company.name}</Text>
+              <Text style={s.toLine}>TO</Text>
+              {data.addressee_name
+                ? <>
+                    <Text style={s.clientName}>{data.addressee_prefix ? data.addressee_prefix + ' ' : ''}{data.addressee_name}</Text>
+                    {data.addressee_designation ? <Text style={s.clientAddr}>{data.addressee_designation}</Text> : null}
+                    <Text style={[s.clientName, { fontSize: 9, marginTop: 2 }]}>M/s {data.company.name}</Text>
+                  </>
+                : <Text style={s.clientName}>M/s {data.company.name}</Text>
+              }
               {data.company.gstin ? <Text style={s.clientGstin}>GSTIN: {data.company.gstin}</Text> : null}
               {data.company.address ? <Text style={s.clientAddr}>{data.company.address}</Text> : null}
             </View>
