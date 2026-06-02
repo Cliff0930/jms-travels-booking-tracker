@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .from('invoices')
       .select('id')
       .in('id', invoiceIds)
-      .neq('status', 'cancelled')
+      .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
       .limit(1)
     bookingInvoiced = !!(activeInv && activeInv.length > 0)
   }
@@ -70,7 +70,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .from('invoices')
       .select('id')
       .in('id', invoiceIds)
-      .neq('status', 'cancelled')
+      .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
       .limit(1)
     if (activeInv && activeInv.length > 0) {
       return NextResponse.json({ error: 'Tripsheet is locked — cancel the invoice to edit' }, { status: 403 })
