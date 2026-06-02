@@ -202,6 +202,7 @@ export interface InvoicePDFLineItem {
   trip_date: string | null
   vehicle_number: string | null
   vehicle_type: string | null
+  trip_type: string | null
   actual_kms: number
   actual_hrs: number
   package_type: string

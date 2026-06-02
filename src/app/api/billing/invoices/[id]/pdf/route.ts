@@ -65,6 +65,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       trip_date: li.trip_date,
       vehicle_number: li.vehicle_number,
       vehicle_type: li.vehicle_type,
+      trip_type: li.trip_type ?? null,
       actual_kms: Number(li.actual_kms ?? 0),
       actual_hrs: Number(li.actual_hrs ?? 0),
       package_type: li.package_type ?? '8HR',
