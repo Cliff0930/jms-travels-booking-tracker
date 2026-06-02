@@ -82,8 +82,7 @@ export async function GET(request: Request) {
       // Airport bata is collected from client only — excluded from driver reimbursements
       const bataCount = tripType === 'airport' ? 0 : ((sheet.bata_driver as number | null) ?? 0)
 
-      // Only include sheets with at least one reimbursable item
-      if (toll <= 0 && parking <= 0 && permit <= 0 && bataCount <= 0) continue
+      // Show all sheets — even zero-amount ones (for tripsheet doc tracking)
 
       // Resolve bata rate priority:
       // 1. Company override matching exact trip_type
@@ -149,9 +148,11 @@ export async function GET(request: Request) {
         created_at: sheet.created_at as string,
       }
 
-      const isSettled = !!entry.reimbursed_at
+      // Tab split: pending = tripsheet not yet received, settled = tripsheet received
+      const isSettled = !!entry.tripsheet_doc_received
       if (status === 'settled' && !isSettled) continue
       if (status === 'pending' && isSettled) continue
+      // status === 'all' → no filter (used for driver dropdown)
 
       if (search) {
         const haystack = [

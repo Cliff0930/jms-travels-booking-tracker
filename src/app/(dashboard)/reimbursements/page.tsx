@@ -49,7 +49,7 @@ export default function ReimbursementsPage() {
 
   const { data: allDriverSheets = [] } = useQuery<ReimbursementSheet[]>({
     queryKey: ['reimbursements-all-drivers'],
-    queryFn: () => fetch('/api/reimbursements?status=pending').then(r => r.json()),
+    queryFn: () => fetch('/api/reimbursements?status=all').then(r => r.json()),
   })
 
   const allDrivers = useMemo<DriverSummary[]>(() => {
@@ -80,7 +80,8 @@ export default function ReimbursementsPage() {
     try {
       const data = await patchSheet(sheetId, { [field]: value })
       const prevSheet = prev?.find(s => s.sheet_id === sheetId)
-      if (data.reimbursed_at !== (prevSheet?.reimbursed_at ?? null)) {
+      // Invalidate (card moves tabs) when tripsheet_doc_received changes
+      if (data.tripsheet_doc_received !== prevSheet?.tripsheet_doc_received) {
         qc.invalidateQueries({ queryKey: ['reimbursements'] })
       } else {
         qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
@@ -104,7 +105,7 @@ export default function ReimbursementsPage() {
     try {
       const data = await patchSheet(sheetId, { rejected_items: newVal })
       const prevSheet = prev?.find(s => s.sheet_id === sheetId)
-      if (data.reimbursed_at !== (prevSheet?.reimbursed_at ?? null)) {
+      if (data.tripsheet_doc_received !== prevSheet?.tripsheet_doc_received) {
         qc.invalidateQueries({ queryKey: ['reimbursements'] })
       }
     } catch {
@@ -276,7 +277,7 @@ export default function ReimbursementsPage() {
       ) : sheets.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-[#737686] text-sm">
-            {tab === 'pending' ? 'No pending reimbursements' : 'No settled reimbursements yet'}
+            {tab === 'pending' ? 'No pending tripsheets — all documents received' : 'No settled tripsheets yet'}
           </p>
         </div>
       ) : (
@@ -321,7 +322,8 @@ function TripCard({
     (!rejectedSet.has('parking') ? (sheet.parking_amount ?? 0) : 0) +
     (!rejectedSet.has('permit') ? (sheet.permit_amount ?? 0) : 0) +
     (!rejectedSet.has('bata') ? (sheet.bata_amount ?? 0) : 0)
-  const allSettled = !!sheet.reimbursed_at
+  // Settled = tripsheet document received (payment status is separate)
+  const allSettled = !!sheet.tripsheet_doc_received
 
   return (
     <div className={`bg-white rounded-xl border ${allSettled ? 'border-[#A7F3D0]' : 'border-[#C3C5D7]'} shadow-sm overflow-hidden`}>
@@ -508,7 +510,7 @@ function TripCard({
             </div>
           )}
 
-          {allSettled && sheet.reimbursed_at && (
+          {allSettled && (
             <div className="flex items-center justify-between pt-2 mt-1 border-t border-[#F3F4F6]">
               <Button
                 size="sm"
@@ -518,8 +520,11 @@ function TripCard({
               >
                 <RotateCcw className="w-3 h-3" /> Revoke
               </Button>
-              <p className="text-xs text-[#059669] font-medium">
-                Settled on {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+              <p className="text-xs font-medium">
+                {sheet.reimbursed_at
+                  ? <span className="text-[#059669]">Settled &amp; paid · {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                  : <span className="text-[#1A56DB]">Doc received · payment pending</span>
+                }
               </p>
             </div>
           )}
