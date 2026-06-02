@@ -84,7 +84,12 @@ export async function POST(request: Request) {
   if (body.line_items?.length) {
     const items = body.line_items.map((li, i) => ({ ...li, invoice_id: invoice.id, sort_order: i }))
     const { error: liErr } = await supabase.from('invoice_line_items').insert(items)
-    if (liErr) console.error('[billing] line items insert failed:', liErr.message)
+    if (liErr) {
+      console.error('[billing] line items insert failed:', liErr.message)
+      // Roll back — delete the invoice header so user can retry cleanly
+      await supabase.from('invoices').delete().eq('id', invoice.id)
+      return NextResponse.json({ error: `Line items failed: ${liErr.message}` }, { status: 500 })
+    }
   }
 
   return NextResponse.json(invoice)
