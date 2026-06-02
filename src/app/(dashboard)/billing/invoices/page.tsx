@@ -101,7 +101,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Generate Invoice</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
@@ -175,7 +175,7 @@ function GenerateModal({ companies, onClose, onSaved }: {
                   <span className="font-bold text-gray-900">Total: {fmt(preview.grand_total)}</span>
                 </div>
               </div>
-              <div className="overflow-x-auto max-h-72">
+              <div className="overflow-x-auto max-h-[50vh]">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 border-b sticky top-0">
                     <tr>
