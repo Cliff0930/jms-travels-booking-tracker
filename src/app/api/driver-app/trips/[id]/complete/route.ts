@@ -56,7 +56,7 @@ export async function POST(
 
   if (gpsLogs && gpsLogs.length >= 2) gpsKm = totalDistanceKm(gpsLogs)
 
-  // Compute bata_client server-side using client thresholds (open<06:00, close>22:00)
+  // Compute both bata counts server-side from times — catches midnight-crossing the app misses
   const parseHHMM = (t: string | null | undefined): number | null => {
     if (!t) return null
     const m = t.match(/^(\d{1,2}):(\d{2})/)
@@ -68,9 +68,16 @@ export async function POST(
   const midnightCross = closeMins !== null && openMins !== null && closeMins < openMins
   const tripType  = (booking as { trip_type?: string | null }).trip_type ?? 'local'
   const totalDays = (booking as { total_days?: number | null }).total_days ?? 1
+  const outstationDays = tripType === 'outstation' ? totalDays : 0
+  // Driver thresholds: open<05:30, close>22:30
+  const driverLateNight = closeMins !== null && (closeMins > 22 * 60 + 30 || midnightCross) ? 1 : 0
+  const driverEarlyMorn = openMins  !== null && openMins < 5 * 60 + 30 ? 1 : 0
+  const bataDriverComputed = driverLateNight + driverEarlyMorn + outstationDays
+  // Use max of app-submitted (may include manual extras) and server-computed (catches midnight crossing)
+  const bataDriverFinal = Math.max(bata_driver ?? 0, bataDriverComputed) || null
+  // Client thresholds: open<06:00, close>22:00
   const clientLateNight = closeMins !== null && (closeMins > 22 * 60 || midnightCross) ? 1 : 0
   const clientEarlyMorn = openMins  !== null && openMins < 6 * 60 ? 1 : 0
-  const outstationDays  = tripType === 'outstation' ? totalDays : 0
   const bataClient = clientLateNight + clientEarlyMorn + outstationDays
 
   const sheetUpdate = {
@@ -82,7 +89,7 @@ export async function POST(
     toll_amount: toll_amount ?? null,
     parking_amount: parking_amount ?? null,
     permit_amount: permit_amount ?? null,
-    bata_driver: bata_driver ?? null,
+    bata_driver: bataDriverFinal,
     bata_client: bataClient,
     gps_km: gpsKm,
     updated_at: new Date().toISOString(),
