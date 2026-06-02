@@ -623,7 +623,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleOverrideStatus(newStatus: 'confirmed' | 'in_progress' | 'completed' | 'driver_assigned') {
+  async function handleOverrideStatus(newStatus: 'confirmed' | 'in_progress' | 'completed') {
     setOverridingStatus(true)
     try {
       const res = await fetch(`/api/bookings/${id}/override-status`, {
@@ -1584,7 +1584,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     variant="outline"
                     className="w-full rounded-sm text-[#2563EB] border-[#BFDBFE] hover:bg-[#EFF6FF]"
                     disabled={overridingStatus}
-                    onClick={() => { if (confirm('Restore this booking to Driver Assigned? The driver will be set back to on_duty.')) void handleOverrideStatus('driver_assigned') }}
+                    onClick={() => { if (confirm('Restore this booking to Confirmed (Driver Assigned)? The driver will be set back to on_duty.')) void handleOverrideStatus('confirmed') }}
                   >
                     <RotateCcw className="w-4 h-4 mr-2" /> Restore to Driver Assigned
                   </Button>
