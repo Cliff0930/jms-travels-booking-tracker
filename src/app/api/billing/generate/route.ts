@@ -138,7 +138,7 @@ export async function POST(request: Request) {
   if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 })
 
   const lineItems = []
-  let totalSubtotal = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0
+  let totalSubtotal = 0, totalExtras = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0
 
   for (const b of bookings ?? []) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
@@ -195,6 +195,7 @@ export async function POST(request: Request) {
     const lineTotal = roundTo2(calc.hireCharges + cgstAmount + sgstAmount + igstAmount + toll + parking + permit + bataForInvoice)
 
     totalSubtotal += calc.hireCharges
+    totalExtras  += toll + parking + permit + bataForInvoice
     totalCgst += cgstAmount
     totalSgst += sgstAmount
     totalIgst += igstAmount
@@ -239,7 +240,8 @@ export async function POST(request: Request) {
     })
   }
 
-  const grandTotal = roundTo2(totalSubtotal + totalCgst + totalSgst + totalIgst)
+  // Grand total = (hire + extras + GST) rounded to nearest whole rupee
+  const grandTotal = Math.round(totalSubtotal + totalExtras + totalCgst + totalSgst + totalIgst)
   const tdsAmount = roundTo2(grandTotal * tdsPercent / 100)
 
   return NextResponse.json({
