@@ -623,7 +623,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleOverrideStatus(newStatus: 'confirmed' | 'in_progress' | 'completed') {
+  async function handleOverrideStatus(newStatus: 'confirmed' | 'in_progress' | 'completed' | 'driver_assigned') {
     setOverridingStatus(true)
     try {
       const res = await fetch(`/api/bookings/${id}/override-status`, {
@@ -1576,6 +1576,19 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Complete Early
                 </Button>
+              )}
+              {booking.status === 'cancelled' && booking.driver_id && (
+                <div className="border-t border-[#C3C5D7] pt-2 mt-1 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686]">Restore Booking</p>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-sm text-[#2563EB] border-[#BFDBFE] hover:bg-[#EFF6FF]"
+                    disabled={overridingStatus}
+                    onClick={() => { if (confirm('Restore this booking to Driver Assigned? The driver will be set back to on_duty.')) void handleOverrideStatus('driver_assigned') }}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" /> Restore to Driver Assigned
+                  </Button>
+                </div>
               )}
               {booking.driver_id && !['cancelled'].includes(booking.status) && (
                 <div className="border-t border-[#C3C5D7] pt-2 mt-1 space-y-2">

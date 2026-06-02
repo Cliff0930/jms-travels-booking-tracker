@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-const VALID = ['confirmed', 'in_progress', 'completed'] as const
+const VALID = ['confirmed', 'in_progress', 'completed', 'driver_assigned'] as const
 type OverrideStatus = typeof VALID[number]
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,10 +22,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await supabase.from('bookings').update({
+  const updatePayload: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
-  }).eq('id', id)
+  }
+
+  if (status === 'driver_assigned') {
+    updatePayload.cancelled_reason = null
+    updatePayload.cancelled_at = null
+  }
+
+  await supabase.from('bookings').update(updatePayload).eq('id', id)
 
   await supabase.from('booking_status_history').insert({
     booking_id: id,
