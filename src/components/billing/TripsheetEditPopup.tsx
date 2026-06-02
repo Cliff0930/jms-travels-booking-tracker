@@ -13,6 +13,8 @@ interface TripSheet {
   closing_km: number | null
   manual_opening_time: string | null
   manual_closing_time: string | null
+  trip_opening_date: string | null
+  trip_closing_date: string | null
   toll_amount: number | null
   parking_amount: number | null
   permit_amount: number | null
@@ -60,6 +62,7 @@ type Form = {
   client_opening_time: string; client_closing_time: string
   client_toll_amount: string; client_parking_amount: string; client_permit_amount: string
   bata_client: string
+  trip_opening_date: string; trip_closing_date: string
 }
 
 function nn(v: number | null | undefined): string { return v != null ? String(v) : '' }
@@ -103,6 +106,8 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
             client_parking_amount: nn(s.client_parking_amount),
             client_permit_amount:  nn(s.client_permit_amount),
             bata_client:         nn(s.bata_client) || '0',
+            trip_opening_date:   ns(s.trip_opening_date),
+            trip_closing_date:   ns(s.trip_closing_date),
           })
         }
         setLoading(false)
@@ -162,6 +167,8 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           client_parking_amount: n(form.client_parking_amount),
           client_permit_amount:  n(form.client_permit_amount),
           bata_client:           n(form.bata_client),
+          trip_opening_date:     s(form.trip_opening_date),
+          trip_closing_date:     s(form.trip_closing_date),
         })
         await recalculate()
       } else if (mode === 'driver') {
@@ -185,6 +192,8 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           client_parking_amount: n(form.client_parking_amount),
           client_permit_amount:  n(form.client_permit_amount),
           bata_client:           n(form.bata_client),
+          trip_opening_date:     s(form.trip_opening_date),
+          trip_closing_date:     s(form.trip_closing_date),
         })
         await recalculate()
       }
@@ -225,6 +234,28 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
                   <Label className="text-xs">Sheet No.</Label>
                   <Input className="h-8 text-sm" value={f.tripsheet_number} onChange={e => set('tripsheet_number', e.target.value)} placeholder="e.g. 2001" />
                 </div>
+                {/* Outstation date fields */}
+                {tripType === 'outstation' && (<>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Opening Date</Label>
+                    <Input type="date" className="h-8 text-sm" value={f.trip_opening_date} onChange={e => set('trip_opening_date', e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Closing Date</Label>
+                    <Input type="date" className="h-8 text-sm" value={f.trip_closing_date} onChange={e => set('trip_closing_date', e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Days</Label>
+                    <div className="h-8 px-3 flex items-center text-sm font-semibold text-blue-700 bg-blue-50 rounded-md border border-blue-200">
+                      {f.trip_opening_date && f.trip_closing_date
+                        ? (() => {
+                            const diff = Math.round((new Date(f.trip_closing_date).getTime() - new Date(f.trip_opening_date).getTime()) / 86400000)
+                            return diff >= 0 ? `${diff + 1} day${diff + 1 !== 1 ? 's' : ''}` : '—'
+                          })()
+                        : '—'}
+                    </div>
+                  </div>
+                </>)}
                 <div className="space-y-1">
                   <Label className="text-xs">Opening KM</Label>
                   <Input type="number" className="h-8 text-sm" value={f.opening_km} onChange={e => set('opening_km', e.target.value)} placeholder="0" />

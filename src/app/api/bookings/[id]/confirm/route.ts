@@ -39,22 +39,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     changed_by: 'operator',
   })
 
-  // Auto-create legs for multi-day bookings (UTC date math to avoid timezone shifts)
-  if (booking.total_days > 1 && booking.pickup_date) {
-    const legs = Array.from({ length: booking.total_days }, (_, i) => {
-      const d = new Date(booking.pickup_date + 'T00:00:00Z')
-      d.setUTCDate(d.getUTCDate() + i)
-      return {
-        booking_id: id,
-        day_number: i + 1,
-        leg_date: d.toISOString().slice(0, 10),
-        leg_status: 'upcoming',
-      }
-    })
-    const { error: legsError } = await supabase
-      .from('booking_legs')
-      .upsert(legs, { onConflict: 'booking_id,day_number' })
-    if (legsError) console.error(`[confirm] Failed to create legs booking=${id}:`, legsError.message)
+  // Create booking legs:
+  // - Outstation: always 1 leg (single trip from start to end, dates captured on completion)
+  // - Local multi-day: 1 leg per day (used for per-day tracking in operator view)
+  if (booking.pickup_date) {
+    if (booking.trip_type === 'outstation') {
+      const { error: legErr } = await supabase
+        .from('booking_legs')
+        .upsert([{ booking_id: id, day_number: 1, leg_date: booking.pickup_date, leg_status: 'upcoming' }], { onConflict: 'booking_id,day_number' })
+      if (legErr) console.error(`[confirm] Failed to create outstation leg booking=${id}:`, legErr.message)
+    } else if (booking.total_days > 1) {
+      const legs = Array.from({ length: booking.total_days }, (_, i) => {
+        const d = new Date(booking.pickup_date + 'T00:00:00Z')
+        d.setUTCDate(d.getUTCDate() + i)
+        return { booking_id: id, day_number: i + 1, leg_date: d.toISOString().slice(0, 10), leg_status: 'upcoming' }
+      })
+      const { error: legsError } = await supabase
+        .from('booking_legs')
+        .upsert(legs, { onConflict: 'booking_id,day_number' })
+      if (legsError) console.error(`[confirm] Failed to create legs booking=${id}:`, legsError.message)
+    }
   }
 
   // Send booking confirmed notification to client (skipped for silent confirms)

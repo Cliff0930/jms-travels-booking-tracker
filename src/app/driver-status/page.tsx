@@ -114,6 +114,7 @@ function DriverStatusContent() {
   // Completion form
   const [closingKm, setClosingKm] = useState('')
   const [closingTime, setClosingTime] = useState(nowHHMM)
+  const [closingDate, setClosingDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [tollAmount, setTollAmount] = useState('')
   const [parkingAmount, setParkingAmount] = useState('')
   const [permitAmount, setPermitAmount] = useState('')
@@ -125,6 +126,7 @@ function DriverStatusContent() {
   const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
   const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
   const [alreadyDone, setAlreadyDone] = useState(false)
+  const [isOutstation, setIsOutstation] = useState(false)
 
   // GPS
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -138,7 +140,10 @@ function DriverStatusContent() {
     if (!bookingId || status !== 'completed') return
     fetch(`/api/bookings/${bookingId}`)
       .then(r => r.json())
-      .then((b: { is_settlement_duty?: boolean }) => { if (b.is_settlement_duty) setIsSettlementDuty(true) })
+      .then((b: { is_settlement_duty?: boolean; trip_type?: string }) => {
+        if (b.is_settlement_duty) setIsSettlementDuty(true)
+        if (b.trip_type === 'outstation') setIsOutstation(true)
+      })
       .catch(() => {})
   }, [bookingId, status])
 
@@ -272,6 +277,7 @@ function DriverStatusContent() {
         link_code: linkCode, leg_id: legId,
         closing_km: parseFloat(closingKm),
         manual_closing_time: closingTime,
+        ...(isOutstation ? { trip_closing_date: closingDate } : {}),
       }
       if (tollAmount) body.toll_amount = parseFloat(tollAmount)
       if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
@@ -585,6 +591,20 @@ function DriverStatusContent() {
                 <Label className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
                 <TimePicker value={closingTime} onChange={setClosingTime} />
               </div>
+              {isOutstation && (
+                <div>
+                  <Label htmlFor="closing_date" className="text-sm font-medium text-[#191B23]">
+                    Closing Date <span className="font-normal text-[#737686]">(date you returned)</span>
+                  </Label>
+                  <input
+                    id="closing_date"
+                    type="date"
+                    value={closingDate}
+                    onChange={e => setClosingDate(e.target.value)}
+                    className="mt-1.5 w-full border border-[#C3C5D7] rounded-md h-12 px-3 text-base focus:outline-none focus:ring-2 focus:ring-[#1A56DB]"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>

@@ -11,7 +11,7 @@ export async function POST(
   const verified = extractDriverToken(request)
   if (!verified) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { closing_km, manual_closing_time, toll_amount, parking_amount, permit_amount, bata_driver, lat, lng, leg_id, collection_amount, collection_mode } =
+  const { closing_km, manual_closing_time, toll_amount, parking_amount, permit_amount, bata_driver, lat, lng, leg_id, collection_amount, collection_mode, trip_closing_date } =
     await request.json() as {
       closing_km?: number; manual_closing_time?: string
       toll_amount?: number; parking_amount?: number; permit_amount?: number
@@ -19,6 +19,7 @@ export async function POST(
       lat?: number; lng?: number; leg_id?: string
       collection_amount?: number
       collection_mode?: 'cash' | 'phonepe' | 'gpay' | 'cc'
+      trip_closing_date?: string
     }
 
   const supabase = createAdminClient()
@@ -35,10 +36,10 @@ export async function POST(
     return NextResponse.json({ error: 'Already completed', already_done: true }, { status: 409 })
   }
 
-  // Find matching trip sheet (also fetch opening time for bata_client computation)
+  // Find matching trip sheet (also fetch opening time + opening date for bata computation)
   let sheetQuery = supabase
     .from('trip_sheets')
-    .select('id, manual_opening_time')
+    .select('id, manual_opening_time, trip_opening_date')
     .eq('booking_id', bookingId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -66,9 +67,19 @@ export async function POST(
   const openMins  = parseHHMM((sheet as { manual_opening_time?: string | null } | null)?.manual_opening_time)
   const closeMins = parseHHMM(manual_closing_time)
   const midnightCross = closeMins !== null && openMins !== null && closeMins < openMins
+  const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const tripType  = (booking as { trip_type?: string | null }).trip_type ?? 'local'
   const totalDays = (booking as { total_days?: number | null }).total_days ?? 1
-  const outstationDays = tripType === 'outstation' ? totalDays : 0
+
+  // For outstation: calculate actual days from opening/closing dates; fall back to total_days
+  let outstationDays = tripType === 'outstation' ? totalDays : 0
+  const closingDateFinal = tripType === 'outstation' ? (trip_closing_date || todayIST) : null
+  const openingDate = (sheet as { trip_opening_date?: string | null } | null)?.trip_opening_date ?? null
+  if (tripType === 'outstation' && openingDate && closingDateFinal) {
+    const diffMs = new Date(closingDateFinal).getTime() - new Date(openingDate).getTime()
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+    if (diffDays >= 0) outstationDays = diffDays + 1
+  }
   // Driver thresholds: open<05:30, close>22:30
   const driverLateNight = closeMins !== null && (closeMins > 22 * 60 + 30 || midnightCross) ? 1 : 0
   const driverEarlyMorn = openMins  !== null && openMins < 5 * 60 + 30 ? 1 : 0
@@ -92,6 +103,7 @@ export async function POST(
     bata_driver: bataDriverFinal,
     bata_client: bataClient,
     gps_km: gpsKm,
+    trip_closing_date: closingDateFinal,
     updated_at: new Date().toISOString(),
   }
 
@@ -108,7 +120,10 @@ export async function POST(
     if (insertErr) console.error(`[complete] trip_sheets insert failed booking=${bookingId}:`, insertErr.message)
   }
 
-  await supabase.from('bookings').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', bookingId)
+  // Update total_days from actual dates so billing is accurate
+  const bookingUpdate: Record<string, unknown> = { status: 'completed', updated_at: new Date().toISOString() }
+  if (tripType === 'outstation' && outstationDays > 0) bookingUpdate.total_days = outstationDays
+  await supabase.from('bookings').update(bookingUpdate).eq('id', bookingId)
   await supabase.from('drivers').update({ status: 'available' }).eq('id', verified.driverId)
 
   // Auto-insert collection entry if settlement duty and driver recorded collection

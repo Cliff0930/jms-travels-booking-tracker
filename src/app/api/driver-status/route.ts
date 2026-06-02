@@ -119,6 +119,7 @@ export async function POST(request: Request) {
     leg_id,
     collection_amount,
     collection_mode,
+    trip_closing_date,
   } = await request.json()
   const supabase = createAdminClient()
 
@@ -172,12 +173,13 @@ export async function POST(request: Request) {
       opening_lng: lng ?? null,
       opening_time: new Date().toISOString(),
       manual_opening_time: manual_opening_time || null,
+      trip_opening_date: booking.trip_type === 'outstation' ? getTodayIST() : null,
     }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
   } else {
     // Find matching sheet: leg-specific if leg_id provided, otherwise most recent for booking
     let sheetQuery = supabase
       .from('trip_sheets')
-      .select('id, opening_lat, opening_lng')
+      .select('id, opening_lat, opening_lng, trip_opening_date')
       .eq('booking_id', booking_id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -231,6 +233,21 @@ export async function POST(request: Request) {
       gpsKm = totalDistanceKm(gpsLogs)
     }
 
+    // For outstation: calculate actual days from opening/closing dates
+    const tripType = booking.trip_type ?? 'local'
+    const closingDateFinal = tripType === 'outstation' ? (trip_closing_date || getTodayIST()) : null
+    const openingDate = (sheet as { trip_opening_date?: string | null } | null)?.trip_opening_date ?? null
+    let outstationDays = tripType === 'outstation' ? (booking.total_days ?? 1) : 0
+    if (tripType === 'outstation' && openingDate && closingDateFinal) {
+      const diffMs = new Date(closingDateFinal).getTime() - new Date(openingDate).getTime()
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+      if (diffDays >= 0) outstationDays = diffDays + 1
+    }
+    // Update total_days from actual dates so billing is accurate
+    if (tripType === 'outstation' && outstationDays > 0) {
+      await supabase.from('bookings').update({ total_days: outstationDays }).eq('id', booking_id)
+    }
+
     if (sheet) {
       const { error: updateErr } = await supabase.from('trip_sheets').update({
         closing_km: closing_km ?? null,
@@ -244,6 +261,7 @@ export async function POST(request: Request) {
         parking_amount: parking_amount ?? null,
         permit_amount: permit_amount ?? null,
         gps_km: gpsKm,
+        trip_closing_date: closingDateFinal,
         updated_at: new Date().toISOString(),
       }).eq('id', sheet.id)
       if (updateErr) console.error(`[driver-status] trip_sheets update failed booking=${booking_id}:`, updateErr.message)

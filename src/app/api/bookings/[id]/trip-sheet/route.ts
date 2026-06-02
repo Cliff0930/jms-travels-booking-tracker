@@ -86,6 +86,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     'driver_toll_amount', 'driver_parking_amount', 'driver_permit_amount',
     'client_opening_km', 'client_closing_km', 'client_opening_time', 'client_closing_time',
     'client_toll_amount', 'client_parking_amount', 'client_permit_amount',
+    'trip_opening_date', 'trip_closing_date',
   ]
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
@@ -94,6 +95,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { error } = await supabase.from('trip_sheets').update(update).eq('id', sheetId).eq('booking_id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // When outstation dates are edited, recalculate and sync total_days on the booking
+  if ('trip_opening_date' in update || 'trip_closing_date' in update) {
+    const { data: refreshedSheet } = await supabase
+      .from('trip_sheets').select('trip_opening_date, trip_closing_date').eq('id', sheetId).single()
+    const od = refreshedSheet?.trip_opening_date, cd = refreshedSheet?.trip_closing_date
+    if (od && cd) {
+      const diffMs = new Date(cd as string).getTime() - new Date(od as string).getTime()
+      const days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1
+      if (days > 0) await supabase.from('bookings').update({ total_days: days }).eq('id', id)
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

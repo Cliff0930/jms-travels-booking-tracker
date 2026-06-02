@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, driver_id, status, gps_tracking_enabled')
+    .select('id, driver_id, status, gps_tracking_enabled, trip_type, pickup_date')
     .eq('id', bookingId)
     .eq('driver_id', verified.driverId)
     .maybeSingle()
@@ -42,6 +42,7 @@ export async function POST(
     }
   }
 
+  const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
   await supabase.from('bookings').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', bookingId)
   await supabase.from('drivers').update({ status: 'on_duty' }).eq('id', verified.driverId)
   const { error: sheetError } = await supabase.from('trip_sheets').insert({
@@ -54,6 +55,7 @@ export async function POST(
     opening_lng: lng ?? null,
     opening_time: new Date().toISOString(),
     manual_opening_time: manual_opening_time || null,
+    trip_opening_date: booking.trip_type === 'outstation' ? todayIST : null,
   })
   if (sheetError) console.error(`[arrive] trip_sheets insert failed booking=${bookingId}:`, sheetError.message)
 
