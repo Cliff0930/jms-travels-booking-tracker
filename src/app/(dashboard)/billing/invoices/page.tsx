@@ -88,7 +88,8 @@ function GenerateModal({ companies, onClose, onSaved }: {
       onSaved()
       router.push(`/billing/invoices/${inv.id}`)
     } else {
-      toast.error('Failed to save draft')
+      const errData = await res.json().catch(() => ({}))
+      toast.error(errData.error ?? 'Failed to save draft')
     }
     setSaving(false)
   }
