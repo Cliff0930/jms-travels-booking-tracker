@@ -123,10 +123,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
+  const { data: inv, isLoading } = useQuery<InvoiceDetail>({
+    queryKey: ['invoice', id],
+    queryFn: () => fetch(`/api/billing/invoices/${id}`).then(r => r.json()),
+    enabled: !!id,
+  })
+
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
   const invIdRef = useRef<string | null>(null)
 
-  // Sync reviewed state from server data when invoice first loads or id changes
+  // Sync reviewed state from server when invoice loads or changes
   useEffect(() => {
     if (inv && invIdRef.current !== inv.id) {
       invIdRef.current = inv.id
@@ -141,16 +147,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewed: isReviewed }),
     }).catch(() => {
-      // Revert on failure
       setReviewedIds(prev => { const n = new Set(prev); isReviewed ? n.delete(liId) : n.add(liId); return n })
     })
   }
-
-  const { data: inv, isLoading } = useQuery<InvoiceDetail>({
-    queryKey: ['invoice', id],
-    queryFn: () => fetch(`/api/billing/invoices/${id}`).then(r => r.json()),
-    enabled: !!id,
-  })
 
   async function cancelInvoice() {
     setCancelling(true)
@@ -240,11 +239,18 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />Excel
           </Button>
-          {inv.status === 'draft' && (
-            <Button size="sm" onClick={markSent} className="gap-1.5 bg-green-700 hover:bg-green-800 text-white">
-              <Check className="w-3.5 h-3.5" />Finalise Invoice
-            </Button>
-          )}
+          {inv.status === 'draft' && (() => {
+            const allReviewed = inv.line_items.length > 0 && inv.line_items.every(li => reviewedIds.has(li.id))
+            const unreviewed = inv.line_items.length - reviewedIds.size
+            return (
+              <div title={!allReviewed ? `${unreviewed} trip${unreviewed !== 1 ? 's' : ''} not yet reviewed` : undefined}>
+                <Button size="sm" onClick={markSent} disabled={!allReviewed}
+                  className="gap-1.5 bg-green-700 hover:bg-green-800 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Check className="w-3.5 h-3.5" />Finalise Invoice
+                </Button>
+              </div>
+            )
+          })()}
           {(inv.status === 'sent' || inv.status === 'partially_paid' || inv.status === 'overdue') && (
             <Button size="sm" onClick={() => setShowPayment(true)} className="gap-1.5">
               <IndianRupee className="w-3.5 h-3.5" />Record Payment

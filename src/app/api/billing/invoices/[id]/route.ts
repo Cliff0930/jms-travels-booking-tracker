@@ -48,6 +48,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const supabase = createAdminClient()
 
   if (body.status === 'sent') {
+    // Block finalise if any line items are not reviewed
+    const { count: unreviewed } = await supabase
+      .from('invoice_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('invoice_id', id)
+      .eq('reviewed', false)
+    if (unreviewed && unreviewed > 0) {
+      return NextResponse.json(
+        { error: `${unreviewed} trip${unreviewed !== 1 ? 's' : ''} not yet reviewed — mark all as reviewed before finalising` },
+        { status: 422 }
+      )
+    }
+
     if (!body.sent_at) body.sent_at = new Date().toISOString()
     // Assign invoice number when finalising if not already set
     const { data: existing } = await supabase.from('invoices').select('invoice_number').eq('id', id).single()
