@@ -189,7 +189,9 @@ export interface InvoicePDFData {
   addressee_prefix?: string | null
   addressee_name?: string | null
   addressee_designation?: string | null
-  company: { name: string; gstin?: string | null; address?: string | null }
+  individual_gstin?: string | null
+  individual_address?: string | null
+  company?: { name: string; gstin?: string | null; address?: string | null } | null
   subtotal: number
   cgst_amount: number
   sgst_amount: number
@@ -365,16 +367,31 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
           <View style={s.infoSection}>
             <View style={s.clientBox}>
               <Text style={s.toLine}>TO</Text>
-              {data.addressee_name
-                ? <>
-                    <Text style={s.clientName}>{data.addressee_prefix ? data.addressee_prefix + ' ' : ''}{data.addressee_name}</Text>
-                    {data.addressee_designation ? <Text style={s.clientAddr}>{data.addressee_designation}</Text> : null}
-                    <Text style={[s.clientName, { fontSize: 9, marginTop: 2 }]}>M/s {data.company.name}</Text>
-                  </>
-                : <Text style={s.clientName}>M/s {data.company.name}</Text>
-              }
-              {data.company.gstin ? <Text style={s.clientGstin}>GSTIN: {data.company.gstin}</Text> : null}
-              {data.company.address ? <Text style={s.clientAddr}>{data.company.address}</Text> : null}
+              {/* Individual invoice (no company) */}
+              {!data.company && data.addressee_name ? (
+                <>
+                  <Text style={s.clientName}>{data.addressee_prefix ? data.addressee_prefix + ' ' : ''}{data.addressee_name}</Text>
+                  {data.addressee_designation ? <Text style={s.clientAddr}>{data.addressee_designation}</Text> : null}
+                  {data.individual_gstin ? <Text style={s.clientGstin}>GSTIN: {data.individual_gstin}</Text> : null}
+                  {data.individual_address ? <Text style={s.clientAddr}>{data.individual_address}</Text> : null}
+                </>
+              ) : data.addressee_name ? (
+                /* Individual within company */
+                <>
+                  <Text style={s.clientName}>{data.addressee_prefix ? data.addressee_prefix + ' ' : ''}{data.addressee_name}</Text>
+                  {data.addressee_designation ? <Text style={s.clientAddr}>{data.addressee_designation}</Text> : null}
+                  <Text style={[s.clientName, { fontSize: 9, marginTop: 2 }]}>M/s {data.company!.name}</Text>
+                  {data.company!.gstin ? <Text style={s.clientGstin}>GSTIN: {data.company!.gstin}</Text> : null}
+                  {data.company!.address ? <Text style={s.clientAddr}>{data.company!.address}</Text> : null}
+                </>
+              ) : (
+                /* Company only */
+                <>
+                  <Text style={s.clientName}>M/s {data.company!.name}</Text>
+                  {data.company!.gstin ? <Text style={s.clientGstin}>GSTIN: {data.company!.gstin}</Text> : null}
+                  {data.company!.address ? <Text style={s.clientAddr}>{data.company!.address}</Text> : null}
+                </>
+              )}
             </View>
 
             <View style={s.infoGrid}>
@@ -447,7 +464,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
             <View style={s.rcmBox}>
               <Text style={s.rcmText}>
                 As we come under Reverse Charge Mechanism. (Notification No: 22/2019 of central tax (Rate) Dated 30.09.2019){'\n'}
-                Entire GST 5% amount will be paid by service receiver M/s. {data.company.name}
+                Entire GST 5% amount will be paid by service receiver M/s. {data.company?.name ?? data.addressee_name ?? ''}
               </Text>
             </View>
           ) : (

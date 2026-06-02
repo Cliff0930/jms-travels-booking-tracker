@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const [{ data: invoice, error }, { data: lineItems }] = await Promise.all([
     supabase
       .from('invoices')
-      .select('*, company:companies!company_id(name, gstin, address)')
+      .select('*, company:companies!company_id(name, gstin, address), individual:clients!individual_client_id(name, prefix, designation)')
       .eq('id', id)
       .single(),
     supabase
@@ -52,10 +52,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     period_to: invoice.period_to,
     created_at: invoice.created_at,
     reverse_charge: invoice.reverse_charge ?? false,
-    addressee_prefix: invoice.addressee_prefix ?? null,
-    addressee_name: invoice.addressee_name ?? null,
-    addressee_designation: invoice.addressee_designation ?? null,
-    company: invoice.company ?? { name: 'Unknown' },
+    addressee_prefix: invoice.addressee_prefix ?? invoice.individual?.prefix ?? null,
+    addressee_name: invoice.addressee_name ?? invoice.individual?.name ?? null,
+    addressee_designation: invoice.addressee_designation ?? invoice.individual?.designation ?? null,
+    individual_gstin: invoice.individual_gstin ?? null,
+    individual_address: invoice.individual_address ?? null,
+    company: invoice.company ?? null,
     subtotal: Number(invoice.subtotal),
     cgst_amount: Number(invoice.cgst_amount),
     sgst_amount: Number(invoice.sgst_amount),

@@ -43,7 +43,10 @@ interface InvoiceDetail {
   addressee_prefix?: string | null
   addressee_name?: string | null
   addressee_designation?: string | null
-  company?: { name: string; gstin?: string; address?: string | null }
+  individual_client_id?: string | null
+  individual_gstin?: string | null
+  individual_address?: string | null
+  company?: { name: string; gstin?: string; address?: string | null } | null
   line_items: LineItem[]
   payments: Payment[]
 }
@@ -231,10 +234,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div>
             <h1 className="text-xl font-bold text-gray-900">{inv.invoice_number ?? <span className="text-gray-400 italic">DRAFT</span>}</h1>
             <p className="text-sm text-gray-500">
-              {inv.addressee_name
-                ? <><span className="font-medium text-gray-700">{inv.addressee_prefix ? inv.addressee_prefix + ' ' : ''}{inv.addressee_name}</span>{inv.addressee_designation && <span className="text-gray-400"> · {inv.addressee_designation}</span>} · </>
-                : null}
-              {inv.company?.name} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}
+              {inv.addressee_name && (
+                <><span className="font-medium text-gray-700">{inv.addressee_prefix ? inv.addressee_prefix + ' ' : ''}{inv.addressee_name}</span>{inv.addressee_designation && <span className="text-gray-400"> · {inv.addressee_designation}</span>}{inv.company && ' · '}</>
+              )}
+              {inv.company?.name ?? (inv.individual_client_id ? 'Individual' : 'Walk-in')} · {fmtDate(inv.period_from)} to {fmtDate(inv.period_to)}
+              {inv.individual_gstin && <span className="text-gray-400"> · GSTIN: {inv.individual_gstin}</span>}
             </p>
           </div>
           <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold capitalize', STATUS_COLORS[inv.status] ?? 'bg-gray-100 text-gray-600')}>

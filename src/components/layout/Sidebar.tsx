@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText, TrendingUp,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText, TrendingUp, Banknote, AlertCircle,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,8 @@ const NAV_ITEMS = [
   { href: '/reports',               label: 'Reports',         icon: BarChart3 },
   { href: '/reimbursements',        label: 'Reimbursements',  icon: Wallet },
   { href: '/billing/invoices',      label: 'Invoices',        icon: Receipt },
+  { href: '/billing/cash-bills',    label: 'Cash Bills',      icon: Banknote },
+  { href: '/billing/pending',       label: 'Pending Billing', icon: AlertCircle },
   { href: '/billing/rate-cards',    label: 'Rate Cards',      icon: IndianRupee },
   { href: '/billing/payments',      label: 'Bill Payments',   icon: Wallet },
   { href: '/billing/gst',           label: 'GST Working',     icon: BarChart3 },

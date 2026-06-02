@@ -90,12 +90,17 @@ function calcGST(hireCharges: number, isInterState: boolean) {
 
 export async function POST(request: Request) {
   const supabase = createAdminClient()
-  const { company_id, period_from, period_to, is_inter_state = false, reverse_charge = false, guest_client_id } = await request.json() as {
-    company_id: string; period_from: string; period_to: string; is_inter_state?: boolean; reverse_charge?: boolean; guest_client_id?: string
+  const { company_id, period_from, period_to, is_inter_state = false, reverse_charge = false, guest_client_id, individual_client_id } = await request.json() as {
+    company_id?: string; period_from: string; period_to: string; is_inter_state?: boolean; reverse_charge?: boolean; guest_client_id?: string; individual_client_id?: string
   }
 
-  if (!company_id || !period_from || !period_to) {
-    return NextResponse.json({ error: 'company_id, period_from, period_to required' }, { status: 400 })
+  const isIndividual = !company_id && !!individual_client_id
+
+  if (!period_from || !period_to) {
+    return NextResponse.json({ error: 'period_from, period_to required' }, { status: 400 })
+  }
+  if (!isIndividual && !company_id) {
+    return NextResponse.json({ error: 'company_id required for company invoices' }, { status: 400 })
   }
 
   // Fetch default rate cards
@@ -103,67 +108,75 @@ export async function POST(request: Request) {
   const defaultRateMap: Record<string, RateCard> = {}
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = r
 
-  // Fetch client-specific rate overrides effective at the start of the billing period
-  // Order ascending so the most recent effective rate wins when building the map
-  const { data: clientRates } = await supabase
-    .from('client_rate_cards')
-    .select('*')
-    .eq('company_id', company_id)
-    .eq('is_active', true)
-    .lte('effective_from', period_from)
-    .order('effective_from', { ascending: true })
-
+  // Company-specific rate overrides (skip for individual invoices — use defaults)
   const clientRateMap: Record<string, RateCard> = {}
-  for (const r of clientRates ?? []) clientRateMap[r.vehicle_type.toUpperCase()] = { ...defaultRateMap[r.vehicle_type.toUpperCase()], ...r }
-
-  // Get TDS percent from client rate card (use first found or 0)
-  const tdsPercent = (clientRates ?? [])[0]?.tds_percent ?? 0
-
-  // Fetch company bata rates (what we charge the company per bata)
-  const { data: companyBataRates } = await supabase
-    .from('company_bata_rates')
-    .select('vehicle_name, trip_type, rate_per_bata')
-    .eq('company_id', company_id)
-    .not('rate_per_bata', 'is', null)
-  const companyBataMap: Record<string, number> = {}
-  for (const r of companyBataRates ?? []) {
-    const key = `${(r.vehicle_name ?? '').toUpperCase()}:${r.trip_type ?? 'all'}`
-    companyBataMap[key] = Number(r.rate_per_bata)
+  let tdsPercent = 0
+  if (!isIndividual && company_id) {
+    const { data: clientRates } = await supabase
+      .from('client_rate_cards').select('*')
+      .eq('company_id', company_id).eq('is_active', true)
+      .lte('effective_from', period_from).order('effective_from', { ascending: true })
+    for (const r of clientRates ?? []) clientRateMap[r.vehicle_type.toUpperCase()] = { ...defaultRateMap[r.vehicle_type.toUpperCase()], ...r }
+    tdsPercent = (clientRates ?? [])[0]?.tds_percent ?? 0
   }
 
-  // Fetch completed bookings in period for this company
-  const { data: bookings, error: bookingsErr } = await supabase
-    .from('bookings')
-    .select(`
-      id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
-      vehicle_type, guest_name,
-      driver:drivers!driver_id(vehicle_name, vehicle_number),
-      trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
-        client_opening_km, client_closing_km, client_opening_time, client_closing_time,
-        toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
-        client_toll_amount, client_parking_amount, client_permit_amount)
-    `)
-    .eq('company_id', company_id)
-    .eq('status', 'completed')
-    .neq('exclude_from_billing', true)
-    .gte('pickup_date', period_from)
-    .lte('pickup_date', period_to)
-    .order('pickup_date', { ascending: true })
+  // Company bata rates (skip for individual — use rate card defaults)
+  const companyBataMap: Record<string, number> = {}
+  if (!isIndividual && company_id) {
+    const { data: companyBataRates } = await supabase
+      .from('company_bata_rates').select('vehicle_name, trip_type, rate_per_bata')
+      .eq('company_id', company_id).not('rate_per_bata', 'is', null)
+    for (const r of companyBataRates ?? []) {
+      const key = `${(r.vehicle_name ?? '').toUpperCase()}:${r.trip_type ?? 'all'}`
+      companyBataMap[key] = Number(r.rate_per_bata)
+    }
+  }
 
+  // Individual client snapshot (for individual invoices)
+  let individualClient: { name: string; prefix: string | null; designation: string | null; primary_phone: string | null } | null = null
+  if (isIndividual) {
+    const { data: ic } = await supabase.from('clients').select('name, prefix, designation, primary_phone').eq('id', individual_client_id).single()
+    individualClient = ic ?? null
+  }
+
+  const bookingSelect = `
+    id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
+    vehicle_type, guest_name, guest_client_id,
+    driver:drivers!driver_id(vehicle_name, vehicle_number),
+    trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
+      client_opening_km, client_closing_km, client_opening_time, client_closing_time,
+      toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
+      client_toll_amount, client_parking_amount, client_permit_amount)`
+
+  // Fetch completed bookings in period
+  let bookingsQ = supabase.from('bookings').select(bookingSelect)
+    .eq('status', 'completed').neq('exclude_from_billing', true)
+    .gte('pickup_date', period_from).lte('pickup_date', period_to)
+    .order('pickup_date', { ascending: true })
+  if (isIndividual) {
+    bookingsQ = bookingsQ.eq('guest_client_id', individual_client_id!)
+  } else {
+    bookingsQ = bookingsQ.eq('company_id', company_id!)
+  }
+  const { data: bookings, error: bookingsErr } = await bookingsQ
   if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 })
 
-  // Fetch guest client snapshot for individual invoice
+  // Fetch guest client snapshot for within-company individual invoice
   let guestClient: { name: string; prefix: string | null; designation: string | null } | null = null
   if (guest_client_id) {
     const { data: gc } = await supabase.from('clients').select('name, prefix, designation').eq('id', guest_client_id).single()
     guestClient = gc ?? null
   }
 
-  // Build set of booking IDs already in a finalised invoice for this company
+  // Build set of booking IDs already in a finalised invoice
   const invoicedBookingIds = new Set<string>()
-  const { data: finalisedInvs } = await supabase
-    .from('invoices').select('id').eq('company_id', company_id)
-    .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
+  let finalisedInvsQ = supabase.from('invoices').select('id').in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
+  if (isIndividual) {
+    finalisedInvsQ = finalisedInvsQ.eq('individual_client_id', individual_client_id!)
+  } else {
+    finalisedInvsQ = finalisedInvsQ.eq('company_id', company_id!)
+  }
+  const { data: finalisedInvs } = await finalisedInvsQ
   if (finalisedInvs && finalisedInvs.length > 0) {
     const { data: invoicedItems } = await supabase
       .from('invoice_line_items').select('booking_id')
@@ -173,26 +186,22 @@ export async function POST(request: Request) {
     }
   }
 
-  // Exclude already-invoiced bookings; also filter by guest if individual invoice
+  // Exclude already-invoiced bookings; also filter by guest if within-company individual invoice
   const filteredBookings = (bookings ?? []).filter(b =>
     !invoicedBookingIds.has(b.id) &&
     (!guest_client_id || (b as Record<string, unknown>).guest_client_id === guest_client_id)
   )
 
-  // Fetch older completed bookings for this company (before period_from) not yet invoiced
-  const bookingSelect = `
-    id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
-    vehicle_type, guest_name,
-    driver:drivers!driver_id(vehicle_name, vehicle_number),
-    trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
-      client_opening_km, client_closing_km, client_opening_time, client_closing_time,
-      toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
-      client_toll_amount, client_parking_amount, client_permit_amount)`
-  const { data: olderBookings } = await supabase
-    .from('bookings').select(bookingSelect)
-    .eq('company_id', company_id).eq('status', 'completed')
-    .neq('exclude_from_billing', true)
+  // Fetch older completed bookings (before period_from) not yet invoiced
+  let olderQ = supabase.from('bookings').select(bookingSelect)
+    .eq('status', 'completed').neq('exclude_from_billing', true)
     .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
+  if (isIndividual) {
+    olderQ = olderQ.eq('guest_client_id', individual_client_id!)
+  } else {
+    olderQ = olderQ.eq('company_id', company_id!)
+  }
+  const { data: olderBookings } = await olderQ
   const missedBookings = (olderBookings ?? []).filter(b =>
     !invoicedBookingIds.has(b.id) &&
     (!guest_client_id || (b as Record<string, unknown>).guest_client_id === guest_client_id)
@@ -374,6 +383,7 @@ export async function POST(request: Request) {
     company_id, period_from, period_to, is_inter_state, reverse_charge,
     tds_percent: tdsPercent,
     guest_client: guestClient,
+    individual_client: individualClient,
     line_items: lineItems,
     missed_line_items: missedLineItems,
     subtotal: roundTo2(totalSubtotal),

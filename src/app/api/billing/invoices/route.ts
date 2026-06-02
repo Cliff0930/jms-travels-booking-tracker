@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const supabase = createAdminClient()
   const body = await request.json() as {
-    company_id: string; period_from: string; period_to: string
+    company_id?: string | null; period_from: string; period_to: string
     subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
     tds_amount: number; grand_total: number; notes?: string; due_date?: string
     reverse_charge?: boolean
@@ -55,6 +55,9 @@ export async function POST(request: Request) {
     addressee_prefix?: string | null
     addressee_name?: string | null
     addressee_designation?: string | null
+    individual_client_id?: string | null
+    individual_gstin?: string | null
+    individual_address?: string | null
     line_items: Record<string, unknown>[]
     created_by?: string
   }
@@ -81,6 +84,9 @@ export async function POST(request: Request) {
       addressee_prefix: body.addressee_prefix ?? null,
       addressee_name: body.addressee_name ?? null,
       addressee_designation: body.addressee_designation ?? null,
+      individual_client_id: body.individual_client_id ?? null,
+      individual_gstin: body.individual_gstin ?? null,
+      individual_address: body.individual_address ?? null,
       created_by: body.created_by ?? null,
     })
     .select()

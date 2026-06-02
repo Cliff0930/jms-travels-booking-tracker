@@ -204,6 +204,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     enabled: !!id && booking?.status === 'completed',
   })
   const allCollections = [...collectionEntries, ...(settledCollection.data ?? [])]
+
+  // Billing + settlement status for completed bookings
+  const { data: billStatus } = useQuery<{
+    invoice_number: string | null; invoice_id: string | null; invoice_status: string | null
+    cash_bill_number: string | null; cash_bill_id: string | null; cash_bill_status: string | null
+    settlement_ref: string | null; settled: boolean
+  }>({
+    queryKey: ['booking-bill-status', id],
+    queryFn: () => fetch(`/api/bookings/${id}/billing-status`).then(r => r.json()),
+    enabled: !!id && booking?.status === 'completed',
+  })
+
   const [selectedSheetIdx, setSelectedSheetIdx] = useState(0)
   const tripSheet = tripSheets[selectedSheetIdx] ?? null
 
@@ -789,6 +801,25 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EDE9FE] text-[#7E3AF2]">Outstation</span>
         )}
         {booking.flags?.length > 0 && <FlagList flags={booking.flags} />}
+        {/* Billing + settlement status badges — only on completed trips */}
+        {booking.status === 'completed' && !booking.exclude_from_billing && billStatus && (
+          <>
+            {billStatus.invoice_id
+              ? <a href={`/billing/invoices/${billStatus.invoice_id}`} className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 whitespace-nowrap">
+                  Invoice: {billStatus.invoice_number ?? 'Draft'}
+                </a>
+              : billStatus.cash_bill_id
+              ? <a href={`/billing/cash-bills/${billStatus.cash_bill_id}`} className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 whitespace-nowrap">
+                  Cash Bill: {billStatus.cash_bill_number ?? 'Draft'}
+                </a>
+              : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 whitespace-nowrap">
+                  Not Billed
+                </span>}
+            {billStatus.settled
+              ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">Settled</span>
+              : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-600 whitespace-nowrap">Not Settled</span>}
+          </>
+        )}
         {isEditing && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Editing</span>
         )}

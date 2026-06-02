@@ -66,6 +66,8 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
   prefill?: { companyId: string; periodFrom: string; periodTo: string }
 }) {
   const router = useRouter()
+  // Bill mode: 'company' (corporate GST) or 'individual' (walk-in GST, no company)
+  const [billMode, setBillMode] = useState<'company' | 'individual'>(prefill ? 'company' : 'company')
   const [companyId, setCompanyId] = useState(prefill?.companyId ?? '')
   const [periodFrom, setPeriodFrom] = useState(prefill?.periodFrom ?? '')
   const [periodTo, setPeriodTo] = useState(prefill?.periodTo ?? '')
@@ -73,16 +75,26 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
   const [reverseCharge, setReverseCharge] = useState(true)
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
+  // Within-company individual (existing feature)
   const [billToIndividual, setBillToIndividual] = useState(false)
   const [individuals, setIndividuals] = useState<EligibleIndividual[]>([])
   const [guestClientId, setGuestClientId] = useState('')
   const [indSearch, setIndSearch] = useState('')
   const [indOpen, setIndOpen] = useState(false)
+  // Walk-in individual (new: no company, GST invoice)
+  const [walkInSearch, setWalkInSearch] = useState('')
+  const [walkInResults, setWalkInResults] = useState<EligibleIndividual[]>([])
+  const [walkInOpen, setWalkInOpen] = useState(false)
+  const [walkInClientId, setWalkInClientId] = useState('')
+  const [walkInName, setWalkInName] = useState('')
+  const [walkInGstin, setWalkInGstin] = useState('')
+  const [walkInAddress, setWalkInAddress] = useState('')
   const [preview, setPreview] = useState<{
     line_items: LineItemPreview[]; missed_line_items: LineItemPreview[]
     subtotal: number; cgst_amount: number; sgst_amount: number; igst_amount: number
     tds_amount: number; tds_percent: number; grand_total: number; trip_count: number; missed_count: number
     guest_client: { name: string; prefix: string | null; designation: string | null } | null
+    individual_client: { name: string; prefix: string | null; designation: string | null; primary_phone: string | null } | null
   } | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -104,14 +116,27 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
     setIndividuals(Array.isArray(data) ? data : [])
   }
 
+  async function searchWalkIn(q: string) {
+    if (!q || q.length < 2) { setWalkInResults([]); return }
+    const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}&client_type=guest`)
+    const data = await res.json()
+    setWalkInResults(Array.isArray(data) ? data.slice(0, 8) : [])
+  }
+
   async function handlePreview() {
-    if (!companyId || !periodFrom || !periodTo) { toast.error('Fill all fields'); return }
-    if (billToIndividual && !guestClientId) { toast.error('Select an individual or uncheck Bill to individual'); return }
+    if (!periodFrom || !periodTo) { toast.error('Select period dates'); return }
+    if (billMode === 'company' && !companyId) { toast.error('Select a company'); return }
+    if (billMode === 'individual' && !walkInName.trim() && !walkInClientId) { toast.error('Enter client name or select from directory'); return }
+    if (billMode === 'company' && billToIndividual && !guestClientId) { toast.error('Select an individual or uncheck Bill to individual'); return }
     setPreviewing(true)
-    const res = await fetch('/api/billing/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: companyId, period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState, reverse_charge: reverseCharge, ...(billToIndividual && guestClientId ? { guest_client_id: guestClientId } : {}) }),
-    })
+    const body: Record<string, unknown> = { period_from: periodFrom, period_to: periodTo, is_inter_state: isInterState, reverse_charge: billMode === 'individual' ? false : reverseCharge }
+    if (billMode === 'company') {
+      body.company_id = companyId
+      if (billToIndividual && guestClientId) body.guest_client_id = guestClientId
+    } else {
+      if (walkInClientId) body.individual_client_id = walkInClientId
+    }
+    const res = await fetch('/api/billing/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json()
     setPreview(data)
     setSelectedIds(new Set<string>([
@@ -152,15 +177,23 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
     const res = await fetch('/api/billing/invoices', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        company_id: companyId, period_from: periodFrom, period_to: periodTo,
+        ...(billMode === 'company' ? { company_id: companyId } : {}),
+        period_from: periodFrom, period_to: periodTo,
         due_date: dueDate || null, notes: notes || null,
-        reverse_charge: reverseCharge, is_inter_state: isInterState,
+        reverse_charge: billMode === 'individual' ? false : reverseCharge,
+        is_inter_state: isInterState,
         tds_percent: preview.tds_percent,
-        ...(billToIndividual && guestClientId ? {
+        ...(billMode === 'company' && billToIndividual && guestClientId ? {
           guest_client_id: guestClientId,
           addressee_prefix: selectedIndividual?.prefix ?? null,
           addressee_name: selectedIndividual?.name ?? null,
           addressee_designation: selectedIndividual?.designation ?? null,
+        } : {}),
+        ...(billMode === 'individual' ? {
+          individual_client_id: walkInClientId || null,
+          addressee_name: walkInName.trim() || preview.individual_client?.name || null,
+          individual_gstin: walkInGstin.trim() || null,
+          individual_address: walkInAddress.trim() || null,
         } : {}),
         line_items: selectedItems,
         subtotal: selTotals.sub, cgst_amount: selTotals.cgst, sgst_amount: selTotals.sgst,
@@ -240,15 +273,67 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
       <DialogContent style={{ width: '95vw', maxWidth: '95vw' }} className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Generate Invoice</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Bill mode toggle */}
+          <div className="flex gap-0 rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+            {(['company', 'individual'] as const).map(mode => (
+              <button key={mode} type="button"
+                onClick={() => { setBillMode(mode); setPreview(null); setSelectedIds(new Set()) }}
+                className={cn('flex-1 py-2 transition-colors', billMode === mode ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}>
+                {mode === 'company' ? 'Corporate GST Invoice' : 'Individual / Walk-in GST'}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Company *</Label>
-              <select value={companyId} onChange={e => setCompanyId(e.target.value)}
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <option value="">Select company…</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
+            {billMode === 'company' ? (
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs">Company *</Label>
+                <select value={companyId} onChange={e => setCompanyId(e.target.value)}
+                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                  <option value="">Select company…</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">Client (search by name or phone)</Label>
+                  <div className="relative">
+                    <input type="text" placeholder="Search client…"
+                      value={walkInClientId ? walkInName : walkInSearch}
+                      onChange={e => { setWalkInSearch(e.target.value); setWalkInClientId(''); setWalkInOpen(true); searchWalkIn(e.target.value) }}
+                      onFocus={() => { if (!walkInClientId) setWalkInOpen(true) }}
+                      className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    {walkInOpen && walkInResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {walkInResults.map(c => (
+                          <button key={c.id} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex flex-col"
+                            onClick={() => { setWalkInClientId(c.id); setWalkInName((c.prefix ? c.prefix + ' ' : '') + c.name); setWalkInSearch(''); setWalkInOpen(false) }}>
+                            <span className="font-medium">{c.prefix ? c.prefix + ' ' : ''}{c.name}</span>
+                            {c.primary_phone && <span className="text-xs text-gray-400">{c.primary_phone}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Not in directory? Just type the name manually and fill GSTIN below.</p>
+                </div>
+                {!walkInClientId && (
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs">Client Name *</Label>
+                    <Input value={walkInName} onChange={e => setWalkInName(e.target.value)} placeholder="e.g. Mr. Rahul Sharma" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">GSTIN (optional)</Label>
+                  <Input value={walkInGstin} onChange={e => setWalkInGstin(e.target.value)} placeholder="29AXXXX…" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Address (optional)</Label>
+                  <Input value={walkInAddress} onChange={e => setWalkInAddress(e.target.value)} placeholder="Billing address" />
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Period From *</Label>
               <Input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} />
@@ -261,21 +346,30 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
               <Label className="text-xs">Payment Due Date</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
-            <div className="col-span-2 flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Reverse Charge Mechanism (RCM)</p>
-                <p className="text-xs text-gray-500 mt-0.5">Client pays GST directly. No GST added to invoice. (Most corporate clients.)</p>
-              </div>
-              <button type="button" onClick={() => setReverseCharge(v => !v)}
-                className={cn('relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none',
-                  reverseCharge ? 'bg-blue-700 border-blue-700' : 'bg-gray-200 border-gray-200')}>
-                <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
-              </button>
-            </div>
-            {!reverseCharge && (
-              <div className="col-span-2 flex items-center gap-2">
-                <input type="checkbox" id="interstate" checked={isInterState} onChange={e => setIsInterState(e.target.checked)} />
-                <Label htmlFor="interstate" className="text-sm">Inter-state client (IGST 5% instead of CGST+SGST)</Label>
+            {billMode === 'company' && (
+              <>
+                <div className="col-span-2 flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Reverse Charge Mechanism (RCM)</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Client pays GST directly. No GST added to invoice. (Most corporate clients.)</p>
+                  </div>
+                  <button type="button" onClick={() => setReverseCharge(v => !v)}
+                    className={cn('relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none',
+                      reverseCharge ? 'bg-blue-700 border-blue-700' : 'bg-gray-200 border-gray-200')}>
+                    <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+                {!reverseCharge && (
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input type="checkbox" id="interstate" checked={isInterState} onChange={e => setIsInterState(e.target.checked)} />
+                    <Label htmlFor="interstate" className="text-sm">Inter-state client (IGST 5% instead of CGST+SGST)</Label>
+                  </div>
+                )}
+              </>
+            )}
+            {billMode === 'individual' && (
+              <div className="col-span-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-700">
+                GST will be charged at 5% (CGST 2.5% + SGST 2.5%). Client pays at the time of billing. No RCM.
               </div>
             )}
             <div className="col-span-2 space-y-1">
