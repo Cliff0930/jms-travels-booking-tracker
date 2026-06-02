@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     { data: settlements },
     { data: advances },
   ] = await Promise.all([
-    supabase.from('invoices').select('period_from, grand_total, amount_paid, status').gte('period_from', from).lte('period_from', to),
+    supabase.from('invoices').select('period_from, grand_total, amount_paid, status').gte('period_from', from).lte('period_from', to).in('status', ['sent', 'paid', 'partially_paid', 'overdue']),
     supabase.from('billing_payments').select('payment_date, amount').gte('payment_date', from).lte('payment_date', to),
     supabase.from('driver_settlements').select('paid_at, net_payable').eq('status', 'paid').gte('paid_at', from).lte('paid_at', to + 'T23:59:59'),
     supabase.from('driver_advances').select('created_at, amount, type').eq('type', 'advance').gte('created_at', from).lte('created_at', to + 'T23:59:59'),

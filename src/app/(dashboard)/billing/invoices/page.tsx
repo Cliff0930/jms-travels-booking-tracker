@@ -273,12 +273,12 @@ export default function InvoicesPage() {
     return invoices.filter(i => (i.invoice_number ?? '').toLowerCase().includes(q) || i.company?.name?.toLowerCase().includes(q))
   }, [invoices, search])
 
-  const totalOutstanding = useMemo(() => invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + Number(i.balance_due), 0), [invoices])
+  const totalOutstanding = useMemo(() => invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'draft').reduce((s, i) => s + Number(i.balance_due), 0), [invoices])
 
   // Aged receivables: group unpaid invoices by company
   const agedReceivables = useMemo(() => {
     const today = new Date()
-    const unpaid = invoices.filter(i => Number(i.balance_due) > 0 && i.status !== 'cancelled')
+    const unpaid = invoices.filter(i => Number(i.balance_due) > 0 && i.status !== 'cancelled' && i.status !== 'draft')
     const map = new Map<string, { company_id: string; company_name: string; total: number; paid: number; balance: number; oldest: Date; invoices: Invoice[] }>()
     for (const inv of unpaid) {
       const cid = inv.company_id
