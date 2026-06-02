@@ -135,6 +135,11 @@ export interface ReimbursementSheet {
   driver_vehicle_name: string | null
   driver_vehicle_number: string | null
   trip_type: string | null
+  manual_opening_time: string | null
+  manual_closing_time: string | null
+  opening_time: string | null
+  closing_time: string | null
+  leg_date: string | null
   toll_amount: number | null
   parking_amount: number | null
   permit_amount: number | null

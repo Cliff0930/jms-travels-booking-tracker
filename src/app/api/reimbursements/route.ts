@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate, bata_rate_outstation),
       trip_sheets(
         id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
+        manual_opening_time, manual_closing_time, opening_time, closing_time, booking_leg_id,
         tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received,
         toll_paid, parking_paid, permit_paid, bata_paid,
         reimbursement_notes, reimbursed_at, created_at
@@ -36,6 +37,18 @@ export async function GET(request: Request) {
   const { data: bookings, error } = await bookingQuery
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!bookings?.length) return NextResponse.json([])
+
+  // Fetch leg dates for outstation trips (booking_leg_id → leg_date)
+  const legIds = (bookings.flatMap(b => (b.trip_sheets ?? []) as Array<Record<string, unknown>>)
+    .map(s => s.booking_leg_id as string | null).filter(Boolean)) as string[]
+  const legDateMap: Record<string, string> = {}
+  if (legIds.length > 0) {
+    const { data: legs } = await supabase
+      .from('booking_legs')
+      .select('id, leg_date, day_number')
+      .in('id', legIds)
+    for (const l of legs ?? []) legDateMap[l.id] = l.leg_date
+  }
 
   // Fetch company bata rates for all involved companies
   // Map: companyId → vehicleName → tripType (or 'all' for null) → rate
@@ -109,6 +122,11 @@ export async function GET(request: Request) {
         driver_vehicle_name: driver?.vehicle_name ?? null,
         driver_vehicle_number: driver?.vehicle_number ?? null,
         trip_type: tripType,
+        manual_opening_time: (sheet.manual_opening_time as string | null) ?? null,
+        manual_closing_time: (sheet.manual_closing_time as string | null) ?? null,
+        opening_time: (sheet.opening_time as string | null) ?? null,
+        closing_time: (sheet.closing_time as string | null) ?? null,
+        leg_date: sheet.booking_leg_id ? (legDateMap[sheet.booking_leg_id as string] ?? null) : null,
         // amounts
         toll_amount: toll > 0 ? toll : null,
         parking_amount: parking > 0 ? parking : null,

@@ -375,6 +375,50 @@ function TripCard({
       {/* Card Body */}
       {expanded && (
         <div className="px-4 py-3 space-y-0.5">
+
+          {/* Time info for bata verification */}
+          {(() => {
+            const fmt = (t: string | null | undefined) => {
+              if (!t) return '—'
+              // ISO timestamp → HH:MM IST
+              if (t.includes('T') || t.includes('Z')) {
+                return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })
+              }
+              return t
+            }
+            const hasAny = sheet.manual_opening_time || sheet.manual_closing_time || sheet.opening_time || sheet.closing_time
+            if (!hasAny) return null
+            const isOutstation = sheet.trip_type === 'outstation'
+            const dateLabel = isOutstation && sheet.leg_date
+              ? new Date(sheet.leg_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : sheet.pickup_date
+                ? new Date(sheet.pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                : null
+            return (
+              <div className="bg-[#F8FAFF] border border-[#E0E7FF] rounded-lg px-3 py-2 mb-2 text-xs">
+                {dateLabel && <span className="font-semibold text-[#4F46E5] mr-2">{dateLabel}</span>}
+                <span className="text-[#374151]">
+                  <span className="text-[#737686]">Driver: </span>
+                  <span className="font-mono font-medium">{fmt(sheet.manual_opening_time)}</span>
+                  <span className="text-[#9CA3AF] mx-1">→</span>
+                  <span className="font-mono font-medium">{fmt(sheet.manual_closing_time)}</span>
+                </span>
+                {(sheet.opening_time || sheet.closing_time) && (
+                  <span className="ml-3 text-[#374151]">
+                    <span className="text-[#737686]">GPS: </span>
+                    <span className="font-mono">{fmt(sheet.opening_time)}</span>
+                    <span className="text-[#9CA3AF] mx-1">→</span>
+                    <span className="font-mono">{fmt(sheet.closing_time)}</span>
+                  </span>
+                )}
+                {sheet.bata_driver != null && sheet.bata_driver > 0
+                  ? <span className="ml-3 text-[#059669] font-semibold">✓ {sheet.bata_driver} bata</span>
+                  : <span className="ml-3 text-[#9CA3AF]">no bata</span>
+                }
+              </div>
+            )
+          })()}
+
           {/* Tripsheet doc row — always shown */}
           <ItemRow
             label="Tripsheet Document"
