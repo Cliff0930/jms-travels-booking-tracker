@@ -268,7 +268,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     if (!editingSheet || !sheetEditForm || !tripSheet) return
     const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
     const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
-    const lateNight     = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
+    const lateNight     = closeMins !== null && (closeMins > 22 * 60 + 30 || (openMins !== null && closeMins < openMins)) ? 1 : 0
     const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
     const outstationDays = booking?.trip_type === 'outstation' ? (booking.total_days || 1) : 0
     const autoBata = lateNight + earlyMorn + outstationDays
@@ -1776,7 +1776,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   {(() => {
                     const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
                     const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
-                    const lateNight     = closeMins !== null && closeMins > 22 * 60 + 30 ? 1 : 0
+                    const lateNight     = closeMins !== null && (closeMins > 22 * 60 + 30 || (openMins !== null && closeMins < openMins)) ? 1 : 0
                     const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
                     const outstationDays = booking.trip_type === 'outstation' ? (booking.total_days || 1) : 0
                     const autoBata = lateNight + earlyMorn + outstationDays
