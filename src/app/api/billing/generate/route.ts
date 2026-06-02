@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       vehicle_type, guest_name,
       driver:drivers!driver_id(vehicle_name, vehicle_number),
       trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
-        toll_amount, parking_amount, permit_amount, bata_driver)
+        toll_amount, parking_amount, permit_amount, bata_driver, bata_client)
     `)
     .eq('company_id', company_id)
     .eq('status', 'completed')
@@ -160,7 +160,9 @@ export async function POST(request: Request) {
     const toll = Number(sheet?.toll_amount ?? 0)
     const parking = Number(sheet?.parking_amount ?? 0)
     const permit = Number(sheet?.permit_amount ?? 0)
-    const bataCount = Number(sheet?.bata_driver ?? 0)
+    // Use bata_client for invoicing (client threshold: open<06:00, close>22:00)
+    // Fall back to bata_driver for older records that don't have bata_client yet
+    const bataClientCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)
     const days = b.total_days ?? 1
 
     // Company bata rate (what we charge the company) — look up by vehicle+trip_type, fall back to vehicle+all, then rate card default
@@ -170,11 +172,11 @@ export async function POST(request: Request) {
     if (b.trip_type === 'outstation') {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
-      calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * days) }
+      calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualHrs, rate) }
-      calc = { ...localCalc, bataAmount: roundTo2(bataCount * localBataRate) }
+      calc = { ...localCalc, bataAmount: roundTo2(bataClientCount * localBataRate) }
     }
 
     const bataForInvoice = calc.bataAmount

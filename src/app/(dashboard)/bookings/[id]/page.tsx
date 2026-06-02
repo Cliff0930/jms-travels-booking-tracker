@@ -134,6 +134,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     parking_amount: number | null
     permit_amount: number | null
     bata_driver: number | null
+    bata_client: number | null
     gps_km: number | null
     route_image_url: string | null
     leg?: { day_number: number; leg_date: string } | null
@@ -254,7 +255,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     tripsheet_number: string; opening_km: string; closing_km: string
     manual_opening_time: string; manual_closing_time: string
     toll_amount: string; parking_amount: string; permit_amount: string
-    bata_driver: string
+    bata_driver: string; bata_client: string
   } | null>(null)
   const [savingSheet, setSavingSheet] = useState(false)
   const canEdit = useCanEdit()
@@ -262,23 +263,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // Auto-calculate and auto-save bata whenever times change or edit form opens
-  const lastAutoSavedBata = useRef<number | null>(null)
+  // Auto-calculate and auto-save both bata counts whenever times change or edit form opens
+  const lastAutoSavedBata = useRef<string | null>(null)
   useEffect(() => {
     if (!editingSheet || !sheetEditForm || !tripSheet) return
     const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
     const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
-    const lateNight     = closeMins !== null && (closeMins > 22 * 60 + 30 || (openMins !== null && closeMins < openMins)) ? 1 : 0
-    const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
+    const midnightCross = closeMins !== null && openMins !== null && closeMins < openMins
     const outstationDays = booking?.trip_type === 'outstation' ? (booking.total_days || 1) : 0
-    const autoBata = lateNight + earlyMorn + outstationDays
-    setSheetEditForm(f => f ? { ...f, bata_driver: String(autoBata) } : f)
-    if (lastAutoSavedBata.current !== autoBata) {
-      lastAutoSavedBata.current = autoBata
+    // Driver thresholds: open < 05:30, close > 22:30
+    const driverLateNight = closeMins !== null && (closeMins > 22 * 60 + 30 || midnightCross) ? 1 : 0
+    const driverEarlyMorn = openMins  !== null && openMins < 5 * 60 + 30 ? 1 : 0
+    const autoBataDriver = driverLateNight + driverEarlyMorn + outstationDays
+    // Client thresholds: open < 06:00, close > 22:00
+    const clientLateNight = closeMins !== null && (closeMins > 22 * 60 || midnightCross) ? 1 : 0
+    const clientEarlyMorn = openMins  !== null && openMins < 6 * 60 ? 1 : 0
+    const autoBataClient = clientLateNight + clientEarlyMorn + outstationDays
+    setSheetEditForm(f => f ? { ...f, bata_driver: String(autoBataDriver), bata_client: String(autoBataClient) } : f)
+    const key = `${autoBataDriver}:${autoBataClient}`
+    if (lastAutoSavedBata.current !== key) {
+      lastAutoSavedBata.current = key
       void fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bata_driver: autoBata }),
+        body: JSON.stringify({ bata_driver: autoBataDriver, bata_client: autoBataClient }),
       }).then(() => void refetchTripSheet())
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -605,6 +613,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       parking_amount:      sheet.parking_amount      != null ? String(sheet.parking_amount): '',
       permit_amount:       sheet.permit_amount       != null ? String(sheet.permit_amount) : '',
       bata_driver:         sheet.bata_driver         != null ? String(sheet.bata_driver)   : '',
+      bata_client:         sheet.bata_client         != null ? String(sheet.bata_client)   : '',
     })
     setEditingSheet(true)
   }
@@ -623,6 +632,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         parking_amount:      sheetEditForm.parking_amount      !== '' ? Number(sheetEditForm.parking_amount): null,
         permit_amount:       sheetEditForm.permit_amount       !== '' ? Number(sheetEditForm.permit_amount) : null,
         bata_driver:         sheetEditForm.bata_driver         !== '' ? Number(sheetEditForm.bata_driver)   : null,
+        bata_client:         sheetEditForm.bata_client         !== '' ? Number(sheetEditForm.bata_client)   : null,
       }
       const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
@@ -1776,32 +1786,45 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   {(() => {
                     const openMins  = parseHHMM(sheetEditForm.manual_opening_time)
                     const closeMins = parseHHMM(sheetEditForm.manual_closing_time)
-                    const lateNight     = closeMins !== null && (closeMins > 22 * 60 + 30 || (openMins !== null && closeMins < openMins)) ? 1 : 0
-                    const earlyMorn     = openMins  !== null && openMins  < 5  * 60 + 30 ? 1 : 0
+                    const midnightCross = closeMins !== null && openMins !== null && closeMins < openMins
                     const outstationDays = booking.trip_type === 'outstation' ? (booking.total_days || 1) : 0
-                    const autoBata = lateNight + earlyMorn + outstationDays
+                    const driverLateNight = closeMins !== null && (closeMins > 22 * 60 + 30 || midnightCross) ? 1 : 0
+                    const driverEarlyMorn = openMins  !== null && openMins < 5 * 60 + 30 ? 1 : 0
+                    const bataDrv = driverLateNight + driverEarlyMorn + outstationDays
+                    const clientLateNight = closeMins !== null && (closeMins > 22 * 60 || midnightCross) ? 1 : 0
+                    const clientEarlyMorn = openMins  !== null && openMins < 6 * 60 ? 1 : 0
+                    const bataCli = clientLateNight + clientEarlyMorn + outstationDays
                     const driverRate = booking.trip_type === 'outstation'
                       ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
                       : (booking.driver?.bata_rate ?? 300)
-                    const bataRs = autoBata * driverRate
-                    const breakdown = [
-                      lateNight > 0      && `Late night +1`,
-                      earlyMorn > 0      && `Early start +1`,
-                      outstationDays > 0 && `Outstation ${outstationDays} day${outstationDays > 1 ? 's' : ''} +${outstationDays}`,
-                    ].filter(Boolean).join(' · ')
-                    if (autoBata === 0 && !sheetEditForm.manual_opening_time && !sheetEditForm.manual_closing_time) return null
                     const isAirport = booking.trip_type === 'airport'
+                    const driverBreakdown = [
+                      driverLateNight > 0 && `Late night +1`,
+                      driverEarlyMorn > 0 && `Early start +1`,
+                      outstationDays > 0  && `Outstation +${outstationDays}`,
+                    ].filter(Boolean).join(' · ')
+                    const clientBreakdown = [
+                      clientLateNight > 0 && `Late night +1`,
+                      clientEarlyMorn > 0 && `Early start +1`,
+                      outstationDays > 0  && `Outstation +${outstationDays}`,
+                    ].filter(Boolean).join(' · ')
+                    if (bataDrv === 0 && bataCli === 0 && !sheetEditForm.manual_opening_time && !sheetEditForm.manual_closing_time) return null
                     return (
-                      <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-3 py-2">
+                      <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-3 py-2 space-y-1">
+                        {!isAirport && (
+                          <div className="text-xs text-[#4F46E5]">
+                            <span className="font-semibold text-[#3730A3]">Driver:</span>
+                            <span className="font-semibold ml-1">{bataDrv} × ₹{driverRate} = ₹{bataDrv * driverRate}</span>
+                            {driverBreakdown && <span className="ml-1 text-[#6366F1]">({driverBreakdown})</span>}
+                          </div>
+                        )}
                         <div className="text-xs text-[#4F46E5]">
-                          {isAirport ? (
-                            <span className="font-semibold">Bata: {autoBata} · client billed only, driver not paid</span>
-                          ) : (
-                            <span className="font-semibold">Bata: {autoBata} × ₹{driverRate} = ₹{bataRs}</span>
-                          )}
-                          {breakdown && <span className="ml-1 text-[#6366F1]">({breakdown})</span>}
-                          <span className="ml-1 text-[#818CF8]">· auto-saved</span>
+                          <span className="font-semibold text-[#3730A3]">Client:</span>
+                          <span className="font-semibold ml-1">{bataCli} bata billed</span>
+                          {clientBreakdown && <span className="ml-1 text-[#6366F1]">({clientBreakdown})</span>}
+                          {isAirport && <span className="ml-1 text-[#818CF8]">· driver not paid</span>}
                         </div>
+                        <div className="text-[10px] text-[#818CF8]">auto-saved</div>
                       </div>
                     )
                   })()}
@@ -1907,15 +1930,28 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
                   )}
-                  {tripSheet.bata_driver != null && tripSheet.bata_driver > 0 && booking.trip_type !== 'airport' && (() => {
+                  {(() => {
                     const driverRate = booking.trip_type === 'outstation'
                       ? (booking.driver?.bata_rate_outstation ?? booking.driver?.bata_rate ?? 300)
                       : (booking.driver?.bata_rate ?? 300)
-                    const bataRs = tripSheet.bata_driver * driverRate
+                    const isAirport = booking.trip_type === 'airport'
+                    const drv = tripSheet.bata_driver ?? 0
+                    const cli = tripSheet.bata_client ?? 0
+                    if (drv === 0 && cli === 0) return null
                     return (
-                      <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5">
-                        <span className="text-[#737686]">Bata (Driver)</span>
-                        <span className="font-medium text-[#1A56DB]">{tripSheet.bata_driver} × ₹{driverRate} = ₹{bataRs}</span>
+                      <div className="border-t border-[#C3C5D7] pt-1.5 space-y-1">
+                        {!isAirport && drv > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-[#737686]">Bata — Driver</span>
+                            <span className="font-medium text-[#1A56DB]">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span>
+                          </div>
+                        )}
+                        {cli > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-[#737686]">Bata — Client{isAirport ? ' only' : ''}</span>
+                            <span className="font-medium text-[#0E9F6E]">{cli} bata billed</span>
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
