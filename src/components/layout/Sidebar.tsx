@@ -1,8 +1,11 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText, TrendingUp, Banknote, AlertCircle, FileMinus, PieChart,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut,
+  MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText,
+  TrendingUp, Banknote, AlertCircle, FileMinus, PieChart, ChevronDown,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -10,28 +13,63 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
-const NAV_ITEMS = [
-  { href: '/',          label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/bookings',  label: 'Bookings',  icon: BookOpen },
-  { href: '/messages',  label: 'Messages',  icon: MessageSquare },
-  { href: '/clients',   label: 'Clients',   icon: Users },
-  { href: '/companies', label: 'Companies', icon: Building2 },
-  { href: '/drivers',   label: 'Drivers',   icon: Car },
-  { href: '/advances',              label: 'Advances',        icon: IndianRupee },
-  { href: '/reports',               label: 'Reports',         icon: BarChart3 },
-  { href: '/reimbursements',        label: 'Reimbursements',  icon: Wallet },
-  { href: '/billing/invoices',      label: 'Invoices',        icon: Receipt },
-  { href: '/billing/cash-bills',    label: 'Cash Bills',      icon: Banknote },
-  { href: '/billing/pending',       label: 'Pending Billing', icon: AlertCircle },
-  { href: '/billing/rate-cards',    label: 'Rate Cards',      icon: IndianRupee },
-  { href: '/billing/payments',      label: 'Bill Payments',   icon: Wallet },
-  { href: '/billing/gst',           label: 'GST Working',     icon: BarChart3 },
-  { href: '/billing/credit-notes',       label: 'Credit Notes',     icon: FileMinus },
-  { href: '/billing/driver-settlements', label: 'Driver Statements', icon: FileText },
-  { href: '/billing/summary',            label: 'P&L Summary',       icon: TrendingUp },
-  { href: '/billing/margin',             label: 'Margin Tracker',    icon: PieChart },
-  { href: '/notifications',    label: 'Notifications',   icon: Bell },
-  { href: '/settings',      label: 'Settings',      icon: Settings },
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ElementType
+}
+
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const GROUPS: NavGroup[] = [
+  {
+    label: 'Operations',
+    items: [
+      { href: '/bookings',       label: 'Bookings',        icon: BookOpen },
+      { href: '/messages',       label: 'Messages',        icon: MessageSquare },
+      { href: '/reimbursements', label: 'Reimbursements',  icon: Wallet },
+      { href: '/advances',       label: 'Advances',        icon: IndianRupee },
+    ],
+  },
+  {
+    label: 'People',
+    items: [
+      { href: '/clients',   label: 'Clients',   icon: Users },
+      { href: '/companies', label: 'Companies', icon: Building2 },
+      { href: '/drivers',   label: 'Drivers',   icon: Car },
+    ],
+  },
+  {
+    label: 'Billing',
+    items: [
+      { href: '/billing/invoices',            label: 'Invoices',         icon: Receipt },
+      { href: '/billing/cash-bills',          label: 'Cash Bills',       icon: Banknote },
+      { href: '/billing/pending',             label: 'Pending Billing',  icon: AlertCircle },
+      { href: '/billing/rate-cards',          label: 'Rate Cards',       icon: IndianRupee },
+      { href: '/billing/payments',            label: 'Bill Payments',    icon: Wallet },
+      { href: '/billing/credit-notes',        label: 'Credit Notes',     icon: FileMinus },
+      { href: '/billing/gst',                 label: 'GST Working',      icon: BarChart3 },
+      { href: '/billing/driver-settlements',  label: 'Driver Statements', icon: FileText },
+      { href: '/billing/summary',             label: 'P&L Summary',      icon: TrendingUp },
+      { href: '/billing/margin',              label: 'Margin Tracker',   icon: PieChart },
+    ],
+  },
+  {
+    label: 'Analytics',
+    items: [
+      { href: '/reports', label: 'Reports', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { href: '/notifications', label: 'Notifications', icon: Bell },
+      { href: '/settings',      label: 'Settings',      icon: Settings },
+    ],
+  },
 ]
 
 const ROLE_LABELS: Record<string, string> = {
@@ -40,10 +78,67 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: 'Viewer',
 }
 
+function isGroupActive(group: NavGroup, pathname: string) {
+  return group.items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'))
+}
+
+function NavGroupSection({ group, isAdmin }: { group: NavGroup; isAdmin: boolean }) {
+  const pathname = usePathname()
+  const active = isGroupActive(group, pathname)
+  const [open, setOpen] = useState(active)
+
+  // If navigating to a page in a collapsed group, auto-open it
+  if (active && !open) setOpen(true)
+
+  const visibleItems = group.label === 'System' && isAdmin
+    ? [...group.items, { href: '/users', label: 'Users', icon: ShieldCheck }]
+    : group.items
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors',
+          active ? 'text-blue-700' : 'text-gray-400 hover:text-gray-600'
+        )}
+      >
+        {group.label}
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform shrink-0', open ? 'rotate-180' : '')} />
+      </button>
+
+      {open && (
+        <div className="mt-0.5 space-y-0.5">
+          {visibleItems.map(({ href, label, icon: Icon }) => {
+            const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
+                  isActive
+                    ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                )}
+              >
+                <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400')} />
+                {label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { data: me } = useCurrentUser()
+  const isAdmin = me?.role === 'admin'
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -55,15 +150,10 @@ export function Sidebar() {
     ? me.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : me?.email?.[0]?.toUpperCase() ?? '?'
 
-  const allNavItems = [
-    ...NAV_ITEMS,
-    ...(me?.role === 'admin' ? [{ href: '/users', label: 'Users', icon: ShieldCheck }] : []),
-  ]
-
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen fixed left-0 top-0 h-full z-40 bg-white border-r border-gray-200 shrink-0">
-      {/* Logo — same height as header */}
-      <div className="h-16 flex items-center px-5 border-b border-gray-200 gap-3">
+      {/* Logo */}
+      <div className="h-16 flex items-center px-5 border-b border-gray-200 gap-3 shrink-0">
         <Image src="/icons/icon-512.png" alt="JMS Travels" width={120} height={120} className="h-8 w-auto object-contain rounded" priority />
         <div>
           <p className="text-sm font-black text-blue-700 leading-none">JMS Travels</p>
@@ -71,30 +161,31 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {allNavItems.map(({ href, label, icon: Icon }) => {
-          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all',
-                isActive
-                  ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              )}
-            >
-              <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400')} />
-              {label}
-            </Link>
-          )
-        })}
+      {/* Scrollable nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1 min-h-0">
+        {/* Dashboard — always visible, not grouped */}
+        <Link
+          href="/"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
+            pathname === '/'
+              ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          )}
+        >
+          <LayoutDashboard className={cn('w-4 h-4 shrink-0', pathname === '/' ? 'text-blue-700' : 'text-gray-400')} />
+          Dashboard
+        </Link>
+
+        <div className="pt-1 space-y-1">
+          {GROUPS.map(group => (
+            <NavGroupSection key={group.label} group={group} isAdmin={isAdmin} />
+          ))}
+        </div>
       </nav>
 
       {/* Footer */}
-      <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-1">
+      <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-1 shrink-0">
         {me && (
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg mb-1">
             <div className="w-7 h-7 rounded-full bg-blue-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
