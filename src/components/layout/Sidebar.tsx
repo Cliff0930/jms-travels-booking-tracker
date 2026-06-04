@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut,
   MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText,
-  TrendingUp, Banknote, AlertCircle, FileMinus, PieChart, ChevronDown,
+  TrendingUp, Banknote, AlertCircle, AlertTriangle, FileMinus, PieChart, ChevronDown,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -62,8 +62,9 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: '/analytics',           label: 'Business Dashboard',  icon: PieChart },
       { href: '/analytics/companies', label: 'Company Scorecards',  icon: Building2 },
-      { href: '/analytics/drivers',   label: 'Driver Reports',      icon: Car },
-      { href: '/reports',             label: 'Trip Reports',        icon: BarChart3 },
+      { href: '/analytics/drivers',     label: 'Driver Reports',      icon: Car },
+      { href: '/analytics/outstanding', label: 'Outstanding Dues',   icon: AlertTriangle },
+      { href: '/reports',               label: 'Trip Reports',       icon: BarChart3 },
     ],
   },
   {
