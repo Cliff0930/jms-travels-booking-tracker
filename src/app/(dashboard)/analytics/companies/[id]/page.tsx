@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
+import type { BookingStatus } from '@/types'
 
 const BarChart = dynamic(() => import('recharts').then(m => m.BarChart), { ssr: false })
 const Bar      = dynamic(() => import('recharts').then(m => m.Bar),      { ssr: false })
@@ -329,7 +330,7 @@ export default function CompanyScorecardPage({ params }: { params: Promise<{ id:
                   <td className="px-4 py-2.5 text-gray-500 max-w-[160px] truncate text-xs">
                     {b.pickup_location ?? '—'}{b.drop_location ? ` → ${b.drop_location}` : ''}
                   </td>
-                  <td className="px-4 py-2.5"><BookingStatusBadge status={b.status} /></td>
+                  <td className="px-4 py-2.5"><BookingStatusBadge status={b.status as BookingStatus} /></td>
                 </tr>
               ))}
             </tbody>
