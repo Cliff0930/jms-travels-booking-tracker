@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   // By company
   const companyMap: Record<string, { name: string; count: number }> = {}
   for (const b of rows) {
-    const c = b.company as { id: string; name: string } | null
+    const c = b.company as unknown as { id: string; name: string } | null
     if (!c?.id) continue
     if (!companyMap[c.id]) companyMap[c.id] = { name: c.name, count: 0 }
     companyMap[c.id].count++
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   // By driver
   const driverMap: Record<string, { name: string; count: number }> = {}
   for (const b of rows) {
-    const d = b.driver as { id: string; name: string } | null
+    const d = b.driver as unknown as { id: string; name: string } | null
     if (!d?.id) continue
     if (!driverMap[d.id]) driverMap[d.id] = { name: d.name, count: 0 }
     driverMap[d.id].count++
@@ -101,8 +101,8 @@ export async function GET(request: Request) {
     pickup_date: b.pickup_date,
     cancelled_at: b.cancelled_at,
     reason: b.cancelled_reason ?? '',
-    company_name: (b.company as { id: string; name: string } | null)?.name ?? null,
-    driver_name: (b.driver as { id: string; name: string } | null)?.name ?? null,
+    company_name: (b.company as unknown as { id: string; name: string } | null)?.name ?? null,
+    driver_name: (b.driver as unknown as { id: string; name: string } | null)?.name ?? null,
   }))
 
   return NextResponse.json({
