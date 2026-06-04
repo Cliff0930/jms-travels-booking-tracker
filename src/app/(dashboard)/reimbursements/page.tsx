@@ -9,6 +9,7 @@ import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays, Dow
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import type { ReimbursementSheet } from '@/types'
+import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
 interface DriverSummary {
   id: string
@@ -315,6 +316,8 @@ function TripCard({
   onReject: (sheetId: string, itemKey: string, current: string | null) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const [showTripsheet, setShowTripsheet] = useState(false)
+  const qc = useQueryClient()
   const rejectedSet = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
 
   const totalOwed =
@@ -339,7 +342,13 @@ function TripCard({
           }
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-bold text-[#1A56DB]">{sheet.booking_ref}</span>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setShowTripsheet(true) }}
+                className="text-sm font-bold text-[#1A56DB] hover:underline underline-offset-2 cursor-pointer"
+              >
+                {sheet.booking_ref}
+              </button>
               {sheet.tripsheet_number && <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">TS#{sheet.tripsheet_number}</span>}
               {sheet.driver_name && <span className="text-sm font-semibold text-[#191B23]">{sheet.driver_name}</span>}
               {sheet.driver_vehicle_name && <span className="text-xs text-[#737686]">· {sheet.driver_vehicle_name}</span>}
@@ -373,6 +382,17 @@ function TripCard({
           {expanded ? <ChevronUp className="w-4 h-4 text-[#737686]" /> : <ChevronDown className="w-4 h-4 text-[#737686]" />}
         </div>
       </div>
+
+      {showTripsheet && (
+        <TripsheetEditPopup
+          bookingId={sheet.booking_id}
+          tripSheetId={sheet.sheet_id}
+          bookingRef={sheet.booking_ref}
+          tripType={sheet.trip_type}
+          onClose={() => setShowTripsheet(false)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['reimbursements'] })}
+        />
+      )}
 
       {/* Card Body */}
       {expanded && (
