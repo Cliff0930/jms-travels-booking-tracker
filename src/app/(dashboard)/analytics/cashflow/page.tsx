@@ -163,7 +163,6 @@ export default function CashFlowPage() {
               <XAxis dataKey="shortLabel" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
               <YAxis tickFormatter={fmt} tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={56} />
               <Tooltip
-                formatter={(value: unknown, name: string) => [fmtFull(Number(value ?? 0)), name]}
                 labelStyle={{ fontWeight: 700, fontSize: 12 }}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
               />
