@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -43,7 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         igst_amount:  li.igst_amount,
         line_total:   li.line_total,
       })),
-    })
+    } as any)
   )
 
   return new NextResponse(buf, {
