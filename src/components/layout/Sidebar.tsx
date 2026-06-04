@@ -60,7 +60,8 @@ const GROUPS: NavGroup[] = [
   {
     label: 'Analytics',
     items: [
-      { href: '/reports', label: 'Reports', icon: BarChart3 },
+      { href: '/analytics', label: 'Business Dashboard', icon: PieChart },
+      { href: '/reports',   label: 'Trip Reports',       icon: BarChart3 },
     ],
   },
   {
