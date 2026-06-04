@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { CreditNotePDF } from '@/components/billing/CreditNotePDF'
@@ -48,7 +48,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }) as any
   )
 
-  return new NextResponse(buf, {
+  return new Response(new Uint8Array(buf), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${cn.cn_number ?? 'DRAFT-CN'}.pdf"`,
