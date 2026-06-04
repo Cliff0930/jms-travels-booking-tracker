@@ -77,16 +77,10 @@ async function processWebhook(body: unknown) {
             .from('message_logs')
             .update({ status: 'failed' })
             .eq('whatsapp_message_id', waMessageId)
-          // If error indicates the recipient is not on WhatsApp, cache that so future sends are skipped.
-          // 131047 = recipient not on WhatsApp. 131026 = undeliverable (check title to be sure).
-          const titleLower = errorTitle.toLowerCase()
-          const isNonWhatsApp =
-            errorCode === 131047 ||
-            (errorCode === 131026 && (
-              titleLower.includes('not a whatsapp') ||
-              titleLower.includes('not registered') ||
-              titleLower.includes('unknown user')
-            ))
+          // Only cache as non-WhatsApp on 131047 — the one error code Meta guarantees means
+          // the number is not registered on WhatsApp. 131026 is a generic "undeliverable"
+          // that also fires on transient failures for valid numbers, so we don't use it here.
+          const isNonWhatsApp = errorCode === 131047
           if (isNonWhatsApp) {
             const { data: msgLog } = await supabase
               .from('message_logs')
