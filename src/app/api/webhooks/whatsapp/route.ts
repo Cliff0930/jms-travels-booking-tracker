@@ -6,8 +6,6 @@ import { handleClientChange, handleDisambiguationReply, type PendingAction } fro
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
-import { cacheWhatsAppStatus } from '@/lib/whatsapp/check-contact'
-import { normalizePhone } from '@/lib/utils/phone'
 import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
@@ -77,24 +75,6 @@ async function processWebhook(body: unknown) {
             .from('message_logs')
             .update({ status: 'failed' })
             .eq('whatsapp_message_id', waMessageId)
-          // Only cache as non-WhatsApp on 131047 — the one error code Meta guarantees means
-          // the number is not registered on WhatsApp. 131026 is a generic "undeliverable"
-          // that also fires on transient failures for valid numbers, so we don't use it here.
-          const isNonWhatsApp = errorCode === 131047
-          if (isNonWhatsApp) {
-            const { data: msgLog } = await supabase
-              .from('message_logs')
-              .select('recipient')
-              .eq('whatsapp_message_id', waMessageId)
-              .maybeSingle()
-            if (msgLog?.recipient) {
-              const normalized = normalizePhone(msgLog.recipient)
-              if (normalized) {
-                await cacheWhatsAppStatus(normalized, 'invalid')
-                console.log(`[WA Check] Marked ${normalized} as non-WhatsApp (code=${errorCode})`)
-              }
-            }
-          }
         } else if (status === 'delivered') {
           await supabase
             .from('message_logs')
