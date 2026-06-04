@@ -262,7 +262,7 @@ export default function DashboardPage() {
   const nonUrgentNoDriver = needDriver.filter(b => b.pickup_date !== today && b.pickup_date !== tomorrow)
   const todayAll          = bookings.filter(b => b.pickup_date === today && b.status !== 'cancelled')
   const completedToday    = bookings.filter(b => b.status === 'completed' && b.pickup_date === today)
-  const flagged           = bookings.filter(b => (b.flags as string[] | undefined)?.length > 0 && !['completed','cancelled'].includes(b.status))
+  const flagged           = bookings.filter(b => ((b.flags as string[] | undefined)?.length ?? 0) > 0 && !['completed','cancelled'].includes(b.status))
 
   const totalUrgentActions = urgentNoDriver.length + approvalUrgent.length + todayLegs.length
   const allClear = totalUrgentActions === 0 && needConfirm.length === 0 && nonUrgentApproval.length === 0 && nonUrgentNoDriver.length === 0 && flagged.length === 0
