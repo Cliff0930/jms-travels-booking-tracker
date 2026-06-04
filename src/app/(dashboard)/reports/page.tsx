@@ -2,12 +2,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
 import { Download, Search, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 import type { Booking } from '@/types'
 
@@ -282,272 +281,270 @@ export default function ReportsPage() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Reports"
-        actions={
-          <Button
-            size="sm"
-            className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5"
-            onClick={exportToExcel}
-            disabled={filteredBookings.length === 0}
-          >
-            <Download className="w-4 h-4" /> Export Excel
-          </Button>
-        }
-      />
+    <div className="space-y-5">
 
-      {/* Date range filters */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 mb-5 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          {QUICK_RANGES.map(r => {
-            const range = quickRange(r.key)
-            const active = filters.date_from === range.date_from && filters.date_to === range.date_to
-            return (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setFilters(range)}
-                className={`px-3 h-8 rounded-lg text-xs font-medium border transition-colors ${
-                  active
-                    ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
-                    : 'border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB] hover:bg-[#EEF2FF]'
-                }`}
-              >
-                {r.label}
-              </button>
-            )
-          })}
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div>
-            <Label className="text-xs text-[#737686]">From</Label>
-            <Input
-              type="date"
-              value={filters.date_from}
-              onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
-              className="border-[#C3C5D7] h-8 text-sm w-36 mt-1"
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-[#737686]">To</Label>
-            <Input
-              type="date"
-              value={filters.date_to}
-              onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
-              className="border-[#C3C5D7] h-8 text-sm w-36 mt-1"
-            />
-          </div>
-          {(filters.date_from || filters.date_to) && (
-            <button
-              type="button"
-              onClick={() => setFilters({ date_from: '', date_to: '' })}
-              className="text-xs text-[#737686] hover:text-red-600 transition-colors mt-4"
+      {/* ── Hero header ────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95]">
+        <div className="px-6 py-5">
+          {/* Title + actions */}
+          <div className="flex items-start justify-between flex-wrap gap-4 mb-5">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Trip Reports</h1>
+              <p className="text-indigo-300 text-sm mt-0.5">All bookings with tripsheet data · filter · export</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={exportToExcel}
+              disabled={filteredBookings.length === 0}
+              className="bg-white/15 hover:bg-white/25 text-white border-white/20 border gap-1.5"
             >
-              Clear dates
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Stat cards — sync with filteredBookings */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-5">
-        {[
-          { label: 'Total',          value: stats.total,                   color: '#1A56DB' },
-          { label: 'In Progress',    value: stats.inProgress,              color: '#7E3AF2' },
-          { label: 'Completed',      value: stats.completed,               color: '#059669' },
-          { label: 'Cancelled',      value: stats.cancelled,               color: '#DC2626' },
-          { label: 'Cancel Rate',    value: `${stats.cancelRate}%`,        color: '#D97706' },
-          { label: 'Local',          value: stats.local,                   color: '#1A56DB' },
-          { label: 'Outstation',     value: stats.outstation,              color: '#7B5EA7' },
-          { label: 'Airport',        value: stats.airport,                 color: '#059669' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-lg border border-[#C3C5D7] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#737686]">{s.label}</p>
-            <p className="text-2xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
+              <Download className="w-3.5 h-3.5" /> Export Excel
+            </Button>
           </div>
-        ))}
-      </div>
 
-      {/* Charts — all from filteredBookings */}
-      {filteredBookings.length > 0 && (
-        <ReportsCharts
-          statusCounts={statusCounts}
-          sourceCounts={sourceCounts}
-          tripTypeCounts={tripTypeCounts}
-          topCompanies={topCompanies}
-          byDate={byDate}
-        />
-      )}
-
-      {/* Table filters */}
-      <div className="bg-white rounded-lg border border-[#C3C5D7] p-3 mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[160px] flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737686] pointer-events-none" />
-          <Input
-            placeholder="Ref, client, driver, location…"
-            value={tableFilters.search}
-            onChange={e => setTableFilters(f => ({ ...f, search: e.target.value }))}
-            className="pl-8 h-8 text-xs border-[#C3C5D7]"
-          />
-        </div>
-        {[
-          { key: 'status',    options: STATUS_OPTIONS,  placeholder: 'All Statuses' },
-          { key: 'trip_type', options: TRIP_OPTIONS,    placeholder: 'All Types' },
-          { key: 'source',    options: SOURCE_OPTIONS,  placeholder: 'All Sources' },
-        ].map(({ key, options, placeholder }) => (
-          <select
-            key={key}
-            value={tableFilters[key as keyof typeof tableFilters]}
-            onChange={e => setTableFilters(f => ({ ...f, [key]: e.target.value }))}
-            className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none ${tableFilters[key as keyof typeof tableFilters] ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
-          >
-            <option value="">{placeholder}</option>
-            {options.map(o => <option key={o} value={o}>{o.replace('_', ' ')}</option>)}
-          </select>
-        ))}
-        {companyOptions.length > 0 && (
-          <select
-            value={tableFilters.company}
-            onChange={e => setTableFilters(f => ({ ...f, company: e.target.value }))}
-            className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none max-w-[140px] ${tableFilters.company ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
-          >
-            <option value="">All Companies</option>
-            {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-        {driverOptions.length > 0 && (
-          <select
-            value={tableFilters.driver}
-            onChange={e => setTableFilters(f => ({ ...f, driver: e.target.value }))}
-            className={`h-8 px-2 text-xs rounded-md border transition-colors outline-none max-w-[140px] ${tableFilters.driver ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EEF2FF]' : 'border-[#C3C5D7] text-[#434654]'}`}
-          >
-            <option value="">All Drivers</option>
-            {driverOptions.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        )}
-        {hasTableFilter && (
-          <button
-            type="button"
-            onClick={() => setTableFilters({ search: '', status: '', trip_type: '', source: '', company: '', driver: '' })}
-            className="flex items-center gap-1 h-8 px-2 text-xs text-[#737686] hover:text-red-600 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" /> Clear
-          </button>
-        )}
-        <span className="text-xs text-[#737686] ml-auto shrink-0">
-          {filteredBookings.length} of {bookings.length}
-        </span>
-      </div>
-
-      {/* Table */}
-      {isLoading ? (
-        <div className="py-12 text-center text-[#737686]">Loading report…</div>
-      ) : (
-        <>
-        <div ref={tableWrapRef} className="bg-white rounded-lg border border-[#C3C5D7] overflow-x-auto">
-          <table className="w-full text-sm min-w-[320px] sm:min-w-[640px] lg:min-w-[1400px]">
-            <thead>
-              <tr className="border-b border-[#C3C5D7] bg-[#F3F3FE]">
-                {/* Always visible */}
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Ref</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Client</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Date</th>
-                <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Status</th>
-                {/* sm+ */}
-                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Company</th>
-                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Driver</th>
-                <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Trip</th>
-                {/* lg+ */}
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Vehicle</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pickup</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Drop</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Time</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Pax</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#737686] whitespace-nowrap">Source</th>
-                {/* Tripsheet — lg+ only */}
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap border-l border-[#C3C5D7]">Sheet No.</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open Time</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close Time</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Open KM</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Close KM</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver KM</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">GPS KM</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Total KM</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Toll</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Parking</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Permit</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Bata</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">Driver Hrs</th>
-                <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#7E3AF2] whitespace-nowrap">GPS Hrs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBookings.length === 0 ? (
-                <tr><td colSpan={25} className="px-3 py-8 text-center text-[#737686]">No bookings match the selected filters</td></tr>
-              ) : filteredBookings.map(b => {
-                const ts = b.trip_sheet
-                const driverKm = (ts?.closing_km != null && ts?.opening_km != null)
-                  ? ts.closing_km - ts.opening_km : null
-                const totalKm = driverKm != null
-                  ? driverKm + (ts?.office_to_pickup_km ?? 0) + (ts?.drop_to_office_km ?? 0)
-                  : null
-                const gpsHrs    = ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
-                const driverHrs = ts?.manual_opening_time && ts?.manual_closing_time ? fmtManualDuration(ts.manual_opening_time, ts.manual_closing_time) : '—'
+          {/* Period picker */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            <div className="flex rounded-lg overflow-hidden border border-white/20">
+              {QUICK_RANGES.map(r => {
+                const range = quickRange(r.key)
+                const active = filters.date_from === range.date_from && filters.date_to === range.date_to
                 return (
-                  <tr key={b.id} className="border-b border-[#C3C5D7] last:border-0 hover:bg-[#F3F3FE]">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <a href={`/bookings/${b.id}`} className="font-medium text-[#1A56DB] hover:underline hover:text-[#003FB1]">{b.booking_ref}</a>
-                    </td>
-                    <td className="px-3 py-2 text-[#191B23] whitespace-nowrap max-w-[100px] truncate">{b.client?.name || b.guest_name || '—'}</td>
-                    <td className="px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_date || '—'}</td>
-                    <td className="px-3 py-2"><BookingStatusBadge status={b.status} /></td>
-                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.company?.name || '—'}</td>
-                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.name || '—'}</td>
-                    <td className="hidden sm:table-cell px-3 py-2 text-[#434654] capitalize">{b.trip_type}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.pickup_location || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] max-w-[140px] truncate">{b.drop_location || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{b.pickup_time || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-center">{b.pax_count ?? '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] capitalize">{b.source}</td>
-                    {/* Tripsheet columns — lg+ */}
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap border-l border-[#C3C5D7]">{ts?.tripsheet_number || '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 whitespace-nowrap">
-                      <div className="text-sm text-[#191B23]">{ts?.manual_opening_time ?? '—'}</div>
-                      {ts?.opening_time && <div className="text-[11px] text-[#9CA3AF]">GPS: {new Date(ts.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
-                    </td>
-                    <td className="hidden lg:table-cell px-3 py-2 whitespace-nowrap">
-                      <div className="text-sm text-[#191B23]">{ts?.manual_closing_time ?? '—'}</div>
-                      {ts?.closing_time && <div className="text-[11px] text-[#9CA3AF]">GPS: {new Date(ts.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
-                    </td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#191B23] font-medium text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.gps_km != null ? ts.gps_km.toFixed(1) : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-semibold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] text-right">{ts?.permit_amount != null ? `₹${ts.permit_amount}` : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#1A56DB] font-medium text-right">{ts?.bata_driver != null && ts.bata_driver > 0 ? `${ts.bata_driver}` : '—'}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{driverHrs}</td>
-                    <td className="hidden lg:table-cell px-3 py-2 text-[#434654] whitespace-nowrap">{gpsHrs}</td>
-                  </tr>
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => setFilters(range)}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold transition-colors border-r border-white/10 last:border-0',
+                      active ? 'bg-white text-indigo-900' : 'text-white/70 hover:bg-white/10'
+                    )}
+                  >
+                    {r.label}
+                  </button>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={filters.date_from} onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
+                className="bg-white/10 border border-white/20 rounded-lg px-2.5 py-1.5 text-white text-xs" />
+              <span className="text-white/50 text-xs">–</span>
+              <input type="date" value={filters.date_to} onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
+                className="bg-white/10 border border-white/20 rounded-lg px-2.5 py-1.5 text-white text-xs" />
+              {(filters.date_from || filters.date_to) && (
+                <button onClick={() => setFilters({ date_from: '', date_to: '' })}
+                  className="text-white/50 hover:text-white text-xs px-1">✕</button>
+              )}
+            </div>
+          </div>
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            {[
+              { label: 'Total',       value: stats.total,            bg: 'from-blue-500/20 to-blue-600/10' },
+              { label: 'In Progress', value: stats.inProgress,       bg: 'from-violet-500/20 to-violet-600/10' },
+              { label: 'Completed',   value: stats.completed,        bg: 'from-emerald-500/20 to-emerald-600/10', green: true },
+              { label: 'Cancelled',   value: stats.cancelled,        bg: 'from-red-500/25 to-red-600/10',  red: true },
+              { label: 'Cancel Rate', value: `${stats.cancelRate}%`, bg: 'from-amber-500/20 to-amber-600/10', amber: true },
+              { label: 'Local',       value: stats.local,            bg: 'from-blue-400/20 to-blue-500/10' },
+              { label: 'Outstation',  value: stats.outstation,       bg: 'from-purple-500/20 to-purple-600/10' },
+              { label: 'Airport',     value: stats.airport,          bg: 'from-teal-500/20 to-teal-600/10' },
+            ].map(s => (
+              <div key={s.label} className={cn('rounded-xl p-3 bg-gradient-to-br border border-white/10', s.bg)}>
+                <div className={cn('text-xl font-bold', s.red ? 'text-red-300' : s.green ? 'text-emerald-300' : s.amber ? 'text-amber-300' : 'text-white')}>
+                  {s.value}
+                </div>
+                <div className="text-[10px] text-white/50 mt-0.5 truncate">{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        {/* Sticky horizontal scrollbar — synced with table above */}
-        <div
-          ref={stickyBarRef}
-          className="sticky bottom-0 overflow-x-auto overflow-y-hidden border-t border-[#E5E7EB] bg-white z-10"
-          style={{ height: 14 }}
-        >
-          <div ref={stickyInnerRef} style={{ height: 1 }} />
+      </div>
+
+      {/* ── Charts ─────────────────────────────────────────────────── */}
+      {filteredBookings.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Analytics Charts</p>
+          <ReportsCharts
+            statusCounts={statusCounts}
+            sourceCounts={sourceCounts}
+            tripTypeCounts={tripTypeCounts}
+            topCompanies={topCompanies}
+            byDate={byDate}
+          />
         </div>
-        </>
       )}
+
+      {/* ── Table filters ───────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-gray-800 px-4 py-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <Input
+              placeholder="Ref, client, driver, location…"
+              value={tableFilters.search}
+              onChange={e => setTableFilters(f => ({ ...f, search: e.target.value }))}
+              className="pl-8 h-8 text-xs bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:bg-white/20"
+            />
+          </div>
+          {[
+            { key: 'status',    options: STATUS_OPTIONS,  placeholder: 'All Statuses' },
+            { key: 'trip_type', options: TRIP_OPTIONS,    placeholder: 'All Types' },
+            { key: 'source',    options: SOURCE_OPTIONS,  placeholder: 'All Sources' },
+          ].map(({ key, options, placeholder }) => (
+            <select
+              key={key}
+              value={tableFilters[key as keyof typeof tableFilters]}
+              onChange={e => setTableFilters(f => ({ ...f, [key]: e.target.value }))}
+              className={cn(
+                'h-8 px-2 text-xs rounded-lg border outline-none transition-colors',
+                tableFilters[key as keyof typeof tableFilters]
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-white/10 border-white/20 text-gray-300'
+              )}
+            >
+              <option value="">{placeholder}</option>
+              {options.map(o => <option key={o} value={o}>{o.replace('_', ' ')}</option>)}
+            </select>
+          ))}
+          {companyOptions.length > 0 && (
+            <select
+              value={tableFilters.company}
+              onChange={e => setTableFilters(f => ({ ...f, company: e.target.value }))}
+              className={cn('h-8 px-2 text-xs rounded-lg border outline-none max-w-[140px]',
+                tableFilters.company ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/10 border-white/20 text-gray-300')}
+            >
+              <option value="">All Companies</option>
+              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          {driverOptions.length > 0 && (
+            <select
+              value={tableFilters.driver}
+              onChange={e => setTableFilters(f => ({ ...f, driver: e.target.value }))}
+              className={cn('h-8 px-2 text-xs rounded-lg border outline-none max-w-[140px]',
+                tableFilters.driver ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/10 border-white/20 text-gray-300')}
+            >
+              <option value="">All Drivers</option>
+              {driverOptions.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
+          {hasTableFilter && (
+            <button
+              type="button"
+              onClick={() => setTableFilters({ search: '', status: '', trip_type: '', source: '', company: '', driver: '' })}
+              className="flex items-center gap-1 h-8 px-2 text-xs text-gray-400 hover:text-red-400 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          )}
+          <span className="text-xs text-gray-400 ml-auto shrink-0">
+            {filteredBookings.length} of {bookings.length} trips
+          </span>
+        </div>
+
+        {/* Table */}
+        {isLoading ? (
+          <div className="py-12 text-center text-gray-400">Loading report…</div>
+        ) : (
+          <>
+          <div ref={tableWrapRef} className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[320px] sm:min-w-[640px] lg:min-w-[1400px]">
+              <thead>
+                <tr className="bg-gray-900">
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Ref</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Client</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Date</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Status</th>
+                  <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Company</th>
+                  <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Driver</th>
+                  <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Trip</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Vehicle</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Pickup</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Drop</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Time</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Pax</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Source</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap border-l border-gray-700">Sheet No.</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Open Time</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Close Time</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Open KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Close KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Driver KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">GPS KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Total KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Toll</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Parking</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Permit</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Bata</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Driver Hrs</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">GPS Hrs</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredBookings.length === 0 ? (
+                  <tr><td colSpan={27} className="px-3 py-10 text-center text-gray-400">No bookings match the selected filters</td></tr>
+                ) : filteredBookings.map((b, idx) => {
+                  const ts = b.trip_sheet
+                  const driverKm = (ts?.closing_km != null && ts?.opening_km != null)
+                    ? ts.closing_km - ts.opening_km : null
+                  const totalKm = driverKm != null
+                    ? driverKm + (ts?.office_to_pickup_km ?? 0) + (ts?.drop_to_office_km ?? 0)
+                    : null
+                  const gpsHrs    = ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
+                  const driverHrs = ts?.manual_opening_time && ts?.manual_closing_time ? fmtManualDuration(ts.manual_opening_time, ts.manual_closing_time) : '—'
+                  return (
+                    <tr key={b.id} className={cn('hover:bg-indigo-50/40 transition-colors', idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white')}>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <a href={`/bookings/${b.id}`} className="font-bold text-indigo-600 hover:underline hover:text-indigo-800">{b.booking_ref}</a>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap max-w-[100px] truncate font-medium">{b.client?.name || b.guest_name || '—'}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.pickup_date || '—'}</td>
+                      <td className="px-3 py-2.5"><BookingStatusBadge status={b.status} /></td>
+                      <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap">{b.company?.name || '—'}</td>
+                      <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap">{b.driver?.name || '—'}</td>
+                      <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 capitalize">{b.trip_type}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 max-w-[140px] truncate">{b.pickup_location || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 max-w-[140px] truncate">{b.drop_location || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.pickup_time || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-center">{b.pax_count ?? '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 capitalize">{b.source}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap border-l border-gray-100">{ts?.tripsheet_number || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 whitespace-nowrap">
+                        <div className="text-sm text-gray-800">{ts?.manual_opening_time ?? '—'}</div>
+                        {ts?.opening_time && <div className="text-[11px] text-gray-400">GPS: {new Date(ts.opening_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
+                      </td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 whitespace-nowrap">
+                        <div className="text-sm text-gray-800">{ts?.manual_closing_time ?? '—'}</div>
+                        {ts?.closing_time && <div className="text-[11px] text-gray-400">GPS: {new Date(ts.closing_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>}
+                      </td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.opening_km?.toLocaleString() ?? '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.closing_km?.toLocaleString() ?? '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-800 font-semibold text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.gps_km != null ? ts.gps_km.toFixed(1) : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-indigo-600 font-bold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.permit_amount != null ? `₹${ts.permit_amount}` : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-indigo-500 font-medium text-right">{ts?.bata_driver != null && ts.bata_driver > 0 ? `${ts.bata_driver}` : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{driverHrs}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{gpsHrs}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* Sticky horizontal scrollbar */}
+          <div
+            ref={stickyBarRef}
+            className="sticky bottom-0 overflow-x-auto overflow-y-hidden border-t border-gray-200 bg-white z-10"
+            style={{ height: 14 }}
+          >
+            <div ref={stickyInnerRef} style={{ height: 1 }} />
+          </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
