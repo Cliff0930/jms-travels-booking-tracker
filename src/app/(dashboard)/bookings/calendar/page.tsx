@@ -40,7 +40,7 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 // ── types ─────────────────────────────────────────────────────────────────────
-interface CalBooking extends Booking {
+type CalBooking = Omit<Booking, 'driver' | 'company' | 'client'> & {
   driver?: { id: string; name: string; vehicle_name: string | null; vehicle_number: string | null } | null
   company?: { id: string; name: string } | null
   client?: { id: string; name: string } | null
