@@ -37,7 +37,7 @@ export async function GET() {
       id: inv.id,
       invoice_number: inv.invoice_number,
       company_id: inv.company_id,
-      company_name: (inv.company as { id: string; name: string } | null)?.name ?? 'Unknown',
+      company_name: (inv.company as unknown as { id: string; name: string } | null)?.name ?? 'Unknown',
       period_from: inv.period_from,
       period_to: inv.period_to,
       grand_total: Number(inv.grand_total),
