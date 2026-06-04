@@ -286,10 +286,7 @@ export default function AnalyticsPage() {
                     interval="preserveStartEnd"
                   />
                   <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E5E7EB' }}
-                    labelFormatter={(d: string) => fmtDate(d)}
-                  />
+                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E5E7EB' }} />
                   <Area type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} fill="url(#tripGrad)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
