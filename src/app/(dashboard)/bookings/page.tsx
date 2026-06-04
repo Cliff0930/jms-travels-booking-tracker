@@ -13,7 +13,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 
@@ -155,6 +155,9 @@ export default function BookingsPage() {
               <>
                 <ButtonLink href="/bookings/upload" size="sm" variant="outline" className="rounded-sm gap-1.5">
                   <Upload className="w-4 h-4" /> Upload
+                </ButtonLink>
+                <ButtonLink href="/bookings/offline-trip" size="sm" variant="outline" className="rounded-sm gap-1.5 text-[#7E3AF2] border-[#C4B5FD] hover:bg-[#EDE9FE]">
+                  <FileText className="w-4 h-4" /> Offline Trip
                 </ButtonLink>
                 <ButtonLink href="/bookings/new" size="sm" className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm gap-1.5">
                   <Plus className="w-4 h-4" /> New Booking

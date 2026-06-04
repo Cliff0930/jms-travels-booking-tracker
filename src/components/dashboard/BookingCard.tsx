@@ -21,6 +21,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const bookerName = booking.guest_name && booking.client?.name ? booking.client.name : null
   const companyName = booking.company?.name || booking.client?.company?.name
   const isPossibleDup = (booking.flags as string[] | undefined)?.includes('possible_duplicate')
+  const isOfflineTrip = (booking.flags as string[] | undefined)?.includes('offline_trip')
 
   return (
     <div
@@ -44,6 +45,9 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             )}
             {booking.trip_type === 'airport' && (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E]">Airport</span>
+            )}
+            {isOfflineTrip && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EDE9FE] text-[#7E3AF2]">Offline</span>
             )}
             {booking.is_settlement_duty && (
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-400">₹ SETTLEMENT</span>
