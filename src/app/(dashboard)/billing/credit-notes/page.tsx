@@ -104,28 +104,28 @@ export default function CreditNotesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(cn => (
+              {filtered.map(note => (
                 <tr
-                  key={cn.id}
-                  onClick={() => router.push(`/billing/credit-notes/${cn.id}`)}
+                  key={note.id}
+                  onClick={() => router.push(`/billing/credit-notes/${note.id}`)}
                   className="hover:bg-gray-50 cursor-pointer"
                 >
                   <td className="px-4 py-3 font-semibold text-red-700">
-                    {cn.cn_number ?? <span className="text-gray-400 italic font-normal">DRAFT</span>}
+                    {note.cn_number ?? <span className="text-gray-400 italic font-normal">DRAFT</span>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       'px-2 py-0.5 rounded-full text-xs font-semibold capitalize',
-                      STATUS_COLORS[cn.status] ?? 'bg-gray-100 text-gray-600'
+                      STATUS_COLORS[note.status] ?? 'bg-gray-100 text-gray-600'
                     )}>
-                      {cn.status}
+                      {note.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-700">{cn.company?.name ?? '—'}</td>
-                  <td className="px-4 py-3 text-blue-700 font-medium">{cn.invoice?.invoice_number ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">{cn.reason}</td>
-                  <td className="px-4 py-3 font-bold text-red-700">{fmt(cn.total_amount)}</td>
-                  <td className="px-4 py-3 text-gray-500">{fmtDate(cn.issued_at ?? cn.created_at)}</td>
+                  <td className="px-4 py-3 font-medium text-gray-700">{note.company?.name ?? '—'}</td>
+                  <td className="px-4 py-3 text-blue-700 font-medium">{note.invoice?.invoice_number ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">{note.reason}</td>
+                  <td className="px-4 py-3 font-bold text-red-700">{fmt(note.total_amount)}</td>
+                  <td className="px-4 py-3 text-gray-500">{fmtDate(note.issued_at ?? note.created_at)}</td>
                 </tr>
               ))}
             </tbody>
