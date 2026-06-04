@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 
 const NAVY   = '#1e3a5f'
 const RED    = '#C53030'
@@ -19,6 +19,8 @@ const s = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 8, color: TEXT, paddingBottom: 24 },
   redStripe: { height: 5, backgroundColor: RED },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#FAFBFF' },
+  logoImg: { width: 64, height: 64, objectFit: 'contain', marginRight: 12 },
+  logoBox: { width: 64, height: 64, marginRight: 12 },
   headerLeft: { flex: 1 },
   companyName: { fontSize: 17, fontFamily: 'Helvetica-Bold', color: NAVY, letterSpacing: 1.5 },
   tagline: { fontSize: 6, fontFamily: 'Helvetica-Oblique', color: '#777', marginTop: 1 },
@@ -79,6 +81,7 @@ function fmtDate(d: string) {
 }
 
 export interface CreditNotePDFData {
+  logoSrc?: string
   cn_number: string
   created_at: string
   issued_at: string | null
@@ -116,6 +119,10 @@ export function CreditNotePDF(data: CreditNotePDFData) {
 
         {/* Header */}
         <View style={s.header}>
+          {data.logoSrc
+            ? <Image src={data.logoSrc} style={s.logoImg} />
+            : <View style={s.logoBox} />
+          }
           <View style={s.headerLeft}>
             <Text style={s.companyName}>{JMS.name}</Text>
             <Text style={s.tagline}>{JMS.tagline}</Text>

@@ -3,7 +3,15 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { CreditNotePDF } from '@/components/billing/CreditNotePDF'
+
+function getLogoDataUri(): string | undefined {
+  const logoPath = join(process.cwd(), 'public', 'jms-logo.png')
+  if (!existsSync(logoPath)) return undefined
+  return `data:image/png;base64,${readFileSync(logoPath).toString('base64')}`
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -18,9 +26,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (error || !cn) return NextResponse.json({ error: 'Credit note not found' }, { status: 404 })
 
+  const logoSrc = getLogoDataUri()
+
   // Cast matches the pattern used in InvoicePDF route — react-pdf types don't align with createElement
   const buf = await renderToBuffer(
     createElement(CreditNotePDF, {
+      logoSrc,
       cn_number:    cn.cn_number ?? 'DRAFT',
       created_at:   cn.created_at,
       issued_at:    cn.issued_at ?? null,
