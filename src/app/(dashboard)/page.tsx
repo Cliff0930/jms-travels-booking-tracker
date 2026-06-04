@@ -54,7 +54,7 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
 
   return (
     <button onClick={onClick} className={cn(
-      'flex-1 rounded-xl border p-2.5 text-center transition-all focus:outline-none',
+      'flex-1 min-w-[44px] shrink-0 rounded-xl border p-2.5 text-center transition-all focus:outline-none',
       selected ? 'bg-blue-600 border-blue-600' : isToday ? 'border-blue-300 bg-blue-50' : 'bg-white border-gray-200 hover:border-blue-300',
     )}>
       <p className={cn('text-[10px] font-bold uppercase tracking-wider',
@@ -423,7 +423,7 @@ export default function DashboardPage() {
             <SectionHeader icon={CalendarDays} label="This Week" />
 
             {/* Day strip */}
-            <div className="flex gap-2 p-4 border-b border-gray-100">
+            <div className="flex gap-2 p-4 border-b border-gray-100 overflow-x-auto">
               {weekDays.map(({ date, trips }) => (
                 <WeekDayCard key={date} dateStr={date} trips={trips}
                   selected={selectedDay === date}
