@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface TripSheet {
   id: string
@@ -48,6 +50,7 @@ interface Props {
 }
 
 type SaveMode = 'both' | 'driver' | 'client'
+type Tab = 'actual' | 'driver' | 'client'
 
 type Form = {
   tripsheet_number: string
@@ -68,11 +71,69 @@ type Form = {
 function nn(v: number | null | undefined): string { return v != null ? String(v) : '' }
 function ns(v: string | null | undefined): string { return v ?? '' }
 
+function kmDiff(open: string, close: string): string | null {
+  const a = parseFloat(open), b = parseFloat(close)
+  if (isNaN(a) || isNaN(b) || b <= a) return null
+  return `${(b - a).toFixed(0)} km`
+}
+
+function timeDiff(open: string, close: string): string | null {
+  if (!open || !close) return null
+  const [oh, om] = open.split(':').map(Number)
+  const [ch, cm] = close.split(':').map(Number)
+  if (isNaN(oh) || isNaN(om) || isNaN(ch) || isNaN(cm)) return null
+  let mins = (ch * 60 + cm) - (oh * 60 + om)
+  if (mins < 0) mins += 24 * 60
+  if (mins === 0) return null
+  const h = Math.floor(mins / 60), m = mins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+function Chip({ children, color = 'green' }: { children: React.ReactNode; color?: 'green' | 'amber' | 'blue' }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold',
+      color === 'green' && 'bg-emerald-100 text-emerald-700',
+      color === 'amber' && 'bg-amber-100 text-amber-700',
+      color === 'blue'  && 'bg-blue-100 text-blue-700',
+    )}>
+      {children}
+    </span>
+  )
+}
+
+function FieldRow({ label, icon: Icon, children }: { label: string; icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wide flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}
+      </Label>
+      {children}
+    </div>
+  )
+}
+
+function MoneyInput({ value, onChange, placeholder = '0' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#9CA3AF] font-medium">₹</span>
+      <Input
+        type="number"
+        className="h-8 text-sm pl-6"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  )
+}
+
 export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripType, invoiceId, lineItemId, onClose, onSaved }: Props) {
   const [sheet, setSheet] = useState<TripSheet | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<SaveMode | null>(null)
   const [form, setForm] = useState<Form | null>(null)
+  const [tab, setTab] = useState<Tab>('actual')
 
   useEffect(() => {
     fetch(`/api/bookings/${bookingId}/trip-sheet`)
@@ -82,38 +143,42 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         setSheet(s)
         if (s) {
           setForm({
-            tripsheet_number:    ns(s.tripsheet_number),
-            opening_km:          nn(s.opening_km),
-            closing_km:          nn(s.closing_km),
-            manual_opening_time: ns(s.manual_opening_time),
-            manual_closing_time: ns(s.manual_closing_time),
-            toll_amount:         nn(s.toll_amount),
-            parking_amount:      nn(s.parking_amount),
-            permit_amount:       nn(s.permit_amount),
-            driver_opening_km:   nn(s.driver_opening_km  ?? s.opening_km),
-            driver_closing_km:   nn(s.driver_closing_km  ?? s.closing_km),
-            driver_opening_time: ns(s.driver_opening_time  ?? s.manual_opening_time),
-            driver_closing_time: ns(s.driver_closing_time  ?? s.manual_closing_time),
-            driver_toll_amount:   nn(s.driver_toll_amount),
+            tripsheet_number:      ns(s.tripsheet_number),
+            opening_km:            nn(s.opening_km),
+            closing_km:            nn(s.closing_km),
+            manual_opening_time:   ns(s.manual_opening_time),
+            manual_closing_time:   ns(s.manual_closing_time),
+            toll_amount:           nn(s.toll_amount),
+            parking_amount:        nn(s.parking_amount),
+            permit_amount:         nn(s.permit_amount),
+            driver_opening_km:     nn(s.driver_opening_km  ?? s.opening_km),
+            driver_closing_km:     nn(s.driver_closing_km  ?? s.closing_km),
+            driver_opening_time:   ns(s.driver_opening_time  ?? s.manual_opening_time),
+            driver_closing_time:   ns(s.driver_closing_time  ?? s.manual_closing_time),
+            driver_toll_amount:    nn(s.driver_toll_amount),
             driver_parking_amount: nn(s.driver_parking_amount),
             driver_permit_amount:  nn(s.driver_permit_amount),
-            bata_driver:         nn(s.bata_driver) || '0',
-            client_opening_km:   nn(s.client_opening_km  ?? s.opening_km),
-            client_closing_km:   nn(s.client_closing_km  ?? s.closing_km),
-            client_opening_time: ns(s.client_opening_time  ?? s.manual_opening_time),
-            client_closing_time: ns(s.client_closing_time  ?? s.manual_closing_time),
-            client_toll_amount:   nn(s.client_toll_amount),
+            bata_driver:           nn(s.bata_driver) || '0',
+            client_opening_km:     nn(s.client_opening_km  ?? s.opening_km),
+            client_closing_km:     nn(s.client_closing_km  ?? s.closing_km),
+            client_opening_time:   ns(s.client_opening_time  ?? s.manual_opening_time),
+            client_closing_time:   ns(s.client_closing_time  ?? s.manual_closing_time),
+            client_toll_amount:    nn(s.client_toll_amount),
             client_parking_amount: nn(s.client_parking_amount),
             client_permit_amount:  nn(s.client_permit_amount),
-            bata_client:         nn(s.bata_client) || '0',
-            trip_opening_date:   ns(s.trip_opening_date),
-            trip_closing_date:   ns(s.trip_closing_date),
+            bata_client:           nn(s.bata_client) || '0',
+            trip_opening_date:     ns(s.trip_opening_date),
+            trip_closing_date:     ns(s.trip_closing_date),
           })
         }
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [bookingId, tripSheetId])
+
+  function set(key: keyof Form, val: string) {
+    setForm(prev => prev ? { ...prev, [key]: val } : prev)
+  }
 
   function n(v: string) { return v !== '' ? Number(v) : null }
   function s(v: string) { return v || null }
@@ -197,198 +262,410 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         })
         await recalculate()
       }
-      toast.success(mode === 'driver' ? 'Driver tripsheet updated' : 'Tripsheet saved — invoice recalculated')
+      toast.success(mode === 'driver' ? 'Driver sheet updated' : 'Tripsheet saved')
       onSaved()
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(null)
     }
   }
 
-  function set(key: keyof Form, val: string) {
-    setForm(prev => prev ? { ...prev, [key]: val } : prev)
+  const tripTypeBg: Record<string, string> = {
+    local: 'bg-emerald-100 text-emerald-700',
+    outstation: 'bg-violet-100 text-violet-700',
+    airport: 'bg-amber-100 text-amber-700',
   }
+
+  const TABS: { id: Tab; label: string; color: string; dot: string }[] = [
+    { id: 'actual', label: 'Actual',  color: 'text-[#374151]', dot: 'bg-[#6B7280]' },
+    { id: 'driver', label: 'Driver',  color: 'text-amber-700',  dot: 'bg-amber-500' },
+    { id: 'client', label: 'Client',  color: 'text-blue-700',   dot: 'bg-blue-500'  },
+  ]
 
   const f = form
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Tripsheet — {bookingRef}{tripType === 'outstation' ? ' (Outstation)' : ''}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-xl p-0 overflow-hidden rounded-xl gap-0">
 
-        {loading && <div className="py-8 text-center text-sm text-gray-400">Loading tripsheet…</div>}
-        {!loading && !sheet && <div className="py-8 text-center text-sm text-gray-400">No tripsheet found for this booking.</div>}
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <div className="bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-5 py-4 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-white font-bold text-xl tracking-tight">{bookingRef}</span>
+              {tripType && (
+                <span className={cn('text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize', tripTypeBg[tripType] ?? 'bg-white/20 text-white')}>
+                  {tripType}
+                </span>
+              )}
+              {f?.tripsheet_number && (
+                <span className="text-[11px] font-mono bg-white/15 text-white/90 px-2 py-0.5 rounded">
+                  TS#{f.tripsheet_number}
+                </span>
+              )}
+            </div>
+            <p className="text-indigo-200 text-xs">Edit tripsheet · verify KM &amp; times before billing</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors mt-0.5"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-        {!loading && f && sheet && (
-          <div className="space-y-6 py-1">
+        {/* ── Tab bar ────────────────────────────────────────────── */}
+        <div className="flex border-b border-[#E5E7EB] bg-white">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold border-b-2 transition-colors',
+                tab === t.id
+                  ? `border-current ${t.color}`
+                  : 'border-transparent text-[#9CA3AF] hover:text-[#6B7280]'
+              )}
+            >
+              <span className={cn('w-2 h-2 rounded-full', t.dot)} />
+              {t.label}
+              {t.id !== 'actual' && (
+                <span className="text-[10px] text-current opacity-60">adjustment</span>
+              )}
+            </button>
+          ))}
+        </div>
 
-            {/* ── ACTUAL ───────────────────────────────────────────── */}
-            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Actual <span className="font-normal normal-case text-gray-400">(base values — used when no driver/client override)</span></p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-3 space-y-1">
-                  <Label className="text-xs">Sheet No.</Label>
-                  <Input className="h-8 text-sm" value={f.tripsheet_number} onChange={e => set('tripsheet_number', e.target.value)} placeholder="e.g. 2001" />
-                </div>
-                {/* Outstation date fields */}
-                {tripType === 'outstation' && (<>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Opening Date</Label>
-                    <Input type="date" className="h-8 text-sm" value={f.trip_opening_date} onChange={e => set('trip_opening_date', e.target.value)} />
+        {/* ── Body ───────────────────────────────────────────────── */}
+        <div className="max-h-[60vh] overflow-y-auto px-5 py-4 bg-[#FAFAFA]">
+
+          {loading && (
+            <div className="py-10 text-center text-sm text-[#9CA3AF]">Loading tripsheet…</div>
+          )}
+          {!loading && !sheet && (
+            <div className="py-10 text-center text-sm text-[#9CA3AF]">No tripsheet found for this booking.</div>
+          )}
+
+          {!loading && f && sheet && (
+            <>
+              {/* ── ACTUAL TAB ─────────────────────────────────── */}
+              {tab === 'actual' && (
+                <div className="space-y-4">
+                  {/* Sheet number */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3">
+                    <FieldRow label="Sheet Number" icon={Car}>
+                      <Input
+                        className="h-8 text-sm"
+                        value={f.tripsheet_number}
+                        onChange={e => set('tripsheet_number', e.target.value)}
+                        placeholder="e.g. TS-2001"
+                      />
+                    </FieldRow>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Closing Date</Label>
-                    <Input type="date" className="h-8 text-sm" value={f.trip_closing_date} onChange={e => set('trip_closing_date', e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Days</Label>
-                    <div className="h-8 px-3 flex items-center text-sm font-semibold text-blue-700 bg-blue-50 rounded-md border border-blue-200">
-                      {f.trip_opening_date && f.trip_closing_date
-                        ? (() => {
-                            const diff = Math.round((new Date(f.trip_closing_date).getTime() - new Date(f.trip_opening_date).getTime()) / 86400000)
-                            return diff >= 0 ? `${diff + 1} day${diff + 1 !== 1 ? 's' : ''}` : '—'
-                          })()
-                        : '—'}
+
+                  {/* Outstation dates */}
+                  {tripType === 'outstation' && (
+                    <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> Outstation Dates
+                      </p>
+                      <div className="grid grid-cols-3 gap-3 items-end">
+                        <FieldRow label="Opening Date" icon={Calendar}>
+                          <Input type="date" className="h-8 text-sm" value={f.trip_opening_date} onChange={e => set('trip_opening_date', e.target.value)} />
+                        </FieldRow>
+                        <FieldRow label="Closing Date" icon={Calendar}>
+                          <Input type="date" className="h-8 text-sm" value={f.trip_closing_date} onChange={e => set('trip_closing_date', e.target.value)} />
+                        </FieldRow>
+                        <div className="h-8 flex items-center justify-center rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700">
+                          {f.trip_opening_date && f.trip_closing_date
+                            ? (() => {
+                                const diff = Math.round((new Date(f.trip_closing_date).getTime() - new Date(f.trip_opening_date).getTime()) / 86400000)
+                                return diff >= 0 ? `${diff + 1}d` : '—'
+                              })()
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KM */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                        <Gauge className="w-3 h-3" /> Odometer
+                      </p>
+                      {kmDiff(f.opening_km, f.closing_km) && (
+                        <Chip color="green">{kmDiff(f.opening_km, f.closing_km)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.opening_km} onChange={e => set('opening_km', e.target.value)} placeholder="0" />
+                      </FieldRow>
+                      <FieldRow label="Closing KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.closing_km} onChange={e => set('closing_km', e.target.value)} placeholder="0" />
+                      </FieldRow>
                     </div>
                   </div>
-                </>)}
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.opening_km} onChange={e => set('opening_km', e.target.value)} placeholder="0" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.closing_km} onChange={e => set('closing_km', e.target.value)} placeholder="0" />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.manual_opening_time} onChange={e => set('manual_opening_time', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.manual_closing_time} onChange={e => set('manual_closing_time', e.target.value)} />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Toll (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.toll_amount} onChange={e => set('toll_amount', e.target.value)} placeholder="0" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Parking (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.parking_amount} onChange={e => set('parking_amount', e.target.value)} placeholder="0" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Permit (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.permit_amount} onChange={e => set('permit_amount', e.target.value)} placeholder="0" />
-                </div>
-              </div>
-            </div>
 
-            {/* ── DRIVER ───────────────────────────────────────────── */}
-            <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4 space-y-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Driver Adjustment <span className="font-normal normal-case text-amber-600">(driver settlement — blank = use Actual)</span></p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.driver_opening_km} onChange={e => set('driver_opening_km', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.driver_closing_km} onChange={e => set('driver_closing_km', e.target.value)} placeholder="Actual" />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.driver_opening_time} onChange={e => set('driver_opening_time', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.driver_closing_time} onChange={e => set('driver_closing_time', e.target.value)} />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Toll (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.driver_toll_amount} onChange={e => set('driver_toll_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Parking (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.driver_parking_amount} onChange={e => set('driver_parking_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Permit (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.driver_permit_amount} onChange={e => set('driver_permit_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Bata Count</Label>
-                  <Input type="number" min="0" className="h-8 text-sm" value={f.bata_driver} onChange={e => set('bata_driver', e.target.value)} placeholder="0" />
-                </div>
-              </div>
-            </div>
+                  {/* Time */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Time
+                      </p>
+                      {timeDiff(f.manual_opening_time, f.manual_closing_time) && (
+                        <Chip color="green">{timeDiff(f.manual_opening_time, f.manual_closing_time)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.manual_opening_time} onChange={e => set('manual_opening_time', e.target.value)} />
+                      </FieldRow>
+                      <FieldRow label="Closing" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.manual_closing_time} onChange={e => set('manual_closing_time', e.target.value)} />
+                      </FieldRow>
+                    </div>
+                  </div>
 
-            {/* ── CLIENT ───────────────────────────────────────────── */}
-            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4 space-y-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Client Adjustment <span className="font-normal normal-case text-blue-600">(invoice calculation — blank = use Actual)</span></p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.client_opening_km} onChange={e => set('client_opening_km', e.target.value)} placeholder="Actual" />
+                  {/* Extras */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                      <IndianRupee className="w-3 h-3" /> Extras
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <FieldRow label="Toll" icon={IndianRupee}>
+                        <MoneyInput value={f.toll_amount} onChange={v => set('toll_amount', v)} />
+                      </FieldRow>
+                      <FieldRow label="Parking" icon={IndianRupee}>
+                        <MoneyInput value={f.parking_amount} onChange={v => set('parking_amount', v)} />
+                      </FieldRow>
+                      <FieldRow label="Permit" icon={IndianRupee}>
+                        <MoneyInput value={f.permit_amount} onChange={v => set('permit_amount', v)} />
+                      </FieldRow>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing KM</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.client_closing_km} onChange={e => set('client_closing_km', e.target.value)} placeholder="Actual" />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Opening Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.client_opening_time} onChange={e => set('client_opening_time', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Closing Time</Label>
-                  <Input type="time" className="h-8 text-sm" value={f.client_closing_time} onChange={e => set('client_closing_time', e.target.value)} />
-                </div>
-                <div />
-                <div className="space-y-1">
-                  <Label className="text-xs">Toll (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.client_toll_amount} onChange={e => set('client_toll_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Parking (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.client_parking_amount} onChange={e => set('client_parking_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Permit (₹)</Label>
-                  <Input type="number" className="h-8 text-sm" value={f.client_permit_amount} onChange={e => set('client_permit_amount', e.target.value)} placeholder="Actual" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Bata Count <span className="text-gray-400 font-normal">(billed)</span></Label>
-                  <Input type="number" min="0" className="h-8 text-sm" value={f.bata_client} onChange={e => set('bata_client', e.target.value)} placeholder="0" />
-                </div>
-              </div>
-            </div>
+              )}
 
-            {/* ── ACTIONS ──────────────────────────────────────────── */}
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button size="sm" onClick={() => handleSave('both')} disabled={saving !== null} className="bg-blue-700 hover:bg-blue-800 text-white">
-                {saving === 'both' ? 'Saving…' : 'Save Both'}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleSave('driver')} disabled={saving !== null} className="border-amber-300 text-amber-800 hover:bg-amber-50">
-                {saving === 'driver' ? 'Saving…' : 'Save Driver Only'}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleSave('client')} disabled={saving !== null} className="border-blue-300 text-blue-800 hover:bg-blue-50">
-                {saving === 'client' ? 'Saving…' : 'Save Client Only'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onClose} disabled={saving !== null} className="ml-auto">
-                Cancel
-              </Button>
-            </div>
+              {/* ── DRIVER TAB ─────────────────────────────────── */}
+              {tab === 'driver' && (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                    Overrides for driver settlement. Leave blank to use Actual values.
+                  </div>
 
+                  {/* KM */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
+                        <Gauge className="w-3 h-3" /> KM (Driver)
+                      </p>
+                      {kmDiff(f.driver_opening_km, f.driver_closing_km) && (
+                        <Chip color="amber">{kmDiff(f.driver_opening_km, f.driver_closing_km)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.driver_opening_km} onChange={e => set('driver_opening_km', e.target.value)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Closing KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.driver_closing_km} onChange={e => set('driver_closing_km', e.target.value)} placeholder="Actual" />
+                      </FieldRow>
+                    </div>
+                  </div>
+
+                  {/* Time */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Time (Driver)
+                      </p>
+                      {timeDiff(f.driver_opening_time, f.driver_closing_time) && (
+                        <Chip color="amber">{timeDiff(f.driver_opening_time, f.driver_closing_time)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.driver_opening_time} onChange={e => set('driver_opening_time', e.target.value)} />
+                      </FieldRow>
+                      <FieldRow label="Closing" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.driver_closing_time} onChange={e => set('driver_closing_time', e.target.value)} />
+                      </FieldRow>
+                    </div>
+                  </div>
+
+                  {/* Extras + Bata */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
+                      <IndianRupee className="w-3 h-3" /> Extras &amp; Bata (Driver)
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <FieldRow label="Toll" icon={IndianRupee}>
+                        <MoneyInput value={f.driver_toll_amount} onChange={v => set('driver_toll_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Parking" icon={IndianRupee}>
+                        <MoneyInput value={f.driver_parking_amount} onChange={v => set('driver_parking_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Permit" icon={IndianRupee}>
+                        <MoneyInput value={f.driver_permit_amount} onChange={v => set('driver_permit_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                    </div>
+                    <div className="pt-1 border-t border-[#F3F4F6]">
+                      <FieldRow label="Bata Count" icon={IndianRupee}>
+                        <Input type="number" min="0" className="h-8 text-sm max-w-[100px]" value={f.bata_driver} onChange={e => set('bata_driver', e.target.value)} placeholder="0" />
+                      </FieldRow>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── CLIENT TAB ─────────────────────────────────── */}
+              {tab === 'client' && (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                    Overrides for invoice calculation. Leave blank to use Actual values.
+                  </div>
+
+                  {/* Outstation dates (client) */}
+                  {tripType === 'outstation' && (
+                    <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> Outstation Dates (Client)
+                      </p>
+                      <div className="grid grid-cols-3 gap-3 items-end">
+                        <FieldRow label="Opening Date" icon={Calendar}>
+                          <Input type="date" className="h-8 text-sm" value={f.trip_opening_date} onChange={e => set('trip_opening_date', e.target.value)} />
+                        </FieldRow>
+                        <FieldRow label="Closing Date" icon={Calendar}>
+                          <Input type="date" className="h-8 text-sm" value={f.trip_closing_date} onChange={e => set('trip_closing_date', e.target.value)} />
+                        </FieldRow>
+                        <div className="h-8 flex items-center justify-center rounded-lg bg-blue-50 border border-blue-200 text-sm font-bold text-blue-700">
+                          {f.trip_opening_date && f.trip_closing_date
+                            ? (() => {
+                                const diff = Math.round((new Date(f.trip_closing_date).getTime() - new Date(f.trip_opening_date).getTime()) / 86400000)
+                                return diff >= 0 ? `${diff + 1}d` : '—'
+                              })()
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KM */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                        <Gauge className="w-3 h-3" /> KM (Client)
+                      </p>
+                      {kmDiff(f.client_opening_km, f.client_closing_km) && (
+                        <Chip color="blue">{kmDiff(f.client_opening_km, f.client_closing_km)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.client_opening_km} onChange={e => set('client_opening_km', e.target.value)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Closing KM" icon={Gauge}>
+                        <Input type="number" className="h-8 text-sm" value={f.client_closing_km} onChange={e => set('client_closing_km', e.target.value)} placeholder="Actual" />
+                      </FieldRow>
+                    </div>
+                  </div>
+
+                  {/* Time */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Time (Client)
+                      </p>
+                      {timeDiff(f.client_opening_time, f.client_closing_time) && (
+                        <Chip color="blue">{timeDiff(f.client_opening_time, f.client_closing_time)}</Chip>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FieldRow label="Opening" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.client_opening_time} onChange={e => set('client_opening_time', e.target.value)} />
+                      </FieldRow>
+                      <FieldRow label="Closing" icon={Clock}>
+                        <Input type="time" className="h-8 text-sm" value={f.client_closing_time} onChange={e => set('client_closing_time', e.target.value)} />
+                      </FieldRow>
+                    </div>
+                  </div>
+
+                  {/* Extras + Bata */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                      <IndianRupee className="w-3 h-3" /> Extras &amp; Bata (Client)
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <FieldRow label="Toll" icon={IndianRupee}>
+                        <MoneyInput value={f.client_toll_amount} onChange={v => set('client_toll_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Parking" icon={IndianRupee}>
+                        <MoneyInput value={f.client_parking_amount} onChange={v => set('client_parking_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                      <FieldRow label="Permit" icon={IndianRupee}>
+                        <MoneyInput value={f.client_permit_amount} onChange={v => set('client_permit_amount', v)} placeholder="Actual" />
+                      </FieldRow>
+                    </div>
+                    <div className="pt-1 border-t border-[#F3F4F6]">
+                      <FieldRow label="Bata Count (billed)" icon={IndianRupee}>
+                        <Input type="number" min="0" className="h-8 text-sm max-w-[100px]" value={f.bata_client} onChange={e => set('bata_client', e.target.value)} placeholder="0" />
+                      </FieldRow>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Footer ─────────────────────────────────────────────── */}
+        {!loading && sheet && f && (
+          <div className="px-5 py-3.5 bg-white border-t border-[#E5E7EB] flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => handleSave('both')}
+              disabled={saving !== null}
+              className="bg-[#312e81] hover:bg-[#1e1b4b] text-white gap-1.5 rounded-lg"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {saving === 'both' ? 'Saving…' : 'Save Both'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleSave('driver')}
+              disabled={saving !== null}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50 gap-1 rounded-lg"
+            >
+              {saving === 'driver' ? 'Saving…' : 'Driver only'}
+              <ChevronRight className="w-3 h-3" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleSave('client')}
+              disabled={saving !== null}
+              className="border-blue-300 text-blue-700 hover:bg-blue-50 gap-1 rounded-lg"
+            >
+              {saving === 'client' ? 'Saving…' : 'Client only'}
+              <ChevronRight className="w-3 h-3" />
+            </Button>
+            <button
+              onClick={onClose}
+              disabled={saving !== null}
+              className="ml-auto text-xs text-[#9CA3AF] hover:text-[#374151] transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         )}
+
       </DialogContent>
     </Dialog>
   )
