@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText, TrendingUp, Banknote, AlertCircle, FileMinus,
+  LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText, TrendingUp, Banknote, AlertCircle, FileMinus, PieChart,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { href: '/billing/credit-notes',       label: 'Credit Notes',     icon: FileMinus },
   { href: '/billing/driver-settlements', label: 'Driver Statements', icon: FileText },
   { href: '/billing/summary',            label: 'P&L Summary',       icon: TrendingUp },
+  { href: '/billing/margin',             label: 'Margin Tracker',    icon: PieChart },
   { href: '/notifications',    label: 'Notifications',   icon: Bell },
   { href: '/settings',      label: 'Settings',      icon: Settings },
 ]
