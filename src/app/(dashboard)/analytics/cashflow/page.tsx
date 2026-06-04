@@ -182,8 +182,15 @@ export default function CashFlowPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Week', 'Money In', 'Driver Payouts', 'Advances', 'Total Out', 'Net'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-gray-500 whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                {[
+                  { label: 'Week',           align: 'left'  },
+                  { label: 'Money In',       align: 'right' },
+                  { label: 'Driver Payouts', align: 'right' },
+                  { label: 'Advances',       align: 'right' },
+                  { label: 'Total Out',      align: 'right' },
+                  { label: 'Net',            align: 'right' },
+                ].map(({ label, align }) => (
+                  <th key={label} className={`px-4 py-3 font-semibold text-gray-500 whitespace-nowrap text-xs uppercase tracking-wide text-${align}`}>{label}</th>
                 ))}
               </tr>
             </thead>

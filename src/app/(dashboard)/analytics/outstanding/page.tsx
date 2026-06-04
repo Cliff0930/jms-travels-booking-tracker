@@ -186,8 +186,19 @@ export default function OutstandingDuesPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Company', 'Invoice #', 'Period', 'Invoice Total', 'Paid', 'Balance Due', 'Due Date', 'Age', 'Status', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-gray-500 whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                {[
+                  { label: 'Company',       align: 'left'  },
+                  { label: 'Invoice #',     align: 'left'  },
+                  { label: 'Period',        align: 'left'  },
+                  { label: 'Invoice Total', align: 'right' },
+                  { label: 'Paid',          align: 'right' },
+                  { label: 'Balance Due',   align: 'right' },
+                  { label: 'Due Date',      align: 'left'  },
+                  { label: 'Age',           align: 'left'  },
+                  { label: 'Status',        align: 'left'  },
+                  { label: '',              align: 'left'  },
+                ].map(({ label, align }) => (
+                  <th key={label} className={`px-4 py-3 font-semibold text-gray-500 whitespace-nowrap text-xs uppercase tracking-wide text-${align}`}>{label}</th>
                 ))}
               </tr>
             </thead>
