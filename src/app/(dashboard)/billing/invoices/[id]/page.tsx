@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { ArrowLeft, Printer, Download, IndianRupee, Check } from 'lucide-react'
+import { ArrowLeft, Printer, Download, IndianRupee, Check, FileMinus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
@@ -46,6 +46,7 @@ interface InvoiceDetail {
   individual_client_id?: string | null
   individual_gstin?: string | null
   individual_address?: string | null
+  company_id?: string | null
   company?: { name: string; gstin?: string; address?: string | null } | null
   line_items: LineItem[]
   payments: Payment[]
@@ -122,6 +123,179 @@ function PaymentModal({ invoiceId, balanceDue, onClose, onSaved }: { invoiceId: 
   )
 }
 
+function IssueCNModal({ inv, onClose, onSaved }: { inv: InvoiceDetail; onClose: () => void; onSaved: () => void }) {
+  const router = useRouter()
+  const [reason, setReason] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [selected, setSelected] = useState<Record<string, { checked: boolean; amount: string }>>(
+    () => Object.fromEntries(inv.line_items.map(li => [li.id, { checked: false, amount: String(li.line_total.toFixed(2)) }]))
+  )
+
+  const anyChecked = Object.values(selected).some(v => v.checked)
+  const creditTotal = Object.values(selected).filter(v => v.checked).reduce((s, v) => s + (parseFloat(v.amount) || 0), 0)
+
+  async function handleCreate() {
+    if (!reason.trim()) { toast.error('Reason is required'); return }
+    if (!anyChecked)    { toast.error('Select at least one line item to credit'); return }
+    setSaving(true)
+    try {
+      const lineItems = inv.line_items
+        .filter(li => selected[li.id]?.checked)
+        .map(li => {
+          const creditAmt = parseFloat(selected[li.id]?.amount || '0') || 0
+          const useIgst = li.igst_rate > 0
+          const cgstRate = useIgst ? 0 : li.cgst_rate
+          const sgstRate = useIgst ? 0 : li.sgst_rate
+          const igstRate = useIgst ? li.igst_rate : 0
+          const gstDivisor = 1 + (cgstRate + sgstRate + igstRate) / 100
+          const netAmount = Number((creditAmt / gstDivisor).toFixed(2))
+          return {
+            booking_id:   li.booking_id,
+            booking_ref:  li.booking_ref,
+            description:  `${li.booking_ref} — ${li.trip_date}${li.guest_name ? ` (${li.guest_name})` : ''}`,
+            amount:       netAmount,
+            cgst_rate:    cgstRate,
+            sgst_rate:    sgstRate,
+            igst_rate:    igstRate,
+          }
+        })
+
+      const res = await fetch('/api/billing/credit-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: inv.id,
+          company_id: inv.company_id ?? null,
+          reason: reason.trim(),
+          notes: notes.trim() || null,
+          line_items: lineItems,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Credit note created — review and issue it')
+      onSaved()
+      router.push(`/billing/credit-notes/${json.id}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create credit note')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileMinus className="w-4 h-4 text-red-600" />
+            Issue Credit Note against {inv.invoice_number ?? 'this invoice'}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Reason */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-600">Reason <span className="text-red-500">*</span></Label>
+            <Input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="e.g. KM correction — 160km revised to 120km"
+              className="border-[#C3C5D7]"
+            />
+          </div>
+
+          {/* Line items selector */}
+          <div>
+            <Label className="text-xs font-semibold text-gray-600 block mb-2">Select line items to credit <span className="text-red-500">*</span></Label>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="w-8 px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={Object.values(selected).every(v => v.checked)}
+                        onChange={e => setSelected(prev => Object.fromEntries(
+                          Object.entries(prev).map(([k, v]) => [k, { ...v, checked: e.target.checked }])
+                        ))}
+                      />
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Booking / Date</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Guest</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Original Total</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Credit Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {inv.line_items.map(li => {
+                    const sel = selected[li.id]
+                    return (
+                      <tr key={li.id} className={sel?.checked ? 'bg-red-50/50' : 'hover:bg-gray-50'}>
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={sel?.checked ?? false}
+                            onChange={e => setSelected(prev => ({ ...prev, [li.id]: { ...prev[li.id], checked: e.target.checked } }))}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-800">{li.booking_ref}</div>
+                          <div className="text-gray-400">{li.trip_date}</div>
+                        </td>
+                        <td className="px-3 py-2 text-gray-500">{li.guest_name ?? '—'}</td>
+                        <td className="px-3 py-2 text-right font-medium">{fmt(li.line_total)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Input
+                            type="number"
+                            value={sel?.amount ?? ''}
+                            onChange={e => setSelected(prev => ({ ...prev, [li.id]: { ...prev[li.id], amount: e.target.value } }))}
+                            disabled={!sel?.checked}
+                            className="h-7 w-28 text-xs text-right border-[#C3C5D7] ml-auto"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {anyChecked && (
+              <div className="mt-2 text-right text-xs text-red-700 font-semibold">
+                Total credit (incl. GST): {fmt(creditTotal)}
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-600">Internal Notes (optional)</Label>
+            <Input
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Any additional notes for reference"
+              className="border-[#C3C5D7]"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={handleCreate}
+            disabled={saving || !anyChecked || !reason.trim()}
+            className="bg-red-700 hover:bg-red-800 text-white gap-1.5"
+          >
+            <FileMinus className="w-3.5 h-3.5" />
+            {saving ? 'Creating…' : 'Create Credit Note'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -129,10 +303,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showPayment, setShowPayment] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [showIssueCN, setShowIssueCN] = useState(false)
   const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
     queryFn: () => fetch(`/api/billing/invoices/${id}`).then(r => r.json()),
+    enabled: !!id,
+  })
+  const { data: creditNotes = [] } = useQuery<{ id: string; cn_number: string | null; status: string; total_amount: number; reason: string; created_at: string }[]>({
+    queryKey: ['credit-notes-for-invoice', id],
+    queryFn: () => fetch(`/api/billing/credit-notes?invoice_id=${id}`).then(r => r.json()),
     enabled: !!id,
   })
 
@@ -267,6 +447,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           {(inv.status === 'sent' || inv.status === 'partially_paid' || inv.status === 'overdue') && (
             <Button size="sm" onClick={() => setShowPayment(true)} className="gap-1.5">
               <IndianRupee className="w-3.5 h-3.5" />Record Payment
+            </Button>
+          )}
+          {['sent', 'partially_paid', 'overdue', 'paid'].includes(inv.status) && (
+            <Button size="sm" variant="outline" onClick={() => setShowIssueCN(true)} className="gap-1.5 text-red-700 border-red-200 hover:bg-red-50">
+              <FileMinus className="w-3.5 h-3.5" /> Issue Credit Note
             </Button>
           )}
           {['draft', 'sent', 'overdue', 'partially_paid'].includes(inv.status) && (
@@ -425,10 +610,59 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/* Credits Applied */}
+      {creditNotes.length > 0 && (
+        <div className="bg-white rounded-xl border border-red-200 overflow-hidden">
+          <div className="px-4 py-3 bg-red-50 border-b border-red-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+              <FileMinus className="w-4 h-4" /> Credits Applied
+            </h2>
+            <span className="text-xs text-red-600 font-semibold">
+              Total credited: {fmt(creditNotes.filter(c => c.status !== 'voided').reduce((s, c) => s + c.total_amount, 0))}
+            </span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                {['CN Number', 'Status', 'Reason', 'Credit Amount', 'Date'].map(h => (
+                  <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {creditNotes.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.open(`/billing/credit-notes/${c.id}`, '_blank')}>
+                  <td className="px-4 py-2.5 font-semibold text-red-700">
+                    {c.cn_number ?? <span className="text-gray-400 italic font-normal">DRAFT</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={cn(
+                      'px-2 py-0.5 rounded-full text-xs font-semibold capitalize',
+                      c.status === 'issued' ? 'bg-red-50 text-red-700' : c.status === 'voided' ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-600'
+                    )}>{c.status}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500 max-w-[200px] truncate">{c.reason}</td>
+                  <td className="px-4 py-2.5 font-bold text-red-700">{fmt(c.total_amount)}</td>
+                  <td className="px-4 py-2.5 text-gray-400">{fmtDate(c.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {inv.status === 'paid' && (
         <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <Check className="w-4 h-4" /><span className="font-semibold">Fully Paid</span>
         </div>
+      )}
+
+      {showIssueCN && (
+        <IssueCNModal
+          inv={inv}
+          onClose={() => setShowIssueCN(false)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['credit-notes-for-invoice', id] }); setShowIssueCN(false) }}
+        />
       )}
 
       {tripsheetPopup && (
