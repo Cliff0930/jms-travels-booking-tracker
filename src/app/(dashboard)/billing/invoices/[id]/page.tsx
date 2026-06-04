@@ -184,75 +184,127 @@ function IssueCNModal({ inv, onClose, onSaved }: { inv: InvoiceDetail; onClose: 
     }
   }
 
+  const checkedCount = Object.values(selected).filter(v => v.checked).length
+
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileMinus className="w-4 h-4 text-red-600" />
-            Issue Credit Note against {inv.invoice_number ?? 'this invoice'}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
 
-        <div className="space-y-4 py-1">
-          {/* Reason */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-600">Reason <span className="text-red-500">*</span></Label>
-            <Input
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="e.g. KM correction — 160km revised to 120km"
-              className="border-[#C3C5D7]"
-            />
+        {/* Styled header */}
+        <div className="bg-gradient-to-r from-red-700 to-red-800 px-6 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileMinus className="w-4 h-4 text-red-200" />
+              <h2 className="text-white font-bold text-base">Issue Credit Note</h2>
+              {inv.invoice_number && (
+                <span className="text-xs font-mono bg-white/15 text-white/90 px-2 py-0.5 rounded">
+                  {inv.invoice_number}
+                </span>
+              )}
+            </div>
+            <p className="text-red-200 text-xs mt-0.5">Select trips to credit · enter corrected amounts · add reason</p>
+          </div>
+        </div>
+
+        <div className="max-h-[75vh] overflow-y-auto">
+          {/* Reason + Notes row */}
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Reason <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="e.g. KM correction — 160km revised to 120km"
+                className="border-[#C3C5D7] bg-white"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Internal Notes <span className="text-gray-400 font-normal normal-case">(optional)</span>
+              </Label>
+              <Input
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Any additional reference notes"
+                className="border-[#C3C5D7] bg-white"
+              />
+            </div>
           </div>
 
-          {/* Line items selector */}
-          <div>
-            <Label className="text-xs font-semibold text-gray-600 block mb-2">Select line items to credit <span className="text-red-500">*</span></Label>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+          {/* Line items table */}
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Trip Line Items <span className="text-red-500">*</span>
+                <span className="ml-2 text-gray-400 font-normal normal-case">({inv.line_items.length} trips)</span>
+              </p>
+              {checkedCount > 0 && (
+                <span className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
+                  {checkedCount} selected · Credit total: {fmt(creditTotal)}
+                </span>
+              )}
+            </div>
+
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="w-8 px-3 py-2 text-center">
+                <thead>
+                  <tr className="bg-gray-800 text-white">
+                    <th className="w-10 px-3 py-2.5 text-center">
                       <input
                         type="checkbox"
-                        checked={Object.values(selected).every(v => v.checked)}
+                        className="accent-red-500"
+                        checked={inv.line_items.length > 0 && Object.values(selected).every(v => v.checked)}
                         onChange={e => setSelected(prev => Object.fromEntries(
                           Object.entries(prev).map(([k, v]) => [k, { ...v, checked: e.target.checked }])
                         ))}
                       />
                     </th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Booking / Date</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Guest</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Original Total</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Credit Amount (₹)</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-300 whitespace-nowrap">Date</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-300 whitespace-nowrap">Booking Ref</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-300">Guest</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-300">Vehicle</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-gray-300 whitespace-nowrap">Billed Total</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-gray-300 whitespace-nowrap pr-4">Credit Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {inv.line_items.map(li => {
+                  {inv.line_items.map((li, idx) => {
                     const sel = selected[li.id]
                     return (
-                      <tr key={li.id} className={sel?.checked ? 'bg-red-50/50' : 'hover:bg-gray-50'}>
-                        <td className="px-3 py-2 text-center">
+                      <tr
+                        key={li.id}
+                        onClick={() => setSelected(prev => ({ ...prev, [li.id]: { ...prev[li.id], checked: !prev[li.id]?.checked } }))}
+                        className={cn(
+                          'cursor-pointer transition-colors',
+                          sel?.checked ? 'bg-red-50' : idx % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/50 hover:bg-gray-100'
+                        )}
+                      >
+                        <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
                           <input
                             type="checkbox"
+                            className="accent-red-600 w-4 h-4"
                             checked={sel?.checked ?? false}
                             onChange={e => setSelected(prev => ({ ...prev, [li.id]: { ...prev[li.id], checked: e.target.checked } }))}
                           />
                         </td>
-                        <td className="px-3 py-2">
-                          <div className="font-medium text-gray-800">{li.booking_ref}</div>
-                          <div className="text-gray-400">{li.trip_date}</div>
-                        </td>
-                        <td className="px-3 py-2 text-gray-500">{li.guest_name ?? '—'}</td>
-                        <td className="px-3 py-2 text-right font-medium">{fmt(li.line_total)}</td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{li.trip_date}</td>
+                        <td className="px-3 py-2.5 font-semibold text-blue-700 whitespace-nowrap">{li.booking_ref}</td>
+                        <td className="px-3 py-2.5 text-gray-600 max-w-[130px] truncate">{li.guest_name ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{li.vehicle_type ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-right font-semibold text-gray-800 whitespace-nowrap">{fmt(li.line_total)}</td>
+                        <td className="px-3 py-2.5 text-right pr-4" onClick={e => e.stopPropagation()}>
                           <Input
                             type="number"
                             value={sel?.amount ?? ''}
                             onChange={e => setSelected(prev => ({ ...prev, [li.id]: { ...prev[li.id], amount: e.target.value } }))}
                             disabled={!sel?.checked}
-                            className="h-7 w-28 text-xs text-right border-[#C3C5D7] ml-auto"
+                            className={cn(
+                              'h-8 text-xs text-right w-36',
+                              sel?.checked ? 'border-red-300 bg-white' : 'border-gray-200 bg-gray-100 text-gray-400'
+                            )}
                           />
                         </td>
                       </tr>
@@ -261,36 +313,33 @@ function IssueCNModal({ inv, onClose, onSaved }: { inv: InvoiceDetail; onClose: 
                 </tbody>
               </table>
             </div>
-            {anyChecked && (
-              <div className="mt-2 text-right text-xs text-red-700 font-semibold">
-                Total credit (incl. GST): {fmt(creditTotal)}
-              </div>
-            )}
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-600">Internal Notes (optional)</Label>
-            <Input
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any additional notes for reference"
-              className="border-[#C3C5D7]"
-            />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button
-            onClick={handleCreate}
-            disabled={saving || !anyChecked || !reason.trim()}
-            className="bg-red-700 hover:bg-red-800 text-white gap-1.5"
-          >
-            <FileMinus className="w-3.5 h-3.5" />
-            {saving ? 'Creating…' : 'Create Credit Note'}
-          </Button>
-        </DialogFooter>
+        {/* Footer */}
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+          <div>
+            {anyChecked ? (
+              <div className="text-sm font-bold text-red-700">
+                {checkedCount} trip{checkedCount !== 1 ? 's' : ''} · Credit total (incl. GST): {fmt(creditTotal)}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Tick the trips you want to credit, then click Create</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onClose} className="border-gray-300">Cancel</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={saving || !anyChecked || !reason.trim()}
+              className="bg-red-700 hover:bg-red-800 text-white gap-1.5 px-5"
+            >
+              <FileMinus className="w-3.5 h-3.5" />
+              {saving ? 'Creating…' : 'Create Credit Note'}
+            </Button>
+          </div>
+        </div>
+
       </DialogContent>
     </Dialog>
   )
