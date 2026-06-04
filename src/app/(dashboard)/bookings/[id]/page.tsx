@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy } from 'lucide-react'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
@@ -288,6 +288,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const isAdmin = useIsAdmin()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
 
   // Auto-calculate and auto-save both bata counts whenever times change or edit form opens
   const lastAutoSavedBata = useRef<string | null>(null)
@@ -771,6 +772,21 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete booking')
       setDeleting(false)
+    }
+  }
+
+  async function handleDuplicate() {
+    setDuplicating(true)
+    try {
+      const res = await fetch(`/api/bookings/${id}/duplicate`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success(`Duplicated as ${json.booking_ref} — edit the details below`)
+      window.location.href = `/bookings/${json.id}`
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to duplicate booking')
+    } finally {
+      setDuplicating(false)
     }
   }
 
@@ -1635,6 +1651,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   )}
                 </div>
               )}
+              <Button
+                variant="outline"
+                className="w-full rounded-sm text-[#7E3AF2] border-[#C4B5FD] hover:bg-[#EDE9FE]"
+                onClick={handleDuplicate}
+                disabled={duplicating}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {duplicating ? 'Duplicating…' : 'Duplicate Booking'}
+              </Button>
               <Button
                 variant="outline"
                 className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
