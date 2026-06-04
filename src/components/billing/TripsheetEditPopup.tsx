@@ -288,7 +288,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden rounded-xl gap-0">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-xl gap-0">
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <div className="bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-5 py-4 flex items-start justify-between">
@@ -626,40 +626,42 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
 
         {/* ── Footer ─────────────────────────────────────────────── */}
         {!loading && sheet && f && (
-          <div className="px-5 py-3.5 bg-white border-t border-[#E5E7EB] flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => handleSave('both')}
-              disabled={saving !== null}
-              className="bg-[#312e81] hover:bg-[#1e1b4b] text-white gap-1.5 rounded-lg"
-            >
-              <Save className="w-3.5 h-3.5" />
-              {saving === 'both' ? 'Saving…' : 'Save Both'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleSave('driver')}
-              disabled={saving !== null}
-              className="border-amber-300 text-amber-700 hover:bg-amber-50 gap-1 rounded-lg"
-            >
-              {saving === 'driver' ? 'Saving…' : 'Driver only'}
-              <ChevronRight className="w-3 h-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleSave('client')}
-              disabled={saving !== null}
-              className="border-blue-300 text-blue-700 hover:bg-blue-50 gap-1 rounded-lg"
-            >
-              {saving === 'client' ? 'Saving…' : 'Client only'}
-              <ChevronRight className="w-3 h-3" />
-            </Button>
+          <div className="px-5 py-3.5 bg-white border-t border-[#E5E7EB] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                onClick={() => handleSave('both')}
+                disabled={saving !== null}
+                className="bg-[#312e81] hover:bg-[#1e1b4b] text-white gap-1.5 rounded-lg"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {saving === 'both' ? 'Saving…' : 'Save Both'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSave('driver')}
+                disabled={saving !== null}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 gap-1 rounded-lg"
+              >
+                {saving === 'driver' ? 'Saving…' : 'Driver only'}
+                <ChevronRight className="w-3 h-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSave('client')}
+                disabled={saving !== null}
+                className="border-blue-300 text-blue-700 hover:bg-blue-50 gap-1 rounded-lg"
+              >
+                {saving === 'client' ? 'Saving…' : 'Client only'}
+                <ChevronRight className="w-3 h-3" />
+              </Button>
+            </div>
             <button
               onClick={onClose}
               disabled={saving !== null}
-              className="ml-auto text-xs text-[#9CA3AF] hover:text-[#374151] transition-colors"
+              className="text-xs text-[#9CA3AF] hover:text-[#374151] transition-colors shrink-0"
             >
               Cancel
             </button>
