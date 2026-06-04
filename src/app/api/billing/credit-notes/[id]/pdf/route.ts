@@ -18,6 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (error || !cn) return NextResponse.json({ error: 'Credit note not found' }, { status: 404 })
 
+  // Cast matches the pattern used in InvoicePDF route — react-pdf types don't align with createElement
   const buf = await renderToBuffer(
     createElement(CreditNotePDF, {
       cn_number:    cn.cn_number ?? 'DRAFT',
@@ -44,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         igst_amount:  li.igst_amount,
         line_total:   li.line_total,
       })),
-    } as any)
+    }) as any
   )
 
   return new NextResponse(buf, {
