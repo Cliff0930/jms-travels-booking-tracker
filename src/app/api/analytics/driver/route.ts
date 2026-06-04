@@ -57,13 +57,12 @@ export async function GET(request: Request) {
     return NextResponse.json(list)
   }
 
-  // Full scorecard for one driver
+  // Full scorecard for one driver — split into two fetches so trip_sheets can filter on completed booking IDs
   const [
     { data: driver },
     { data: bookings },
     { data: advances },
     { data: settlements },
-    { data: tripSheets },
   ] = await Promise.all([
     supabase.from('drivers')
       .select('id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_type, commission_percent, bata_rate, driver_type, status, is_active')
@@ -83,10 +82,14 @@ export async function GET(request: Request) {
       .eq('driver_id', driverId)
       .order('created_at', { ascending: false })
       .limit(6),
-    supabase.from('trip_sheets')
-      .select('booking_id, bata_driver, toll_amount, parking_amount, permit_amount')
-      .in('booking_id', (bookings ?? []).filter(b => b.status === 'completed').map(b => b.id)),
   ])
+
+  const completedBookingIds = (bookings ?? []).filter(b => b.status === 'completed').map(b => b.id)
+  const { data: tripSheets } = completedBookingIds.length > 0
+    ? await supabase.from('trip_sheets')
+        .select('booking_id, bata_driver, toll_amount, parking_amount, permit_amount')
+        .in('booking_id', completedBookingIds)
+    : { data: [] }
 
   if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
 
@@ -97,13 +100,12 @@ export async function GET(request: Request) {
   const active      = allBookings.filter(b => ['confirmed','in_progress'].includes(b.status)).length
 
   // Get line items for completed bookings to calculate revenue
-  const completedIds = completed.map(b => b.id)
   let totalHire = 0
-  if (completedIds.length > 0) {
+  if (completedBookingIds.length > 0) {
     const { data: lis } = await supabase
       .from('invoice_line_items')
       .select('hire_charges')
-      .in('booking_id', completedIds)
+      .in('booking_id', completedBookingIds)
     totalHire = (lis ?? []).reduce((s, li) => s + Number(li.hire_charges), 0)
   }
 
