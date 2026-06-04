@@ -85,10 +85,7 @@ function isGroupActive(group: NavGroup, pathname: string) {
 function NavGroupSection({ group, isAdmin }: { group: NavGroup; isAdmin: boolean }) {
   const pathname = usePathname()
   const active = isGroupActive(group, pathname)
-  const [open, setOpen] = useState(active)
-
-  // If navigating to a page in a collapsed group, auto-open it
-  if (active && !open) setOpen(true)
+  const [open, setOpen] = useState(() => active)
 
   const visibleItems = group.label === 'System' && isAdmin
     ? [...group.items, { href: '/users', label: 'Users', icon: ShieldCheck }]

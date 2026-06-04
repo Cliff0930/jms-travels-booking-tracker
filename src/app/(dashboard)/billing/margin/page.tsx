@@ -44,9 +44,12 @@ export default function MarginTrackerPage() {
 
   const { data: rows = [], isLoading } = useQuery<MarginRow[]>({
     queryKey: ['billing-margin', dateFrom, dateTo],
-    queryFn: () => {
+    queryFn: async () => {
       const p = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
-      return fetch(`/api/billing/margin?${p}`).then(r => r.json())
+      const res = await fetch(`/api/billing/margin?${p}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to load margin data')
+      return Array.isArray(json) ? json : []
     },
   })
 
