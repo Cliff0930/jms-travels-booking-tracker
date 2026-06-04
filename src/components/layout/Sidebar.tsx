@@ -65,6 +65,7 @@ const GROUPS: NavGroup[] = [
       { href: '/analytics/drivers',     label: 'Driver Reports',      icon: Car },
       { href: '/analytics/outstanding', label: 'Outstanding Dues',   icon: AlertTriangle },
       { href: '/analytics/cashflow',    label: 'Cash Flow',          icon: TrendingUp },
+      { href: '/analytics/tds',         label: 'TDS Report',         icon: Receipt },
       { href: '/reports',               label: 'Trip Reports',       icon: BarChart3 },
     ],
   },
