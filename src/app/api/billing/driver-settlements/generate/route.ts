@@ -232,7 +232,7 @@ export async function POST(request: Request) {
         outstation_rate_per_km: Number(companyRate.outstation_rate_per_km ?? 14),
         outstation_min_kms_per_day: 300,
       }
-      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, companyDriverCard))
+      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, companyDriverCard) * (1 - commissionPct / 100))
       rateSource = 'company'
     } else {
       hireEarnings = r2(hireCharges * (1 - commissionPct / 100))
@@ -276,7 +276,7 @@ export async function POST(request: Request) {
       actual_kms: actualKms,
       actual_hrs: actualHrs,
       client_hire_charges: hireCharges,
-      commission_percent: rateSource === 'commission' ? commissionPct : 0,
+      commission_percent: rateSource === 'fixed' ? 0 : commissionPct,
       rate_source: rateSource,
       hire_earnings: hireEarnings,
       bata_count: bataCount,
