@@ -2,11 +2,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Booking, BookingStatus, MessageLog } from '@/types'
 
-export function useBookings(filters?: { status?: BookingStatus; date?: string; createdFrom?: string }) {
+export function useBookings(filters?: { status?: BookingStatus; date?: string; createdFrom?: string; includeLegs?: boolean }) {
   const params = new URLSearchParams()
   if (filters?.status) params.set('status', filters.status)
   if (filters?.date) params.set('date', filters.date)
   if (filters?.createdFrom) params.set('created_from', filters.createdFrom)
+  if (filters?.includeLegs) params.set('include_legs', '1')
   return useQuery<Booking[]>({
     queryKey: ['bookings', filters],
     queryFn: () => fetch(`/api/bookings?${params}`).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || `HTTP ${r.status}`) } return r.json() }),

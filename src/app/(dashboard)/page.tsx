@@ -74,7 +74,7 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
 }
 
 // ── Compact trip row ──────────────────────────────────────────────────────────
-function TripRow({ booking, onAssign }: { booking: Booking; onAssign: (b: Booking) => void }) {
+function TripRow({ booking, onAssign }: { booking: Booking & { _legDay?: number }; onAssign: (b: Booking) => void }) {
   const guest   = booking.guest_name || booking.client?.name || '—'
   const company = booking.company?.name || (booking.client as { company?: { name?: string } } | undefined)?.company?.name
   const driver  = booking.driver as { name: string; vehicle_number?: string } | undefined | null
@@ -104,9 +104,12 @@ function TripRow({ booking, onAssign }: { booking: Booking; onAssign: (b: Bookin
     <Link href={`/bookings/${booking.id}`}
       className={cn('flex items-center gap-3 px-4 py-3 border-l-4 bg-white hover:bg-gray-50 transition-colors group',
         STATUS_LEFT[booking.status] ?? 'border-l-gray-200')}>
-      {/* Time */}
+      {/* Time / Day indicator */}
       <div className="w-16 shrink-0">
-        <span className="text-sm font-bold text-gray-700">{fmtTime(booking.pickup_time)}</span>
+        {booking._legDay
+          ? <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Day {booking._legDay}</span>
+          : <span className="text-sm font-bold text-gray-700">{fmtTime(booking.pickup_time)}</span>
+        }
       </div>
       {/* Guest + company */}
       <div className="flex-1 min-w-0">
@@ -201,7 +204,7 @@ function SectionHeader({ icon: Icon, label, count, href, hrefLabel }: {
 // ── Main dashboard ────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const qc = useQueryClient()
-  const { data: bookings = [], isLoading, refetch } = useBookings()
+  const { data: bookings = [], isLoading, refetch } = useBookings({ includeLegs: true })
   const confirmBooking = useConfirmBooking()
   const cancelBooking  = useCancelBooking()
 
@@ -267,16 +270,31 @@ export default function DashboardPage() {
   const totalUrgentActions = urgentNoDriver.length + approvalUrgent.length + todayLegs.length
   const allClear = totalUrgentActions === 0 && needConfirm.length === 0 && nonUrgentApproval.length === 0 && nonUrgentNoDriver.length === 0 && flagged.length === 0
 
-  // Week data: today + 6 days
+  // Week data: today + 6 days (includes continuation leg dates for multi-day bookings)
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = localDate(i)
-    return { date: d, trips: bookings.filter(b => b.pickup_date === d && b.status !== 'cancelled') }
+    const trips = bookings.filter(b => {
+      if (b.status === 'cancelled') return false
+      if (b.pickup_date === d) return true
+      // Also include bookings with a non-cancelled leg on this date
+      return (b.booking_legs ?? []).some(l => l.leg_date === d && l.leg_status !== 'cancelled' && b.pickup_date !== d)
+    })
+    return { date: d, trips }
   }), [bookings])
 
-  const selectedDayTrips = useMemo(() =>
-    bookings.filter(b => b.pickup_date === selectedDay && b.status !== 'cancelled').sort(byTime),
-    [bookings, selectedDay]
-  )
+  const selectedDayTrips = useMemo(() => {
+    const trips: Array<Booking & { _legDay?: number }> = []
+    for (const b of bookings) {
+      if (b.status === 'cancelled') continue
+      if (b.pickup_date === selectedDay) {
+        trips.push(b)
+        continue
+      }
+      const leg = (b.booking_legs ?? []).find(l => l.leg_date === selectedDay && l.leg_status !== 'cancelled')
+      if (leg) trips.push({ ...b, _legDay: leg.day_number })
+    }
+    return trips.sort(byTime)
+  }, [bookings, selectedDay])
 
   const todayDateLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 

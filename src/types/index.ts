@@ -206,6 +206,7 @@ export interface Booking {
   client?: Client
   company?: Company
   driver?: Driver
+  booking_legs?: BookingLeg[]
 }
 
 export interface BookingLeg {
