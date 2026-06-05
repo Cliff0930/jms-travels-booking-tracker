@@ -37,6 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
   in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled',
 }
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -122,9 +123,9 @@ export default function BookingCalendarPage() {
   const todayKey = fmtKey(today.getFullYear(), today.getMonth(), today.getDate())
 
   return (
-    <div className="flex gap-5 h-full min-h-[calc(100vh-5rem)]">
+    <div className="flex flex-col lg:flex-row gap-5 h-full min-h-[calc(100vh-5rem)]">
       {/* ── Calendar panel ── */}
-      <div className="flex-1 min-w-0 space-y-4">
+      <div className="lg:flex-1 min-w-0 space-y-4">
         {/* Month nav */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-black text-gray-900">{MONTHS[month]} {year}</h1>
@@ -156,10 +157,11 @@ export default function BookingCalendarPage() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-gray-200">
-            {DAYS.map(d => (
-              <div key={d} className={cn('py-2 text-center text-xs font-bold uppercase tracking-wide text-gray-400',
+            {DAYS.map((d, i) => (
+              <div key={d + i} className={cn('py-2 text-center text-xs font-bold uppercase tracking-wide text-gray-400',
                 (d === 'Sat' || d === 'Sun') && 'bg-gray-50')}>
-                {d}
+                <span className="hidden sm:inline">{d}</span>
+                <span className="sm:hidden">{DAYS_SHORT[i]}</span>
               </div>
             ))}
           </div>
@@ -185,7 +187,7 @@ export default function BookingCalendarPage() {
                   key={i}
                   onClick={() => day && dateKey && setSelectedDate(dateKey)}
                   className={cn(
-                    'min-h-[88px] p-2 border-b border-gray-100 flex flex-col gap-1 transition-colors',
+                    'min-h-[52px] sm:min-h-[88px] p-1 sm:p-2 border-b border-gray-100 flex flex-col gap-1 transition-colors',
                     day ? 'cursor-pointer' : 'bg-gray-50/50',
                     isWeekend && day && 'bg-gray-50/40',
                     isSelected && 'bg-blue-50 ring-2 ring-inset ring-blue-400',
@@ -212,8 +214,8 @@ export default function BookingCalendarPage() {
                         </div>
                       )}
 
-                      {/* Mini booking list (up to 2) */}
-                      <div className="space-y-0.5 mt-0.5">
+                      {/* Mini booking list (up to 2) — hidden on mobile, only dots show */}
+                      <div className="hidden sm:block space-y-0.5 mt-0.5">
                         {dayBookings.filter(b => b.status !== 'cancelled').slice(0, 2).map(b => (
                           <div key={b.id + (b._legDay ?? '')} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[b.status])}>
                             {b._legDay ? `Day ${b._legDay}` : fmtTime(b.pickup_time)} · {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? '—'}
@@ -235,7 +237,7 @@ export default function BookingCalendarPage() {
       </div>
 
       {/* ── Day detail panel ── */}
-      <div className="w-80 shrink-0 space-y-3">
+      <div className="w-full lg:w-80 lg:shrink-0 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-gray-900">
             {selectedDate
@@ -266,7 +268,7 @@ export default function BookingCalendarPage() {
           </div>
         )}
 
-        <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-14rem)]">
+        <div className="space-y-2 overflow-y-auto max-h-[60vh] lg:max-h-[calc(100vh-14rem)]">
           {selectedBookings
             .sort((a, b) => (a.pickup_time ?? '').localeCompare(b.pickup_time ?? ''))
             .map(b => {
