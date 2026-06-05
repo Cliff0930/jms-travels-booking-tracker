@@ -89,12 +89,12 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       commission_percent: driver!.commission_percent != null ? String(driver!.commission_percent) : '20',
       monthly_salary: driver!.monthly_salary != null ? String(driver!.monthly_salary) : '',
       advance_emi_amount:        driver!.advance_emi_amount        != null ? String(driver!.advance_emi_amount)        : '',
-      fixed_rate_4hr:            (driver as Record<string,unknown>).fixed_rate_4hr            != null ? String((driver as Record<string,unknown>).fixed_rate_4hr)            : '',
-      fixed_rate_8hr:            (driver as Record<string,unknown>).fixed_rate_8hr            != null ? String((driver as Record<string,unknown>).fixed_rate_8hr)            : '',
-      fixed_rate_extra_km:       (driver as Record<string,unknown>).fixed_rate_extra_km       != null ? String((driver as Record<string,unknown>).fixed_rate_extra_km)       : '',
-      fixed_rate_extra_hr:       (driver as Record<string,unknown>).fixed_rate_extra_hr       != null ? String((driver as Record<string,unknown>).fixed_rate_extra_hr)       : '',
-      fixed_rate_outstation_km:  (driver as Record<string,unknown>).fixed_rate_outstation_km  != null ? String((driver as Record<string,unknown>).fixed_rate_outstation_km)  : '',
-      fixed_rate_bata:           (driver as Record<string,unknown>).fixed_rate_bata           != null ? String((driver as Record<string,unknown>).fixed_rate_bata)           : '',
+      fixed_rate_4hr:            (driver as unknown as Record<string,unknown>).fixed_rate_4hr            != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_4hr)            : '',
+      fixed_rate_8hr:            (driver as unknown as Record<string,unknown>).fixed_rate_8hr            != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_8hr)            : '',
+      fixed_rate_extra_km:       (driver as unknown as Record<string,unknown>).fixed_rate_extra_km       != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_extra_km)       : '',
+      fixed_rate_extra_hr:       (driver as unknown as Record<string,unknown>).fixed_rate_extra_hr       != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_extra_hr)       : '',
+      fixed_rate_outstation_km:  (driver as unknown as Record<string,unknown>).fixed_rate_outstation_km  != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_outstation_km)  : '',
+      fixed_rate_bata:           (driver as unknown as Record<string,unknown>).fixed_rate_bata           != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_bata)           : '',
     })
     setEditing(true)
   }
