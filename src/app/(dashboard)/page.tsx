@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import {
   Plus, RefreshCw, Send, Car, AlertTriangle, CheckCircle2,
-  Clock, ChevronRight, UserCheck, ClipboardCheck, BellRing,
+  Clock, UserCheck, ClipboardCheck, BellRing,
   Zap, ArrowRight, CalendarDays, ExternalLink, User,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,11 +17,18 @@ import { cn } from '@/lib/utils'
 import type { Booking } from '@/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface TodayLeg {
-  id: string; booking_id: string; day_number: number; leg_date: string; leg_status: string
-  driver_id: string
-  driver: { id: string; name: string; phone: string; vehicle_name: string; vehicle_number: string }
-  booking: { id: string; booking_ref: string; guest_name: string | null; trip_type: string; total_days: number; status: string; pickup_location: string | null; drop_location: string | null; client: { name: string } | null }
+interface LegDue {
+  leg: {
+    id: string; booking_id: string; day_number: number; leg_date: string; leg_status: string
+    link_sent_at: string | null
+    driver: { id: string; name: string; phone: string; vehicle_name: string | null; vehicle_number: string | null } | null
+  }
+  booking: {
+    id: string; booking_ref: string; guest_name: string | null; trip_type: string; total_days: number
+    pickup_time: string | null; pickup_location: string | null; drop_location: string | null
+    client: { id: string; name: string } | null
+    company: { id: string; name: string } | null
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -73,68 +80,39 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
   )
 }
 
-// ── Compact trip row ──────────────────────────────────────────────────────────
-function TripRow({ booking, onAssign }: { booking: Booking & { _legDay?: number }; onAssign: (b: Booking) => void }) {
-  const guest   = booking.guest_name || booking.client?.name || '—'
-  const company = booking.company?.name || (booking.client as { company?: { name?: string } } | undefined)?.company?.name
-  const driver  = booking.driver as { name: string; vehicle_number?: string } | undefined | null
-
-  const STATUS_LEFT: Record<string, string> = {
-    confirmed:        'border-l-blue-500',
-    in_progress:      'border-l-amber-400',
-    completed:        'border-l-emerald-500',
-    draft:            'border-l-gray-300',
-    pending_approval: 'border-l-purple-400',
-    cancelled:        'border-l-red-300',
-  }
-  const STATUS_CHIP: Record<string, string> = {
-    confirmed:        'bg-blue-50 text-blue-700',
-    in_progress:      'bg-amber-50 text-amber-700',
-    completed:        'bg-emerald-50 text-emerald-700',
-    draft:            'bg-gray-100 text-gray-500',
-    pending_approval: 'bg-purple-50 text-purple-700',
-    cancelled:        'bg-red-50 text-red-400',
-  }
-  const STATUS_LABEL: Record<string, string> = {
-    confirmed: 'Confirmed', in_progress: 'Active', completed: 'Done',
-    draft: 'Draft', pending_approval: 'Pending', cancelled: 'Cancelled',
-  }
+// ── Leg link card ─────────────────────────────────────────────────────────────
+function LegLinkCard({ item, onSend, sending }: { item: LegDue; onSend: () => void; sending: boolean }) {
+  const driver  = item.leg.driver
+  const company = item.booking.company
+  const name    = item.booking.guest_name ?? item.booking.client?.name ?? '—'
 
   return (
-    <Link href={`/bookings/${booking.id}`}
-      className={cn('flex items-center gap-3 px-4 py-3 border-l-4 bg-white hover:bg-gray-50 transition-colors group',
-        STATUS_LEFT[booking.status] ?? 'border-l-gray-200')}>
-      {/* Time / Day indicator */}
-      <div className="w-16 shrink-0">
-        {booking._legDay
-          ? <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Day {booking._legDay}</span>
-          : <span className="text-sm font-bold text-gray-700">{fmtTime(booking.pickup_time)}</span>
-        }
-      </div>
-      {/* Guest + company */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{guest}</p>
-        {company && <p className="text-xs text-gray-400 truncate">{company}</p>}
-      </div>
-      {/* Status chip */}
-      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0',
-        STATUS_CHIP[booking.status] ?? 'bg-gray-100 text-gray-500')}>
-        {STATUS_LABEL[booking.status] ?? booking.status}
+    <div className="flex items-center gap-3 px-4 py-3 border-l-4 border-l-amber-400 bg-white hover:bg-amber-50/20 transition-colors">
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0 whitespace-nowrap">
+        Day {item.leg.day_number}{item.booking.total_days ? ` of ${item.booking.total_days}` : ''}
       </span>
-      {/* Driver or assign */}
-      <div className="shrink-0 w-28 text-right">
-        {driver
-          ? <p className="text-xs font-medium text-emerald-700 truncate">{driver.name}</p>
-          : booking.status === 'confirmed'
-            ? <button onClick={e => { e.preventDefault(); onAssign(booking) }}
-                className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100 transition-colors">
-                Assign
-              </button>
-            : null
-        }
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono text-gray-400 leading-none mb-0.5">{item.booking.booking_ref}</p>
+        <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+        {company && <p className="text-xs text-gray-400 truncate">{company.name}</p>}
+        {driver && (
+          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+            <Car className="w-3 h-3 shrink-0" />
+            <span className="truncate">{driver.name}</span>
+            {driver.vehicle_number && <span className="text-gray-400 shrink-0">{driver.vehicle_number}</span>}
+          </p>
+        )}
       </div>
-      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 shrink-0" />
-    </Link>
+      {item.booking.pickup_time && (
+        <div className="text-xs text-gray-500 shrink-0 text-right hidden sm:block">
+          <Clock className="w-3 h-3 inline mr-0.5" />{fmtTime(item.booking.pickup_time)}
+        </div>
+      )}
+      <Button size="sm" onClick={onSend} disabled={sending}
+        className="shrink-0 text-xs h-7 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white gap-1">
+        {sending ? '…' : <><Send className="w-3 h-3" />Send</>}
+      </Button>
+    </div>
   )
 }
 
@@ -289,40 +267,47 @@ export default function DashboardPage() {
   const confirmBooking = useConfirmBooking()
   const cancelBooking  = useCancelBooking()
 
-  const [refreshing,    setRefreshing]   = useState(false)
-  const [cancelTarget,  setCancelTarget] = useState<string | null>(null)
-  const [assignTarget,  setAssignTarget] = useState<Booking | null>(null)
-  const [sendingLegs,   setSendingLegs]  = useState<Set<string>>(new Set())
-  const [confirmingIds, setConfirmingIds]= useState<Set<string>>(new Set())
-  const [selectedDay,   setSelectedDay]  = useState(localDate())
+  const [refreshing,      setRefreshing]      = useState(false)
+  const [cancelTarget,    setCancelTarget]    = useState<string | null>(null)
+  const [assignTarget,    setAssignTarget]    = useState<Booking | null>(null)
+  const [confirmingIds,   setConfirmingIds]   = useState<Set<string>>(new Set())
+  const [selectedDay,     setSelectedDay]     = useState(localDate())
+  const [legLinkTab,      setLegLinkTab]      = useState<'today' | 'tomorrow'>('today')
+  const [sentLegIds,      setSentLegIds]      = useState<Set<string>>(new Set())
+  const [sendingDayLinks, setSendingDayLinks] = useState<Set<string>>(new Set())
 
   const today    = localDate()
   const tomorrow = localDate(1)
 
-  const { data: todayLegs = [] } = useQuery<TodayLeg[]>({
-    queryKey: ['today-links', today],
-    queryFn: () => fetch(`/api/dashboard/today-links?date=${today}`).then(r => r.json()),
+  const { data: todayLegsDue    = [] } = useQuery<LegDue[]>({
+    queryKey: ['legs-due', today],
+    queryFn: () => fetch(`/api/bookings/legs-due?date=${today}`).then(r => r.json()),
     refetchInterval: 30000,
+  })
+  const { data: tomorrowLegsDue = [] } = useQuery<LegDue[]>({
+    queryKey: ['legs-due', tomorrow],
+    queryFn: () => fetch(`/api/bookings/legs-due?date=${tomorrow}`).then(r => r.json()),
+    refetchInterval: 60000,
   })
 
   async function handleRefresh() {
     setRefreshing(true)
-    await Promise.all([refetch(), qc.invalidateQueries({ queryKey: ['today-links'] })])
+    await Promise.all([refetch(), qc.invalidateQueries({ queryKey: ['legs-due'] })])
     setRefreshing(false)
   }
 
-  async function handleSendLeg(leg: TodayLeg) {
-    setSendingLegs(s => new Set(s).add(leg.id))
+  async function handleSendDayLink(item: LegDue) {
+    setSendingDayLinks(s => new Set(s).add(item.leg.id))
     try {
-      const res  = await fetch(`/api/bookings/${leg.booking_id}/legs/${leg.id}/send-links`, { method: 'POST' })
+      const res  = await fetch(`/api/bookings/${item.booking.id}/legs/${item.leg.id}/send-links`, { method: 'POST' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      toast.success(`Day ${leg.day_number} links sent to ${leg.driver.name}`)
-      qc.invalidateQueries({ queryKey: ['today-links'] })
+      toast.success(`Day ${item.leg.day_number} links sent to ${item.leg.driver?.name ?? 'driver'}`)
+      setSentLegIds(s => new Set(s).add(item.leg.id))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send links')
     } finally {
-      setSendingLegs(s => { const n = new Set(s); n.delete(leg.id); return n })
+      setSendingDayLinks(s => { const n = new Set(s); n.delete(item.leg.id); return n })
     }
   }
 
@@ -348,7 +333,11 @@ export default function DashboardPage() {
   const completedToday    = bookings.filter(b => b.status === 'completed' && b.pickup_date === today)
   const flagged           = bookings.filter(b => ((b.flags as string[] | undefined)?.length ?? 0) > 0 && !['completed','cancelled'].includes(b.status))
 
-  const totalUrgentActions = urgentNoDriver.length + approvalUrgent.length + todayLegs.length
+  const unsentTodayLegs    = todayLegsDue.filter(i => !i.leg.link_sent_at && !sentLegIds.has(i.leg.id))
+  const unsentTomorrowLegs = tomorrowLegsDue.filter(i => !i.leg.link_sent_at && !sentLegIds.has(i.leg.id))
+  const currentLegsDue     = legLinkTab === 'today' ? unsentTodayLegs : unsentTomorrowLegs
+
+  const totalUrgentActions = urgentNoDriver.length + approvalUrgent.length
   const allClear = totalUrgentActions === 0 && needConfirm.length === 0 && nonUrgentApproval.length === 0 && nonUrgentNoDriver.length === 0 && flagged.length === 0
 
   // Week data: today + 6 days (includes continuation leg dates for multi-day bookings)
@@ -441,17 +430,6 @@ export default function DashboardPage() {
                 />
               ))}
 
-              {/* 🟡 Warning: multi-day leg links to send */}
-              {todayLegs.map(leg => (
-                <ActionRow key={leg.id} severity="warning" icon={Send}
-                  title={`${leg.booking.booking_ref} · ${leg.booking.client?.name || leg.booking.guest_name || '—'} · Day ${leg.day_number} of ${leg.booking.total_days}`}
-                  sub={`Send today's trip links to driver ${leg.driver.name}`}
-                  actionLabel={sendingLegs.has(leg.id) ? 'Sending…' : 'Send Links'}
-                  onAction={() => handleSendLeg(leg)}
-                  actionLoading={sendingLegs.has(leg.id)}
-                />
-              ))}
-
               {/* ℹ️ Info: drafts to confirm */}
               {needConfirm.length > 0 && (
                 <ActionRow severity="info" icon={ClipboardCheck}
@@ -501,20 +479,46 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ── TODAY'S TRIPS ─────────────────────────────────────────── */}
+          {/* ── DRIVER DAY LINKS ──────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <SectionHeader icon={Clock} label="Today's Trips" count={todayAll.length}
-              href="/bookings/calendar" hrefLabel="Calendar" />
-
-            {todayAll.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-gray-400">No trips scheduled for today.</div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {todayAll.sort(byTime).map(b => (
-                  <TripRow key={b.id} booking={b} onAssign={setAssignTarget} />
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Send className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm font-bold text-gray-800">Driver Day Links</h2>
+              </div>
+              <div className="flex gap-1.5">
+                {([['today', 'Today', unsentTodayLegs.length], ['tomorrow', 'Tomorrow', unsentTomorrowLegs.length]] as const).map(([key, label, count]) => (
+                  <button key={key} onClick={() => setLegLinkTab(key)}
+                    className={cn('px-2.5 py-1 rounded-full text-xs font-semibold transition-colors flex items-center gap-1',
+                      legLinkTab === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                    {label}
+                    {count > 0 && (
+                      <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none',
+                        legLinkTab === key ? 'bg-blue-500 text-white' : 'bg-white text-gray-500')}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
-            )}
+            </div>
+
+            <div className="divide-y divide-gray-50">
+              {currentLegsDue.length === 0 ? (
+                <div className="flex items-center gap-3 px-4 py-6 text-emerald-700">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <p className="text-sm font-semibold">
+                    All day links sent for {legLinkTab === 'today' ? 'today' : 'tomorrow'}
+                  </p>
+                </div>
+              ) : (
+                currentLegsDue.map(item => (
+                  <LegLinkCard key={item.leg.id} item={item}
+                    sending={sendingDayLinks.has(item.leg.id)}
+                    onSend={() => handleSendDayLink(item)} />
+                ))
+              )}
+            </div>
           </div>
 
           {/* ── THIS WEEK ─────────────────────────────────────────────── */}
