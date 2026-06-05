@@ -25,8 +25,9 @@ export async function POST(request: Request) {
         rate_8hr:                body.rate_8hr       ?? null,
         extra_km_rate:           body.extra_km_rate  ?? null,
         extra_hr_rate:           body.extra_hr_rate  ?? null,
-        outstation_rate_per_km:  body.outstation_rate_per_km ?? null,
-        bata_per_day:            body.bata_per_day   ?? null,
+        outstation_rate_per_km:  body.outstation_rate_per_km  ?? null,
+        bata_per_day:            body.bata_per_day            ?? null,
+        outstation_bata_per_day: body.outstation_bata_per_day ?? null,
         is_active:               true,
       },
       { onConflict: 'company_id,vehicle_type' }

@@ -244,8 +244,11 @@ export async function POST(request: Request) {
     // Bata priority: driver fixed_rate_bata → company_driver_rates.bata_per_day → company_bata_rates → driver default
     const bataKey = `${companyId}:${driverVehicle}:${tripType}`
     const bataKeyAll = `${companyId}:${driverVehicle}:all`
+    // Use outstation-specific bata rate when applicable
+    const isOutstationTrip = tripType === 'outstation'
     const driverBataRate =
       (driver.fixed_rate_bata ? Number(driver.fixed_rate_bata) : null) ??
+      (isOutstationTrip && companyRate?.outstation_bata_per_day ? Number(companyRate.outstation_bata_per_day) : null) ??
       (companyRate?.bata_per_day ? Number(companyRate.bata_per_day) : null) ??
       bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
     // Airport bata is collected from client only — driver is not paid

@@ -26,6 +26,7 @@ interface ClientRateCard {
   extra_km_rate: number | null; extra_hr_rate: number | null
   outstation_rate_per_km: number | null; outstation_min_kms_per_day: number | null
   bill_bata_to_client: boolean; tds_percent: number
+  local_bata_rate: number | null; outstation_bata_rate: number | null
   special_notes: string | null; effective_from: string; is_active: boolean
   company?: { name: string }
 }
@@ -34,7 +35,8 @@ interface DriverRateCard {
   id: string; company_id: string; vehicle_type: string
   rate_4hr: number | null; rate_8hr: number | null
   extra_km_rate: number | null; extra_hr_rate: number | null
-  outstation_rate_per_km: number | null; bata_per_day: number | null
+  outstation_rate_per_km: number | null
+  bata_per_day: number | null; outstation_bata_per_day: number | null
   is_active: boolean; created_at: string
   company?: { name: string }
 }
@@ -114,6 +116,7 @@ function ClientRateModal({ companies, onClose, onSaved }: {
     company_id: '', vehicle_type: '', package_4hr_rate: '', package_8hr_rate: '',
     extra_km_rate: '14', extra_hr_rate: '250', outstation_rate_per_km: '',
     outstation_min_kms_per_day: '300', tds_percent: '0',
+    local_bata_rate: '', outstation_bata_rate: '',
     bill_bata_to_client: false, special_notes: '', effective_from: new Date().toISOString().slice(0, 10),
   })
   const [saving, setSaving] = useState(false)
@@ -133,6 +136,8 @@ function ClientRateModal({ companies, onClose, onSaved }: {
       outstation_rate_per_km: form.outstation_rate_per_km ? Number(form.outstation_rate_per_km) : null,
       outstation_min_kms_per_day: form.outstation_min_kms_per_day ? Number(form.outstation_min_kms_per_day) : null,
       tds_percent: Number(form.tds_percent),
+      local_bata_rate: (form as Record<string,string>).local_bata_rate ? Number((form as Record<string,string>).local_bata_rate) : null,
+      outstation_bata_rate: (form as Record<string,string>).outstation_bata_rate ? Number((form as Record<string,string>).outstation_bata_rate) : null,
       bill_bata_to_client: form.bill_bata_to_client,
       special_notes: form.special_notes || null,
       effective_from: form.effective_from,
@@ -178,6 +183,18 @@ function ClientRateModal({ companies, onClose, onSaved }: {
             <input type="checkbox" id="bill_bata" checked={form.bill_bata_to_client} onChange={e => setForm(f => ({ ...f, bill_bata_to_client: e.target.checked }))} />
             <Label htmlFor="bill_bata" className="text-sm">Bill bata to this client</Label>
           </div>
+          {form.bill_bata_to_client && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Local Bata Rate (₹/bata day)</Label>
+                <Input className="h-8 text-sm" type="number" value={(form as Record<string,string>).local_bata_rate} onChange={e => setForm(f => ({ ...f, local_bata_rate: e.target.value } as typeof f))} placeholder="e.g. 500" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Outstation Bata Rate (₹/bata day)</Label>
+                <Input className="h-8 text-sm" type="number" value={(form as Record<string,string>).outstation_bata_rate} onChange={e => setForm(f => ({ ...f, outstation_bata_rate: e.target.value } as typeof f))} placeholder="e.g. 750" />
+              </div>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Special Notes</Label>
             <Input className="h-8 text-sm" value={form.special_notes} onChange={e => setForm(f => ({ ...f, special_notes: e.target.value }))} placeholder="e.g. No minimum KMs" />
@@ -268,7 +285,7 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
   const [form, setForm] = useState({
     company_id: '', vehicle_type: '',
     rate_4hr: '', rate_8hr: '', extra_km_rate: '', extra_hr_rate: '',
-    outstation_rate_per_km: '', bata_per_day: '',
+    outstation_rate_per_km: '', bata_per_day: '', outstation_bata_per_day: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -282,8 +299,9 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
       rate_8hr:               form.rate_8hr               ? Number(form.rate_8hr)               : null,
       extra_km_rate:          form.extra_km_rate          ? Number(form.extra_km_rate)          : null,
       extra_hr_rate:          form.extra_hr_rate          ? Number(form.extra_hr_rate)          : null,
-      outstation_rate_per_km: form.outstation_rate_per_km ? Number(form.outstation_rate_per_km) : null,
-      bata_per_day:           form.bata_per_day           ? Number(form.bata_per_day)           : null,
+      outstation_rate_per_km:  form.outstation_rate_per_km  ? Number(form.outstation_rate_per_km)  : null,
+      bata_per_day:            form.bata_per_day            ? Number(form.bata_per_day)            : null,
+      outstation_bata_per_day: form.outstation_bata_per_day ? Number(form.outstation_bata_per_day) : null,
     }
     const res = await fetch('/api/billing/driver-rate-cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { toast.success('Driver rate saved'); onSaved() }
@@ -329,7 +347,8 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
             <F label="Extra KM rate (/km)" field="extra_km_rate" />
             <F label="Extra Hour rate (/hr)" field="extra_hr_rate" />
             <F label="Outstation (/km)" field="outstation_rate_per_km" />
-            <F label="Bata per day" field="bata_per_day" />
+            <F label="Local Bata/day" field="bata_per_day" />
+            <F label="Outstation Bata/day" field="outstation_bata_per_day" />
           </div>
         </div>
         <DialogFooter>
@@ -517,7 +536,7 @@ export default function RateCardsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {['Company', 'Vehicle Type', '4hr', '8hr', 'Extra KM', 'Outn/km', 'TDS%', 'Bill Bata', 'Effective From', ''].map(h => (
+                  {['Company', 'Vehicle Type', '4hr', '8hr', 'Extra KM', 'Outn/km', 'TDS%', 'Bill Bata', 'Local Bata', 'Outn Bata', 'Effective From', ''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -537,6 +556,8 @@ export default function RateCardsPage() {
                         {r.bill_bata_to_client ? 'Yes' : 'No'}
                       </span>
                     </td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.local_bata_rate ? `₹${r.local_bata_rate}` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_bata_rate ? `₹${r.outstation_bata_rate}` : '—'}</td>
                     <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.effective_from}</td>
                     <td className="px-3 py-2.5">
                       <button onClick={() => deleteClientRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
@@ -557,7 +578,7 @@ export default function RateCardsPage() {
             <table className="w-full text-sm">
               <thead className="bg-indigo-50 border-b border-indigo-100">
                 <tr>
-                  {['Company', 'Vehicle', '4hr Pay', '8hr Pay', 'Extra KM', 'Extra Hr', 'Outn/km', 'Bata/day', ''].map(h => (
+                  {['Company', 'Vehicle', '4hr Pay', '8hr Pay', 'Extra KM', 'Extra Hr', 'Outn/km', 'Local Bata', 'Outn Bata', ''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -573,6 +594,7 @@ export default function RateCardsPage() {
                     <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_hr_rate ? `₹${r.extra_hr_rate}/hr` : '—'}</td>
                     <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_rate_per_km ? `₹${r.outstation_rate_per_km}/km` : '—'}</td>
                     <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.bata_per_day ? `₹${r.bata_per_day}/day` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_bata_per_day ? `₹${r.outstation_bata_per_day}/day` : '—'}</td>
                     <td className="px-3 py-2.5">
                       <button onClick={() => deleteDriverRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
                     </td>
