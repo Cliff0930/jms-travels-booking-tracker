@@ -187,11 +187,11 @@ function ClientRateModal({ companies, onClose, onSaved }: {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Local Bata Rate (₹/bata day)</Label>
-                <Input className="h-8 text-sm" type="number" value={(form as Record<string,string>).local_bata_rate} onChange={e => setForm(f => ({ ...f, local_bata_rate: e.target.value } as typeof f))} placeholder="e.g. 500" />
+                <Input className="h-8 text-sm" type="number" value={form.local_bata_rate} onChange={e => setForm(f => ({ ...f, local_bata_rate: e.target.value }))} placeholder="e.g. 500" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Outstation Bata Rate (₹/bata day)</Label>
-                <Input className="h-8 text-sm" type="number" value={(form as Record<string,string>).outstation_bata_rate} onChange={e => setForm(f => ({ ...f, outstation_bata_rate: e.target.value } as typeof f))} placeholder="e.g. 750" />
+                <Input className="h-8 text-sm" type="number" value={form.outstation_bata_rate} onChange={e => setForm(f => ({ ...f, outstation_bata_rate: e.target.value }))} placeholder="e.g. 750" />
               </div>
             </div>
           )}
