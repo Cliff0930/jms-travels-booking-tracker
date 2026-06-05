@@ -45,6 +45,28 @@ export async function GET(request: Request) {
     }
   }
 
+  // Fallback: substitute driver assigned to a specific leg today
+  if (!data) {
+    const { data: subLeg } = await supabase
+      .from('booking_legs')
+      .select('booking_id')
+      .eq('driver_id', verified.driverId)
+      .eq('leg_date', today)
+      .neq('leg_status', 'completed')
+      .limit(1)
+      .maybeSingle()
+
+    if (subLeg) {
+      const { data: subBooking } = await supabase
+        .from('bookings')
+        .select(BOOKING_SELECT)
+        .eq('id', subLeg.booking_id)
+        .not('status', 'in', '("cancelled","completed")')
+        .maybeSingle()
+      if (subBooking) data = subBooking
+    }
+  }
+
   if (!data) return NextResponse.json(null)
   const { pickup_date, pickup_time, pax_count, guest_name, guest_phone, clients: clientData, booker: bookerData, company: companyData, ...rest } = data
 
