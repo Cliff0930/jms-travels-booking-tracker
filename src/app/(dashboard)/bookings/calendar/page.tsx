@@ -40,10 +40,13 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 // ── types ─────────────────────────────────────────────────────────────────────
+type CalBookingLeg = { id: string; day_number: number; leg_date: string; leg_status: string | null }
 type CalBooking = Omit<Booking, 'driver' | 'company' | 'client'> & {
   driver?: { id: string; name: string; vehicle_name: string | null; vehicle_number: string | null } | null
   company?: { id: string; name: string } | null
   client?: { id: string; name: string } | null
+  booking_legs?: CalBookingLeg[]
+  _legDay?: number  // set when booking is shown on a continuation leg date (Day 2+)
 }
 
 // ── main component ────────────────────────────────────────────────────────────
@@ -63,17 +66,28 @@ export default function BookingCalendarPage() {
 
   const { data: bookings = [], isLoading } = useQuery<CalBooking[]>({
     queryKey: ['bookings-cal', dateFrom, dateTo],
-    queryFn: () => fetch(`/api/bookings?date_from=${dateFrom}&date_to=${dateTo}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/bookings?date_from=${dateFrom}&date_to=${dateTo}&include_legs=1`).then(r => r.json()),
   })
 
-  // Group by pickup_date
+  // Group by pickup_date AND leg dates (Day 2+)
   const byDate = useMemo(() => {
     const map: Record<string, CalBooking[]> = {}
     for (const b of bookings) {
       if (!b.pickup_date) continue
-      const key = b.pickup_date.slice(0, 10)
-      if (!map[key]) map[key] = []
-      map[key].push(b)
+      const pickupKey = b.pickup_date.slice(0, 10)
+      if (!map[pickupKey]) map[pickupKey] = []
+      map[pickupKey].push(b)
+
+      // Also plot on each continuation leg date
+      for (const leg of (b.booking_legs ?? [])) {
+        if (!leg.leg_date || leg.leg_status === 'cancelled') continue
+        const legKey = leg.leg_date.slice(0, 10)
+        if (legKey === pickupKey) continue  // Day 1 already added above
+        if (!map[legKey]) map[legKey] = []
+        if (!map[legKey].find(x => x.id === b.id)) {
+          map[legKey].push({ ...b, _legDay: leg.day_number })
+        }
+      }
     }
     return map
   }, [bookings])
@@ -201,8 +215,8 @@ export default function BookingCalendarPage() {
                       {/* Mini booking list (up to 2) */}
                       <div className="space-y-0.5 mt-0.5">
                         {dayBookings.filter(b => b.status !== 'cancelled').slice(0, 2).map(b => (
-                          <div key={b.id} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[b.status])}>
-                            {fmtTime(b.pickup_time)} {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? '—'}
+                          <div key={b.id + (b._legDay ?? '')} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[b.status])}>
+                            {b._legDay ? `Day ${b._legDay}` : fmtTime(b.pickup_time)} · {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? '—'}
                           </div>
                         ))}
                         {dayBookings.filter(b => b.status !== 'cancelled').length > 2 && (
@@ -257,9 +271,10 @@ export default function BookingCalendarPage() {
             .sort((a, b) => (a.pickup_time ?? '').localeCompare(b.pickup_time ?? ''))
             .map(b => {
               const driver = b.driver as { id: string; name: string; vehicle_name: string | null; vehicle_number: string | null } | null | undefined
+              const cardKey = b.id + (b._legDay ?? '')
               const company = b.company as { id: string; name: string } | null | undefined
               return (
-                <div key={b.id} className={cn('bg-white rounded-xl border p-3 space-y-2', STATUS_CHIP[b.status])}>
+                <div key={cardKey} className={cn('bg-white rounded-xl border p-3 space-y-2', STATUS_CHIP[b.status])}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-mono text-gray-400">{b.booking_ref}</p>
@@ -275,6 +290,14 @@ export default function BookingCalendarPage() {
                     </div>
                   </div>
 
+                  {b._legDay && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                        Day {b._legDay}{b.total_days ? ` of ${b.total_days}` : ''}
+                      </span>
+                      <span className="text-[10px] text-gray-400">continuation</span>
+                    </div>
+                  )}
                   {b.pickup_time && (
                     <div className="flex items-center gap-1.5 text-xs text-gray-500">
                       <Clock className="w-3 h-3 shrink-0" />

@@ -15,10 +15,15 @@ export async function GET(request: Request) {
   const tripType = searchParams.get('trip_type')
   const source = searchParams.get('source')
   const search = searchParams.get('search')
+  const includeLegs = searchParams.get('include_legs') === '1'
+
+  const selectFields = includeLegs
+    ? '*, booking_legs(id, day_number, leg_date, leg_status), client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
+    : '*, client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
 
   let query = supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)')
+    .select(selectFields)
     .order('created_at', { ascending: false })
     .limit(500)
 
