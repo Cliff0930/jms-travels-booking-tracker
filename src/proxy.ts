@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/update-password')
   const isApi = request.nextUrl.pathname.startsWith('/api/')
   const isPublicPath = request.nextUrl.pathname.startsWith('/driver-status') || request.nextUrl.pathname.startsWith('/r/')
 

@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/gmail/send'
 
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const admin = createAdminClient()
+  const { data } = await admin.from('user_profiles').select('role').eq('id', user.id).single()
+  return data?.role === 'admin'
+}
+
 export async function POST(request: Request) {
+  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const { to } = await request.json().catch(() => ({}))
   const recipient = to || process.env.GMAIL_USER_EMAIL!
 

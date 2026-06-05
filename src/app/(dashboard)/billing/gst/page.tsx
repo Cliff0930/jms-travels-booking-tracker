@@ -23,7 +23,7 @@ export default function GSTWorkingPage() {
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ['invoices-gst', month],
-    queryFn: () => fetch('/api/billing/invoices').then(r => r.json()),
+    queryFn: () => fetch(`/api/billing/invoices?period_month=${month}`).then(r => r.json()),
   })
 
   const filtered = useMemo(() => {

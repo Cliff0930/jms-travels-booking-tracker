@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, AlertCircle, BookOpen } from 'lucide-react'
 
 type Notification = {
@@ -23,20 +24,20 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
+  const qc = useQueryClient()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    fetch('/api/notifications')
-      .then(r => r.json())
-      .then(data => { setNotifications(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
+    queryKey: ['notifications'],
+    queryFn: () => fetch('/api/notifications').then(r => r.json()),
+    refetchOnWindowFocus: true,
+  })
 
   async function markAllRead() {
     await fetch('/api/notifications', { method: 'POST' })
-    setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })))
+    qc.setQueryData<Notification[]>(['notifications'], prev =>
+      (prev ?? []).map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))
+    )
   }
 
   function toggleExpand(id: string) {
@@ -72,11 +73,11 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {loading && (
+      {isLoading && (
         <div className="text-center text-gray-400 py-16 text-sm">Loading…</div>
       )}
 
-      {!loading && notifications.length === 0 && (
+      {!isLoading && notifications.length === 0 && (
         <div className="text-center text-gray-400 py-16">
           <Bell className="w-10 h-10 mx-auto mb-3 text-gray-200" />
           <p className="text-sm">No notifications yet</p>

@@ -36,8 +36,11 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .limit(200)
 
+  const periodMonth = searchParams.get('period_month') // YYYY-MM — match invoices that overlap this month
+
   if (companyId) q = q.eq('company_id', companyId)
   if (status) q = q.eq('status', status)
+  if (periodMonth) q = q.or(`period_from.like.${periodMonth}%,period_to.like.${periodMonth}%`)
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
