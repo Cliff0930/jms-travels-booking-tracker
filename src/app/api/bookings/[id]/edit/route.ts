@@ -124,6 +124,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  // Auto-cancel excess upcoming legs when total_days decreases
+  if (newTotalDays && newTotalDays >= 1 && newTotalDays < prevTotalDays) {
+    await admin
+      .from('booking_legs')
+      .update({ leg_status: 'cancelled' })
+      .eq('booking_id', id)
+      .gt('day_number', newTotalDays)
+      .eq('leg_status', 'upcoming')
+  }
+
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
       const isCorrection = existingGuestClientId && guest_name_action === 'update'
