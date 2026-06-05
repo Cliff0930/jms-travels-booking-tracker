@@ -38,6 +38,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Revoke: un-settle all advances that were auto-settled via this statement
+  if (body.status === 'draft') {
+    await supabase
+      .from('driver_advances')
+      .update({ status: 'outstanding', settled_at: null, settled_via: null, settlement_id: null })
+      .eq('settlement_id', id)
+  }
+
   // Auto-settle outstanding advances (FIFO) when settlement is marked paid
   if (body.status === 'paid' && Number(data.advance_principal_deduction) > 0) {
     const { data: advances } = await supabase
