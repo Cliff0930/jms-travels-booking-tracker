@@ -9,7 +9,7 @@ import { ButtonLink } from '@/components/ui/button-link'
 import {
   Plus, RefreshCw, Send, Car, AlertTriangle, CheckCircle2,
   Clock, ChevronRight, UserCheck, ClipboardCheck, BellRing,
-  Zap, ArrowRight, CalendarDays,
+  Zap, ArrowRight, CalendarDays, ExternalLink, User,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -134,6 +134,87 @@ function TripRow({ booking, onAssign }: { booking: Booking & { _legDay?: number 
         }
       </div>
       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 shrink-0" />
+    </Link>
+  )
+}
+
+// ── Calendar-style booking tile ───────────────────────────────────────────────
+const TILE_CHIP: Record<string, string> = {
+  confirmed:        'bg-blue-50 text-blue-700 border-blue-200',
+  in_progress:      'bg-amber-50 text-amber-700 border-amber-200',
+  completed:        'bg-emerald-50 text-emerald-700 border-emerald-200',
+  draft:            'bg-gray-100 text-gray-600 border-gray-200',
+  pending_approval: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  cancelled:        'bg-red-50 text-red-400 border-red-100 line-through',
+}
+const TILE_LABEL: Record<string, string> = {
+  confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed',
+  draft: 'Draft', pending_approval: 'Pending', cancelled: 'Cancelled',
+}
+
+function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
+  const company = booking.company as { id: string; name: string } | null | undefined
+  const driver  = booking.driver  as { name: string; vehicle_number?: string | null } | null | undefined
+
+  return (
+    <Link href={`/bookings/${booking.id}`}
+      className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', TILE_CHIP[booking.status])}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-mono text-gray-400">{booking.booking_ref}</p>
+          <p className="text-sm font-bold text-gray-900 truncate">{booking.guest_name ?? booking.requested_by ?? '—'}</p>
+          {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', TILE_CHIP[booking.status])}>
+            {TILE_LABEL[booking.status] ?? booking.status}
+          </span>
+          <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+        </div>
+      </div>
+
+      {booking._legDay && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+            Day {booking._legDay}{booking.total_days ? ` of ${booking.total_days}` : ''}
+          </span>
+          <span className="text-[10px] text-gray-400">continuation</span>
+        </div>
+      )}
+
+      {booking.pickup_time && (
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <Clock className="w-3 h-3 shrink-0" />
+          {fmtTime(booking.pickup_time)}
+          {booking.trip_type && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 rounded-full text-gray-500">{booking.trip_type}</span>}
+        </div>
+      )}
+
+      {booking.pickup_location && (
+        <p className="text-xs text-gray-500 truncate">
+          <span className="text-gray-400">From </span>{booking.pickup_location}
+        </p>
+      )}
+      {booking.drop_location && (
+        <p className="text-xs text-gray-500 truncate">
+          <span className="text-gray-400">To </span>{booking.drop_location}
+        </p>
+      )}
+
+      <div className="flex items-center gap-1.5 pt-1 border-t border-gray-100">
+        {driver ? (
+          <>
+            <Car className="w-3 h-3 text-gray-400 shrink-0" />
+            <span className="text-xs font-medium text-gray-700 truncate">{driver.name}</span>
+            {driver.vehicle_number && <span className="text-[10px] text-gray-400 shrink-0">{driver.vehicle_number}</span>}
+          </>
+        ) : (
+          <>
+            <User className="w-3 h-3 text-gray-300 shrink-0" />
+            <span className="text-xs text-gray-400 italic">No driver assigned</span>
+          </>
+        )}
+      </div>
     </Link>
   )
 }
@@ -455,9 +536,9 @@ export default function DashboardPage() {
                 No trips on {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}.
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {selectedDayTrips.map(b => (
-                  <TripRow key={b.id} booking={b} onAssign={setAssignTarget} />
+                  <BookingTile key={b.id + (b._legDay ?? '')} booking={b} />
                 ))}
               </div>
             )}
