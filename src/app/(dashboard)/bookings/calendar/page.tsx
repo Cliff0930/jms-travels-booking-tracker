@@ -276,19 +276,18 @@ export default function BookingCalendarPage() {
               const cardKey = b.id + (b._legDay ?? '')
               const company = b.company as { id: string; name: string } | null | undefined
               return (
-                <div key={cardKey} className={cn('bg-white rounded-xl border p-3 space-y-2', STATUS_CHIP[b.status])}>
+                <Link key={cardKey} href={`/bookings/${b.id}`} className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', STATUS_CHIP[b.status])}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-mono text-gray-400">{b.booking_ref}</p>
-                      <p className="text-sm font-bold text-gray-900 truncate">{b.guest_name ?? company?.name ?? '—'}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">{b.guest_name ?? b.requested_by ?? '—'}</p>
+                      {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', STATUS_CHIP[b.status])}>
                         {STATUS_LABEL[b.status]}
                       </span>
-                      <Link href={`/bookings/${b.id}`} className="text-blue-500 hover:text-blue-700">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                     </div>
                   </div>
 
@@ -333,7 +332,7 @@ export default function BookingCalendarPage() {
                       </>
                     )}
                   </div>
-                </div>
+                </Link>
               )
             })}
         </div>
