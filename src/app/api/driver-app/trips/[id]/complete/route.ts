@@ -120,6 +120,22 @@ export async function POST(
     if (insertErr) console.error(`[complete] trip_sheets insert failed booking=${bookingId}:`, insertErr.message)
   }
 
+  // For multi-day local trips: mark this leg done and check if more legs remain
+  if (leg_id) {
+    await supabase.from('booking_legs').update({ leg_status: 'completed' }).eq('id', leg_id)
+    const { data: remainingLegs } = await supabase
+      .from('booking_legs')
+      .select('id')
+      .eq('booking_id', bookingId)
+      .neq('leg_status', 'completed')
+    if (remainingLegs && remainingLegs.length > 0) {
+      // More legs remain — keep booking alive for next day
+      await supabase.from('bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', bookingId)
+      await supabase.from('drivers').update({ status: 'available' }).eq('id', verified.driverId)
+      return NextResponse.json({ ok: true, more_legs: true, legs_remaining: remainingLegs.length })
+    }
+  }
+
   // Update total_days from actual dates so billing is accurate
   const bookingUpdate: Record<string, unknown> = { status: 'completed', updated_at: new Date().toISOString() }
   if (tripType === 'outstation' && outstationDays > 0) bookingUpdate.total_days = outstationDays
