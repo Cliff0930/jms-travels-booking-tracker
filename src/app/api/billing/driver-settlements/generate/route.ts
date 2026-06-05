@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   // 1. Driver info (includes fixed rate fields)
   const { data: driver, error: dErr } = await supabase
     .from('drivers')
-    .select('id, name, vehicle_name, vehicle_number, vehicle_type, bata_rate, driver_type, commission_percent, monthly_salary, advance_emi_amount, fixed_rate_4hr, fixed_rate_8hr, fixed_rate_extra_km, fixed_rate_extra_hr, fixed_rate_outstation_km, fixed_rate_bata')
+    .select('id, name, vehicle_name, vehicle_number, vehicle_type, bata_rate, driver_type, commission_percent, monthly_salary, advance_emi_amount, fixed_rate_4hr, fixed_rate_8hr, fixed_rate_extra_km, fixed_rate_extra_hr, fixed_rate_outstation_km, fixed_rate_bata, fixed_rate_outstation_bata')
     .eq('id', driver_id)
     .single()
   if (dErr || !driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
@@ -241,12 +241,12 @@ export async function POST(request: Request) {
 
     const bataCount = Number(sheet?.bata_driver ?? 0)
     const tripType = b.trip_type ?? 'local'
-    // Bata priority: driver fixed_rate_bata → company_driver_rates.bata_per_day → company_bata_rates → driver default
+    // Bata priority: driver fixed outstation/local bata → company_driver_rates → company_bata_rates → driver default
     const bataKey = `${companyId}:${driverVehicle}:${tripType}`
     const bataKeyAll = `${companyId}:${driverVehicle}:all`
-    // Use outstation-specific bata rate when applicable
     const isOutstationTrip = tripType === 'outstation'
     const driverBataRate =
+      (isOutstationTrip && driver.fixed_rate_outstation_bata ? Number(driver.fixed_rate_outstation_bata) : null) ??
       (driver.fixed_rate_bata ? Number(driver.fixed_rate_bata) : null) ??
       (isOutstationTrip && companyRate?.outstation_bata_per_day ? Number(companyRate.outstation_bata_per_day) : null) ??
       (companyRate?.bata_per_day ? Number(companyRate.bata_per_day) : null) ??
