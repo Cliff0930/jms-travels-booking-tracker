@@ -94,7 +94,8 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       fixed_rate_extra_km:       (driver as unknown as Record<string,unknown>).fixed_rate_extra_km       != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_extra_km)       : '',
       fixed_rate_extra_hr:       (driver as unknown as Record<string,unknown>).fixed_rate_extra_hr       != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_extra_hr)       : '',
       fixed_rate_outstation_km:  (driver as unknown as Record<string,unknown>).fixed_rate_outstation_km  != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_outstation_km)  : '',
-      fixed_rate_bata:           (driver as unknown as Record<string,unknown>).fixed_rate_bata           != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_bata)           : '',
+      fixed_rate_bata:               (driver as unknown as Record<string,unknown>).fixed_rate_bata               != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_bata)               : '',
+      fixed_rate_outstation_bata:    (driver as unknown as Record<string,unknown>).fixed_rate_outstation_bata    != null ? String((driver as unknown as Record<string,unknown>).fixed_rate_outstation_bata)    : '',
     })
     setEditing(true)
   }
@@ -133,7 +134,8 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           fixed_rate_extra_km:       (form as Record<string,string>).fixed_rate_extra_km       ? Number((form as Record<string,string>).fixed_rate_extra_km)       : null,
           fixed_rate_extra_hr:       (form as Record<string,string>).fixed_rate_extra_hr       ? Number((form as Record<string,string>).fixed_rate_extra_hr)       : null,
           fixed_rate_outstation_km:  (form as Record<string,string>).fixed_rate_outstation_km  ? Number((form as Record<string,string>).fixed_rate_outstation_km)  : null,
-          fixed_rate_bata:           (form as Record<string,string>).fixed_rate_bata           ? Number((form as Record<string,string>).fixed_rate_bata)           : null,
+          fixed_rate_bata:               (form as Record<string,string>).fixed_rate_bata               ? Number((form as Record<string,string>).fixed_rate_bata)               : null,
+          fixed_rate_outstation_bata:    (form as Record<string,string>).fixed_rate_outstation_bata    ? Number((form as Record<string,string>).fixed_rate_outstation_bata)    : null,
         } as Partial<Driver>,
       })
       toast.success('Driver updated')
@@ -322,8 +324,9 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                     { key: 'fixed_rate_8hr',           label: '8hr/80km (₹)' },
                     { key: 'fixed_rate_extra_km',      label: 'Extra KM (₹/km)' },
                     { key: 'fixed_rate_extra_hr',      label: 'Extra Hour (₹/hr)' },
-                    { key: 'fixed_rate_outstation_km', label: 'Outstation (₹/km)' },
-                    { key: 'fixed_rate_bata',          label: 'Bata/day (₹)' },
+                    { key: 'fixed_rate_outstation_km',  label: 'Outstation (₹/km)' },
+                    { key: 'fixed_rate_bata',           label: 'Local Bata/day (₹)' },
+                    { key: 'fixed_rate_outstation_bata', label: 'Outstation Bata/day (₹)' },
                   ] as { key: string; label: string }[]).map(({ key, label }) => (
                     <div key={key}>
                       <Label className="text-xs text-[#737686]">{label}</Label>
