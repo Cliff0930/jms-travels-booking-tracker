@@ -30,6 +30,15 @@ interface ClientRateCard {
   company?: { name: string }
 }
 
+interface DriverRateCard {
+  id: string; company_id: string; vehicle_type: string
+  rate_4hr: number | null; rate_8hr: number | null
+  extra_km_rate: number | null; extra_hr_rate: number | null
+  outstation_rate_per_km: number | null; bata_per_day: number | null
+  is_active: boolean; created_at: string
+  company?: { name: string }
+}
+
 
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
@@ -250,12 +259,95 @@ function AddRateButton({ vehicleName, vehicleCategory, onSaved }: { vehicleName:
   )
 }
 
+function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
+  companies: { id: string; name: string }[]
+  vehicles: { vehicle_name: string }[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState({
+    company_id: '', vehicle_type: '',
+    rate_4hr: '', rate_8hr: '', extra_km_rate: '', extra_hr_rate: '',
+    outstation_rate_per_km: '', bata_per_day: '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!form.company_id || !form.vehicle_type) { toast.error('Select company and vehicle type'); return }
+    setSaving(true)
+    const body = {
+      company_id:             form.company_id,
+      vehicle_type:           form.vehicle_type,
+      rate_4hr:               form.rate_4hr               ? Number(form.rate_4hr)               : null,
+      rate_8hr:               form.rate_8hr               ? Number(form.rate_8hr)               : null,
+      extra_km_rate:          form.extra_km_rate          ? Number(form.extra_km_rate)          : null,
+      extra_hr_rate:          form.extra_hr_rate          ? Number(form.extra_hr_rate)          : null,
+      outstation_rate_per_km: form.outstation_rate_per_km ? Number(form.outstation_rate_per_km) : null,
+      bata_per_day:           form.bata_per_day           ? Number(form.bata_per_day)           : null,
+    }
+    const res = await fetch('/api/billing/driver-rate-cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (res.ok) { toast.success('Driver rate saved'); onSaved() }
+    else toast.error('Failed to save')
+    setSaving(false)
+  }
+
+  const F = ({ label, field }: { label: string; field: keyof typeof form }) => (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+        <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
+      </div>
+    </div>
+  )
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Add Driver Rate Override</DialogTitle></DialogHeader>
+        <p className="text-xs text-gray-500 -mt-2">What JMS pays the driver for trips from this company. Overrides commission% in Driver Settlement.</p>
+        <div className="py-2 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Company *</Label>
+              <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Vehicle Type *</Label>
+              <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                <SelectContent>{vehicles.map(v => <SelectItem key={v.vehicle_name} value={v.vehicle_name}>{v.vehicle_name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <F label="4hr/40km — Driver gets" field="rate_4hr" />
+            <F label="8hr/80km — Driver gets" field="rate_8hr" />
+            <F label="Extra KM rate (/km)" field="extra_km_rate" />
+            <F label="Extra Hour rate (/hr)" field="extra_hr_rate" />
+            <F label="Outstation (/km)" field="outstation_rate_per_km" />
+            <F label="Bata per day" field="bata_per_day" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Driver Rate'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function RateCardsPage() {
   const qc = useQueryClient()
-  const [tab, setTab] = useState<'default' | 'client'>('default')
+  const [tab, setTab] = useState<'default' | 'client' | 'driver'>('default')
   const [categoryFilter, setCategoryFilter] = useState('All')
   const [editingRate, setEditingRate] = useState<RateCard | null>(null)
   const [showClientModal, setShowClientModal] = useState(false)
+  const [showDriverModal, setShowDriverModal] = useState(false)
 
   const { data: rates = [] } = useQuery<RateCard[]>({
     queryKey: ['rate-cards'],
@@ -264,6 +356,10 @@ export default function RateCardsPage() {
   const { data: clientRates = [] } = useQuery<ClientRateCard[]>({
     queryKey: ['client-rate-cards'],
     queryFn: () => fetch('/api/billing/client-rate-cards').then(r => r.json()),
+  })
+  const { data: driverRates = [] } = useQuery<DriverRateCard[]>({
+    queryKey: ['driver-rate-cards'],
+    queryFn: () => fetch('/api/billing/driver-rate-cards').then(r => r.json()),
   })
   const { data: companies = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['companies-list'],
@@ -310,15 +406,24 @@ export default function RateCardsPage() {
     toast.success('Removed'); qc.invalidateQueries({ queryKey: ['client-rate-cards'] })
   }
 
+  async function deleteDriverRate(id: string) {
+    if (!confirm('Remove this driver rate override?')) return
+    await fetch(`/api/billing/driver-rate-cards/${id}`, { method: 'DELETE' })
+    toast.success('Removed'); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] })
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Rate Cards"
-        description="Default vehicle rates and per-client overrides"
+        description="Default vehicle rates, client billing overrides, and driver pay overrides"
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowClientModal(true)} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" />Client Override
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowDriverModal(true)} className="gap-1.5 text-indigo-700 border-indigo-200 hover:bg-indigo-50">
+              <Plus className="w-3.5 h-3.5" />Driver Override
             </Button>
           </div>
         }
@@ -326,11 +431,11 @@ export default function RateCardsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {(['default', 'client'] as const).map(t => (
+        {(['default', 'client', 'driver'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={cn('px-4 py-2 text-sm font-semibold capitalize border-b-2 transition-colors',
               tab === t ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700')}
-          >{t === 'default' ? 'Default Rates' : 'Client Overrides'}</button>
+          >{t === 'default' ? 'Default Rates' : t === 'client' ? 'Client Overrides' : 'Driver Overrides'}</button>
         ))}
       </div>
 
@@ -444,8 +549,44 @@ export default function RateCardsPage() {
         </div>
       )}
 
+      {tab === 'driver' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          {driverRates.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No driver rate overrides yet. Click "Driver Override" to add one.<br /><span className="text-xs">These rates override commission% in Driver Settlement for trips from specific companies.</span></div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-indigo-50 border-b border-indigo-100">
+                <tr>
+                  {['Company', 'Vehicle', '4hr Pay', '8hr Pay', 'Extra KM', 'Extra Hr', 'Outn/km', 'Bata/day', ''].map(h => (
+                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {driverRates.map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.company?.name ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.vehicle_type}</td>
+                    <td className="px-3 py-2.5 font-semibold text-indigo-700 whitespace-nowrap">{r.rate_4hr ? `₹${r.rate_4hr}` : '—'}</td>
+                    <td className="px-3 py-2.5 font-semibold text-indigo-700 whitespace-nowrap">{r.rate_8hr ? `₹${r.rate_8hr}` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_km_rate ? `₹${r.extra_km_rate}/km` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_hr_rate ? `₹${r.extra_hr_rate}/hr` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_rate_per_km ? `₹${r.outstation_rate_per_km}/km` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.bata_per_day ? `₹${r.bata_per_day}/day` : '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <button onClick={() => deleteDriverRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
       {showClientModal && <ClientRateModal companies={companies} onClose={() => setShowClientModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false) }} />}
+      {showDriverModal && <DriverRateModal companies={companies} vehicles={driverVehicles} onClose={() => setShowDriverModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false) }} />}
     </div>
   )
 }

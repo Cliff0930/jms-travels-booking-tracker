@@ -88,7 +88,13 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
       driver_type: driver!.driver_type ?? 'owner',
       commission_percent: driver!.commission_percent != null ? String(driver!.commission_percent) : '20',
       monthly_salary: driver!.monthly_salary != null ? String(driver!.monthly_salary) : '',
-      advance_emi_amount: driver!.advance_emi_amount != null ? String(driver!.advance_emi_amount) : '',
+      advance_emi_amount:        driver!.advance_emi_amount        != null ? String(driver!.advance_emi_amount)        : '',
+      fixed_rate_4hr:            (driver as Record<string,unknown>).fixed_rate_4hr            != null ? String((driver as Record<string,unknown>).fixed_rate_4hr)            : '',
+      fixed_rate_8hr:            (driver as Record<string,unknown>).fixed_rate_8hr            != null ? String((driver as Record<string,unknown>).fixed_rate_8hr)            : '',
+      fixed_rate_extra_km:       (driver as Record<string,unknown>).fixed_rate_extra_km       != null ? String((driver as Record<string,unknown>).fixed_rate_extra_km)       : '',
+      fixed_rate_extra_hr:       (driver as Record<string,unknown>).fixed_rate_extra_hr       != null ? String((driver as Record<string,unknown>).fixed_rate_extra_hr)       : '',
+      fixed_rate_outstation_km:  (driver as Record<string,unknown>).fixed_rate_outstation_km  != null ? String((driver as Record<string,unknown>).fixed_rate_outstation_km)  : '',
+      fixed_rate_bata:           (driver as Record<string,unknown>).fixed_rate_bata           != null ? String((driver as Record<string,unknown>).fixed_rate_bata)           : '',
     })
     setEditing(true)
   }
@@ -121,7 +127,13 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           driver_type: form.driver_type,
           commission_percent: form.driver_type === 'owner' && form.commission_percent ? Number(form.commission_percent) : null,
           monthly_salary: form.driver_type === 'salary' && form.monthly_salary ? Number(form.monthly_salary) : null,
-          advance_emi_amount: form.advance_emi_amount ? Number(form.advance_emi_amount) : null,
+          advance_emi_amount:        form.advance_emi_amount        ? Number(form.advance_emi_amount)        : null,
+          fixed_rate_4hr:            (form as Record<string,string>).fixed_rate_4hr            ? Number((form as Record<string,string>).fixed_rate_4hr)            : null,
+          fixed_rate_8hr:            (form as Record<string,string>).fixed_rate_8hr            ? Number((form as Record<string,string>).fixed_rate_8hr)            : null,
+          fixed_rate_extra_km:       (form as Record<string,string>).fixed_rate_extra_km       ? Number((form as Record<string,string>).fixed_rate_extra_km)       : null,
+          fixed_rate_extra_hr:       (form as Record<string,string>).fixed_rate_extra_hr       ? Number((form as Record<string,string>).fixed_rate_extra_hr)       : null,
+          fixed_rate_outstation_km:  (form as Record<string,string>).fixed_rate_outstation_km  ? Number((form as Record<string,string>).fixed_rate_outstation_km)  : null,
+          fixed_rate_bata:           (form as Record<string,string>).fixed_rate_bata           ? Number((form as Record<string,string>).fixed_rate_bata)           : null,
         } as Partial<Driver>,
       })
       toast.success('Driver updated')
@@ -297,6 +309,33 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
                     <Label className="text-xs text-[#737686]">Advance EMI Amount (₹/month) — leave blank for full deduction</Label>
                     <Input type="number" min="0" value={form.advance_emi_amount} onChange={e => setField('advance_emi_amount', e.target.value)} placeholder="e.g. 2000 (blank = deduct full balance)" className="border-[#C3C5D7] h-8 text-sm mt-1" />
                   </div>
+                </div>
+              </div>
+
+              {/* Fixed Rate Deal */}
+              <div className="bg-[#F3F3FE] rounded-lg border border-[#C3C5D7] p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-indigo-700 mb-1">Fixed Rate Deal <span className="font-normal text-[#737686] normal-case">(optional — overrides commission for all companies)</span></p>
+                <p className="text-[11px] text-[#737686] mb-2">Leave blank to use commission%. Fill any field to override that slab for this driver.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { key: 'fixed_rate_4hr',           label: '4hr/40km (₹)' },
+                    { key: 'fixed_rate_8hr',           label: '8hr/80km (₹)' },
+                    { key: 'fixed_rate_extra_km',      label: 'Extra KM (₹/km)' },
+                    { key: 'fixed_rate_extra_hr',      label: 'Extra Hour (₹/hr)' },
+                    { key: 'fixed_rate_outstation_km', label: 'Outstation (₹/km)' },
+                    { key: 'fixed_rate_bata',          label: 'Bata/day (₹)' },
+                  ] as { key: string; label: string }[]).map(({ key, label }) => (
+                    <div key={key}>
+                      <Label className="text-xs text-[#737686]">{label}</Label>
+                      <Input
+                        type="number" min="0"
+                        value={(form as Record<string, string>)[key] ?? ''}
+                        onChange={e => setField(key, e.target.value)}
+                        placeholder="—"
+                        className="border-[#C3C5D7] h-8 text-sm mt-0.5"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 

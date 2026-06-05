@@ -76,10 +76,10 @@ export async function POST(request: Request) {
   if (!driver_id || !period_from || !period_to)
     return NextResponse.json({ error: 'driver_id, period_from, period_to required' }, { status: 400 })
 
-  // 1. Driver info
+  // 1. Driver info (includes fixed rate fields)
   const { data: driver, error: dErr } = await supabase
     .from('drivers')
-    .select('id, name, vehicle_name, vehicle_number, vehicle_type, bata_rate, driver_type, commission_percent, monthly_salary, advance_emi_amount')
+    .select('id, name, vehicle_name, vehicle_number, vehicle_type, bata_rate, driver_type, commission_percent, monthly_salary, advance_emi_amount, fixed_rate_4hr, fixed_rate_8hr, fixed_rate_extra_km, fixed_rate_extra_hr, fixed_rate_outstation_km, fixed_rate_bata')
     .eq('id', driver_id)
     .single()
   if (dErr || !driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
   const defaultRateMap: Record<string, RateCard> = {}
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = { ...DEFAULT_RATE, ...r }
 
-  // 6. Company bata driver rates
+  // 6. Company bata driver rates (existing)
   const { data: companyBataRates } = await supabase
     .from('company_bata_rates')
     .select('company_id, vehicle_name, driver_bata_rate, trip_type')
@@ -146,6 +146,31 @@ export async function POST(request: Request) {
     const key = `${r.company_id}:${r.vehicle_name?.toUpperCase() ?? ''}:${r.trip_type ?? 'all'}`
     bataMap[key] = Number(r.driver_bata_rate)
   }
+
+  // 6b. Company driver hire rate overrides
+  const { data: companyDriverRates } = await supabase
+    .from('company_driver_rates')
+    .select('*')
+    .in('company_id', companyIds.length > 0 ? companyIds : ['__none__'])
+    .eq('is_active', true)
+
+  const companyDriverRateMap: Record<string, Record<string, unknown>> = {}
+  for (const r of companyDriverRates ?? []) {
+    if (!companyDriverRateMap[r.company_id]) companyDriverRateMap[r.company_id] = {}
+    companyDriverRateMap[r.company_id][r.vehicle_type.toUpperCase()] = r
+  }
+
+  // Build driver-level fixed rate card (if set)
+  const driverFixed = (driver.fixed_rate_4hr || driver.fixed_rate_8hr || driver.fixed_rate_outstation_km)
+    ? {
+        package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: Number(driver.fixed_rate_4hr ?? 900),
+        package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: Number(driver.fixed_rate_8hr ?? 1900),
+        extra_km_rate: Number(driver.fixed_rate_extra_km ?? 14),
+        extra_hr_rate: Number(driver.fixed_rate_extra_hr ?? 250),
+        outstation_rate_per_km: Number(driver.fixed_rate_outstation_km ?? 14),
+        outstation_min_kms_per_day: 300,
+      } as RateCard
+    : null
 
   // 7. Outstanding advances
   const { data: advances } = await supabase
@@ -189,13 +214,40 @@ export async function POST(request: Request) {
     const days = b.total_days ?? 1
 
     const hireCharges = calcHireCharges(actualKms, actualMinutes, days, b.trip_type, rate)
-    const hireEarnings = r2(hireCharges * (1 - commissionPct / 100))
+
+    // Priority: driver fixed rates → company driver rates → commission%
+    let hireEarnings: number
+    let rateSource: 'fixed' | 'company' | 'commission' = 'commission'
+    const companyRate = companyDriverRateMap[companyId]?.[driverVehicle] as Record<string,unknown> | undefined
+
+    if (driverFixed) {
+      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, driverFixed))
+      rateSource = 'fixed'
+    } else if (companyRate?.rate_4hr || companyRate?.rate_8hr || companyRate?.outstation_rate_per_km) {
+      const companyDriverCard: RateCard = {
+        package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: Number(companyRate.rate_4hr ?? 900),
+        package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: Number(companyRate.rate_8hr ?? 1900),
+        extra_km_rate: Number(companyRate.extra_km_rate ?? 14),
+        extra_hr_rate: Number(companyRate.extra_hr_rate ?? 250),
+        outstation_rate_per_km: Number(companyRate.outstation_rate_per_km ?? 14),
+        outstation_min_kms_per_day: 300,
+      }
+      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, companyDriverCard))
+      rateSource = 'company'
+    } else {
+      hireEarnings = r2(hireCharges * (1 - commissionPct / 100))
+      rateSource = 'commission'
+    }
 
     const bataCount = Number(sheet?.bata_driver ?? 0)
     const tripType = b.trip_type ?? 'local'
+    // Bata priority: driver fixed_rate_bata → company_driver_rates.bata_per_day → company_bata_rates → driver default
     const bataKey = `${companyId}:${driverVehicle}:${tripType}`
     const bataKeyAll = `${companyId}:${driverVehicle}:all`
-    const driverBataRate = bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
+    const driverBataRate =
+      (driver.fixed_rate_bata ? Number(driver.fixed_rate_bata) : null) ??
+      (companyRate?.bata_per_day ? Number(companyRate.bata_per_day) : null) ??
+      bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
     // Airport bata is collected from client only — driver is not paid
     const bataEarnings = tripType === 'airport' ? 0 : r2(bataCount * driverBataRate)
 
@@ -221,7 +273,8 @@ export async function POST(request: Request) {
       actual_kms: actualKms,
       actual_hrs: actualHrs,
       client_hire_charges: hireCharges,
-      commission_percent: commissionPct,
+      commission_percent: rateSource === 'commission' ? commissionPct : 0,
+      rate_source: rateSource,
       hire_earnings: hireEarnings,
       bata_count: bataCount,
       driver_bata_rate: driverBataRate,
