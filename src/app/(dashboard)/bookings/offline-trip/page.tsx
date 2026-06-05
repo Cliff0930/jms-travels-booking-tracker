@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,9 +15,29 @@ import { MapPin, Calendar, Car, Users, ArrowLeft, Building2, User, FileText, Che
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils/date'
 import type { Client, Company, Driver } from '@/types'
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
+
+interface DaySheet {
+  tripsheet_number: string
+  opening_km: string
+  closing_km: string
+  manual_opening_time: string
+  manual_closing_time: string
+  toll_amount: string
+  parking_amount: string
+  permit_amount: string
+  bata_driver: string
+  bata_client: string
+}
+
+const emptyDaySheet = (): DaySheet => ({
+  tripsheet_number: '', opening_km: '', closing_km: '',
+  manual_opening_time: '', manual_closing_time: '',
+  toll_amount: '', parking_amount: '', permit_amount: '',
+  bata_driver: '', bata_client: '',
+})
 
 interface FormState {
   booking_type: 'company' | 'personal'
@@ -36,7 +56,7 @@ interface FormState {
   vehicle_type: string
   pax_count: string
   special_instructions: string
-  // Tripsheet
+  // Single-day tripsheet (used when total_days=1 or outstation)
   tripsheet_number: string
   opening_km: string
   closing_km: string
@@ -47,6 +67,8 @@ interface FormState {
   permit_amount: string
   bata_driver: string
   bata_client: string
+  // Multi-day local tripsheets (used when total_days>1 and trip_type=local)
+  day_sheets: DaySheet[]
 }
 
 function SectionHeader({ n, icon: Icon, title }: { n: number; icon: React.ElementType; title: string }) {
@@ -145,8 +167,10 @@ function ClientSearchCombobox({
   )
 }
 
-export default function OfflineTripPage() {
+function OfflineTripPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromBookingId = searchParams.get('from')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -165,6 +189,7 @@ export default function OfflineTripPage() {
     manual_opening_time: '', manual_closing_time: '',
     toll_amount: '', parking_amount: '', permit_amount: '',
     bata_driver: '', bata_client: '',
+    day_sheets: [],
   })
 
   const { data: clients = [] } = useQuery<Client[]>({
@@ -180,9 +205,61 @@ export default function OfflineTripPage() {
     queryFn: () => fetch('/api/drivers').then(r => r.json()),
   })
 
+  // Pre-fill from ?from=bookingId
+  useEffect(() => {
+    if (!fromBookingId) return
+    fetch(`/api/bookings/${fromBookingId}`)
+      .then(r => r.json())
+      .then(b => {
+        if (!b?.id) return
+        setForm(f => ({
+          ...f,
+          booking_type: b.booking_type ?? 'company',
+          client_id:    b.client_id ?? '',
+          company_id:   b.company_id ?? '',
+          guest_name:   b.guest_name ?? '',
+          guest_phone:  b.guest_phone ?? '',
+          driver_id:    b.driver_id ?? '',
+          trip_type:    b.trip_type ?? 'local',
+          service_type: b.service_type ?? 'one_way',
+          total_days:   String(b.total_days ?? 1),
+          pickup_location:      b.pickup_location ?? '',
+          drop_location:        b.drop_location ?? '',
+          pickup_date:          b.pickup_date ?? '',
+          pickup_time:          b.pickup_time ?? '',
+          vehicle_type:         b.vehicle_type ?? '',
+          pax_count:            b.pax_count ? String(b.pax_count) : '',
+          special_instructions: b.special_instructions ?? '',
+        }))
+      })
+      .catch(() => {})
+  }, [fromBookingId])
+
+  // Sync day_sheets array length when total_days or trip_type changes
+  useEffect(() => {
+    const days = parseInt(form.total_days) || 1
+    const isMultiLocal = days > 1 && form.trip_type === 'local'
+    if (!isMultiLocal) return
+    setForm(f => {
+      const current = f.day_sheets
+      if (current.length === days) return f
+      const updated = Array.from({ length: days }, (_, i) => current[i] ?? emptyDaySheet())
+      return { ...f, day_sheets: updated }
+    })
+  }, [form.total_days, form.trip_type])
+
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(f => ({ ...f, [key]: val }))
   }
+
+  function setDaySheetField(dayIdx: number, key: keyof DaySheet, val: string) {
+    setForm(f => {
+      const updated = f.day_sheets.map((s, i) => i === dayIdx ? { ...s, [key]: val } : s)
+      return { ...f, day_sheets: updated }
+    })
+  }
+
+  const isMultiLocal = (parseInt(form.total_days) || 1) > 1 && form.trip_type === 'local'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -192,37 +269,44 @@ export default function OfflineTripPage() {
 
     setSubmitting(true)
     try {
+      const body: Record<string, unknown> = {
+        booking_type:         form.booking_type,
+        client_id:            form.client_id   || null,
+        company_id:           form.company_id  || null,
+        guest_name:           form.guest_name  || null,
+        guest_phone:          form.guest_phone || null,
+        driver_id:            form.driver_id   || null,
+        pickup_location:      form.pickup_location,
+        drop_location:        form.drop_location || null,
+        pickup_date:          form.pickup_date,
+        pickup_time:          form.pickup_time || null,
+        pax_count:            form.pax_count   || null,
+        vehicle_type:         form.vehicle_type || null,
+        trip_type:            form.trip_type,
+        service_type:         form.service_type,
+        total_days:           form.total_days  || '1',
+        special_instructions: form.special_instructions || null,
+      }
+
+      if (isMultiLocal && form.day_sheets.length > 0) {
+        body.day_sheets = form.day_sheets
+      } else {
+        body.tripsheet_number    = form.tripsheet_number || null
+        body.opening_km          = form.opening_km       || null
+        body.closing_km          = form.closing_km       || null
+        body.manual_opening_time = form.manual_opening_time || null
+        body.manual_closing_time = form.manual_closing_time || null
+        body.toll_amount         = form.toll_amount       || null
+        body.parking_amount      = form.parking_amount    || null
+        body.permit_amount       = form.permit_amount     || null
+        body.bata_driver         = form.bata_driver       || null
+        body.bata_client         = form.bata_client       || null
+      }
+
       const res = await fetch('/api/bookings/offline-trip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          booking_type:         form.booking_type,
-          client_id:            form.client_id   || null,
-          company_id:           form.company_id  || null,
-          guest_name:           form.guest_name  || null,
-          guest_phone:          form.guest_phone || null,
-          driver_id:            form.driver_id   || null,
-          pickup_location:      form.pickup_location,
-          drop_location:        form.drop_location || null,
-          pickup_date:          form.pickup_date,
-          pickup_time:          form.pickup_time || null,
-          pax_count:            form.pax_count   || null,
-          vehicle_type:         form.vehicle_type || null,
-          trip_type:            form.trip_type,
-          service_type:         form.service_type,
-          total_days:           form.total_days  || '1',
-          special_instructions: form.special_instructions || null,
-          tripsheet_number:     form.tripsheet_number || null,
-          opening_km:           form.opening_km  || null,
-          closing_km:           form.closing_km  || null,
-          manual_opening_time:  form.manual_opening_time || null,
-          manual_closing_time:  form.manual_closing_time || null,
-          toll_amount:          form.toll_amount  || null,
-          parking_amount:       form.parking_amount || null,
-          permit_amount:        form.permit_amount  || null,
-          bata_driver:          form.bata_driver    || null,
-          bata_client:          form.bata_client    || null,
-        }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -262,8 +346,14 @@ export default function OfflineTripPage() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-[#191B23]">Add Offline Trip</h1>
-        <p className="text-sm text-[#737686] mt-0.5">Record a trip that happened outside the system — links to billing &amp; driver settlement</p>
+        <h1 className="text-2xl font-semibold text-[#191B23]">
+          {fromBookingId ? 'Duplicate as Offline Trip' : 'Add Offline Trip'}
+        </h1>
+        <p className="text-sm text-[#737686] mt-0.5">
+          {fromBookingId
+            ? 'Pre-filled from existing booking — edit any field and save as a new entry'
+            : 'Record a trip that happened outside the system — links to billing & driver settlement'}
+        </p>
       </div>
 
       {error && (
@@ -487,8 +577,80 @@ export default function OfflineTripPage() {
             {/* Section 4: Tripsheet Data */}
             <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
               <SectionHeader n={4} icon={Gauge} title="Tripsheet Data" />
-              <p className="text-xs text-[#737686] mb-4">Enter the details from the physical tripsheet received from the driver.</p>
+              <p className="text-xs text-[#737686] mb-4">
+                {isMultiLocal
+                  ? `Enter tripsheet details for each of the ${form.total_days} days.`
+                  : 'Enter the details from the physical tripsheet received from the driver.'}
+              </p>
 
+              {/* ── Multi-day local: per-day cards ── */}
+              {isMultiLocal ? (
+                <div className="space-y-4">
+                  {form.day_sheets.map((sheet, i) => {
+                    const legDate = form.pickup_date
+                      ? new Date(new Date(form.pickup_date + 'T00:00:00').getTime() + i * 86400000)
+                          .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                      : null
+                    return (
+                      <div key={i} className="border border-[#E5E7EB] rounded-lg p-4 bg-[#F9F9FF]">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="w-5 h-5 rounded-full bg-[#7E3AF2] text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                          <span className="text-xs font-semibold text-[#7E3AF2]">Day {i + 1}{legDate ? ` · ${legDate}` : ''}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div className="col-span-2 sm:col-span-1">
+                            <Label className="text-xs text-[#737686] mb-1 block">Tripsheet #</Label>
+                            <Input value={sheet.tripsheet_number} onChange={e => setDaySheetField(i, 'tripsheet_number', e.target.value)} placeholder="e.g. 2001" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Opening KM</Label>
+                            <Input value={sheet.opening_km} onChange={e => setDaySheetField(i, 'opening_km', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Closing KM</Label>
+                            <Input value={sheet.closing_km} onChange={e => setDaySheetField(i, 'closing_km', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Opening Time</Label>
+                            <Input value={sheet.manual_opening_time} onChange={e => setDaySheetField(i, 'manual_opening_time', e.target.value)} type="time" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Closing Time</Label>
+                            <Input value={sheet.manual_closing_time} onChange={e => setDaySheetField(i, 'manual_closing_time', e.target.value)} type="time" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Toll (₹)</Label>
+                            <Input value={sheet.toll_amount} onChange={e => setDaySheetField(i, 'toll_amount', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Parking (₹)</Label>
+                            <Input value={sheet.parking_amount} onChange={e => setDaySheetField(i, 'parking_amount', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Permit (₹)</Label>
+                            <Input value={sheet.permit_amount} onChange={e => setDaySheetField(i, 'permit_amount', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Bata Driver</Label>
+                            <Input value={sheet.bata_driver} onChange={e => setDaySheetField(i, 'bata_driver', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[#737686] mb-1 block">Bata Client</Label>
+                            <Input value={sheet.bata_client} onChange={e => setDaySheetField(i, 'bata_client', e.target.value)} type="number" placeholder="0" className="border-[#C3C5D7] h-8 text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="col-span-2 sm:col-span-1">
                   <Label className="text-xs text-[#737686] mb-1.5 block">Tripsheet Number</Label>
@@ -608,6 +770,8 @@ export default function OfflineTripPage() {
                   />
                 </div>
               </div>
+              </>
+              )}
             </div>
 
             {/* Section 5: Notes */}
@@ -679,5 +843,13 @@ export default function OfflineTripPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function OfflineTripPage() {
+  return (
+    <Suspense>
+      <OfflineTripPageInner />
+    </Suspense>
   )
 }

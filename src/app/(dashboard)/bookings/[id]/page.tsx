@@ -1660,6 +1660,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <Copy className="w-4 h-4 mr-2" />
                 {duplicating ? 'Duplicating…' : 'Duplicate Booking'}
               </Button>
+              <Link
+                href={`/bookings/offline-trip?from=${booking!.id}`}
+                className="w-full inline-flex items-center justify-center rounded-sm border border-[#C4B5FD] text-[#7E3AF2] hover:bg-[#EDE9FE] text-sm font-medium h-9 px-3 transition-colors"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Duplicate as Offline Trip
+              </Link>
               <Button
                 variant="outline"
                 className="w-full rounded-sm text-[#434654] border-[#C3C5D7] hover:bg-[#F3F3FE]"
