@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 import { toast } from 'sonner'
-import { ArrowLeft, Printer, Download, Check, Trash2 } from 'lucide-react'
+import { ArrowLeft, Printer, Download, Check, Trash2, RotateCcw, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
 interface TripRow {
-  id: string; trip_date: string; booking_ref: string; tripsheet_number: string | null; company_name: string
+  id: string; booking_id?: string; trip_sheet_id?: string | null
+  trip_date: string; booking_ref: string; tripsheet_number: string | null; company_name: string
   trip_type: string; vehicle_type: string; actual_kms: number; actual_hrs: number
   client_hire_charges: number; commission_percent: number; hire_earnings: number
   bata_count: number; driver_bata_rate: number; bata_earnings: number
@@ -128,6 +130,8 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
   const [showPaid, setShowPaid] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [revoking, setRevoking] = useState(false)
+  const [editingTrip, setEditingTrip] = useState<TripRow | null>(null)
 
   const { data: s, isLoading } = useQuery<SettlementDetail>({
     queryKey: ['driver-settlement', id],
@@ -145,6 +149,23 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
       toast.error('Failed to delete')
     }
     setDeleting(false)
+  }
+
+  async function handleRevoke() {
+    setRevoking(true)
+    const res = await fetch(`/api/billing/driver-settlements/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'draft', paid_at: null, payment_mode: null, payment_reference: null }),
+    })
+    if (res.ok) {
+      toast.success('Statement revoked — back to Draft')
+      qc.invalidateQueries({ queryKey: ['driver-settlement', id] })
+      qc.invalidateQueries({ queryKey: ['driver-settlements'] })
+    } else {
+      toast.error('Failed to revoke')
+    }
+    setRevoking(false)
   }
 
   function exportExcel() {
@@ -214,6 +235,11 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
               </Button>
             </>
           )}
+          {s.status === 'paid' && (
+            <Button size="sm" variant="outline" onClick={handleRevoke} disabled={revoking} className="gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50">
+              <RotateCcw className="w-3.5 h-3.5" />{revoking ? 'Revoking…' : 'Revoke to Draft'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -267,7 +293,19 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
                   <tr key={t.id} className={i % 2 === 1 ? 'bg-gray-50' : ''}>
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{t.trip_date}</td>
-                    <td className="px-3 py-2 font-medium whitespace-nowrap">{t.booking_ref}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {s.status === 'draft' && t.booking_id && t.trip_sheet_id ? (
+                        <button
+                          onClick={() => setEditingTrip(t)}
+                          className="font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 group"
+                        >
+                          {t.booking_ref}
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ) : (
+                        <span className="font-medium text-gray-700">{t.booking_ref}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500">{t.tripsheet_number ?? '—'}</td>
                     <td className="px-3 py-2 max-w-[120px] truncate">{t.company_name}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{t.actual_kms}</td>
@@ -366,6 +404,20 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {editingTrip && editingTrip.booking_id && editingTrip.trip_sheet_id && (
+        <TripsheetEditPopup
+          bookingId={editingTrip.booking_id}
+          tripSheetId={editingTrip.trip_sheet_id}
+          bookingRef={editingTrip.booking_ref}
+          tripType={editingTrip.trip_type}
+          onClose={() => setEditingTrip(null)}
+          onSaved={() => {
+            setEditingTrip(null)
+            qc.invalidateQueries({ queryKey: ['driver-settlement', id] })
+          }}
+        />
       )}
     </div>
   )

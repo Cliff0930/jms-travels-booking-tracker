@@ -116,7 +116,7 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   return (
     <>
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto p-0">
+      <DialogContent className="sm:max-w-6xl max-h-[92vh] overflow-y-auto p-0">
         {/* ── Header ── */}
         <div className="bg-gradient-to-r from-[#022448] to-[#1e3a5f] px-6 py-5 rounded-t-lg">
           <div className="flex items-center justify-between">
