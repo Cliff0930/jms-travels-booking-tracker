@@ -211,6 +211,7 @@ export async function POST(request: Request) {
 
     tripDetails.push({
       booking_id: b.id,
+      trip_sheet_id: (sheet as { id?: string } | null)?.id ?? null,
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
       tripsheet_number: (sheet?.tripsheet_number as string | null) ?? null,
