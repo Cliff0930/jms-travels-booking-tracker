@@ -151,12 +151,9 @@ export interface DriverSettlementPDFData {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData }) {
   const totalKms   = data.trips.reduce((a, t) => a + t.actual_kms, 0)
-  const totalHire  = data.trips.reduce((a, t) => a + t.client_hire_charges, 0)
-  const totalComm  = data.trips.reduce((a, t) => a + (t.client_hire_charges - t.hire_earnings), 0)
   const totalBata  = data.trips.reduce((a, t) => a + t.bata_earnings, 0)
   const totalReimb = data.trips.reduce((a, t) => a + t.toll_amount + t.parking_amount + t.permit_amount, 0)
   const totalRow   = data.trips.reduce((a, t) => a + t.trip_total, 0)
-  const commPct    = data.trips[0]?.commission_percent ?? 0
   const iRate      = data.interest_rate_pct ?? 2
 
   const hasDed   = data.advance_principal_deduction > 0
@@ -250,7 +247,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
           <Text style={th(TW.company, 'left')}>{'Company'}</Text>
           <Text style={th(TW.kms,     'right')}>{'KMs'}</Text>
           <Text style={th(TW.hrs,     'right')}>{'Hrs'}</Text>
-          <Text style={th(TW.hire,    'right')}>{'Hire Chg'}</Text>
+          <Text style={th(TW.hire,    'right')}>{'Hire Earn'}</Text>
           <Text style={th(TW.bata,    'right')}>{'Bata'}</Text>
           <Text style={th(TW.reimb,   'right')}>{'Toll/Park'}</Text>
           <Text style={th(TW.total,   'right', true)}>{'Total'}</Text>
@@ -269,7 +266,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={td(TW.company,       'left',   bg, { sz: 6.5 })}>{t.company_name}</Text>
               <Text style={td(TW.kms,           'right',  bg)}>{t.actual_kms > 0 ? t.actual_kms.toFixed(1) : ''}</Text>
               <Text style={td(TW.hrs,           'right',  bg)}>{fmtHrs(t.actual_hrs, t.trip_type, t.total_days)}</Text>
-              <Text style={td(TW.hire,          'right',  bg)}>{t.client_hire_charges > 0 ? fmt2(t.client_hire_charges) : ''}</Text>
+              <Text style={td(TW.hire,          'right',  bg)}>{t.hire_earnings > 0 ? fmt2(t.hire_earnings) : ''}</Text>
               <Text style={td(TW.bata,          'right',  bg)}>{t.bata_earnings > 0 ? fmt2(t.bata_earnings) : ''}</Text>
               <Text style={td(TW.reimb,         'right',  bg)}>{reimb > 0 ? fmt2(reimb) : ''}</Text>
               <Text style={td(TW.total,         'right',  bg, { bold: true, last: true })}>{t.trip_total > 0 ? fmt2(t.trip_total) : ''}</Text>
@@ -282,7 +279,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
           <Text style={td(TW_LABEL,  'right', GR2, { bold: true, sz: 7.5 })}>TOTALS</Text>
           <Text style={td(TW.kms,   'right', GR2, { bold: true })}>{totalKms > 0 ? totalKms.toFixed(1) : ''}</Text>
           <Text style={td(TW.hrs,   'right', GR2)}>{''}</Text>
-          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalHire)}</Text>
+          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(data.hire_earnings)}</Text>
           <Text style={td(TW.bata,  'right', GR2, { bold: true })}>{fmt2(totalBata)}</Text>
           <Text style={td(TW.reimb, 'right', GR2, { bold: true })}>{fmt2(totalReimb)}</Text>
           <Text style={td(TW.total, 'right', GR2, { bold: true, last: true, sz: 7.5 })}>{fmt2(totalRow)}</Text>
@@ -347,22 +344,11 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
             </View>
 
             {/* Earnings rows */}
-            {/* Hire Earnings (gross) */}
+            {/* Hire Earnings (driver net) */}
             <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
               <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Hire Earnings</Text>
-              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(totalHire)}</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.hire_earnings)}</Text>
             </View>
-            {/* Commission deduction */}
-            {totalComm > 0 && (
-              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 15, alignItems: 'center', backgroundColor: '#fef2f2' }}>
-                <Text style={{ width: SB.label, fontSize: 7, fontFamily: REG, color: NEG, paddingHorizontal: 8, paddingLeft: 14, paddingVertical: 2.5, borderRightWidth: 0.5, borderRightColor: BORDER }}>
-                  {`- ${commPct}% Commission`}
-                </Text>
-                <Text style={{ width: SB.val, fontSize: 7, color: NEG, paddingHorizontal: 8, paddingVertical: 2.5, textAlign: 'right' }}>
-                  {`-${fmt2(totalComm)}`}
-                </Text>
-              </View>
-            )}
             {/* Bata Earnings */}
             <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
               <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Bata Earnings</Text>

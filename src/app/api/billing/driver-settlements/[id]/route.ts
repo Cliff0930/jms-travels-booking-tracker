@@ -1,6 +1,42 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
+function fmtPeriodShort(d: string): string {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const parts = d.split('-')
+  return `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]}`
+}
+
+async function sendSettlementPaidPush(
+  settlementId: string,
+  settlement: { driver_id: string; period_from: string; period_to: string; net_payable: number },
+  supabase: ReturnType<typeof createAdminClient>
+) {
+  const { data: tokens } = await supabase
+    .from('driver_push_tokens')
+    .select('expo_push_token')
+    .eq('driver_id', settlement.driver_id)
+  if (!tokens?.length) return
+
+  const net = Number(settlement.net_payable)
+  const amtStr = '₹' + net.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  const period = `${fmtPeriodShort(settlement.period_from)} – ${fmtPeriodShort(settlement.period_to)}`
+
+  const messages = tokens.map(t => ({
+    to: t.expo_push_token,
+    title: 'Settlement Paid',
+    body: `${amtStr} paid for ${period}. Tap to view details.`,
+    data: { type: 'settlement', settlement_id: settlementId },
+    sound: 'default',
+  }))
+
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(messages),
+  }).catch(() => {})
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
@@ -91,6 +127,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         remaining = 0
       }
     }
+  }
+
+  // Fire-and-forget push notification when marking paid
+  if (body.status === 'paid') {
+    void sendSettlementPaidPush(id, {
+      driver_id: data.driver_id as string,
+      period_from: data.period_from as string,
+      period_to: data.period_to as string,
+      net_payable: data.net_payable as number,
+    }, supabase)
   }
 
   return NextResponse.json(data)

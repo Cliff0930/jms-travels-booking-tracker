@@ -266,8 +266,6 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                             { icon: Hash, label: 'TS#' },
                             { icon: Building2, label: 'Company' },
                             { icon: Car, label: 'KMs' },
-                            { icon: IndianRupee, label: 'Hire Chg' },
-                            { icon: TrendingDown, label: `Comm` },
                             { icon: IndianRupee, label: 'Driver Share' },
                             { icon: Wallet, label: 'Bata' },
                             { icon: TrendingUp, label: 'Reimb' },
@@ -297,8 +295,6 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
                             <td className="px-3 py-2 text-gray-400 font-mono text-[11px]">{t.tripsheet_number ?? '—'}</td>
                             <td className="px-3 py-2 text-gray-600 max-w-[110px] truncate">{t.company_name || '—'}</td>
                             <td className="px-3 py-2 text-gray-700">{t.actual_kms}</td>
-                            <td className="px-3 py-2 text-gray-700">{fmt(t.client_hire_charges)}</td>
-                            <td className="px-3 py-2 text-red-600 font-medium">-{fmt(t.client_hire_charges - t.hire_earnings)}</td>
                             <td className="px-3 py-2 font-bold text-blue-700">{fmt(t.hire_earnings)}</td>
                             <td className="px-3 py-2 text-indigo-600">{fmt(t.bata_earnings)}</td>
                             <td className="px-3 py-2 text-purple-600">{fmt(t.toll_amount + t.parking_amount + t.permit_amount)}</td>

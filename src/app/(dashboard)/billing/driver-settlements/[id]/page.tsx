@@ -178,8 +178,6 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
       'Company': t.company_name,
       'KMs': t.actual_kms,
       'Hrs': t.actual_hrs,
-      'Client Hire (₹)': t.client_hire_charges,
-      'Comm %': t.commission_percent,
       'Driver Share (₹)': t.hire_earnings,
       'Bata Count': t.bata_count,
       'Bata Rate (₹)': t.driver_bata_rate,
@@ -283,7 +281,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
             <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['#', 'Date', 'Ref', 'TS#', 'Company', 'KMs', 'Hire Chg', 'Comm%', 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
+                  {['#', 'Date', 'Ref', 'TS#', 'Company', 'KMs', 'Driver Share', 'Bata', 'Reimb', 'Total'].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -309,8 +307,6 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500">{t.tripsheet_number ?? '—'}</td>
                     <td className="px-3 py-2 max-w-[120px] truncate">{t.company_name}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{t.actual_kms}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{fmt(t.client_hire_charges)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-red-500">{t.commission_percent}%</td>
                     <td className="px-3 py-2 font-medium text-blue-700 whitespace-nowrap">{fmt(t.hire_earnings)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{fmt(t.bata_earnings)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{fmt(t.toll_amount + t.parking_amount + t.permit_amount)}</td>
@@ -320,7 +316,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                 <tr>
-                  <td colSpan={8} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                  <td colSpan={6} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
                   <td className="px-3 py-2 font-bold text-blue-700">{fmt(s.hire_earnings)}</td>
                   <td className="px-3 py-2 font-bold">{fmt(s.bata_earnings)}</td>
                   <td className="px-3 py-2 font-bold">{fmt(s.reimbursements)}</td>
