@@ -52,6 +52,15 @@ export function BookingListRow({ booking, onConfirm, onCancel, onAssign }: Props
           {companyName && <span className="hidden sm:inline px-1 py-0.5 rounded text-[9px] bg-[#EDEDF8] text-[#434654] font-medium shrink-0">{companyName}</span>}
           {booking.client?.is_vip && <span className="text-[9px] font-bold text-amber-600 shrink-0">VIP</span>}
         </div>
+        {booking.driver && (
+          <div className="flex items-center gap-1 mt-0.5 lg:hidden">
+            <Car className="w-3 h-3 text-[#059669] shrink-0" />
+            <span className="text-[10px] text-[#059669] font-medium truncate">{booking.driver.name}</span>
+            {booking.driver.vehicle_number && (
+              <span className="text-[10px] text-[#9CA3AF] font-mono shrink-0">{booking.driver.vehicle_number}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Route */}

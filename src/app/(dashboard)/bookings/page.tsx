@@ -312,9 +312,9 @@ export default function BookingsPage() {
           </div>
         </div>
 
-        {/* Row 2: Filter controls — swipe-scrollable on mobile, wrap on desktop */}
-        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 pb-0.5">
-          <div className="flex items-center gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+        {/* Row 2: Filter controls — all visible, wrapping */}
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Quick date button group */}
             <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
               <button
