@@ -12,7 +12,7 @@ import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation, Company } from '@/types'
-import { formalName } from '@/lib/utils/client-name'
+import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
 // Fast regex pre-filter — skips Gemini for obvious system/automated emails
 function isObviousJunk(content: string, senderEmail?: string): boolean {
@@ -317,7 +317,8 @@ export async function POST(request: Request) {
 
     // Auto-create client from email if not found in database
     if (!client && channel === 'email' && sender_email) {
-      const name = sender_name || sender_email.split('@')[0]
+      const rawName = sender_name || sender_email.split('@')[0]
+      const { cleanName: name, salutation: emailSalutation } = extractHonorific(rawName)
       // Try to match company by email domain so the new client gets company_id
       // (required for approval routing to work on the very first booking)
       const senderDomain = sender_email.split('@')[1]?.toLowerCase()
@@ -332,7 +333,7 @@ export async function POST(request: Request) {
       }
       const { data: newClient } = await supabase
         .from('clients')
-        .insert({ name, primary_email: sender_email, client_type: autoCompanyId ? 'corporate' : 'walkin', company_id: autoCompanyId })
+        .insert({ name, salutation: emailSalutation, primary_email: sender_email, client_type: autoCompanyId ? 'corporate' : 'walkin', company_id: autoCompanyId })
         .select('*, company:companies!company_id(*), locations:client_locations(*)')
         .single()
       if (newClient) {
@@ -370,6 +371,14 @@ export async function POST(request: Request) {
           ).catch(() => {})
           continue
         }
+      }
+
+      // Strip honorific prefix from guest name before saving
+      let guestSalutation: 'sir' | 'madam' | null = null
+      if (bk.extracted.guest_name) {
+        const { cleanName, salutation: sal } = extractHonorific(bk.extracted.guest_name)
+        bk.extracted.guest_name = cleanName
+        guestSalutation = sal
       }
 
       const flags: string[] = []
@@ -446,6 +455,7 @@ export async function POST(request: Request) {
             guestName: bk.extracted.guest_name,
             guestPhone: bk.extracted.guest_phone,
             companyId: (client as Client)?.company_id ?? null,
+            salutation: guestSalutation,
           })
           if (guestClientId) {
             await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)

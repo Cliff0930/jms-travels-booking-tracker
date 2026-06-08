@@ -11,7 +11,7 @@ import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
-import { formalName } from '@/lib/utils/client-name'
+import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
 
@@ -820,6 +820,14 @@ async function createBookingFromResult(
     }
   }
 
+  // Strip honorific prefix from guest name before saving
+  let guestSalutation: 'sir' | 'madam' | null = null
+  if (ext.guest_name) {
+    const { cleanName, salutation: sal } = extractHonorific(ext.guest_name)
+    ext.guest_name = cleanName
+    guestSalutation = sal
+  }
+
   const { data: booking } = await supabase
     .from('bookings')
     .insert({
@@ -855,6 +863,7 @@ async function createBookingFromResult(
         guestName: ext.guest_name,
         guestPhone: ext.guest_phone,
         companyId: client.company_id ?? null,
+        salutation: guestSalutation,
       })
       if (guestClientId) {
         await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)

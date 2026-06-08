@@ -1,3 +1,22 @@
+const SIR_RE   = /^(Mr\.?|Shri\.?|Sri\.?|Sh\.?)\s+/i
+const MADAM_RE = /^(Mrs\.?|Ms\.?|Miss\.?|Smt\.?)\s+/i
+
+/**
+ * Strips an honorific prefix from a raw name and returns the clean name + inferred salutation.
+ * e.g. "Mr. Rajesh Kumar" → { cleanName: "Rajesh Kumar", salutation: "sir" }
+ *      "Mrs. Priya Sharma" → { cleanName: "Priya Sharma", salutation: "madam" }
+ *      "Kiran Singh"       → { cleanName: "Kiran Singh", salutation: null }
+ */
+export function extractHonorific(rawName: string): { cleanName: string; salutation: 'sir' | 'madam' | null } {
+  const sirMatch = rawName.match(SIR_RE)
+  if (sirMatch) return { cleanName: rawName.slice(sirMatch[0].length).trim(), salutation: 'sir' }
+
+  const madamMatch = rawName.match(MADAM_RE)
+  if (madamMatch) return { cleanName: rawName.slice(madamMatch[0].length).trim(), salutation: 'madam' }
+
+  return { cleanName: rawName.trim(), salutation: null }
+}
+
 /**
  * Appends a formal salutation suffix (Sir/Madam) to a client name.
  * Used for government/official companies where formal address is required.

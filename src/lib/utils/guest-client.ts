@@ -5,6 +5,7 @@ interface GuestClientParams {
   guestName: string
   guestPhone: string | null | undefined
   companyId: string | null | undefined
+  salutation?: 'sir' | 'madam' | null
 }
 
 /**
@@ -18,7 +19,7 @@ interface GuestClientParams {
 export async function findOrCreateGuestClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
-  { guestName, guestPhone, companyId }: GuestClientParams,
+  { guestName, guestPhone, companyId, salutation }: GuestClientParams,
 ): Promise<string | null> {
   // Layer 1: Phone matching with all format variants
   if (guestPhone?.trim()) {
@@ -70,6 +71,7 @@ export async function findOrCreateGuestClient(
       client_type: 'guest',
       is_verified: false,
       is_vip: false,
+      salutation: salutation ?? null,
     })
     .select('id')
     .single()
