@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     .from('bookings')
     .select('id, booking_ref, status, trip_type, total_days, pickup_location, drop_location, pickup_date, pickup_time, guest_name, guest_phone, client:clients!client_id(id, name, primary_phone), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number)')
     .in('id', bookingIds)
-    .in('status', ['confirmed', 'in_progress'])
+    .in('status', ['confirmed', 'in_progress', 'completed'])
 
   const bookingMap = new Map((bookings ?? []).map((b: { id: string }) => [b.id, b]))
 

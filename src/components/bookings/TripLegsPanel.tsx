@@ -146,7 +146,7 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {hasDriver && !isCompleted && tripType !== 'outstation' && (
+              {hasDriver && !isCompleted && (
                 <Button
                   size="sm"
                   variant="outline"
