@@ -523,8 +523,7 @@ export default function BookingsPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-4">
-        <TabsList className="bg-[#EDEDF8] gap-0.5 flex-nowrap min-w-max sm:min-w-0 sm:flex-wrap h-auto">
+        <TabsList className="mb-4 bg-[#EDEDF8] flex-wrap h-auto gap-0.5">
           {TABS.map(t => {
             const count = (sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)).length
             return (
@@ -536,7 +535,6 @@ export default function BookingsPage() {
             )
           })}
         </TabsList>
-        </div>
 
         {TABS.map(t => {
           const filtered = sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)
