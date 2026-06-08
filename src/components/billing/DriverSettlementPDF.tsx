@@ -270,7 +270,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={td(TW.company,       'left',   bg, { sz: 6.5 })}>{t.company_name}</Text>
               <Text style={td(TW.kms,           'right',  bg)}>{t.actual_kms > 0 ? t.actual_kms.toFixed(1) : ''}</Text>
               <Text style={td(TW.hrs,           'right',  bg)}>{fmtHrs(t.actual_hrs, t.trip_type, t.total_days)}</Text>
-              <Text style={td(TW.hire,          'right',  bg, { bold: true })}>{t.hire_earnings > 0 ? fmt2(t.hire_earnings) : ''}</Text>
+              <Text style={td(TW.hire,          'right',  bg)}>{t.client_hire_charges > 0 ? fmt2(t.client_hire_charges) : ''}</Text>
               <Text style={td(TW.bata,          'right',  bg)}>{t.bata_earnings > 0 ? fmt2(t.bata_earnings) : ''}</Text>
               <Text style={td(TW.reimb,         'right',  bg)}>{reimb > 0 ? fmt2(reimb) : ''}</Text>
               <Text style={td(TW.total,         'right',  bg, { bold: true, last: true })}>{t.trip_total > 0 ? fmt2(t.trip_total) : ''}</Text>
@@ -283,7 +283,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
           <Text style={td(TW_LABEL,  'right', GR2, { bold: true, sz: 7.5 })}>TOTALS</Text>
           <Text style={td(TW.kms,   'right', GR2, { bold: true })}>{totalKms > 0 ? totalKms.toFixed(1) : ''}</Text>
           <Text style={td(TW.hrs,   'right', GR2)}>{''}</Text>
-          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalShare)}</Text>
+          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalHire)}</Text>
           <Text style={td(TW.bata,  'right', GR2, { bold: true })}>{fmt2(totalBata)}</Text>
           <Text style={td(TW.reimb, 'right', GR2, { bold: true })}>{fmt2(totalReimb)}</Text>
           <Text style={td(TW.total, 'right', GR2, { bold: true, last: true, sz: 7.5 })}>{fmt2(totalRow)}</Text>
