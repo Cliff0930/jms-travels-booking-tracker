@@ -357,6 +357,8 @@ function NewBookingForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (!form.client_id)                                          { setError('Client is required — select who booked this trip'); return }
+    if (form.booking_type === 'company' && !form.company_id)      { setError('Company is required for corporate bookings'); return }
     if (!form.pickup_location.trim()) { setError('Pickup location is required'); return }
     if (!form.pickup_date)            { setError('Pickup date is required'); return }
     if (!form.pickup_time)            { setError('Pickup time is required'); return }
@@ -404,7 +406,11 @@ function NewBookingForm() {
     ...(parseInt(form.total_days) > 1 ? [{ label: 'Days', value: form.total_days }] : []),
   ].filter(i => i.value)
 
-  const isReadyToSubmit = !!(form.pickup_location && form.pickup_date && form.pickup_time)
+  const isReadyToSubmit = !!(
+    form.pickup_location && form.pickup_date && form.pickup_time &&
+    form.client_id &&
+    (form.booking_type === 'personal' || form.company_id)
+  )
 
   return (
     <div>
@@ -450,7 +456,7 @@ function NewBookingForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setField('booking_type', 'personal')}
+                  onClick={() => { setField('booking_type', 'personal'); setField('company_id', '') }}
                   className={cn(
                     'flex-1 h-10 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-2',
                     form.booking_type === 'personal'
@@ -468,7 +474,10 @@ function NewBookingForm() {
               <SectionHeader n={2} icon={User} title="Who's Travelling" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-[#737686] mb-1.5 block">Client</Label>
+                  <Label className="text-xs text-[#737686] mb-1.5 block">
+                    Client <span className="text-red-500">*</span>
+                    <span className="text-[#9CA3AF] ml-1">(who booked)</span>
+                  </Label>
                   <ClientSearchCombobox
                     clients={clients}
                     companies={companies}
@@ -480,17 +489,21 @@ function NewBookingForm() {
                     onCreateNew={() => setShowQuickAdd(true)}
                   />
                 </div>
-                <div>
-                  <Label className="text-xs text-[#737686] mb-1.5 block">Company</Label>
-                  <Select value={form.company_id} items={companies.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('company_id', v)}>
-                    <SelectTrigger className="border-[#C3C5D7] h-9">
-                      <SelectValue placeholder="Select company…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {form.booking_type === 'company' && (
+                  <div>
+                    <Label className="text-xs text-[#737686] mb-1.5 block">
+                      Company <span className="text-red-500">*</span>
+                    </Label>
+                    <Select value={form.company_id} items={companies.map(c => ({ value: c.id, label: c.name }))} onValueChange={v => v !== null && setField('company_id', v)}>
+                      <SelectTrigger className="border-[#C3C5D7] h-9">
+                        <SelectValue placeholder="Select company…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Guest Name <span className="text-[#9CA3AF]">(if different)</span></Label>
                   <GuestSearchCombobox
