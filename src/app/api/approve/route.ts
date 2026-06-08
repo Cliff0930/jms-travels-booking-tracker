@@ -4,6 +4,7 @@ import { sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { formatDate } from '@/lib/utils/date'
+import { formalName } from '@/lib/utils/client-name'
 function html(title: string, color: string, heading: string, message: string) {
   return new Response(
     `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, booking_ref, status, approval_status, source, pickup_date, pickup_time, pickup_location, guest_name, guest_phone, client:clients!client_id(name, primary_phone, primary_email)')
+    .select('id, booking_ref, status, approval_status, source, pickup_date, pickup_time, pickup_location, guest_name, guest_phone, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies!company_id(formal_address)')
     .eq('id', bookingId)
     .single()
 
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   }
 
   const approved = action === 'approve'
-  const client = booking.client as { name?: string; primary_phone?: string; primary_email?: string } | null
+  const client = booking.client as { name?: string; primary_phone?: string; primary_email?: string; salutation?: string | null } | null
 
   if (approved) {
     await supabase.from('bookings').update({
@@ -85,7 +86,12 @@ export async function GET(request: Request) {
   ])
 
   // Notify client on approval or rejection
-  const clientName = booking.guest_name || client?.name || 'there'
+  const approveCompany = booking.company as { formal_address?: boolean } | null
+  const clientName = formalName(
+    booking.guest_name || client?.name || 'there',
+    booking.guest_name ? null : client?.salutation,
+    approveCompany?.formal_address,
+  )
   const pickupDate = booking.pickup_date ? formatDate(booking.pickup_date) : null
 
   const approvedMsg = [

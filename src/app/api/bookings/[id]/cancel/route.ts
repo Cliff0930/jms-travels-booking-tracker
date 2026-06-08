@@ -6,6 +6,7 @@ import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { expireBookingLinks } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email), driver:drivers(name, phone)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies!company_id(formal_address), driver:drivers(name, phone)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -55,7 +56,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Notify client
   const client = booking.client as Client | null
-  const clientName = booking.guest_name || client?.name || 'there'
+  const cancelCompany = booking.company as { formal_address?: boolean } | null
+  const clientName = formalName(
+    booking.guest_name || client?.name || 'there',
+    booking.guest_name ? null : client?.salutation,
+    cancelCompany?.formal_address,
+  )
   const { data: clientTmpl } = await supabase
     .from('message_templates')
     .select('body, subject')

@@ -8,6 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -16,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email), company:companies(name)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies(name, formal_address)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -51,7 +52,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single()
 
   const client = booking.client as Client | null
-  const clientName = booking.guest_name || client?.name || 'there'
+  const subCompany = booking.company as { formal_address?: boolean } | null
+  const clientName = formalName(
+    booking.guest_name || client?.name || 'there',
+    booking.guest_name ? null : client?.salutation,
+    subCompany?.formal_address,
+  )
 
   // Notify client about substitution
   if (newDriver) {

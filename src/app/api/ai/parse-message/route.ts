@@ -11,7 +11,8 @@ import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
 import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
-import type { Client, ClientLocation } from '@/types'
+import type { Client, ClientLocation, Company } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 // Fast regex pre-filter — skips Gemini for obvious system/automated emails
 function isObviousJunk(content: string, senderEmail?: string): boolean {
@@ -247,7 +248,12 @@ export async function POST(request: Request) {
         inReplyToMessageId: original_message_id || undefined,
       }
       const ccForReply = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails as string[] : undefined
-      const clientName = (client as Client)?.name || sender_name || 'there'
+      const emailClient = client as Client | null
+      const clientName = formalName(
+        emailClient?.name || sender_name || 'there',
+        emailClient?.salutation,
+        (emailClient?.company as Company | null)?.formal_address,
+      )
 
       const { booking } = await findBookingForCancelModify(
         supabase,
@@ -453,7 +459,12 @@ export async function POST(request: Request) {
     }
 
     const firstBookingId = createdBookings[0].booking.id
-    const clientName = (client as Client)?.name || 'there'
+    const emailClient2 = client as Client | null
+    const clientName = formalName(
+      emailClient2?.name || 'there',
+      emailClient2?.salutation,
+      (emailClient2?.company as Company | null)?.formal_address,
+    )
     const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
 
     // Notify operator of every new booking — fire and forget

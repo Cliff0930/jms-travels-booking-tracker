@@ -5,6 +5,7 @@ import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 type MessageType = 'booking_confirmed' | 'driver_details' | 'trip_brief_driver'
 type Channel = 'whatsapp' | 'email'
@@ -22,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = createAdminClient()
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email), company:companies(name), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen)')
+    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, salutation), company:companies(name, formal_address), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen)')
     .eq('id', id)
     .single()
 
@@ -35,7 +36,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     uses_app?: boolean; last_app_seen?: string | null
   } | null
 
-  const clientName = booking.guest_name || client?.name || 'there'
+  const previewCompany = booking.company as { formal_address?: boolean } | null
+  const clientName = formalName(
+    booking.guest_name || client?.name || 'there',
+    booking.guest_name ? null : client?.salutation,
+    previewCompany?.formal_address,
+  )
   const dateFormatted = formatDate(booking.pickup_date)
   const timeFormatted = formatTime(booking.pickup_time)
 

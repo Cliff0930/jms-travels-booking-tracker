@@ -634,6 +634,16 @@ export default function CompaniesPage() {
                           onCheckedChange={v => updateCompany(selectedCompany.id, { approval_required: v })}
                         />
                       </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm">Formal Address (Sir / Madam)</Label>
+                          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Clients addressed with Sir or Madam in all messages</p>
+                        </div>
+                        <Switch
+                          checked={!!selectedCompany.formal_address}
+                          onCheckedChange={v => updateCompany(selectedCompany.id, { formal_address: v })}
+                        />
+                      </div>
                       {selectedCompany.approval_required && (
                         <div className="space-y-3 pt-1">
                           <div>

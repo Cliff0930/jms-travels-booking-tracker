@@ -36,6 +36,7 @@ export interface Company {
   direct_booking_emails: string[]
   driver_notify_target: 'booker' | 'guest' | 'both'
   pickup_origin_address: string | null
+  formal_address: boolean
   gstin: string | null
   address: string | null
   created_at: string
@@ -56,6 +57,7 @@ export interface Client {
   default_vehicle_type: string | null
   is_verified: boolean
   is_vip: boolean
+  salutation: 'sir' | 'madam' | null
   company_detection_method: string | null
   notes: string | null
   created_at: string

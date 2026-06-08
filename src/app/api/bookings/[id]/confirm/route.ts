@@ -4,7 +4,8 @@ import { TEMPLATE_KEYS } from '@/lib/templates'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
-import type { Client } from '@/types'
+import type { Client, Company } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -79,7 +80,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       fallbackPhone = rawMsg?.sender_phone || null
     }
 
-    const clientName = booking.guest_name || client?.name || 'there'
+    const company = booking.company as Company | null
+    const clientName = formalName(
+      booking.guest_name || client?.name || 'there',
+      booking.guest_name ? null : client?.salutation,
+      company?.formal_address,
+    )
 
     const tripTypeLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
     const dateFormatted = formatDate(booking.pickup_date)

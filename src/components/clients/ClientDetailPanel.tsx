@@ -44,7 +44,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
 
   // Edit client dialog
   const [showEdit, setShowEdit] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', prefix: '', primary_phone: '', primary_email: '', designation: '', client_type: 'corporate', company_id: '' })
+  const [editForm, setEditForm] = useState({ name: '', prefix: '', primary_phone: '', primary_email: '', designation: '', client_type: 'corporate', company_id: '', salutation: '' as '' | 'sir' | 'madam' })
   const [saving, setSaving] = useState(false)
 
   // Add contact dialog
@@ -118,6 +118,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
       designation: client!.designation || '',
       client_type: client!.client_type,
       company_id: client!.company_id || '',
+      salutation: (client!.salutation as '' | 'sir' | 'madam') || '',
     })
     setShowEdit(true)
   }
@@ -135,6 +136,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
           designation: editForm.designation.trim() || null,
           client_type: editForm.client_type as ClientType,
           company_id: editForm.company_id || null,
+          salutation: editForm.salutation || null,
         },
       })
       toast.success('Client updated')
@@ -354,6 +356,7 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <span className="text-[11px] font-medium bg-white/20 text-white px-2 py-0.5 rounded-full capitalize">{client.client_type}</span>
                     {client.is_verified && <span className="text-[11px] font-medium bg-emerald-400/30 text-emerald-100 px-2 py-0.5 rounded-full">✓ Verified</span>}
                     {client.is_vip && <span className="text-[11px] font-medium bg-amber-400/30 text-amber-100 px-2 py-0.5 rounded-full">★ VIP</span>}
+                    {client.salutation && <span className="text-[11px] font-medium bg-indigo-400/30 text-indigo-100 px-2 py-0.5 rounded-full capitalize">{client.salutation}</span>}
                   </div>
                   {client.client_type === 'guest' && client.guest_of_company && (
                     <p className="text-xs text-white/70 mt-1">Guest of {client.guest_of_company.name}</p>
@@ -762,6 +765,31 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                   onChange={id => setEditForm(p => ({ ...p, company_id: id }))}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#434654]">Formal Address</Label>
+              <div className="flex rounded-md border border-[#C3C5D7] overflow-hidden text-sm">
+                {([
+                  { val: '' as const,      label: 'None' },
+                  { val: 'sir' as const,   label: 'Sir' },
+                  { val: 'madam' as const, label: 'Madam' },
+                ]).map(opt => (
+                  <button
+                    key={opt.val || 'none'}
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, salutation: opt.val }))}
+                    className={`flex-1 h-9 border-r last:border-r-0 border-[#C3C5D7] transition-colors ${
+                      editForm.salutation === opt.val
+                        ? 'bg-[#1A56DB] text-white font-semibold'
+                        : 'bg-white text-[#434654] hover:bg-[#F3F3FE]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#9CA3AF]">Messages will end with &quot;Name Sir&quot; or &quot;Name Madam&quot;</p>
             </div>
 
             <div className="flex gap-2 pt-1 border-t border-[#F3F4F6]">

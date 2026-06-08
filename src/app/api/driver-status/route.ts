@@ -6,6 +6,7 @@ import { markShortLinkUsed } from '@/lib/utils/short-link'
 import { totalDistanceKm } from '@/lib/utils/haversine'
 import { sendPushToAll } from '@/lib/utils/push-notify'
 import { logApiCost, calcMapsDistanceCost, calcMapsStaticCost } from '@/lib/api-costs'
+import { formalName } from '@/lib/utils/client-name'
 
 const MAPS_DAILY_LIMIT = 200
 
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone), driver:drivers(name, phone, vehicle_name, vehicle_number, vehicle_color), company:companies!company_id(pickup_origin_address)')
+    .select('*, client:clients!client_id(id, name, primary_phone, salutation), driver:drivers(name, phone, vehicle_name, vehicle_number, vehicle_color), company:companies!company_id(pickup_origin_address, formal_address)')
     .eq('id', booking_id)
     .single()
 
@@ -296,11 +297,16 @@ export async function POST(request: Request) {
   }
 
   // Notify client
-  const client = booking.client as { id?: string; name?: string; primary_phone?: string } | null
+  const client = booking.client as { id?: string; name?: string; primary_phone?: string; salutation?: string | null } | null
   const driver = booking.driver as { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string } | null
   const guestPhone = booking.guest_phone || null
   const adminPhone = client?.primary_phone || null
-  const clientName = booking.guest_name || client?.name || 'there'
+  const dsCompany = booking.company as { pickup_origin_address?: string | null; formal_address?: boolean } | null
+  const clientName = formalName(
+    booking.guest_name || client?.name || 'there',
+    booking.guest_name ? null : client?.salutation,
+    dsCompany?.formal_address,
+  )
 
   const phones = [guestPhone || adminPhone].filter(Boolean) as string[]
 

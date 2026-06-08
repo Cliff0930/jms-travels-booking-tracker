@@ -11,6 +11,7 @@ import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
 
@@ -725,16 +726,18 @@ async function processClientMessage(
     result.extracted.drop_location ? `Drop: ${result.extracted.drop_location}` : null,
   ].filter(Boolean).join('\n')
 
+  const waClientName = formalName(client.name, client.salutation, (client.company as import('@/types').Company | null)?.formal_address)
+
   const ackBody = needsApproval
     ? [
-        `Hi ${client.name}, we have received your booking request.`,
+        `Hi ${waClientName}, we have received your booking request.`,
         ``,
         ackDetails,
         ``,
         `Your company admin has been notified for approval. We will confirm your booking once approved. Thank you for choosing JMS Travels!`,
       ].join('\n')
     : [
-        `Hi ${client.name}, we have received your booking request.`,
+        `Hi ${waClientName}, we have received your booking request.`,
         ``,
         ackDetails,
         ``,
@@ -776,7 +779,7 @@ async function processClientMessage(
   if (isAfterHours()) {
     await sendAfterHoursNotices({
       bookingRef: booking.booking_ref,
-      clientName: client.name,
+      clientName: waClientName,
       phone: senderPhone,
       email: client.primary_email,
     }).catch(() => {})

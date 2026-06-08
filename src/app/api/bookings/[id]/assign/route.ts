@@ -8,6 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
+import { formalName } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -20,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email), company:companies(name), driver:drivers(id), cc_emails, source')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies(name, formal_address), driver:drivers(id), cc_emails, source')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -177,7 +178,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const guestPhone = booking.guest_phone || null
     const bookerPhone = client?.primary_phone || null
     const bookerEmail = client?.primary_email || null
-    const clientName = booking.guest_name || client?.name || 'there'
+    const companyForName = booking.company as { formal_address?: boolean } | null
+    const clientName = formalName(
+      booking.guest_name || client?.name || 'there',
+      booking.guest_name ? null : client?.salutation,
+      companyForName?.formal_address,
+    )
 
     if (booking.pickup_date && booking.pickup_time) {
       const dateStr = formatDate(booking.pickup_date)
