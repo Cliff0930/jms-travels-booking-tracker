@@ -36,9 +36,9 @@ const DW  = 310   // deductions table width
 const GAP = 8
 const SBW = 237   // summary box width
 
-// Deductions table columns inside DW = 310
-const DD = { no: 24, desc: 198, amt: 88 }  // 24+198+88 = 310 ✓
-const DD_LABEL = DD.no + DD.desc            // 222, for TOTAL DEDUCTIONS cell
+// Deductions table: 5 columns  no | date | type | mode | amount  inside DW = 310
+const DD = { no: 20, date: 46, type: 74, mode: 82, amt: 88 }  // 20+46+74+82+88 = 310 ✓
+const DD_LABEL = DD.no + DD.date + DD.type + DD.mode           // 222, for TOTAL DEDUCTIONS cell
 
 // Summary box columns inside SBW = 237
 const SB = { label: 157, val: 80 }  // 157+80 = 237 ✓
@@ -102,7 +102,22 @@ function td(
 
 const bRow = { flexDirection: 'row' as const, borderBottomWidth: 0.5, borderBottomColor: BORDER }
 
+// ── Helpers for advance section ───────────────────────────────────────────────
+const ADV_MODE_LABELS: Record<string, string> = {
+  cash: 'Cash', upi: 'UPI', bank_transfer: 'Bank Tf.',
+  cheque: 'Cheque', neft: 'NEFT', rtgs: 'RTGS',
+  phonepe: 'PhonePe', gpay: 'GPay',
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
+export interface AdvanceEntry {
+  date: string          // YYYY-MM-DD
+  type: 'advance' | 'collection'
+  payment_mode: string
+  amount: number
+  note: string | null
+}
+
 export interface TripLine {
   trip_date: string
   booking_ref: string
@@ -141,6 +156,7 @@ export interface DriverSettlementPDFData {
   advance_interest_deduction: number
   interest_rate_pct?: number
   other_deductions: number
+  advance_entries?: AdvanceEntry[]
   net_payable: number
   payment_mode?: string | null
   payment_reference?: string | null
@@ -150,30 +166,23 @@ export interface DriverSettlementPDFData {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData }) {
-  const totalKms   = data.trips.reduce((a, t) => a + t.actual_kms, 0)
-  const totalBata  = data.trips.reduce((a, t) => a + t.bata_earnings, 0)
-  const totalReimb = data.trips.reduce((a, t) => a + t.toll_amount + t.parking_amount + t.permit_amount, 0)
-  const totalRow   = data.trips.reduce((a, t) => a + t.trip_total, 0)
-  const iRate      = data.interest_rate_pct ?? 2
+  const totalKms        = data.trips.reduce((a, t) => a + t.actual_kms, 0)
+  const totalBata       = data.trips.reduce((a, t) => a + t.bata_earnings, 0)
+  const totalReimb      = data.trips.reduce((a, t) => a + t.toll_amount + t.parking_amount + t.permit_amount, 0)
+  const totalRow        = data.trips.reduce((a, t) => a + t.trip_total, 0)
+  const totalClientHire = data.trips.reduce((a, t) => a + t.client_hire_charges, 0)
+  const totalComm       = totalClientHire - data.hire_earnings
+  const commPct         = data.trips[0]?.commission_percent ?? 0
+  const iRate           = data.interest_rate_pct ?? 2
 
-  const hasDed   = data.advance_principal_deduction > 0
+  const hasAdvEntries = (data.advance_entries?.length ?? 0) > 0
+  const hasDed = hasAdvEntries
+    || data.advance_principal_deduction > 0
     || data.advance_interest_deduction > 0
     || data.other_deductions > 0
   const totalDed = data.advance_principal_deduction
     + data.advance_interest_deduction
     + data.other_deductions
-
-  const dedRows = [
-    ...(data.advance_principal_deduction > 0
-      ? [{ label: 'Advance Deduction (Principal)', amount: data.advance_principal_deduction }]
-      : []),
-    ...(data.advance_interest_deduction > 0
-      ? [{ label: `Advance Interest  (${iRate}% / month)`, amount: data.advance_interest_deduction }]
-      : []),
-    ...(data.other_deductions > 0
-      ? [{ label: 'Other Deductions', amount: data.other_deductions }]
-      : []),
-  ]
 
   const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
   const stmtDate = `${String(now.getUTCDate()).padStart(2,'0')}/${String(now.getUTCMonth()+1).padStart(2,'0')}/${now.getUTCFullYear()}`
@@ -299,21 +308,71 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
                 {/* Column headers */}
                 <View style={{ flexDirection: 'row', backgroundColor: NAV2, borderBottomWidth: 0.5, borderBottomColor: BORDER }}>
                   <Text style={th(DD.no,   'center')}>#</Text>
-                  <Text style={th(DD.desc, 'left')}>Description</Text>
+                  <Text style={th(DD.date, 'left')}>Date</Text>
+                  <Text style={th(DD.type, 'left')}>Type</Text>
+                  <Text style={th(DD.mode, 'left')}>Mode</Text>
                   <Text style={th(DD.amt,  'right', true)}>Amount</Text>
                 </View>
 
-                {/* Deduction rows */}
-                {dedRows.map((r, i) => {
-                  const bg = i % 2 === 1 ? GR : WH
+                {/* Individual advance entries (or fallback aggregated row) */}
+                {hasAdvEntries
+                  ? data.advance_entries!.map((e, i) => {
+                      const bg = i % 2 === 0 ? WH : GR
+                      const typeLabel = e.type === 'collection' ? 'Client Coll.' : 'Advance'
+                      const modeLabel = ADV_MODE_LABELS[e.payment_mode] ?? e.payment_mode
+                      return (
+                        <View key={i} style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
+                          <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>{i + 1}</Text>
+                          <Text style={td(DD.date, 'left', bg)}>{fmtDateShort(e.date)}</Text>
+                          <Text style={td(DD.type, 'left', bg, { sz: 6.5 })}>{typeLabel}</Text>
+                          <Text style={td(DD.mode, 'left', bg, { sz: 6.5 })}>{modeLabel}</Text>
+                          <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(e.amount)}</Text>
+                        </View>
+                      )
+                    })
+                  : data.advance_principal_deduction > 0
+                    ? (() => { const bg = WH; return (
+                        <View style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
+                          <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>1</Text>
+                          <Text style={td(DD.date, 'left', bg)}>—</Text>
+                          <Text style={td(DD.type, 'left', bg, { sz: 6.5 })}>Advance</Text>
+                          <Text style={td(DD.mode, 'left', bg, { sz: 6.5 })}>—</Text>
+                          <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(data.advance_principal_deduction)}</Text>
+                        </View>
+                      )})()
+                    : null
+                }
+
+                {/* Interest row */}
+                {data.advance_interest_deduction > 0 && (() => {
+                  const rowIdx = hasAdvEntries ? data.advance_entries!.length : (data.advance_principal_deduction > 0 ? 1 : 0)
+                  const bg = rowIdx % 2 === 0 ? WH : GR
                   return (
-                    <View key={i} style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
-                      <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>{i + 1}</Text>
-                      <Text style={td(DD.desc, 'left',  bg)}>{r.label}</Text>
-                      <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(r.amount)}</Text>
+                    <View style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
+                      <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>{rowIdx + 1}</Text>
+                      <Text style={td(DD.date, 'left', bg)}>—</Text>
+                      <Text style={td(DD.type, 'left', bg, { sz: 6.5 })}>Interest</Text>
+                      <Text style={td(DD.mode, 'left', bg, { sz: 6.5 })}>{iRate}% / mo</Text>
+                      <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(data.advance_interest_deduction)}</Text>
                     </View>
                   )
-                })}
+                })()}
+
+                {/* Other deductions row */}
+                {data.other_deductions > 0 && (() => {
+                  const rowIdx = (hasAdvEntries ? data.advance_entries!.length : (data.advance_principal_deduction > 0 ? 1 : 0))
+                    + (data.advance_interest_deduction > 0 ? 1 : 0)
+                  const bg = rowIdx % 2 === 0 ? WH : GR
+                  return (
+                    <View style={{ ...bRow, backgroundColor: bg, minHeight: 14 }}>
+                      <Text style={{ ...td(DD.no,   'center', bg), color: '#718096' }}>{rowIdx + 1}</Text>
+                      <Text style={td(DD.date, 'left', bg)}>—</Text>
+                      <Text style={td(DD.type, 'left', bg, { sz: 6.5 })}>Other</Text>
+                      <Text style={td(DD.mode, 'left', bg, { sz: 6.5 })}>—</Text>
+                      <Text style={td(DD.amt,  'right', bg, { last: true })}>{fmt2(data.other_deductions)}</Text>
+                    </View>
+                  )
+                })()}
 
                 {/* Total deductions */}
                 <View style={{ flexDirection: 'row', backgroundColor: GR2, borderTopWidth: 1, borderTopColor: NAVY, borderBottomWidth: 0.5, borderBottomColor: BORDER }}>
@@ -343,11 +402,27 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={{ fontSize: 7.5, fontFamily: BOLD, color: WH, letterSpacing: 0.8 }}>SETTLEMENT SUMMARY</Text>
             </View>
 
-            {/* Earnings rows */}
-            {/* Hire Earnings (driver net) */}
+            {/* Earnings rows — Option B: gross hire → commission → driver net */}
+            {/* Hire Charges (gross from client) */}
             <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
-              <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Hire Earnings</Text>
-              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.hire_earnings)}</Text>
+              <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Hire Charges</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(totalClientHire)}</Text>
+            </View>
+            {/* Commission deduction (red sub-line) */}
+            {totalComm > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 15, alignItems: 'center', backgroundColor: '#fef2f2' }}>
+                <Text style={{ width: SB.label, fontSize: 7, color: NEG, paddingHorizontal: 8, paddingLeft: 14, paddingVertical: 2.5, borderRightWidth: 0.5, borderRightColor: BORDER }}>
+                  {`− ${commPct}% Commission`}
+                </Text>
+                <Text style={{ width: SB.val, fontSize: 7, color: NEG, paddingHorizontal: 8, paddingVertical: 2.5, textAlign: 'right' }}>
+                  {`−${fmt2(totalComm)}`}
+                </Text>
+              </View>
+            )}
+            {/* Driver Net Hire */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center', backgroundColor: '#f0f4ff' }}>
+              <Text style={{ width: SB.label, fontSize: 7.5, fontFamily: BOLD, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Driver Net Hire</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, fontFamily: BOLD, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.hire_earnings)}</Text>
             </View>
             {/* Bata Earnings */}
             <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>

@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { createAdminClient } from '@/lib/supabase/server'
 import { DriverSettlementPDF } from '@/components/billing/DriverSettlementPDF'
-import type { DriverSettlementPDFData } from '@/components/billing/DriverSettlementPDF'
+import type { DriverSettlementPDFData, AdvanceEntry } from '@/components/billing/DriverSettlementPDF'
 
 function getLogoDataUri(): string | undefined {
   const logoPath = join(process.cwd(), 'public', 'jms-logo.png')
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params
   const supabase = createAdminClient()
 
-  const [{ data: settlement, error }, { data: trips }] = await Promise.all([
+  const [{ data: settlement, error }, { data: trips }, { data: advances }] = await Promise.all([
     supabase
       .from('driver_settlements')
       .select('*, driver:drivers!driver_id(id, name, vehicle_name, vehicle_number)')
@@ -27,6 +27,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .select('*, booking:bookings!booking_id(total_days)')
       .eq('settlement_id', id)
       .order('trip_date', { ascending: true }),
+    supabase
+      .from('driver_advances')
+      .select('created_at, type, payment_mode, amount, note')
+      .eq('settlement_id', id)
+      .eq('status', 'settled')
+      .order('created_at', { ascending: true }),
   ])
 
   if (error || !settlement) return new Response('Statement not found', { status: 404 })
@@ -76,6 +82,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     advance_interest_deduction: Number(settlement.advance_interest_deduction ?? 0),
     interest_rate_pct: interestRatePct,
     other_deductions: Number(settlement.other_deductions ?? 0),
+    advance_entries: (advances ?? []).map(a => ({
+      date: (a.created_at as string).slice(0, 10),
+      type: a.type as 'advance' | 'collection',
+      payment_mode: a.payment_mode ?? 'cash',
+      amount: Number(a.amount ?? 0),
+      note: a.note ?? null,
+    })) as AdvanceEntry[],
     net_payable: Number(settlement.net_payable ?? 0),
     payment_mode: settlement.payment_mode,
     payment_reference: settlement.payment_reference,
