@@ -13,9 +13,63 @@ import { ButtonLink } from '@/components/ui/button-link'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { AssignDriverModal } from '@/components/bookings/AssignDriverModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown, FileText } from 'lucide-react'
+import { Plus, Upload, CalendarDays, Building2, X, Search, RefreshCw, User, Link2, ArrowUpDown, FileText, LayoutList, LayoutGrid } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
+import { BookingListRow } from '@/components/dashboard/BookingListRow'
+
+// Tab status dot colors
+const TAB_DOT: Record<string, string> = {
+  all:              'bg-[#9CA3AF]',
+  draft:            'bg-[#6B7280]',
+  pending_approval: 'bg-amber-400',
+  confirmed:        'bg-[#1A56DB]',
+  in_progress:      'bg-[#059669]',
+  completed:        'bg-emerald-400',
+  cancelled:        'bg-red-400',
+}
+
+const EMPTY_STATE: Record<string, string> = {
+  all:              'No bookings yet',
+  draft:            'No unconfirmed drafts',
+  pending_approval: 'All approvals are processed',
+  confirmed:        'No confirmed trips',
+  in_progress:      'No trips running right now',
+  completed:        'No completed trips',
+  cancelled:        'No cancelled bookings',
+}
+
+const EMPTY_EMOJI: Record<string, string> = {
+  all:              '📋',
+  draft:            '✏️',
+  pending_approval: '✅',
+  confirmed:        '🗓️',
+  in_progress:      '🚗',
+  completed:        '🏁',
+  cancelled:        '🚫',
+}
+
+const PILL_COLORS: Record<string, string> = {
+  blue:   'bg-blue-50 text-blue-700 border-blue-200',
+  purple: 'bg-purple-50 text-purple-700 border-purple-200',
+  orange: 'bg-orange-50 text-orange-700 border-orange-200',
+  green:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber:  'bg-amber-50 text-amber-700 border-amber-200',
+  red:    'bg-red-50 text-red-700 border-red-200',
+  indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  grey:   'bg-gray-100 text-gray-700 border-gray-200',
+}
+
+function FilterPill({ label, color, onRemove }: { label: string; color: string; onRemove: () => void }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${PILL_COLORS[color] ?? PILL_COLORS.grey}`}>
+      {label}
+      <button onClick={onRemove} className="opacity-60 hover:opacity-100 transition-opacity">
+        <X className="w-3 h-3" />
+      </button>
+    </span>
+  )
+}
 
 function localDate(offset = 0) {
   const d = new Date()
@@ -60,6 +114,7 @@ export default function BookingsPage() {
   const [bookingTypeFilter, setBookingTypeFilter] = useState<'' | 'company' | 'personal'>('')
   const [legsFilter,       setLegsFilter]       = useState<'' | 'today_legs' | 'tomorrow_legs'>('')
   const [sortByDate,       setSortByDate]       = useState(false)
+  const [viewMode,         setViewMode]         = useState<'card' | 'list'>('card')
 
   // Initialise from URL params after mount (deep-link support from dashboard)
   useEffect(() => {
@@ -378,15 +433,29 @@ export default function BookingsPage() {
           Date ↑
         </button>
 
-        {/* Clear filters */}
-        {hasFilters && (
+        {/* Right side: clear filters + view toggle */}
+        <div className="ml-auto flex items-center gap-2">
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-md text-xs text-[#6B7280] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#9CA3AF] bg-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Clear filters
+            </button>
+          )}
           <button
-            onClick={clearFilters}
-            className="ml-auto flex items-center gap-1.5 px-3 h-8 rounded-md text-xs text-[#6B7280] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#9CA3AF] bg-white transition-colors"
+            onClick={() => setViewMode(v => v === 'card' ? 'list' : 'card')}
+            className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
+              viewMode === 'list'
+                ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
+            }`}
+            title={viewMode === 'card' ? 'Switch to list view' : 'Switch to card view'}
           >
-            <X className="w-3.5 h-3.5" /> Clear filters
+            {viewMode === 'card' ? <LayoutList className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{viewMode === 'card' ? 'List' : 'Cards'}</span>
           </button>
-        )}
+        </div>
       </div>
 
       {/* Legs Due section */}
@@ -424,20 +493,22 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {(noDriverFilter || flaggedFilter) && (
-        <div className="mb-2 flex items-center gap-2 flex-wrap">
-          {noDriverFilter && (
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
-              No driver assigned
-              <button onClick={() => setNoDriverFilter(false)} className="ml-0.5 hover:text-amber-600"><X className="w-3 h-3" /></button>
-            </span>
-          )}
-          {flaggedFilter && (
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">
-              Flagged only
-              <button onClick={() => setFlaggedFilter(false)} className="ml-0.5 hover:text-red-600"><X className="w-3 h-3" /></button>
-            </span>
-          )}
+      {hasFilters && (
+        <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] text-[#9CA3AF] font-medium shrink-0">Filters:</span>
+          {pickupDate === 'today'    && <FilterPill label="Today"         color="blue"   onRemove={() => setPickupDate('')} />}
+          {pickupDate === 'tomorrow' && <FilterPill label="Tomorrow"      color="blue"   onRemove={() => setPickupDate('')} />}
+          {customDateValue          && <FilterPill label={`Date: ${customDateValue}`} color="blue" onRemove={() => setPickupDate('')} />}
+          {newTodayOnly             && <FilterPill label="New Today"      color="purple" onRemove={() => setNewTodayOnly(false)} />}
+          {bookingTypeFilter === 'company'  && <FilterPill label="Corporate"       color="blue"   onRemove={() => setBookingTypeFilter('')} />}
+          {bookingTypeFilter === 'personal' && <FilterPill label="Personal"        color="orange" onRemove={() => setBookingTypeFilter('')} />}
+          {legsFilter === 'today_legs'      && <FilterPill label="Today's Legs"    color="green"  onRemove={() => setLegsFilter('')} />}
+          {legsFilter === 'tomorrow_legs'   && <FilterPill label="Tomorrow's Legs" color="green"  onRemove={() => setLegsFilter('')} />}
+          {companyFilter  && <FilterPill label={companyFilter} color="indigo" onRemove={() => setCompanyFilter('')} />}
+          {noDriverFilter && <FilterPill label="No Driver"    color="amber"  onRemove={() => setNoDriverFilter(false)} />}
+          {flaggedFilter  && <FilterPill label="Flagged"      color="red"    onRemove={() => setFlaggedFilter(false)} />}
+          {searchQuery    && <FilterPill label={`"${searchQuery}"`} color="grey" onRemove={() => setSearchQuery('')} />}
+          <button onClick={clearFilters} className="text-[11px] text-[#9CA3AF] hover:text-red-500 font-medium transition-colors">Clear all</button>
         </div>
       )}
 
@@ -446,8 +517,10 @@ export default function BookingsPage() {
           {TABS.map(t => {
             const count = (sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)).length
             return (
-              <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs">
-                {t.label} <span className="ml-1 text-[#737686]">({count})</span>
+              <TabsTrigger key={t.value} value={t.value} className="data-[state=active]:bg-white text-xs gap-1.5">
+                <span className={`inline-flex h-1.5 w-1.5 rounded-full shrink-0 ${TAB_DOT[t.value] ?? 'bg-gray-400'} ${t.value === 'in_progress' && count > 0 ? 'animate-pulse' : ''}`} />
+                {t.label}
+                <span className={count === 0 ? 'text-[#C3C5D7]' : 'text-[#737686]'}>({count})</span>
               </TabsTrigger>
             )
           })}
@@ -462,12 +535,29 @@ export default function BookingsPage() {
               ) : isError ? (
                 <div className="py-12 text-center text-[#737686] text-sm">Unable to load bookings. Please refresh the page.</div>
               ) : filtered.length === 0 ? (
-                <div className="py-12 text-center text-[#737686]">
-                  {hasFilters ? (
-                    <span>No bookings match the current filters. <button onClick={clearFilters} className="text-[#1A56DB] hover:underline">Clear filters</button></span>
-                  ) : (
-                    'No bookings'
+                <div className="py-16 text-center">
+                  <div className="text-3xl mb-2">{EMPTY_EMOJI[t.value] ?? '📋'}</div>
+                  <p className="text-sm font-medium text-[#434654]">
+                    {hasFilters ? 'No bookings match the current filters' : EMPTY_STATE[t.value] ?? 'No bookings'}
+                  </p>
+                  {hasFilters && (
+                    <button onClick={clearFilters} className="mt-1.5 text-xs text-[#1A56DB] hover:underline">Clear filters</button>
                   )}
+                </div>
+              ) : viewMode === 'list' ? (
+                <div className="rounded-xl border border-[#E5E7EB] overflow-hidden bg-white">
+                  <div className="hidden md:grid grid-cols-[160px_1fr_1fr_140px_120px_110px_40px] gap-3 px-4 py-2 bg-[#F9FAFB] border-b border-[#E5E7EB] text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wide">
+                    <span>Ref</span><span>Traveller</span><span>Route</span><span>Date / Time</span><span>Driver</span><span>Status</span><span />
+                  </div>
+                  {filtered.map(b => (
+                    <BookingListRow
+                      key={b.id}
+                      booking={b}
+                      onConfirm={canEdit ? async id => { await confirmBooking.mutateAsync({ id }); toast.success('Confirmed') } : undefined}
+                      onCancel={canEdit ? id => setCancelTarget(id) : undefined}
+                      onAssign={canEdit ? setAssignTarget : undefined}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="space-y-3">
