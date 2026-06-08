@@ -64,8 +64,8 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       <div className="p-4">
-        {/* Row 1: source chip + ref + trip/flag badges + status + menu */}
-        <div className="flex items-center justify-between gap-2">
+        {/* Row 1: source chip + ref + trip/flag badges + status pill — ⋮ alone on right */}
+        <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap min-w-0">
             <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] font-bold shrink-0 ${src.cls}`}>
               <SrcIcon className="w-2.5 h-2.5" />{src.label}
@@ -83,59 +83,55 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             {booking.trip_type === 'airport'    && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">Airport</span>}
             {isOfflineTrip && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700">Offline</span>}
             {booking.is_settlement_duty && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-400">₹ SETTLE</span>}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
             <BookingStatusBadge status={booking.status} />
-            <div onClick={e => e.stopPropagation()}>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-[#EDEDF8] transition-colors text-[#9CA3AF] hover:text-[#434654]"
-                  aria-label="Booking actions"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => router.push(`/bookings/${booking.id}`)}>View Detail</DropdownMenuItem>
-                  {(booking.status === 'draft' || booking.status === 'pending_approval') && onConfirm && (
-                    <DropdownMenuItem onClick={() => onConfirm(booking.id)}>Confirm</DropdownMenuItem>
-                  )}
-                  {booking.status !== 'completed' && booking.status !== 'cancelled' && onCancel && (
-                    <DropdownMenuItem onClick={() => onCancel(booking.id)} className="text-red-600">Cancel</DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+          </div>
+          <div className="shrink-0" onClick={e => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-[#EDEDF8] transition-colors text-[#9CA3AF] hover:text-[#434654]"
+                aria-label="Booking actions"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => router.push(`/bookings/${booking.id}`)}>View Detail</DropdownMenuItem>
+                {(booking.status === 'draft' || booking.status === 'pending_approval') && onConfirm && (
+                  <DropdownMenuItem onClick={() => onConfirm(booking.id)}>Confirm</DropdownMenuItem>
+                )}
+                {booking.status !== 'completed' && booking.status !== 'cancelled' && onCancel && (
+                  <DropdownMenuItem onClick={() => onCancel(booking.id)} className="text-red-600">Cancel</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Two-column body */}
-        <div className="mt-3 flex flex-col sm:flex-row gap-3">
-          {/* LEFT: traveller + company + route */}
-          <div className="flex-1 min-w-0 space-y-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm font-semibold text-[#191B23]">{travellerName}</span>
-              {companyName && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EDEDF8] text-[#434654]">{companyName}</span>}
-              {booking.client?.is_vip && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700">VIP</span>}
-              {booking.booking_type === 'company'  && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">Corp</span>}
-              {booking.booking_type === 'personal' && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700">Personal</span>}
-            </div>
-            {bookerName && (
-              <div className="flex items-center gap-1 text-xs text-[#9CA3AF]">
-                <User className="w-3 h-3 shrink-0" />
-                <span>Booked by {bookerName}</span>
-              </div>
-            )}
-            <div className="flex items-start gap-1 text-sm text-[#434654]">
-              <MapPin className="w-3.5 h-3.5 shrink-0 text-[#9CA3AF] mt-0.5" />
-              <span className="line-clamp-2 leading-snug">
-                {booking.pickup_location ?? <span className="text-amber-600 text-xs">No pickup set</span>}
-                {booking.drop_location && <span className="text-[#9CA3AF]"> → {booking.drop_location}</span>}
-              </span>
-            </div>
+        {/* Single-column body */}
+        <div className="mt-3 space-y-1.5 min-w-0">
+          {/* Traveller + company + type */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-semibold text-[#191B23]">{travellerName}</span>
+            {companyName && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EDEDF8] text-[#434654]">{companyName}</span>}
+            {booking.client?.is_vip && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700">VIP</span>}
+            {booking.booking_type === 'company'  && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">Corp</span>}
+            {booking.booking_type === 'personal' && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700">Personal</span>}
           </div>
-
-          {/* RIGHT: countdown chip + date/time + driver */}
-          <div className="flex flex-col items-start sm:items-end gap-1 sm:gap-1.5 sm:min-w-[130px] sm:shrink-0">
+          {bookerName && (
+            <div className="flex items-center gap-1 text-xs text-[#9CA3AF]">
+              <User className="w-3 h-3 shrink-0" />
+              <span>Booked by {bookerName}</span>
+            </div>
+          )}
+          {/* Route */}
+          <div className="flex items-start gap-1 text-sm text-[#434654]">
+            <MapPin className="w-3.5 h-3.5 shrink-0 text-[#9CA3AF] mt-0.5" />
+            <span className="line-clamp-2 leading-snug">
+              {booking.pickup_location ?? <span className="text-amber-600 text-xs">No pickup set</span>}
+              {booking.drop_location && <span className="text-[#9CA3AF]"> → {booking.drop_location}</span>}
+            </span>
+          </div>
+          {/* Countdown + date/time */}
+          <div className="flex items-center gap-2 flex-wrap">
             {countdown && (
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${countdown.cls}`}>
                 {countdown.pulse && (
@@ -147,15 +143,16 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
                 {countdown.label}
               </span>
             )}
-            <span className="text-xs text-[#6B7280] sm:text-right whitespace-nowrap">{formatBookingDateTime(booking.pickup_date, booking.pickup_time)}</span>
-            {booking.driver && (
-              <div className="flex items-center gap-1">
-                <Car className="w-3 h-3 text-[#059669] shrink-0" />
-                <span className="text-xs font-medium text-[#059669] whitespace-nowrap">{booking.driver.name}</span>
-                <span className="text-[10px] text-[#9CA3AF] font-mono hidden sm:inline">{booking.driver.vehicle_number}</span>
-              </div>
-            )}
+            <span className="text-xs text-[#6B7280]">{formatBookingDateTime(booking.pickup_date, booking.pickup_time)}</span>
           </div>
+          {/* Driver */}
+          {booking.driver && (
+            <div className="flex items-center gap-1">
+              <Car className="w-3 h-3 text-[#059669] shrink-0" />
+              <span className="text-xs font-medium text-[#059669]">{booking.driver.name}</span>
+              <span className="text-[10px] text-[#9CA3AF] font-mono">{booking.driver.vehicle_number}</span>
+            </div>
+          )}
         </div>
       </div>
 
