@@ -277,7 +277,6 @@ export async function POST(request: Request) {
       actual_hrs: actualHrs,
       client_hire_charges: hireCharges,
       commission_percent: rateSource === 'fixed' ? 0 : commissionPct,
-      rate_source: rateSource,
       hire_earnings: hireEarnings,
       bata_count: bataCount,
       driver_bata_rate: driverBataRate,

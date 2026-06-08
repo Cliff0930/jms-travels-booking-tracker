@@ -59,7 +59,10 @@ export async function POST(request: Request) {
   if (body.trip_details?.length) {
     const items = body.trip_details.map((t) => ({ ...t, settlement_id: settlement.id }))
     const { error: tErr } = await supabase.from('driver_settlement_trips').insert(items)
-    if (tErr) console.error('[driver-settlements] trip insert failed:', tErr.message)
+    if (tErr) {
+      console.error('[driver-settlements] trip insert failed:', tErr.message)
+      return NextResponse.json({ error: `Settlement saved but trips failed: ${tErr.message}` }, { status: 500 })
+    }
   }
 
   return NextResponse.json(settlement)
