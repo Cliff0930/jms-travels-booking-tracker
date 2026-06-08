@@ -135,7 +135,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
           </div>
 
           {/* RIGHT: countdown chip + date/time + driver */}
-          <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1.5 sm:min-w-[130px] sm:shrink-0">
+          <div className="flex flex-col items-start sm:items-end gap-1 sm:gap-1.5 sm:min-w-[130px] sm:shrink-0">
             {countdown && (
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${countdown.cls}`}>
                 {countdown.pulse && (

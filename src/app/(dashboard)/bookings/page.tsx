@@ -261,200 +261,210 @@ export default function BookingsPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="mb-4 bg-white rounded-lg border border-[#E5E7EB] p-3 flex flex-wrap items-center gap-2.5">
-        {/* Search input */}
-        <div className="relative flex items-center w-full sm:w-64">
-          <Search className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search bookings…"
-            className={`w-full h-8 pl-8 pr-8 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] transition-colors ${
-              searchQuery
-                ? 'border-[#1A56DB] text-[#191B23]'
-                : 'border-[#C3C5D7] text-[#6B7280] placeholder:text-[#9CA3AF] hover:border-[#9CA3AF]'
-            }`}
-          />
-          {searchQuery && (
+      <div className="mb-4 bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2.5">
+        {/* Row 1: Search + View Toggle (always visible) */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex items-center flex-1 sm:flex-none sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search bookings…"
+              className={`w-full h-8 pl-8 pr-8 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] transition-colors ${
+                searchQuery
+                  ? 'border-[#1A56DB] text-[#191B23]'
+                  : 'border-[#C3C5D7] text-[#6B7280] placeholder:text-[#9CA3AF] hover:border-[#9CA3AF]'
+              }`}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="sm:hidden flex items-center justify-center h-8 w-8 rounded-md text-[#6B7280] border border-[#C3C5D7] bg-white"
+                title="Clear all filters"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 text-[#9CA3AF] hover:text-[#434654] transition-colors"
-              aria-label="Clear search"
+              onClick={() => setViewMode(v => v === 'card' ? 'list' : 'card')}
+              className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                  : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
+              }`}
+              title={viewMode === 'card' ? 'Switch to list view' : 'Switch to card view'}
             >
-              <X className="w-3.5 h-3.5" />
+              {viewMode === 'card' ? <LayoutList className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{viewMode === 'card' ? 'List' : 'Cards'}</span>
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Vertical divider — desktop only */}
-        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+        {/* Row 2: Filter controls — swipe-scrollable on mobile, wrap on desktop */}
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 pb-0.5">
+          <div className="flex items-center gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+            {/* Quick date button group */}
+            <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
+              <button
+                onClick={() => setPickupDate(v => v === 'today' ? '' : 'today')}
+                className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
+                  pickupDate === 'today'
+                    ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => setPickupDate(v => v === 'tomorrow' ? '' : 'tomorrow')}
+                className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
+                  pickupDate === 'tomorrow'
+                    ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                Tomorrow
+              </button>
+              <button
+                onClick={() => setNewTodayOnly(v => !v)}
+                className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap ${
+                  newTodayOnly
+                    ? 'bg-[#7E3AF2] text-white'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                New Today
+              </button>
+            </div>
 
-        {/* Quick date button group — segmented control */}
-        <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
-          <button
-            onClick={() => setPickupDate(v => v === 'today' ? '' : 'today')}
-            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
-              pickupDate === 'today'
-                ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            Today
-          </button>
-          <button
-            onClick={() => setPickupDate(v => v === 'tomorrow' ? '' : 'tomorrow')}
-            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap ${
-              pickupDate === 'tomorrow'
-                ? 'bg-[#1A56DB] text-white border-r-[#1A56DB]'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            Tomorrow
-          </button>
-          <button
-            onClick={() => setNewTodayOnly(v => !v)}
-            className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap ${
-              newTodayOnly
-                ? 'bg-[#7E3AF2] text-white'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            New Today
-          </button>
-        </div>
+            <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
 
-        {/* Vertical divider — desktop only */}
-        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+            {/* Billing type filter */}
+            <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
+              <button
+                onClick={() => setBookingTypeFilter(v => v === 'company' ? '' : 'company')}
+                className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  bookingTypeFilter === 'company'
+                    ? 'bg-[#1D4ED8] text-white border-r-[#1D4ED8]'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" /> Corporate
+              </button>
+              <button
+                onClick={() => setBookingTypeFilter(v => v === 'personal' ? '' : 'personal')}
+                className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  bookingTypeFilter === 'personal'
+                    ? 'bg-[#C2410C] text-white'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" /> Personal
+              </button>
+            </div>
 
-        {/* Billing type filter */}
-        <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
-          <button
-            onClick={() => setBookingTypeFilter(v => v === 'company' ? '' : 'company')}
-            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              bookingTypeFilter === 'company'
-                ? 'bg-[#1D4ED8] text-white border-r-[#1D4ED8]'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" /> Corporate
-          </button>
-          <button
-            onClick={() => setBookingTypeFilter(v => v === 'personal' ? '' : 'personal')}
-            className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              bookingTypeFilter === 'personal'
-                ? 'bg-[#C2410C] text-white'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" /> Personal
-          </button>
-        </div>
+            <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
 
-        {/* Vertical divider — desktop only */}
-        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+            {/* Driver Links filter */}
+            <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
+              <button
+                onClick={() => setLegsFilter(v => v === 'today_legs' ? '' : 'today_legs')}
+                className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  legsFilter === 'today_legs'
+                    ? 'bg-[#059669] text-white border-r-[#059669]'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                <Link2 className="w-3.5 h-3.5" /> Today's Legs
+              </button>
+              <button
+                onClick={() => setLegsFilter(v => v === 'tomorrow_legs' ? '' : 'tomorrow_legs')}
+                className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  legsFilter === 'tomorrow_legs'
+                    ? 'bg-[#059669] text-white'
+                    : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
+                }`}
+              >
+                <Link2 className="w-3.5 h-3.5" /> Tomorrow's Legs
+              </button>
+            </div>
 
-        {/* Driver Links filter */}
-        <div className="flex items-center rounded-md border border-[#C3C5D7] overflow-hidden shrink-0">
-          <button
-            onClick={() => setLegsFilter(v => v === 'today_legs' ? '' : 'today_legs')}
-            className={`px-3.5 h-8 text-xs font-medium border-r border-[#C3C5D7] transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              legsFilter === 'today_legs'
-                ? 'bg-[#059669] text-white border-r-[#059669]'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            <Link2 className="w-3.5 h-3.5" /> Today's Legs
-          </button>
-          <button
-            onClick={() => setLegsFilter(v => v === 'tomorrow_legs' ? '' : 'tomorrow_legs')}
-            className={`px-3.5 h-8 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              legsFilter === 'tomorrow_legs'
-                ? 'bg-[#059669] text-white'
-                : 'bg-white text-[#434654] hover:bg-[#F5F6FA]'
-            }`}
-          >
-            <Link2 className="w-3.5 h-3.5" /> Tomorrow's Legs
-          </button>
-        </div>
+            <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
 
-        {/* Vertical divider — desktop only */}
-        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+            {/* Custom Date Picker */}
+            <div className="relative inline-flex items-center shrink-0">
+              <CalendarDays className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
+              <input
+                type="date"
+                value={customDateValue}
+                onChange={e => setPickupDate(e.target.value || '')}
+                className={`h-8 pl-8 pr-3 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] cursor-pointer transition-colors ${
+                  customDateValue
+                    ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
+                    : 'border-[#C3C5D7] text-[#6B7280] hover:border-[#9CA3AF]'
+                }`}
+              />
+            </div>
 
-        {/* Custom Date Picker */}
-        <div className="relative inline-flex items-center">
-          <CalendarDays className="pointer-events-none absolute left-2.5 w-3.5 h-3.5 text-[#9CA3AF] z-10" />
-          <input
-            type="date"
-            value={customDateValue}
-            onChange={e => setPickupDate(e.target.value || '')}
-            className={`h-8 pl-8 pr-3 text-xs border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB] focus:border-[#1A56DB] cursor-pointer transition-colors ${
-              customDateValue
-                ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
-                : 'border-[#C3C5D7] text-[#6B7280] hover:border-[#9CA3AF]'
-            }`}
-          />
-        </div>
+            {/* Company Filter */}
+            {companies.length > 0 && (
+              <Select
+                value={companyFilter || '__all__'}
+                onValueChange={v => { if (v !== null) setCompanyFilter(v === '__all__' ? '' : v) }}
+              >
+                <SelectTrigger className={`h-8 rounded-md text-xs px-3 gap-1.5 min-w-[150px] transition-colors ${
+                  companyFilter
+                    ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
+                    : 'border-[#C3C5D7] bg-white text-[#6B7280] hover:border-[#9CA3AF]'
+                }`}>
+                  <Building2 className="w-3.5 h-3.5 shrink-0" />
+                  <SelectValue placeholder="All Companies" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Companies</SelectItem>
+                  {companies.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
-        {/* Company Filter */}
-        {companies.length > 0 && (
-          <Select
-            value={companyFilter || '__all__'}
-            onValueChange={v => { if (v !== null) setCompanyFilter(v === '__all__' ? '' : v) }}
-          >
-            <SelectTrigger className={`h-8 rounded-md text-xs px-3 gap-1.5 min-w-[150px] transition-colors ${
-              companyFilter
-                ? 'border-[#1A56DB] text-[#1A56DB] bg-[#EBF5FF]'
-                : 'border-[#C3C5D7] bg-white text-[#6B7280] hover:border-[#9CA3AF]'
-            }`}>
-              <Building2 className="w-3.5 h-3.5 shrink-0" />
-              <SelectValue placeholder="All Companies" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All Companies</SelectItem>
-              {companies.map(name => (
-                <SelectItem key={name} value={name}>{name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {/* Sort by nearest travel date */}
-        <button
-          onClick={() => setSortByDate(v => !v)}
-          className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
-            sortByDate
-              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
-              : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
-          }`}
-          title="Sort by nearest travel date & time"
-        >
-          <ArrowUpDown className="w-3.5 h-3.5" />
-          Date ↑
-        </button>
-
-        {/* Right side: clear filters + view toggle */}
-        <div className="ml-auto flex items-center gap-2">
-          {hasFilters && (
+            {/* Sort by nearest travel date */}
             <button
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-md text-xs text-[#6B7280] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#9CA3AF] bg-white transition-colors"
+              onClick={() => setSortByDate(v => !v)}
+              className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors shrink-0 ${
+                sortByDate
+                  ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                  : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
+              }`}
+              title="Sort by nearest travel date & time"
             >
-              <X className="w-3.5 h-3.5" /> Clear filters
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              Date ↑
             </button>
-          )}
-          <button
-            onClick={() => setViewMode(v => v === 'card' ? 'list' : 'card')}
-            className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${
-              viewMode === 'list'
-                ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
-                : 'bg-white text-[#6B7280] border-[#C3C5D7] hover:border-[#9CA3AF]'
-            }`}
-            title={viewMode === 'card' ? 'Switch to list view' : 'Switch to card view'}
-          >
-            {viewMode === 'card' ? <LayoutList className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{viewMode === 'card' ? 'List' : 'Cards'}</span>
-          </button>
+
+            {/* Desktop: clear filters */}
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-md text-xs text-[#6B7280] hover:text-[#191B23] border border-[#C3C5D7] hover:border-[#9CA3AF] bg-white transition-colors shrink-0"
+              >
+                <X className="w-3.5 h-3.5" /> Clear filters
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

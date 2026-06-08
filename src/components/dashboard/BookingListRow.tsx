@@ -31,7 +31,7 @@ export function BookingListRow({ booking, onConfirm, onCancel, onAssign }: Props
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       {/* Ref + source */}
-      <div className="w-[160px] flex items-center gap-1.5 shrink-0">
+      <div className="w-[100px] sm:w-[160px] flex items-center gap-1.5 shrink-0">
         <span className={`inline-flex items-center px-1 py-0.5 rounded border text-[9px] font-bold ${src.cls}`}>
           <SrcIcon className="w-2.5 h-2.5" />
         </span>
