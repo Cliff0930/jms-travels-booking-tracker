@@ -94,6 +94,50 @@ function GpsPromptOverlay() {
   )
 }
 
+type TripIdentity = {
+  guestName: string | null
+  company: string | null
+  pickupTime: string | null
+  pickupLocation: string | null
+  dropLocation: string | null
+}
+
+function TripIdentityCard({ identity }: { identity: TripIdentity }) {
+  return (
+    <div className="bg-[#EFF2FF] border border-[#A5B4FC] rounded-xl p-3.5 space-y-1.5 text-sm">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[#5B6AD0] mb-1">Your Trip — Verify Before Filling</p>
+      <div className="flex justify-between gap-2">
+        <span className="text-[#737686] shrink-0">Guest</span>
+        <span className="font-semibold text-[#191B23] text-right">{identity.guestName || '—'}</span>
+      </div>
+      {identity.company && (
+        <div className="flex justify-between gap-2">
+          <span className="text-[#737686] shrink-0">Company</span>
+          <span className="font-semibold text-[#191B23] text-right">{identity.company}</span>
+        </div>
+      )}
+      {identity.pickupTime && (
+        <div className="flex justify-between gap-2">
+          <span className="text-[#737686] shrink-0">Pickup Time</span>
+          <span className="font-semibold text-[#191B23]">{fmtTime(identity.pickupTime)}</span>
+        </div>
+      )}
+      {identity.pickupLocation && (
+        <div className="flex justify-between gap-2">
+          <span className="text-[#737686] shrink-0">From</span>
+          <span className="font-semibold text-[#191B23] text-right">{identity.pickupLocation}</span>
+        </div>
+      )}
+      {identity.dropLocation && (
+        <div className="flex justify-between gap-2">
+          <span className="text-[#737686] shrink-0">To</span>
+          <span className="font-semibold text-[#191B23] text-right">{identity.dropLocation}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DriverStatusContent() {
   const searchParams = useSearchParams()
   const bookingId = searchParams.get('booking')
@@ -127,6 +171,8 @@ function DriverStatusContent() {
   const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
   const [alreadyDone, setAlreadyDone] = useState(false)
   const [isOutstation, setIsOutstation] = useState(false)
+  const [tripIdentity, setTripIdentity] = useState<TripIdentity | null>(null)
+  const [tripSheetLoaded, setTripSheetLoaded] = useState(false)
 
   // GPS
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -137,15 +183,30 @@ function DriverStatusContent() {
   }, [])
 
   useEffect(() => {
-    if (!bookingId || status !== 'completed') return
+    if (!bookingId) return
     fetch(`/api/bookings/${bookingId}`)
       .then(r => r.json())
-      .then((b: { is_settlement_duty?: boolean; trip_type?: string }) => {
+      .then((b: {
+        is_settlement_duty?: boolean
+        trip_type?: string
+        guest_name?: string | null
+        pickup_time?: string | null
+        pickup_location?: string | null
+        drop_location?: string | null
+        company?: { name?: string } | null
+      }) => {
         if (b.is_settlement_duty) setIsSettlementDuty(true)
         if (b.trip_type === 'outstation') setIsOutstation(true)
+        setTripIdentity({
+          guestName: b.guest_name ?? null,
+          company: b.company?.name ?? null,
+          pickupTime: b.pickup_time ?? null,
+          pickupLocation: b.pickup_location ?? null,
+          dropLocation: b.drop_location ?? null,
+        })
       })
       .catch(() => {})
-  }, [bookingId, status])
+  }, [bookingId])
 
   useEffect(() => {
     if (!bookingId || !status) return
@@ -166,6 +227,7 @@ function DriverStatusContent() {
         }
       })
       .catch(() => {})
+      .finally(() => setTripSheetLoaded(true))
   }, [bookingId, legId, status])
 
   const completedTokenRef = useRef<string | null>(null)
@@ -323,6 +385,26 @@ function DriverStatusContent() {
     )
   }
 
+  if (status === 'completed' && tripSheetLoaded && serverOpeningKm === null) {
+    return (
+      <div className="min-h-screen bg-[#FAF8FF] flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-8 max-w-sm w-full text-center space-y-3">
+          <div className="text-5xl mb-2">🚫</div>
+          <h2 className="text-lg font-semibold text-[#191B23]">Trip Not Started Yet</h2>
+          <p className="text-sm text-[#737686] leading-relaxed">
+            You cannot mark a trip complete before checking in. Please use your <strong>Arrived link</strong> first, then come back to complete the trip.
+          </p>
+          {tripIdentity && (
+            <div className="mt-2 text-left">
+              <TripIdentityCard identity={tripIdentity} />
+            </div>
+          )}
+          <p className="text-xs text-[#9CA3AF] pt-1">Contact JMS Travels if you need help finding your Arrived link.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (mode === 'done' && (status === 'completed' || closingKm)) {
     const finalOpeningKm = openingKm ? parseFloat(openingKm) : serverOpeningKm
     const finalClosingKm = closingKm ? parseFloat(closingKm) : null
@@ -440,6 +522,8 @@ function DriverStatusContent() {
             </div>
           </div>
 
+          {tripIdentity && <TripIdentityCard identity={tripIdentity} />}
+
           <div className="bg-[#F9F9FE] border border-[#C3C5D7] rounded-lg p-3 text-sm">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#737686] mb-2">Trip Started With</p>
             <div className="flex justify-between">
@@ -521,6 +605,8 @@ function DriverStatusContent() {
             </p>
           </div>
         </div>
+
+        {tripIdentity && <TripIdentityCard identity={tripIdentity} />}
 
         <div className="space-y-4">
           {status === 'arrived' && (
