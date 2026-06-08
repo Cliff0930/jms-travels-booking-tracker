@@ -87,7 +87,8 @@ function LegLinkCard({ item, onSend, sending }: { item: LegDue; onSend: () => vo
   const name    = item.booking.guest_name ?? item.booking.client?.name ?? '—'
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-l-4 border-l-amber-400 bg-white hover:bg-amber-50/20 transition-colors">
+    <Link href={`/bookings/${item.booking.id}`}
+      className="flex items-center gap-3 px-4 py-3 border-l-4 border-l-amber-400 bg-white hover:bg-amber-50/40 transition-colors">
       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0 whitespace-nowrap">
         Day {item.leg.day_number}{item.booking.total_days ? ` of ${item.booking.total_days}` : ''}
       </span>
@@ -95,12 +96,14 @@ function LegLinkCard({ item, onSend, sending }: { item: LegDue; onSend: () => vo
         <p className="text-xs font-mono text-gray-400 leading-none mb-0.5">{item.booking.booking_ref}</p>
         <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
         {company && <p className="text-xs text-gray-400 truncate">{company.name}</p>}
-        {driver && (
+        {driver ? (
           <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
             <Car className="w-3 h-3 shrink-0" />
-            <span className="truncate">{driver.name}</span>
-            {driver.vehicle_number && <span className="text-gray-400 shrink-0">{driver.vehicle_number}</span>}
+            <span className="truncate font-medium">{driver.name}</span>
+            {driver.vehicle_number && <span className="text-gray-400 shrink-0">· {driver.vehicle_number}</span>}
           </p>
+        ) : (
+          <p className="text-xs text-gray-400 mt-0.5 italic">No driver assigned</p>
         )}
       </div>
       {item.booking.pickup_time && (
@@ -108,11 +111,12 @@ function LegLinkCard({ item, onSend, sending }: { item: LegDue; onSend: () => vo
           <Clock className="w-3 h-3 inline mr-0.5" />{fmtTime(item.booking.pickup_time)}
         </div>
       )}
-      <Button size="sm" onClick={onSend} disabled={sending}
+      <Button size="sm" disabled={sending}
+        onClick={e => { e.preventDefault(); e.stopPropagation(); onSend() }}
         className="shrink-0 text-xs h-7 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white gap-1">
         {sending ? '…' : <><Send className="w-3 h-3" />Send</>}
       </Button>
-    </div>
+    </Link>
   )
 }
 
