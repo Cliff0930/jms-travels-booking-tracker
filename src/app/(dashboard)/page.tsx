@@ -28,6 +28,7 @@ interface LegDue {
     pickup_time: string | null; pickup_location: string | null; drop_location: string | null
     client: { id: string; name: string } | null
     company: { id: string; name: string } | null
+    driver: { id: string; name: string; phone: string; vehicle_name: string | null; vehicle_number: string | null } | null
   }
 }
 
@@ -82,7 +83,7 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
 
 // ── Leg link card ─────────────────────────────────────────────────────────────
 function LegLinkCard({ item, onSend, sending }: { item: LegDue; onSend: () => void; sending: boolean }) {
-  const driver  = item.leg.driver
+  const driver  = item.leg.driver ?? item.booking.driver
   const company = item.booking.company
   const name    = item.booking.guest_name ?? item.booking.client?.name ?? '—'
 
