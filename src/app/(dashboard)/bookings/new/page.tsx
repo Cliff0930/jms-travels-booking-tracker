@@ -31,6 +31,7 @@ interface FormState {
   trip_type: 'local' | 'outstation' | 'airport'
   service_type: 'one_way' | 'return'
   total_days: string
+  end_date: string
   pickup_location: string
   drop_location: string
   pickup_date: string
@@ -332,6 +333,7 @@ function NewBookingForm() {
     trip_type: 'local',
     service_type: 'one_way',
     total_days: '1',
+    end_date: '',
     pickup_location: '',
     drop_location: '',
     pickup_date: '',
@@ -352,6 +354,34 @@ function NewBookingForm() {
 
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm(f => ({ ...f, [key]: val }))
+  }
+
+  function handleTotalDaysChange(val: string) {
+    setForm(f => {
+      const days = parseInt(val)
+      const endDate = (days >= 1 && f.pickup_date)
+        ? (() => { const d = new Date(f.pickup_date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + days - 1); return d.toISOString().slice(0, 10) })()
+        : ''
+      return { ...f, total_days: val, end_date: endDate }
+    })
+  }
+
+  function handleEndDateChange(val: string) {
+    setForm(f => {
+      if (!val || !f.pickup_date) return { ...f, end_date: val }
+      const diff = Math.round((new Date(val + 'T00:00:00Z').getTime() - new Date(f.pickup_date + 'T00:00:00Z').getTime()) / 86400000) + 1
+      return { ...f, end_date: val, total_days: diff >= 1 ? String(diff) : f.total_days }
+    })
+  }
+
+  function handlePickupDateChange(val: string) {
+    setForm(f => {
+      const days = parseInt(f.total_days) || 1
+      const endDate = val
+        ? (() => { const d = new Date(val + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + days - 1); return d.toISOString().slice(0, 10) })()
+        : ''
+      return { ...f, pickup_date: val, end_date: endDate }
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -583,7 +613,7 @@ function NewBookingForm() {
                   </Label>
                   <Input
                     value={form.pickup_date}
-                    onChange={e => setField('pickup_date', e.target.value)}
+                    onChange={e => handlePickupDateChange(e.target.value)}
                     type="date"
                     className="border-[#C3C5D7] h-9"
                     required
@@ -603,13 +633,25 @@ function NewBookingForm() {
                 </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Total Days</Label>
-                  <Input
-                    value={form.total_days}
-                    onChange={e => setField('total_days', e.target.value)}
-                    type="number"
-                    min="1"
-                    className="border-[#C3C5D7] h-9"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={form.total_days}
+                      onChange={e => handleTotalDaysChange(e.target.value)}
+                      type="number"
+                      min="1"
+                      placeholder="Days"
+                      className="border-[#C3C5D7] h-9 w-16 shrink-0"
+                    />
+                    <span className="text-[10px] text-[#9CA3AF] shrink-0">or end</span>
+                    <Input
+                      value={form.end_date}
+                      onChange={e => handleEndDateChange(e.target.value)}
+                      type="date"
+                      min={form.pickup_date || undefined}
+                      disabled={!form.pickup_date}
+                      className="border-[#C3C5D7] h-9 flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 block">Service</Label>
