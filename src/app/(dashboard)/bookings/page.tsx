@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tokenMatch } from '@/lib/utils/search'
 import { useBookings, useConfirmBooking, useCancelBooking } from '@/hooks/useBookings'
@@ -51,12 +51,25 @@ export default function BookingsPage() {
   const [assignTarget, setAssignTarget] = useState<Booking | null>(null)
 
   // Filters
-  const [pickupDate, setPickupDate] = useState<string>('')   // 'today' | 'tomorrow' | 'YYYY-MM-DD' | ''
-  const [newTodayOnly, setNewTodayOnly] = useState(false)
-  const [companyFilter, setCompanyFilter] = useState<string>('')
+  const [activeTab,        setActiveTab]        = useState('all')
+  const [noDriverFilter,   setNoDriverFilter]   = useState(false)
+  const [flaggedFilter,    setFlaggedFilter]    = useState(false)
+  const [pickupDate,       setPickupDate]       = useState<string>('')   // 'today' | 'tomorrow' | 'YYYY-MM-DD' | ''
+  const [newTodayOnly,     setNewTodayOnly]     = useState(false)
+  const [companyFilter,    setCompanyFilter]    = useState<string>('')
   const [bookingTypeFilter, setBookingTypeFilter] = useState<'' | 'company' | 'personal'>('')
-  const [legsFilter, setLegsFilter] = useState<'' | 'today_legs' | 'tomorrow_legs'>('')
-  const [sortByDate, setSortByDate] = useState(false)
+  const [legsFilter,       setLegsFilter]       = useState<'' | 'today_legs' | 'tomorrow_legs'>('')
+  const [sortByDate,       setSortByDate]       = useState(false)
+
+  // Initialise from URL params after mount (deep-link support from dashboard)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const tab    = p.get('tab')
+    const filter = p.get('filter')
+    if (tab) setActiveTab(tab)
+    if (filter === 'no_driver') setNoDriverFilter(true)
+    if (filter === 'flagged')   setFlaggedFilter(true)
+  }, [])
 
   const today = localDate(0)
   const tomorrow = localDate(1)
@@ -76,7 +89,7 @@ export default function BookingsPage() {
     return [...new Set(names)].sort()
   }, [bookings])
 
-  const hasFilters = !!searchQuery || !!pickupDate || newTodayOnly || !!companyFilter || !!bookingTypeFilter || !!legsFilter
+  const hasFilters = !!searchQuery || !!pickupDate || newTodayOnly || !!companyFilter || !!bookingTypeFilter || !!legsFilter || noDriverFilter || flaggedFilter
 
   function clearFilters() {
     setSearchQuery('')
@@ -85,6 +98,8 @@ export default function BookingsPage() {
     setCompanyFilter('')
     setBookingTypeFilter('')
     setLegsFilter('')
+    setNoDriverFilter(false)
+    setFlaggedFilter(false)
   }
 
   function applyFilters(items: Booking[]) {
@@ -96,6 +111,8 @@ export default function BookingsPage() {
       const derivedCompany = b.company?.name || b.client?.company?.name
       if (companyFilter && derivedCompany !== companyFilter) return false
       if (bookingTypeFilter && b.booking_type !== bookingTypeFilter) return false
+      if (noDriverFilter && b.driver_id !== null) return false
+      if (flaggedFilter && (b.flags?.length ?? 0) === 0) return false
       if (searchQuery) {
         const match = tokenMatch(searchQuery,
           b.booking_ref, b.guest_name, b.guest_phone,
@@ -407,7 +424,24 @@ export default function BookingsPage() {
         </div>
       )}
 
-      <Tabs defaultValue="all">
+      {(noDriverFilter || flaggedFilter) && (
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
+          {noDriverFilter && (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
+              No driver assigned
+              <button onClick={() => setNoDriverFilter(false)} className="ml-0.5 hover:text-amber-600"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {flaggedFilter && (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">
+              Flagged only
+              <button onClick={() => setFlaggedFilter(false)} className="ml-0.5 hover:text-red-600"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4 bg-[#EDEDF8] flex-wrap h-auto gap-0.5">
           {TABS.map(t => {
             const count = (sortByDate ? sortByPickup(applyFilters(t.items)) : applyFilters(t.items)).length

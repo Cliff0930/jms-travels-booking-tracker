@@ -202,6 +202,41 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
   )
 }
 
+function timeToMins(t: string | null): number {
+  if (!t) return 0
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+// ── Driver alert card ─────────────────────────────────────────────────────────
+function DriverAlertRow({ booking, message, severity }: {
+  booking: Booking; message: string; severity: 'critical' | 'warning'
+}) {
+  const cfg = severity === 'critical'
+    ? { border: 'border-l-red-500',  bg: 'hover:bg-red-50/30',   dot: 'bg-red-500' }
+    : { border: 'border-l-amber-400', bg: 'hover:bg-amber-50/30', dot: 'bg-amber-400' }
+  const driver = booking.driver as { name: string; vehicle_number?: string | null } | null | undefined
+
+  return (
+    <Link href={`/bookings/${booking.id}`}
+      className={cn('flex items-center gap-3 px-4 py-3 border-l-4 bg-white transition-colors', cfg.border, cfg.bg)}>
+      <span className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', cfg.dot)} />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono text-gray-400 leading-none mb-0.5">{booking.booking_ref}</p>
+        <p className="text-sm font-semibold text-gray-900 truncate">{booking.guest_name ?? (booking as any).requested_by ?? '—'}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{message}</p>
+      </div>
+      {driver && (
+        <div className="text-xs text-right shrink-0 hidden sm:block">
+          <p className="font-medium text-gray-700">{driver.name}</p>
+          {driver.vehicle_number && <p className="text-gray-400">{driver.vehicle_number}</p>}
+        </div>
+      )}
+      <ArrowRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+    </Link>
+  )
+}
+
 // ── Action queue item ─────────────────────────────────────────────────────────
 function ActionRow({
   severity, icon: Icon, title, sub, actionLabel, onAction, actionLoading, href,
@@ -338,6 +373,42 @@ export default function DashboardPage() {
   const completedToday    = bookings.filter(b => b.status === 'completed' && b.pickup_date === today)
   const flagged           = bookings.filter(b => ((b.flags as string[] | undefined)?.length ?? 0) > 0 && !['completed','cancelled'].includes(b.status))
 
+  // Driver follow-up alerts (time-based, recalculated each render/refresh)
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes()
+
+  const pickupOverdue = bookings.filter(b =>
+    b.status === 'confirmed' &&
+    b.pickup_date === today &&
+    b.pickup_time !== null &&
+    timeToMins(b.pickup_time) + 30 < nowMins
+  )
+  const airportOverdue = bookings.filter(b =>
+    b.status === 'in_progress' &&
+    b.trip_type === 'airport' &&
+    b.pickup_date === today &&
+    b.pickup_time !== null &&
+    timeToMins(b.pickup_time) + 120 < nowMins
+  )
+  const localNotClosed = bookings.filter(b =>
+    b.status === 'in_progress' &&
+    b.trip_type === 'local' &&
+    b.pickup_date === today &&
+    nowMins >= 21 * 60
+  )
+  const outstationLastDay = bookings.filter(b => {
+    if (b.status !== 'in_progress' || b.trip_type !== 'outstation' || !b.pickup_date) return false
+    const last = new Date(b.pickup_date + 'T00:00:00')
+    last.setDate(last.getDate() + (b.total_days || 1) - 1)
+    return last.toLocaleDateString('en-CA') === today && nowMins >= 20 * 60
+  })
+
+  const driverAlerts: { booking: Booking; severity: 'critical' | 'warning'; message: string }[] = [
+    ...pickupOverdue.map(b => ({ booking: b, severity: 'critical' as const, message: `Pickup at ${fmtTime(b.pickup_time)} — driver hasn't started trip` })),
+    ...airportOverdue.map(b => ({ booking: b, severity: 'critical' as const, message: `Airport trip (${fmtTime(b.pickup_time)}) running over 2 hrs — follow up` })),
+    ...localNotClosed.map(b => ({ booking: b, severity: 'warning'  as const, message: `Local trip not closed — ask driver to submit duty details` })),
+    ...outstationLastDay.map(b => ({ booking: b, severity: 'warning' as const, message: `Outstation last day — trip not yet closed by driver` })),
+  ]
+
   const unsentTodayLegs    = todayLegsDue.filter(i => !i.leg.link_sent_at && !sentLegIds.has(i.leg.id))
   const unsentTomorrowLegs = tomorrowLegsDue.filter(i => !i.leg.link_sent_at && !sentLegIds.has(i.leg.id))
   const currentLegsDue     = legLinkTab === 'today' ? unsentTodayLegs : unsentTomorrowLegs
@@ -440,7 +511,7 @@ export default function DashboardPage() {
                 <ActionRow severity="info" icon={ClipboardCheck}
                   title={`${needConfirm.length} draft booking${needConfirm.length !== 1 ? 's' : ''} waiting to be confirmed`}
                   sub="Review and confirm to assign a driver"
-                  href="/bookings"
+                  href="/bookings?tab=draft"
                 />
               )}
 
@@ -449,7 +520,7 @@ export default function DashboardPage() {
                 <ActionRow severity="info" icon={UserCheck}
                   title={`${nonUrgentApproval.length} booking${nonUrgentApproval.length !== 1 ? 's' : ''} pending company approval`}
                   sub="Waiting for company sign-off — not yet urgent"
-                  href="/bookings"
+                  href="/bookings?tab=pending_approval"
                 />
               )}
 
@@ -458,7 +529,7 @@ export default function DashboardPage() {
                 <ActionRow severity="info" icon={Car}
                   title={`${nonUrgentNoDriver.length} upcoming confirmed booking${nonUrgentNoDriver.length !== 1 ? 's' : ''} without a driver`}
                   sub="Assign drivers before the pickup date"
-                  href="/bookings"
+                  href="/bookings?tab=confirmed&filter=no_driver"
                 />
               )}
 
@@ -467,7 +538,7 @@ export default function DashboardPage() {
                 <ActionRow severity="info" icon={AlertTriangle}
                   title={`${flagged.length} flagged booking${flagged.length !== 1 ? 's' : ''}`}
                   sub="Check for duplicates, missing fields, or other issues"
-                  href="/bookings"
+                  href="/bookings?filter=flagged"
                 />
               )}
 
@@ -483,6 +554,22 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* ── DRIVER ACTION REQUIRED ───────────────────────────────── */}
+          {driverAlerts.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+                <BellRing className="w-4 h-4 text-red-500" />
+                <h2 className="text-sm font-bold text-gray-800">Driver Action Required</h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">{driverAlerts.length}</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {driverAlerts.map(({ booking, severity, message }) => (
+                  <DriverAlertRow key={booking.id} booking={booking} severity={severity} message={message} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── DRIVER DAY LINKS ──────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
