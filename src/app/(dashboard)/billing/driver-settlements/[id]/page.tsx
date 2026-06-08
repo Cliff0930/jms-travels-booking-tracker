@@ -320,7 +320,7 @@ export default function DriverSettlementDetailPage({ params }: { params: Promise
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                 <tr>
-                  <td colSpan={7} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                  <td colSpan={8} className="px-3 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
                   <td className="px-3 py-2 font-bold text-blue-700">{fmt(s.hire_earnings)}</td>
                   <td className="px-3 py-2 font-bold">{fmt(s.bata_earnings)}</td>
                   <td className="px-3 py-2 font-bold">{fmt(s.reimbursements)}</td>
