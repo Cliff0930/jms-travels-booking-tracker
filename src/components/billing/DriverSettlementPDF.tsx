@@ -22,13 +22,14 @@ const JMS = {
 
 // ── Column widths ─────────────────────────────────────────────────────────────
 // Trip table: A4 portrait 555pt usable (20pt padding each side)
+// Comm + Drv Share columns removed; width redistributed to Company, Hire, Bata, Reimb, Total
 const TW = {
-  no: 16, date: 44, ref: 62, ts: 36, company: 70,
-  kms: 28, hrs: 26, hire: 50, comm: 44, share: 50,
-  bata: 34, reimb: 34, total: 61,
+  no: 16, date: 44, ref: 62, ts: 36, company: 100,
+  kms: 28, hrs: 26, hire: 70,
+  bata: 44, reimb: 48, total: 81,
 }
-// 16+44+62+36+70+28+26+50+44+50+34+34+61 = 555 ✓
-const TW_LABEL = TW.no + TW.date + TW.ref + TW.ts + TW.company  // 228, for TOTALS cell
+// 16+44+62+36+100+28+26+70+44+48+81 = 555 ✓
+const TW_LABEL = TW.no + TW.date + TW.ref + TW.ts + TW.company  // 258, for TOTALS cell
 
 // Bottom section: DW + GAP + SBW = 555
 const DW  = 310   // deductions table width
@@ -251,16 +252,13 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
           <Text style={th(TW.kms,     'right')}>{'KMs'}</Text>
           <Text style={th(TW.hrs,     'right')}>{'Hrs'}</Text>
           <Text style={th(TW.hire,    'right')}>{'Hire Chg'}</Text>
-          <Text style={th(TW.comm,    'right')}>{commPct > 0 ? `Comm\n${commPct}%` : 'Comm'}</Text>
-          <Text style={th(TW.share,   'right')}>{'Drv Share'}</Text>
           <Text style={th(TW.bata,    'right')}>{'Bata'}</Text>
-          <Text style={th(TW.reimb,   'right')}>{'Reimb'}</Text>
+          <Text style={th(TW.reimb,   'right')}>{'Toll/Park'}</Text>
           <Text style={th(TW.total,   'right', true)}>{'Total'}</Text>
         </View>
 
         {/* Trip data rows */}
         {data.trips.map((t, i) => {
-          const comm  = t.client_hire_charges - t.hire_earnings
           const reimb = t.toll_amount + t.parking_amount + t.permit_amount
           const bg    = i % 2 === 1 ? GR : WH
           return (
@@ -272,11 +270,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={td(TW.company,       'left',   bg, { sz: 6.5 })}>{t.company_name}</Text>
               <Text style={td(TW.kms,           'right',  bg)}>{t.actual_kms > 0 ? t.actual_kms.toFixed(1) : ''}</Text>
               <Text style={td(TW.hrs,           'right',  bg)}>{fmtHrs(t.actual_hrs, t.trip_type, t.total_days)}</Text>
-              <Text style={td(TW.hire,          'right',  bg)}>{t.client_hire_charges > 0 ? fmt2(t.client_hire_charges) : ''}</Text>
-              <Text style={{ ...td(TW.comm,     'right',  bg), color: comm > 0 ? NEG : BK }}>
-                {comm > 0 ? `-${fmt2(comm)}` : ''}
-              </Text>
-              <Text style={td(TW.share,         'right',  bg, { bold: true })}>{t.hire_earnings > 0 ? fmt2(t.hire_earnings) : ''}</Text>
+              <Text style={td(TW.hire,          'right',  bg, { bold: true })}>{t.hire_earnings > 0 ? fmt2(t.hire_earnings) : ''}</Text>
               <Text style={td(TW.bata,          'right',  bg)}>{t.bata_earnings > 0 ? fmt2(t.bata_earnings) : ''}</Text>
               <Text style={td(TW.reimb,         'right',  bg)}>{reimb > 0 ? fmt2(reimb) : ''}</Text>
               <Text style={td(TW.total,         'right',  bg, { bold: true, last: true })}>{t.trip_total > 0 ? fmt2(t.trip_total) : ''}</Text>
@@ -289,9 +283,7 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
           <Text style={td(TW_LABEL,  'right', GR2, { bold: true, sz: 7.5 })}>TOTALS</Text>
           <Text style={td(TW.kms,   'right', GR2, { bold: true })}>{totalKms > 0 ? totalKms.toFixed(1) : ''}</Text>
           <Text style={td(TW.hrs,   'right', GR2)}>{''}</Text>
-          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalHire)}</Text>
-          <Text style={{ ...td(TW.comm,  'right', GR2, { bold: true }), color: NEG }}>{totalComm > 0 ? `-${fmt2(totalComm)}` : ''}</Text>
-          <Text style={td(TW.share, 'right', GR2, { bold: true })}>{fmt2(totalShare)}</Text>
+          <Text style={td(TW.hire,  'right', GR2, { bold: true })}>{fmt2(totalShare)}</Text>
           <Text style={td(TW.bata,  'right', GR2, { bold: true })}>{fmt2(totalBata)}</Text>
           <Text style={td(TW.reimb, 'right', GR2, { bold: true })}>{fmt2(totalReimb)}</Text>
           <Text style={td(TW.total, 'right', GR2, { bold: true, last: true, sz: 7.5 })}>{fmt2(totalRow)}</Text>
@@ -356,17 +348,38 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
             </View>
 
             {/* Earnings rows */}
-            {([
-              { label: 'Hire Earnings',  value: data.hire_earnings },
-              { label: 'Bata Earnings',  value: data.bata_earnings },
-              { label: 'Reimbursements', value: data.reimbursements },
-              ...(data.salary_amount > 0 ? [{ label: 'Monthly Salary', value: data.salary_amount }] : []),
-            ] as { label: string; value: number }[]).map((r, i) => (
-              <View key={i} style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
-                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>{r.label}</Text>
-                <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(r.value)}</Text>
+            {/* Hire Earnings (gross) */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+              <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Hire Earnings</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(totalHire)}</Text>
+            </View>
+            {/* Commission deduction */}
+            {totalComm > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 15, alignItems: 'center', backgroundColor: '#fef2f2' }}>
+                <Text style={{ width: SB.label, fontSize: 7, fontFamily: REG, color: NEG, paddingHorizontal: 8, paddingLeft: 14, paddingVertical: 2.5, borderRightWidth: 0.5, borderRightColor: BORDER }}>
+                  {`- ${commPct}% Commission`}
+                </Text>
+                <Text style={{ width: SB.val, fontSize: 7, color: NEG, paddingHorizontal: 8, paddingVertical: 2.5, textAlign: 'right' }}>
+                  {`-${fmt2(totalComm)}`}
+                </Text>
               </View>
-            ))}
+            )}
+            {/* Bata Earnings */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+              <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Bata Earnings</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.bata_earnings)}</Text>
+            </View>
+            {/* Toll, Parking and Permit */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+              <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Toll, Parking and Permit</Text>
+              <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.reimbursements)}</Text>
+            </View>
+            {data.salary_amount > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Monthly Salary</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>{fmt2(data.salary_amount)}</Text>
+              </View>
+            )}
 
             {/* Gross Earnings */}
             <View style={{ flexDirection: 'row', backgroundColor: GR2, borderTopWidth: 1, borderTopColor: NAVY, borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 18, alignItems: 'center' }}>
