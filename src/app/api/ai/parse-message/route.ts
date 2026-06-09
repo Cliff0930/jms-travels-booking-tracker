@@ -493,10 +493,6 @@ export async function POST(request: Request) {
                 await supabase.from('bookings').update({ flags: [...mFlags, 'possible_duplicate'] }).eq('id', m.id)
               }
             }
-            const refs = matches.map(m => m.booking_ref).join(', ')
-            notifyOperator(
-              `⚠️ Possible duplicate booking!\n\nNew: ${booking.booking_ref} (via ${channel})\nClient: ${(client as Client)?.name ?? sender_email}\nDate: ${bk.extracted.pickup_date}${bk.extracted.pickup_time ? ` at ${bk.extracted.pickup_time}` : ''}\n\nSimilar existing: ${refs}\n\nReview and cancel if duplicate.`
-            ).catch(() => {})
           }
         } catch { /* non-critical */ }
       }

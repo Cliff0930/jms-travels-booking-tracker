@@ -939,10 +939,6 @@ async function createBookingFromResult(
             await supabase.from('bookings').update({ flags: [...mFlags, 'possible_duplicate'] }).eq('id', m.id)
           }
         }
-        const refs = matches.map(m => m.booking_ref).join(', ')
-        notifyOperator(
-          `⚠️ Possible duplicate booking!\n\nNew: ${booking.booking_ref} (via WhatsApp)\nClient: ${client.name}\nDate: ${ext.pickup_date}${ext.pickup_time ? ` at ${ext.pickup_time}` : ''}\n\nSimilar existing: ${refs}\n\nReview and cancel if duplicate.`
-        ).catch(() => {})
       }
     } catch { /* non-critical */ }
   }
