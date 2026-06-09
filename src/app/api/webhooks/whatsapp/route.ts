@@ -132,6 +132,26 @@ async function processWebhook(body: unknown) {
       }
       rawMsgId = rawMsg?.id
 
+      // Driver check — if the sender is a registered driver, send a generic reply and skip booking flow
+      const { data: driver } = await supabase
+        .from('drivers')
+        .select('id, name')
+        .or(`phone.eq.${senderPhone},secondary_phone.eq.${senderPhone}`)
+        .limit(1)
+        .maybeSingle()
+
+      if (driver) {
+        await supabase.from('raw_messages')
+          .update({ ai_classification: 'driver_message', processed: true, processed_at: new Date().toISOString() })
+          .eq('id', rawMsg.id)
+        await sendWhatsAppMessage({
+          to: senderPhone,
+          body: `Hi ${driver.name}, this is an automated system. For any queries or assistance, please call us at 9845572207.\n\n— JMS Travels`,
+          log: {},
+        })
+        continue
+      }
+
       // Run approval check and client lookup in parallel
       const [handled, { data: client }] = await Promise.all([
         handleApprovalReply(supabase, rawContent, senderPhone, null),
