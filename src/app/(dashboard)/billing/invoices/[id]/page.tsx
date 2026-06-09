@@ -8,10 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { ArrowLeft, Printer, Download, IndianRupee, Check, FileMinus } from 'lucide-react'
+import { ArrowLeft, Printer, Download, IndianRupee, Check, FileMinus, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
+import { SendDocumentDialog } from '@/components/billing/SendDocumentDialog'
 
 interface LineItem {
   id: string; booking_id: string; trip_sheet_id: string | null
@@ -47,7 +48,8 @@ interface InvoiceDetail {
   individual_gstin?: string | null
   individual_address?: string | null
   company_id?: string | null
-  company?: { name: string; gstin?: string; address?: string | null } | null
+  company?: { name: string; gstin?: string; address?: string | null; direct_booking_emails?: string[] | null } | null
+  individual?: { name: string; prefix?: string | null; designation?: string | null; primary_phone?: string | null; primary_email?: string | null } | null
   line_items: LineItem[]
   payments: Payment[]
 }
@@ -353,6 +355,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [showIssueCN, setShowIssueCN] = useState(false)
+  const [showSend, setShowSend] = useState(false)
   const [tripsheetPopup, setTripsheetPopup] = useState<{ lineItemId: string; bookingId: string; tripSheetId: string; bookingRef: string; tripType: string | null } | null>(null)
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', id],
@@ -477,6 +480,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => window.open(`/api/billing/invoices/${id}/pdf`, '_blank')} className="gap-1.5">
             <Printer className="w-3.5 h-3.5" />Download PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSend(true)} className="gap-1.5">
+            <Send className="w-3.5 h-3.5" />Send
           </Button>
           <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />Excel
@@ -728,6 +734,71 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {showPayment && <PaymentModal invoiceId={id} balanceDue={inv.balance_due} onClose={() => setShowPayment(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['invoice', id] }); qc.invalidateQueries({ queryKey: ['invoices'] }); setShowPayment(false) }} />}
+
+      {showSend && (() => {
+        const recipientName = inv.addressee_name ?? inv.company?.name ?? inv.individual?.name ?? 'Sir/Madam'
+        const companyLine = inv.company?.name ? `M/s ${inv.company.name}` : recipientName
+        const periodStr = `${fmtDate(inv.period_from)} to ${fmtDate(inv.period_to)}`
+        const amtStr = `₹${Number(inv.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        const dueDateStr = inv.due_date ? fmtDate(inv.due_date) : 'as per agreed terms'
+        const docNum = inv.invoice_number ?? 'DRAFT'
+        const defaultEmail =
+          inv.individual?.primary_email ??
+          (inv.company?.direct_booking_emails ?? [])[0] ??
+          ''
+        const defaultPhone = inv.individual?.primary_phone ?? ''
+        const subject = `Invoice ${docNum} — JMS Travels`
+        const emailBody = [
+          `Dear ${recipientName},`,
+          '',
+          `Please find attached Invoice ${docNum} for the period ${periodStr}.`,
+          '',
+          `Invoice Details:`,
+          `  Invoice No : ${docNum}`,
+          `  Client     : ${companyLine}`,
+          `  Amount     : ${amtStr}`,
+          `  Due Date   : ${dueDateStr}`,
+          '',
+          `Kindly acknowledge receipt and arrange payment by the due date.`,
+          '',
+          `For any queries, please reach us at:`,
+          `  Phone : 9845572207`,
+          `  Email : bookings@jmstravels.net`,
+          '',
+          `Thank you for your continued business.`,
+          '',
+          `Warm regards,`,
+          `JMS Travels`,
+          `GSTIN: 29AICPP7457N1ZF`,
+        ].join('\n')
+        const waMessage = [
+          `Dear ${recipientName},`,
+          '',
+          `Please find attached Invoice *${docNum}* for the period ${periodStr}.`,
+          '',
+          `💰 *Amount:* ${amtStr}`,
+          `📅 *Due Date:* ${dueDateStr}`,
+          '',
+          `Kindly acknowledge receipt and arrange payment at your earliest convenience.`,
+          `For queries, call us at 📞 9845572207.`,
+          '',
+          `Thank you,`,
+          `*JMS Travels*`,
+        ].join('\n')
+        return (
+          <SendDocumentDialog
+            open
+            onClose={() => setShowSend(false)}
+            pdfUrl={`/api/billing/invoices/${id}/pdf`}
+            docNumber={docNum}
+            defaultEmail={defaultEmail}
+            defaultPhone={defaultPhone}
+            defaultSubject={subject}
+            defaultEmailBody={emailBody}
+            defaultWaMessage={waMessage}
+          />
+        )
+      })()}
 
       {showCancel && (
         <Dialog open onOpenChange={o => { if (!o) setShowCancel(false) }}>

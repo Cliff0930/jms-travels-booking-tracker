@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const [{ data: bill, error }, { data: lineItems }] = await Promise.all([
     supabase.from('cash_bills')
-      .select('*, client:clients!client_id(name, prefix, designation, primary_phone)')
+      .select('*, client:clients!client_id(name, prefix, designation, primary_phone, primary_email)')
       .eq('id', id).single(),
     supabase.from('cash_bill_line_items').select('*').eq('cash_bill_id', id).order('sort_order', { ascending: true }),
   ])

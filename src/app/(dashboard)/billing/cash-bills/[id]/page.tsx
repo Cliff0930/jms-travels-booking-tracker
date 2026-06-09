@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { ArrowLeft, Printer, Check, IndianRupee } from 'lucide-react'
+import { ArrowLeft, Printer, Check, IndianRupee, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SendDocumentDialog } from '@/components/billing/SendDocumentDialog'
 
 interface LineItem {
   id: string; booking_id: string; trip_sheet_id: string | null
@@ -24,7 +25,7 @@ interface CashBillDetail {
   id: string; bill_number: string | null; client_id: string | null; client_name: string
   period_from: string; period_to: string; subtotal: number; total: number
   payment_mode: string; status: string; notes: string | null; created_at: string
-  client?: { name: string; prefix: string | null; designation: string | null; primary_phone: string | null } | null
+  client?: { name: string; prefix: string | null; designation: string | null; primary_phone: string | null; primary_email: string | null } | null
   line_items: LineItem[]
 }
 
@@ -47,6 +48,7 @@ export default function CashBillDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter()
   const qc = useQueryClient()
   const [acting, setActing] = useState(false)
+  const [showSend, setShowSend] = useState(false)
 
   const { data: bill, isLoading } = useQuery<CashBillDetail>({
     queryKey: ['cash-bill', id],
@@ -91,6 +93,9 @@ export default function CashBillDetailPage({ params }: { params: Promise<{ id: s
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => window.open(`/api/billing/cash-bills/${id}/pdf`, '_blank')} className="gap-1.5">
             <Printer className="w-3.5 h-3.5" />Download PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSend(true)} className="gap-1.5">
+            <Send className="w-3.5 h-3.5" />Send
           </Button>
           {bill.status === 'draft' && (
             <Button size="sm" onClick={() => updateStatus('issued')} disabled={acting} className="gap-1.5 bg-blue-700 hover:bg-blue-800">
@@ -178,6 +183,60 @@ export default function CashBillDetailPage({ params }: { params: Promise<{ id: s
           <strong>Notes:</strong> {bill.notes}
         </div>
       )}
+
+      {showSend && (() => {
+        const clientName = bill.client?.name ?? bill.client_name ?? 'Sir/Madam'
+        const periodStr = `${fmtDate(bill.period_from)} to ${fmtDate(bill.period_to)}`
+        const amtStr = `₹${Number(bill.total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        const docNum = bill.bill_number ?? 'DRAFT'
+        const subject = `Cash Bill ${docNum} — JMS Travels`
+        const emailBody = [
+          `Dear ${clientName},`,
+          '',
+          `Please find attached Cash Bill ${docNum} for the period ${periodStr}.`,
+          '',
+          `Bill Details:`,
+          `  Bill No  : ${docNum}`,
+          `  Client   : ${clientName}`,
+          `  Amount   : ${amtStr}`,
+          '',
+          `Kindly acknowledge receipt.`,
+          '',
+          `For any queries, please reach us at:`,
+          `  Phone : 9845572207`,
+          `  Email : bookings@jmstravels.net`,
+          '',
+          `Thank you for your business.`,
+          '',
+          `Warm regards,`,
+          `JMS Travels`,
+        ].join('\n')
+        const waMessage = [
+          `Dear ${clientName},`,
+          '',
+          `Please find attached Cash Bill *${docNum}* for the period ${periodStr}.`,
+          '',
+          `💰 *Amount:* ${amtStr}`,
+          '',
+          `Kindly acknowledge receipt. For queries, call us at 📞 9845572207.`,
+          '',
+          `Thank you,`,
+          `*JMS Travels*`,
+        ].join('\n')
+        return (
+          <SendDocumentDialog
+            open
+            onClose={() => setShowSend(false)}
+            pdfUrl={`/api/billing/cash-bills/${id}/pdf`}
+            docNumber={docNum}
+            defaultEmail={bill.client?.primary_email ?? ''}
+            defaultPhone={bill.client?.primary_phone ?? ''}
+            defaultSubject={subject}
+            defaultEmailBody={emailBody}
+            defaultWaMessage={waMessage}
+          />
+        )
+      })()}
     </div>
   )
 }
