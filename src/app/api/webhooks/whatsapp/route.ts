@@ -908,6 +908,45 @@ async function createBookingFromResult(
     }
   }
 
+  // Possible-duplicate detection — mirrors /api/bookings logic so dashboard warning shows
+  // even when booking is created directly (not via the API route)
+  if (ext.pickup_date) {
+    try {
+      const { data: sameDay } = await supabase
+        .from('bookings')
+        .select('id, flags, booking_ref, guest_name, pickup_location')
+        .eq('client_id', client.id)
+        .eq('pickup_date', ext.pickup_date)
+        .not('status', 'in', '("cancelled","completed")')
+        .neq('id', booking.id)
+
+      const guestFirst = ext.guest_name?.toLowerCase().split(' ')[0] ?? ''
+      const locFirst   = ext.pickup_location?.toLowerCase().split(' ').slice(0, 3).join(' ') ?? ''
+
+      const matches = (sameDay ?? []).filter(s => {
+        if (guestFirst && s.guest_name?.toLowerCase().includes(guestFirst)) return true
+        if (locFirst   && s.pickup_location?.toLowerCase().includes(locFirst)) return true
+        return false
+      })
+
+      if (matches.length > 0) {
+        await supabase.from('bookings')
+          .update({ flags: [...(booking.flags as string[] || []), 'possible_duplicate'] })
+          .eq('id', booking.id)
+        for (const m of matches) {
+          const mFlags = (m.flags as string[] | null) ?? []
+          if (!mFlags.includes('possible_duplicate')) {
+            await supabase.from('bookings').update({ flags: [...mFlags, 'possible_duplicate'] }).eq('id', m.id)
+          }
+        }
+        const refs = matches.map(m => m.booking_ref).join(', ')
+        notifyOperator(
+          `⚠️ Possible duplicate booking!\n\nNew: ${booking.booking_ref} (via WhatsApp)\nClient: ${client.name}\nDate: ${ext.pickup_date}${ext.pickup_time ? ` at ${ext.pickup_time}` : ''}\n\nSimilar existing: ${refs}\n\nReview and cancel if duplicate.`
+        ).catch(() => {})
+      }
+    } catch { /* non-critical */ }
+  }
+
   return booking
 }
 

@@ -462,6 +462,44 @@ export async function POST(request: Request) {
           }
         } catch { /* non-critical */ }
       }
+
+      // Possible-duplicate detection — mirrors /api/bookings logic so dashboard warning shows
+      if (bk.extracted.pickup_date && (client as Client)?.id) {
+        try {
+          const { data: sameDay } = await supabase
+            .from('bookings')
+            .select('id, flags, booking_ref, guest_name, pickup_location')
+            .eq('client_id', (client as Client).id)
+            .eq('pickup_date', bk.extracted.pickup_date)
+            .not('status', 'in', '("cancelled","completed")')
+            .neq('id', booking.id)
+
+          const guestFirst = bk.extracted.guest_name?.toLowerCase().split(' ')[0] ?? ''
+          const locFirst   = bk.extracted.pickup_location?.toLowerCase().split(' ').slice(0, 3).join(' ') ?? ''
+
+          const matches = (sameDay ?? []).filter(s => {
+            if (guestFirst && s.guest_name?.toLowerCase().includes(guestFirst)) return true
+            if (locFirst   && s.pickup_location?.toLowerCase().includes(locFirst)) return true
+            return false
+          })
+
+          if (matches.length > 0) {
+            await supabase.from('bookings')
+              .update({ flags: [...(flags as string[] || []), 'possible_duplicate'] })
+              .eq('id', booking.id)
+            for (const m of matches) {
+              const mFlags = (m.flags as string[] | null) ?? []
+              if (!mFlags.includes('possible_duplicate')) {
+                await supabase.from('bookings').update({ flags: [...mFlags, 'possible_duplicate'] }).eq('id', m.id)
+              }
+            }
+            const refs = matches.map(m => m.booking_ref).join(', ')
+            notifyOperator(
+              `⚠️ Possible duplicate booking!\n\nNew: ${booking.booking_ref} (via ${channel})\nClient: ${(client as Client)?.name ?? sender_email}\nDate: ${bk.extracted.pickup_date}${bk.extracted.pickup_time ? ` at ${bk.extracted.pickup_time}` : ''}\n\nSimilar existing: ${refs}\n\nReview and cancel if duplicate.`
+            ).catch(() => {})
+          }
+        } catch { /* non-critical */ }
+      }
     }
 
     if (createdBookings.length === 0) {
