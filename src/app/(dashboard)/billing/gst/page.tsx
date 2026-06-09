@@ -23,11 +23,15 @@ export default function GSTWorkingPage() {
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ['invoices-gst', month],
-    queryFn: () => fetch(`/api/billing/invoices?period_month=${month}`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/billing/invoices?period_month=${month}`)
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
   })
 
   const filtered = useMemo(() => {
-    return invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && (i.period_from.startsWith(month) || i.period_to.startsWith(month)))
+    return invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && ((i.period_from ?? '').startsWith(month) || (i.period_to ?? '').startsWith(month)))
   }, [invoices, month])
 
   const totals = useMemo(() => filtered.reduce((acc, i) => ({
