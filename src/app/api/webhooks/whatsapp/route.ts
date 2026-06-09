@@ -511,6 +511,9 @@ async function processClientMessage(
     result = await converseBooking(updatedMessages, client, savedLocations)
   } catch (err) {
     console.error('[whatsapp] converseBooking error:', String(err))
+    await notifyOperator(
+      `🔴 Gemini error — booking NOT created!\n\nFrom: ${client.name} (${senderPhone})\nMessage: ${rawContent.slice(0, 200)}\nError: ${String(err).slice(0, 300)}\n\nCreate this booking manually.`
+    ).catch(() => {})
     await sendWhatsAppMessage({
       to: senderPhone,
       body: 'We had a technical issue processing your message. Please try again in a moment, or call us at 9845572207.',
