@@ -12,7 +12,9 @@ export async function GET(request: Request) {
     .order('date', { ascending: false })
 
   if (month) {
-    q = q.gte('date', `${month}-01`).lte('date', `${month}-31`)
+    const [y, m] = month.split('-').map(Number)
+    const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    q = q.gte('date', `${month}-01`).lt('date', nextMonth)
   }
 
   const { data, error } = await q
