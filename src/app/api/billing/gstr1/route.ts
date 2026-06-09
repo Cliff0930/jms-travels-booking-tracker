@@ -7,12 +7,14 @@ export async function GET(request: Request) {
   if (!month) return NextResponse.json({ error: 'month required' }, { status: 400 })
 
   const supabase = createAdminClient()
+  const [y, m] = month.split('-').map(Number)
+  const nextMonthStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 
   const { data: invoices, error: invErr } = await supabase
     .from('invoices')
     .select('id, invoice_number, period_from, period_to, created_at, grand_total, subtotal, cgst_amount, sgst_amount, igst_amount, tds_amount, status, reverse_charge, company_id, individual_gstin, addressee_name, addressee_prefix, company:companies!company_id(name, gstin, address)')
     .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
-    .lte('period_from', `${month}-31`)
+    .lte('period_from', nextMonthStart)
     .gte('period_to', `${month}-01`)
     .order('created_at', { ascending: true })
 
@@ -22,7 +24,8 @@ export async function GET(request: Request) {
     .from('credit_notes')
     .select('id, cn_number, created_at, total_amount, subtotal, cgst_amount, sgst_amount, igst_amount, status, company_id, company:companies!company_id(name, gstin), invoice:invoices!invoice_id(invoice_number)')
     .in('status', ['issued'])
-    .like('created_at', `${month}%`)
+    .gte('created_at', `${month}-01`)
+    .lt('created_at', nextMonthStart)
 
   if (cnErr) return NextResponse.json({ error: cnErr.message }, { status: 500 })
 
