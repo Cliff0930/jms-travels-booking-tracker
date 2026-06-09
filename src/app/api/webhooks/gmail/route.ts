@@ -244,6 +244,22 @@ export async function POST(request: Request) {
         rawMsg = existingMsg as typeof rawMsg
       }
 
+      // Atomic processing claim — prevents duplicate Gemini calls when pub/sub delivers
+      // the same notification to two serverless instances simultaneously.
+      // PostgreSQL guarantees only one concurrent UPDATE WHERE ai_classification IS NULL
+      // succeeds; the losing instance sees 0 rows and skips.
+      const { data: claimResult } = await supabase
+        .from('raw_messages')
+        .update({ ai_classification: 'processing' })
+        .eq('id', rawMsg.id)
+        .is('ai_classification', null)
+        .select('id')
+
+      if (!claimResult || claimResult.length === 0) {
+        console.log('[gmail-webhook] skipping — message already claimed for processing:', messageId)
+        continue
+      }
+
       const { data: client } = await supabase
         .from('clients')
         .select('*, company:companies!company_id(*), locations:client_locations(*)')
