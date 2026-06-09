@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +13,8 @@ interface Props {
   onClose: () => void
   pdfUrl: string
   docNumber: string
+  docType: 'invoice' | 'cash_bill'
+  vars: Record<string, string>
   defaultEmail: string
   defaultPhone: string
   defaultSubject: string
@@ -26,8 +29,12 @@ function normalizePhone(p: string): string {
   return digits
 }
 
+function applyVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+}
+
 export function SendDocumentDialog({
-  open, onClose, pdfUrl, docNumber,
+  open, onClose, pdfUrl, docNumber, docType, vars,
   defaultEmail, defaultPhone, defaultSubject, defaultEmailBody, defaultWaMessage,
 }: Props) {
   const [tab, setTab] = useState<'email' | 'whatsapp'>('email')
@@ -37,6 +44,26 @@ export function SendDocumentDialog({
   const [emailBody, setEmailBody] = useState(defaultEmailBody)
   const [phone, setPhone] = useState(defaultPhone)
   const [waMessage, setWaMessage] = useState(defaultWaMessage)
+  const [templateApplied, setTemplateApplied] = useState(false)
+
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ['app-settings'],
+    queryFn: () => fetch('/api/settings').then(r => r.json()),
+    staleTime: 60_000,
+  })
+
+  // Apply saved templates (with variable substitution) once settings load
+  useEffect(() => {
+    if (!settings || templateApplied) return
+    const prefix = docType === 'invoice' ? 'send_invoice' : 'send_cashbill'
+    const savedSubject = settings[`${prefix}_email_subject`]
+    const savedEmailBody = settings[`${prefix}_email_body`]
+    const savedWaMessage = settings[`${prefix}_wa_message`]
+    if (savedSubject) setSubject(applyVars(savedSubject, vars))
+    if (savedEmailBody) setEmailBody(applyVars(savedEmailBody, vars))
+    if (savedWaMessage) setWaMessage(applyVars(savedWaMessage, vars))
+    setTemplateApplied(true)
+  }, [settings, templateApplied, docType, vars])
 
   function openGmailCompose() {
     const params = new URLSearchParams()
@@ -102,11 +129,7 @@ export function SendDocumentDialog({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">Subject</Label>
-              <Input
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-                className="text-sm"
-              />
+              <Input value={subject} onChange={e => setSubject(e.target.value)} className="text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">Message Body (editable)</Label>
@@ -118,20 +141,13 @@ export function SendDocumentDialog({
               />
             </div>
             <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700 leading-relaxed">
-              <strong>How to send:</strong> (1) Click <em>Download PDF</em> to save the invoice to your device. (2) Click <em>Open Gmail</em> — the message opens pre-filled. (3) Attach the PDF and hit Send from whichever Gmail account is active in your browser.
+              <strong>How to send:</strong> (1) Click <em>Download PDF</em> to save the document to your device. (2) Click <em>Open Gmail</em> — the message opens pre-filled. (3) Attach the PDF and hit Send from whichever Gmail account is active in your browser.
             </div>
             <div className="flex gap-2 pt-0.5">
-              <Button
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => window.open(pdfUrl, '_blank')}
-              >
+              <Button variant="outline" className="gap-1.5" onClick={() => window.open(pdfUrl, '_blank')}>
                 <Download className="w-4 h-4" /> Download PDF
               </Button>
-              <Button
-                className="gap-1.5 bg-[#1A56DB] hover:bg-[#1A56DB]/90 text-white"
-                onClick={openGmailCompose}
-              >
+              <Button className="gap-1.5 bg-[#1A56DB] hover:bg-[#1A56DB]/90 text-white" onClick={openGmailCompose}>
                 <ExternalLink className="w-4 h-4" /> Open Gmail Compose
               </Button>
             </div>
@@ -148,7 +164,7 @@ export function SendDocumentDialog({
                 placeholder="9845572207 or 919845572207"
                 className="text-sm font-mono"
               />
-              <p className="text-xs text-gray-400">10-digit Indian numbers get 91 prefix automatically. Include country code for others.</p>
+              <p className="text-xs text-gray-400">10-digit Indian numbers get 91 prefix automatically.</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">Message (editable)</Label>
@@ -160,14 +176,10 @@ export function SendDocumentDialog({
               />
             </div>
             <div className="rounded-lg bg-green-50 border border-green-100 px-3 py-2.5 text-xs text-green-700 leading-relaxed">
-              <strong>How to send:</strong> (1) Click <em>Download PDF</em> to save the invoice to your device. (2) Click <em>Open WhatsApp Web</em> — the message opens pre-filled in the chat. (3) Use the 📎 attachment icon in WhatsApp to attach the PDF, then send.
+              <strong>How to send:</strong> (1) Click <em>Download PDF</em> to save the document. (2) Click <em>Open WhatsApp Web</em> — the message opens pre-filled. (3) Use the 📎 attachment icon in WhatsApp to attach the PDF, then send.
             </div>
             <div className="flex gap-2 pt-0.5">
-              <Button
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => window.open(pdfUrl, '_blank')}
-              >
+              <Button variant="outline" className="gap-1.5" onClick={() => window.open(pdfUrl, '_blank')}>
                 <Download className="w-4 h-4" /> Download PDF
               </Button>
               <Button

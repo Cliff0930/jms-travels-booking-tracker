@@ -229,6 +229,8 @@ export default function CashBillDetailPage({ params }: { params: Promise<{ id: s
             onClose={() => setShowSend(false)}
             pdfUrl={`/api/billing/cash-bills/${id}/pdf`}
             docNumber={docNum}
+            docType="cash_bill"
+            vars={{ docNumber: docNum, clientName, period: periodStr, amount: amtStr, dueDate: '' }}
             defaultEmail={bill.client?.primary_email ?? ''}
             defaultPhone={bill.client?.primary_phone ?? ''}
             defaultSubject={subject}

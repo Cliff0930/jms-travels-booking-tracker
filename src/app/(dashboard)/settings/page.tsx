@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Send, Building2, Route, ShieldAlert, Car, Plus, X } from 'lucide-react'
+import { Send, Building2, Route, ShieldAlert, Car, Plus, X, Mail, MessageCircle } from 'lucide-react'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
 import type { MessageTemplate } from '@/types'
@@ -147,6 +147,7 @@ export default function SettingsPage() {
           <TabsTrigger value="templates" className="data-[state=active]:bg-white">Message Templates</TabsTrigger>
           <TabsTrigger value="vehicle-names" className="data-[state=active]:bg-white">Vehicle Names</TabsTrigger>
           <TabsTrigger value="billing" className="data-[state=active]:bg-white">Billing</TabsTrigger>
+          <TabsTrigger value="send-templates" className="data-[state=active]:bg-white">Send Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -335,6 +336,10 @@ export default function SettingsPage() {
         <TabsContent value="vehicle-names">
           <VehicleNamesTab />
         </TabsContent>
+
+        <TabsContent value="send-templates">
+          <SendTemplatesTab />
+        </TabsContent>
       </Tabs>
     </div>
   )
@@ -514,6 +519,233 @@ function VehicleNamesTab() {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+const INVOICE_VARS = [
+  { key: '{{docNumber}}', desc: 'Invoice number' },
+  { key: '{{clientName}}', desc: 'Company / client name' },
+  { key: '{{period}}', desc: 'Billing period' },
+  { key: '{{amount}}', desc: 'Invoice amount (₹)' },
+  { key: '{{dueDate}}', desc: 'Payment due date' },
+]
+
+const CASHBILL_VARS = [
+  { key: '{{docNumber}}', desc: 'Bill number' },
+  { key: '{{clientName}}', desc: 'Client name' },
+  { key: '{{period}}', desc: 'Billing period' },
+  { key: '{{amount}}', desc: 'Bill amount (₹)' },
+]
+
+function VarsHelp({ vars, onInsert }: { vars: { key: string; desc: string }[]; onInsert: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-[#737686]">Available variables — click to insert at cursor:</p>
+      <div className="flex flex-wrap gap-1.5">
+        {vars.map(v => (
+          <button
+            key={v.key}
+            type="button"
+            onClick={() => onInsert(v.key)}
+            title={v.desc}
+            className="font-mono text-xs bg-[#EEF2FF] text-[#1A56DB] border border-[#C3C5D7] rounded px-2 py-0.5 hover:bg-[#D4DCFF] transition-colors"
+          >
+            {v.key}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SendTemplatesTab() {
+  const isAdmin = useIsAdmin()
+  const qc = useQueryClient()
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const [invEmailSubject, setInvEmailSubject] = useState('')
+  const [invEmailBody, setInvEmailBody] = useState('')
+  const [invWaMessage, setInvWaMessage] = useState('')
+  const [cbEmailSubject, setCbEmailSubject] = useState('')
+  const [cbEmailBody, setCbEmailBody] = useState('')
+  const [cbWaMessage, setCbWaMessage] = useState('')
+  const [loaded, setLoaded] = useState(false)
+
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ['app-settings'],
+    queryFn: () => fetch('/api/settings').then(r => r.json()),
+  })
+
+  useEffect(() => {
+    if (!settings || loaded) return
+    setInvEmailSubject(settings.send_invoice_email_subject ?? '')
+    setInvEmailBody(settings.send_invoice_email_body ?? '')
+    setInvWaMessage(settings.send_invoice_wa_message ?? '')
+    setCbEmailSubject(settings.send_cashbill_email_subject ?? '')
+    setCbEmailBody(settings.send_cashbill_email_body ?? '')
+    setCbWaMessage(settings.send_cashbill_wa_message ?? '')
+    setLoaded(true)
+  }, [settings, loaded])
+
+  async function save(keys: Record<string, string>, label: string) {
+    setSaving(label)
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keys),
+      })
+      qc.invalidateQueries({ queryKey: ['app-settings'] })
+      toast.success('Template saved')
+    } catch {
+      toast.error('Failed to save template')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const sectionCls = 'bg-white rounded-xl border border-[#C3C5D7] p-5 space-y-5'
+  const subCls = 'border border-[#C3C5D7] rounded-lg p-4 space-y-3'
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-[#737686]">
+        Customise the default email and WhatsApp messages used when sending invoices and cash bills.
+        Leave fields blank to use the system default. Use <code className="bg-[#F3F3FE] px-1 rounded text-xs">{'{{variable}}'}</code> placeholders — they are replaced with the actual invoice data when the dialog opens.
+      </p>
+
+      {/* Invoice templates */}
+      <div className={sectionCls}>
+        <h3 className="font-semibold text-[#191B23]">Invoice (GST) Templates</h3>
+
+        {/* Email */}
+        <div className={subCls}>
+          <div className="flex items-center gap-2 text-sm font-medium text-[#191B23]">
+            <Mail className="w-4 h-4 text-[#1A56DB]" /> Email Template
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Subject</Label>
+            <Input
+              value={invEmailSubject}
+              onChange={e => setInvEmailSubject(e.target.value)}
+              placeholder="Invoice {{docNumber}} — JMS Travels"
+              className="border-[#C3C5D7]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Body</Label>
+            <Textarea
+              value={invEmailBody}
+              onChange={e => setInvEmailBody(e.target.value)}
+              rows={9}
+              placeholder={'Dear {{clientName}},\n\nPlease find attached Invoice {{docNumber}} for the period {{period}}.\n\nAmount: {{amount}}\nDue Date: {{dueDate}}\n\nThank you,\nJMS Travels'}
+              className="border-[#C3C5D7] font-mono text-xs"
+            />
+          </div>
+          <VarsHelp vars={INVOICE_VARS} onInsert={v => setInvEmailBody(b => b + v)} />
+          <Button
+            size="sm"
+            disabled={!isAdmin || saving === 'inv-email'}
+            className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
+            onClick={() => save({ send_invoice_email_subject: invEmailSubject, send_invoice_email_body: invEmailBody }, 'inv-email')}
+          >
+            {saving === 'inv-email' ? 'Saving…' : 'Save Email Template'}
+          </Button>
+        </div>
+
+        {/* WhatsApp */}
+        <div className={subCls}>
+          <div className="flex items-center gap-2 text-sm font-medium text-[#191B23]">
+            <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp Template
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Message</Label>
+            <Textarea
+              value={invWaMessage}
+              onChange={e => setInvWaMessage(e.target.value)}
+              rows={8}
+              placeholder={'Dear {{clientName}},\n\nInvoice *{{docNumber}}* for {{period}}.\n💰 Amount: {{amount}}\n📅 Due: {{dueDate}}\n\nJMS Travels 📞 9845572207'}
+              className="border-[#C3C5D7] font-mono text-xs"
+            />
+          </div>
+          <VarsHelp vars={INVOICE_VARS} onInsert={v => setInvWaMessage(m => m + v)} />
+          <Button
+            size="sm"
+            disabled={!isAdmin || saving === 'inv-wa'}
+            className="bg-green-600 hover:bg-green-700 rounded-sm"
+            onClick={() => save({ send_invoice_wa_message: invWaMessage }, 'inv-wa')}
+          >
+            {saving === 'inv-wa' ? 'Saving…' : 'Save WhatsApp Template'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Cash Bill templates */}
+      <div className={sectionCls}>
+        <h3 className="font-semibold text-[#191B23]">Cash Bill Templates</h3>
+
+        {/* Email */}
+        <div className={subCls}>
+          <div className="flex items-center gap-2 text-sm font-medium text-[#191B23]">
+            <Mail className="w-4 h-4 text-[#1A56DB]" /> Email Template
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Subject</Label>
+            <Input
+              value={cbEmailSubject}
+              onChange={e => setCbEmailSubject(e.target.value)}
+              placeholder="Cash Bill {{docNumber}} — JMS Travels"
+              className="border-[#C3C5D7]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Body</Label>
+            <Textarea
+              value={cbEmailBody}
+              onChange={e => setCbEmailBody(e.target.value)}
+              rows={9}
+              placeholder={'Dear {{clientName}},\n\nPlease find attached Cash Bill {{docNumber}} for the period {{period}}.\n\nAmount: {{amount}}\n\nThank you,\nJMS Travels'}
+              className="border-[#C3C5D7] font-mono text-xs"
+            />
+          </div>
+          <VarsHelp vars={CASHBILL_VARS} onInsert={v => setCbEmailBody(b => b + v)} />
+          <Button
+            size="sm"
+            disabled={!isAdmin || saving === 'cb-email'}
+            className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
+            onClick={() => save({ send_cashbill_email_subject: cbEmailSubject, send_cashbill_email_body: cbEmailBody }, 'cb-email')}
+          >
+            {saving === 'cb-email' ? 'Saving…' : 'Save Email Template'}
+          </Button>
+        </div>
+
+        {/* WhatsApp */}
+        <div className={subCls}>
+          <div className="flex items-center gap-2 text-sm font-medium text-[#191B23]">
+            <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp Template
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#737686]">Message</Label>
+            <Textarea
+              value={cbWaMessage}
+              onChange={e => setCbWaMessage(e.target.value)}
+              rows={8}
+              placeholder={'Dear {{clientName}},\n\nCash Bill *{{docNumber}}* for {{period}}.\n💰 Amount: {{amount}}\n\nJMS Travels 📞 9845572207'}
+              className="border-[#C3C5D7] font-mono text-xs"
+            />
+          </div>
+          <VarsHelp vars={CASHBILL_VARS} onInsert={v => setCbWaMessage(m => m + v)} />
+          <Button
+            size="sm"
+            disabled={!isAdmin || saving === 'cb-wa'}
+            className="bg-green-600 hover:bg-green-700 rounded-sm"
+            onClick={() => save({ send_cashbill_wa_message: cbWaMessage }, 'cb-wa')}
+          >
+            {saving === 'cb-wa' ? 'Saving…' : 'Save WhatsApp Template'}
+          </Button>
+        </div>
       </div>
     </div>
   )

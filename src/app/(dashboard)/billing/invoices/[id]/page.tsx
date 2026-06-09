@@ -791,6 +791,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             onClose={() => setShowSend(false)}
             pdfUrl={`/api/billing/invoices/${id}/pdf`}
             docNumber={docNum}
+            docType="invoice"
+            vars={{ docNumber: docNum, clientName: companyLine, period: periodStr, amount: amtStr, dueDate: dueDateStr }}
             defaultEmail={defaultEmail}
             defaultPhone={defaultPhone}
             defaultSubject={subject}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-const ALLOWED_KEYS = ['office_location', 'distance_calculation_enabled', 'email_signature', 'ai_processing_enabled', 'bata_morning_cutoff', 'bata_evening_cutoff', 'company_gstin', 'company_pan', 'advance_interest_rate_pct']
+const ALLOWED_KEYS = ['office_location', 'distance_calculation_enabled', 'email_signature', 'ai_processing_enabled', 'bata_morning_cutoff', 'bata_evening_cutoff', 'company_gstin', 'company_pan', 'advance_interest_rate_pct', 'send_invoice_email_subject', 'send_invoice_email_body', 'send_invoice_wa_message', 'send_cashbill_email_subject', 'send_cashbill_email_body', 'send_cashbill_wa_message']
 
 export async function GET() {
   const supabase = createAdminClient()
