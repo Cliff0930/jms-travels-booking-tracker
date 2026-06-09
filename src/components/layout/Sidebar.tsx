@@ -6,6 +6,7 @@ import {
   LayoutDashboard, BookOpen, Users, Building2, Car, BarChart3, Settings, LogOut,
   MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee, Receipt, FileText,
   TrendingUp, Banknote, AlertCircle, AlertTriangle, FileMinus, PieChart, ChevronDown, XCircle, CalendarDays,
+  Clock, FileCheck2, ShoppingCart,
 } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
@@ -56,6 +57,9 @@ const GROUPS: NavGroup[] = [
       { href: '/billing/driver-settlements',  label: 'Driver Statements', icon: FileText },
       { href: '/billing/summary',             label: 'P&L Summary',      icon: TrendingUp },
       { href: '/billing/margin',              label: 'Margin Tracker',   icon: PieChart },
+      { href: '/billing/ar-ageing',           label: 'AR Ageing',        icon: Clock },
+      { href: '/billing/gstr1',               label: 'GSTR-1 Export',    icon: FileCheck2 },
+      { href: '/billing/expenses',            label: 'Expenses',         icon: ShoppingCart },
     ],
   },
   {

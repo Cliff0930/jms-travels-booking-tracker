@@ -6,7 +6,7 @@ import {
   BookOpen, Users, LayoutDashboard, MoreHorizontal, BarChart3, Settings,
   Building2, Car, X, MessageSquare, ShieldCheck, Bell, Wallet, IndianRupee,
   Receipt, FileText, TrendingUp, Banknote, AlertCircle, AlertTriangle,
-  FileMinus, PieChart, XCircle, CalendarDays,
+  FileMinus, PieChart, XCircle, CalendarDays, Clock, FileCheck2, ShoppingCart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -50,6 +50,9 @@ const MORE_GROUPS: NavGroup[] = [
       { href: '/billing/driver-settlements', label: 'Settlements',     icon: FileText },
       { href: '/billing/summary',            label: 'P&L',             icon: TrendingUp },
       { href: '/billing/margin',             label: 'Margin',          icon: PieChart },
+      { href: '/billing/ar-ageing',          label: 'AR Ageing',       icon: Clock },
+      { href: '/billing/gstr1',              label: 'GSTR-1',          icon: FileCheck2 },
+      { href: '/billing/expenses',           label: 'Expenses',        icon: ShoppingCart },
     ],
   },
   {
