@@ -30,13 +30,15 @@ export function GuestSearchCombobox({ companyId, value, onChange, onSelect, plac
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const enabled = !!(companyId && value.trim().length >= 1)
+  const enabled = value.trim().length >= 1
 
   const { data: results = [] } = useQuery<ClientResult[]>({
     queryKey: ['guest-search', companyId, value],
-    queryFn: () =>
-      fetch(`/api/clients?q=${encodeURIComponent(value.trim())}&company_any=${companyId}`)
-        .then(r => r.json()),
+    queryFn: () => {
+      const params = new URLSearchParams({ q: value.trim() })
+      if (companyId) params.set('company_any', companyId)
+      return fetch(`/api/clients?${params}`).then(r => r.json())
+    },
     enabled,
     staleTime: 10_000,
   })

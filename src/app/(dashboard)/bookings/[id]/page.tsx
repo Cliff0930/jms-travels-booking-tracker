@@ -30,6 +30,7 @@ import { format } from 'date-fns'
 
 const CANCEL_REASONS = ['Client Request', 'No Show', 'Operational Issue', 'Duplicate Booking', 'Other']
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
+const EDIT_REASONS = ['Client request', 'Booking correction', 'Schedule change', 'Data entry error', 'Operator update', 'Other']
 
 interface SimilarBooking {
   id: string
@@ -239,8 +240,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('Client Request')
   const [savingGuest, setSavingGuest] = useState(false)
-  const [showGuestChoiceDialog, setShowGuestChoiceDialog] = useState(false)
-  const [guestNameAction, setGuestNameAction] = useState<'update' | 'new' | null>(null)
 
   // Resend message dialog
   const [showResend, setShowResend] = useState(false)
@@ -257,12 +256,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [copyLoading, setCopyLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState<EditForm | null>(null)
-  const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [editReason, setEditReason] = useState('')
-  const [saving, setSaving] = useState(false)
+  // Per-field inline edit state
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [fieldDraft, setFieldDraft] = useState<string>('')
+  const [fieldDraft2, setFieldDraft2] = useState<string>('')
+  const [fieldDraftPhone, setFieldDraftPhone] = useState<string>('')
+  const [fieldReason, setFieldReason] = useState<string>('')
+  const [fieldReasonOther, setFieldReasonOther] = useState<string>('')
+  const [savingField, setSavingField] = useState(false)
   const [applyingLog, setApplyingLog] = useState<string | null>(null)
   const [chasingApproval, setChasingApproval] = useState(false)
   const [dismissingDup, setDismissingDup] = useState(false)
@@ -325,69 +326,56 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   // Use booking's direct company, or fall back to the coordinator client's company
   const displayCompany = booking.company ?? booking.client?.company ?? null
 
-  function startEdit() {
-    setEditForm({
-      pickup_location: booking!.pickup_location || '',
-      drop_location: booking!.drop_location || '',
-      pickup_date: booking!.pickup_date || '',
-      pickup_time: booking!.pickup_time || '',
-      pax_count: booking!.pax_count != null ? String(booking!.pax_count) : '',
-      vehicle_type: booking!.vehicle_type || '',
-      trip_type: booking!.trip_type || 'local',
-      service_type: booking!.service_type || 'one_way',
-      total_days: String(booking!.total_days ?? 1),
-      special_instructions: booking!.special_instructions || '',
-      guest_name: booking!.guest_name || '',
-      guest_phone: booking!.guest_phone || '',
-    })
-    setIsEditing(true)
+  function startField(name: string, value: string, value2 = '') {
+    setEditingField(name)
+    setFieldDraft(value)
+    setFieldDraft2(value2)
+    setFieldDraftPhone('')
+    setFieldReason('')
+    setFieldReasonOther('')
   }
 
-  function cancelEdit() {
-    setIsEditing(false)
-    setEditForm(null)
+  function cancelField() {
+    setEditingField(null)
+    setFieldDraft('')
+    setFieldDraft2('')
+    setFieldDraftPhone('')
+    setFieldReason('')
+    setFieldReasonOther('')
   }
 
-  function handleInitiateSave() {
-    if (!editForm) return
-    const guestChanged = editForm.guest_name !== (booking!.guest_name || '')
-    const hasExistingGuest = !!booking!.guest_client_id
-    if (guestChanged && hasExistingGuest) {
-      setShowGuestChoiceDialog(true)
-    } else {
-      setShowSaveDialog(true)
-    }
-  }
-
-  async function handleSave() {
-    if (!editForm || !editReason.trim()) return
-    setSaving(true)
+  async function handleFieldSave() {
+    const reason = fieldReason === 'Other' ? fieldReasonOther.trim() : fieldReason
+    if (!reason) { toast.error('Please select a reason'); return }
+    if (!editingField) return
+    setSavingField(true)
     try {
-      const changes = {
-        ...editForm,
-        pax_count: editForm.pax_count ? parseInt(editForm.pax_count) : null,
-        total_days: parseInt(editForm.total_days) || 1,
+      let changes: Record<string, unknown>
+      if (editingField === 'total_days_date') {
+        changes = { pickup_date: fieldDraft, total_days: parseInt(fieldDraft2) || 1 }
+      } else {
+        let value: unknown = fieldDraft
+        if (editingField === 'pax_count') value = fieldDraft ? parseInt(fieldDraft) : null
+        if (editingField === 'total_days') value = parseInt(fieldDraft) || 1
+        changes = { [editingField]: value }
+        if (editingField === 'guest_name' && fieldDraftPhone) changes.guest_phone = fieldDraftPhone
       }
       const res = await fetch(`/api/bookings/${id}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes, reason: editReason, guest_name_action: guestNameAction }),
+        body: JSON.stringify({ changes, reason }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       qc.invalidateQueries({ queryKey: ['bookings', id] })
       qc.invalidateQueries({ queryKey: ['booking-edit-logs', id] })
       qc.invalidateQueries({ queryKey: ['booking-legs', id] })
-      toast.success('Booking updated')
-      setIsEditing(false)
-      setEditForm(null)
-      setShowSaveDialog(false)
-      setEditReason('')
-      setGuestNameAction(null)
+      cancelField()
+      toast.success('Saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
-      setSaving(false)
+      setSavingField(false)
     }
   }
 
@@ -790,7 +778,40 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const f = editForm
+  const reasonPickerJSX = (
+    <div className="mt-2 space-y-2 p-2.5 bg-[#F8F9FF] rounded border border-[#C3C5D7]">
+      <p className="text-[10px] font-semibold text-[#737686] uppercase tracking-wider">Reason for change</p>
+      <select
+        value={fieldReason}
+        onChange={e => setFieldReason(e.target.value)}
+        className="w-full h-8 text-xs border border-[#C3C5D7] rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#1A56DB]"
+      >
+        <option value="">Select reason…</option>
+        {EDIT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      {fieldReason === 'Other' && (
+        <Input
+          value={fieldReasonOther}
+          onChange={e => setFieldReasonOther(e.target.value)}
+          placeholder="Describe the reason…"
+          className="h-8 text-xs"
+        />
+      )}
+      <div className="flex gap-2 pt-0.5">
+        <Button
+          size="sm"
+          className="h-7 text-xs bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
+          onClick={handleFieldSave}
+          disabled={savingField || !fieldReason || (fieldReason === 'Other' && !fieldReasonOther.trim())}
+        >
+          {savingField ? 'Saving…' : '✓ Save'}
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs rounded-sm" onClick={cancelField}>
+          ✗ Cancel
+        </Button>
+      </div>
+    </div>
+  )
 
   return (
     <div>
@@ -836,7 +857,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-600 whitespace-nowrap">Not Settled</span>}
           </>
         )}
-        {isEditing && (
+        {editingField && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Editing</span>
         )}
         {isAdmin && booking.status !== 'in_progress' && booking.status !== 'completed' && (
@@ -927,54 +948,33 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         {/* Left: Trip Details */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-[#191B23]">Trip Details</h2>
-              {canEdit && !isEditing ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 h-7 text-xs rounded-sm border-[#C3C5D7] text-[#434654]"
-                  onClick={startEdit}
-                >
-                  <Pencil className="w-3 h-3" /> Edit
-                </Button>
-              ) : isEditing ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs rounded-sm"
-                    onClick={cancelEdit}
-                  >
-                    <X className="w-3 h-3 mr-1" /> Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs rounded-sm bg-[#1A56DB] hover:bg-[#003FB1]"
-                    onClick={handleInitiateSave}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              ) : null}
-            </div>
+            <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Details</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* Pickup Location */}
               <div className="sm:col-span-2">
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
-                  Pickup Location
-                  {booking.flags?.includes('missing_pickup') && (
-                    <span className="text-xs text-amber-600 font-normal">— Missing</span>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
+                    Pickup Location
+                    {booking.flags?.includes('missing_pickup') && (
+                      <span className="text-xs text-amber-600 font-normal">— Missing</span>
+                    )}
+                  </Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('pickup_location', booking.pickup_location || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                   )}
-                </Label>
-                {isEditing && f ? (
-                  <Input
-                    value={f.pickup_location}
-                    onChange={e => setEditForm(p => p ? { ...p, pickup_location: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF]"
-                    placeholder="Enter pickup location"
-                  />
+                </div>
+                {editingField === 'pickup_location' ? (
+                  <>
+                    <Input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                           className="border-[#1A56DB] bg-[#F0F4FF]" placeholder="Enter pickup location" />
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className={`p-2.5 rounded border text-sm ${booking.flags?.includes('missing_pickup') ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#C3C5D7] bg-[#F3F3FE] text-[#191B23]'}`}>
                     {booking.pickup_location || 'Not provided'}
@@ -987,19 +987,27 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
+              {/* Drop Location */}
               <div className="sm:col-span-2">
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#737686]" />
-                  Drop Location
-                  <span className="text-xs text-[#737686] font-normal">— Optional</span>
-                </Label>
-                {isEditing && f ? (
-                  <Input
-                    value={f.drop_location}
-                    onChange={e => setEditForm(p => p ? { ...p, drop_location: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF]"
-                    placeholder="Enter drop location (optional)"
-                  />
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#737686]" />
+                    Drop Location
+                    <span className="text-xs text-[#737686] font-normal">— Optional</span>
+                  </Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('drop_location', booking.drop_location || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'drop_location' ? (
+                  <>
+                    <Input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                           className="border-[#1A56DB] bg-[#F0F4FF]" placeholder="Enter drop location (optional)" />
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
                     {booking.drop_location || 'Not provided — call to confirm'}
@@ -1012,35 +1020,39 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
+              {/* Date — pencil opens the combined date+days widget */}
               <div>
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <Calendar className="w-3.5 h-3.5" /> Date
-                </Label>
-                {isEditing && f ? (
-                  <Input
-                    type="date"
-                    value={f.pickup_date}
-                    onChange={e => setEditForm(p => p ? { ...p, pickup_date: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF]"
-                  />
-                ) : (
-                  <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
-                    {formatBookingDateTime(booking.pickup_date, null)}
-                  </div>
-                )}
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Date</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('total_days_date', booking.pickup_date || '', String(booking.total_days ?? 1))}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
+                  {formatBookingDateTime(booking.pickup_date, null)}
+                </div>
               </div>
 
+              {/* Time */}
               <div>
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <Clock className="w-3.5 h-3.5" /> Time
-                </Label>
-                {isEditing && f ? (
-                  <Input
-                    type="time"
-                    value={f.pickup_time}
-                    onChange={e => setEditForm(p => p ? { ...p, pickup_time: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF]"
-                  />
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Time</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('pickup_time', booking.pickup_time || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'pickup_time' ? (
+                  <>
+                    <Input type="time" value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                           className="border-[#1A56DB] bg-[#F0F4FF]" />
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
                     {booking.pickup_time || 'Not set'}
@@ -1048,19 +1060,81 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
+              {/* Combined Date + Days widget — shown full-width when either pencil is active */}
+              {editingField === 'total_days_date' && (
+                <div className="sm:col-span-2 rounded-xl border-2 border-[#1A56DB] bg-[#F0F4FF] p-4 space-y-4">
+                  <p className="text-xs font-semibold text-[#1A56DB] uppercase tracking-wider">Edit Date &amp; Days</p>
+
+                  {/* Date picker */}
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-[#737686]">Pickup Date</Label>
+                    <Input
+                      type="date"
+                      value={fieldDraft}
+                      onChange={e => setFieldDraft(e.target.value)}
+                      autoFocus
+                      className="border-[#1A56DB] bg-white"
+                    />
+                  </div>
+
+                  {/* Day stepper */}
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-[#737686]">Total Days</Label>
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setFieldDraft2(d => String(Math.max(1, parseInt(d || '1') - 1)))}
+                        className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-[#C3C5D7] bg-white text-xl font-bold text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB] transition-colors"
+                      >−</button>
+                      <span className="text-3xl font-bold text-[#191B23] w-10 text-center tabular-nums">
+                        {fieldDraft2 || '1'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFieldDraft2(d => String(parseInt(d || '1') + 1))}
+                        className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-[#C3C5D7] bg-white text-xl font-bold text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB] transition-colors"
+                      >+</button>
+                      <span className="text-sm text-[#737686]">{parseInt(fieldDraft2 || '1') === 1 ? 'day' : 'days'}</span>
+                    </div>
+                  </div>
+
+                  {/* Calculated end date */}
+                  {fieldDraft && (
+                    <div className="flex items-center gap-2 py-2 px-3 bg-white rounded-lg border border-[#C3C5D7]">
+                      <Calendar className="w-3.5 h-3.5 text-[#1A56DB] shrink-0" />
+                      <span className="text-xs text-[#737686]">End date:</span>
+                      <span className="text-sm font-semibold text-[#191B23]">
+                        {(() => {
+                          const [y, m, d] = fieldDraft.split('-').map(Number)
+                          const end = new Date(y, m - 1, d)
+                          end.setDate(end.getDate() + (parseInt(fieldDraft2 || '1') - 1))
+                          return format(end, 'd MMM yyyy')
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
+                  {reasonPickerJSX}
+                </div>
+              )}
+
+              {/* Passengers */}
               <div>
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <Users className="w-3.5 h-3.5" /> Passengers
-                </Label>
-                {isEditing && f ? (
-                  <Input
-                    type="number"
-                    min={1}
-                    value={f.pax_count}
-                    onChange={e => setEditForm(p => p ? { ...p, pax_count: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF]"
-                    placeholder="e.g. 2"
-                  />
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Passengers</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('pax_count', String(booking.pax_count ?? ''))}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'pax_count' ? (
+                  <>
+                    <Input type="number" min={1} value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                           className="border-[#1A56DB] bg-[#F0F4FF]" placeholder="e.g. 2" />
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
                     {booking.pax_count || '—'}
@@ -1068,19 +1142,25 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
+              {/* Vehicle Type */}
               <div>
-                <Label className="flex items-center gap-1.5 mb-1">
-                  <Car className="w-3.5 h-3.5" /> Vehicle Type
-                </Label>
-                {isEditing && f ? (
-                  <Select value={f.vehicle_type} onValueChange={v => v && setEditForm(p => p ? { ...p, vehicle_type: v } : p)}>
-                    <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]">
-                      <SelectValue placeholder="Select vehicle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="flex items-center gap-1.5"><Car className="w-3.5 h-3.5" /> Vehicle Type</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('vehicle_type', booking.vehicle_type || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'vehicle_type' ? (
+                  <>
+                    <Select value={fieldDraft} onValueChange={v => setFieldDraft(v ?? '')}>
+                      <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                      <SelectContent>{VEHICLE_TYPES.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
                     {booking.vehicle_type || '—'}
@@ -1088,82 +1168,163 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              {isEditing && f && (
-                <>
-                  <div>
-                    <Label className="mb-1 block">Trip Type</Label>
-                    <Select value={f.trip_type} onValueChange={v => v && setEditForm(p => p ? { ...p, trip_type: v } : p)}>
-                      <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]">
-                        <SelectValue />
-                      </SelectTrigger>
+              {/* Trip Type */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Trip Type</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('trip_type', booking.trip_type || 'local')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'trip_type' ? (
+                  <>
+                    <Select value={fieldDraft} onValueChange={v => setFieldDraft(v ?? '')}>
+                      <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="local">Local</SelectItem>
                         <SelectItem value="outstation">Outstation</SelectItem>
                         <SelectItem value="airport">Airport</SelectItem>
                       </SelectContent>
                     </Select>
+                    {reasonPickerJSX}
+                  </>
+                ) : (
+                  <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23] capitalize">
+                    {booking.trip_type || '—'}
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Service Type</Label>
-                    <Select value={f.service_type} onValueChange={v => v && setEditForm(p => p ? { ...p, service_type: v } : p)}>
-                      <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]">
-                        <SelectValue />
-                      </SelectTrigger>
+                )}
+              </div>
+
+              {/* Service Type */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Service Type</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('service_type', booking.service_type || 'one_way')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'service_type' ? (
+                  <>
+                    <Select value={fieldDraft} onValueChange={v => setFieldDraft(v ?? '')}>
+                      <SelectTrigger className="border-[#1A56DB] bg-[#F0F4FF]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="one_way">One Way</SelectItem>
                         <SelectItem value="return">Return</SelectItem>
                       </SelectContent>
                     </Select>
+                    {reasonPickerJSX}
+                  </>
+                ) : (
+                  <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
+                    {booking.service_type === 'one_way' ? 'One Way' : booking.service_type === 'return' ? 'Return' : (booking.service_type || '—')}
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Total Days</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={f.total_days}
-                      onChange={e => setEditForm(p => p ? { ...p, total_days: e.target.value } : p)}
-                      className="border-[#1A56DB] bg-[#F0F4FF]"
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Guest Name</Label>
+                )}
+              </div>
+
+              {/* Total Days — pencil opens combined date+days widget */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Total Days</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('total_days_date', booking.pickup_date || '', String(booking.total_days ?? 1))}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#191B23]">
+                  {booking.total_days ?? 1}
+                </div>
+              </div>
+
+              {/* Guest Name */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Guest Name</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('guest_name', booking.guest_name || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'guest_name' ? (
+                  <>
                     <GuestSearchCombobox
                       companyId={booking?.company_id ?? null}
-                      value={f.guest_name}
-                      onChange={name => setEditForm(p => p ? { ...p, guest_name: name } : p)}
-                      onSelect={(name, phone) => setEditForm(p => p ? { ...p, guest_name: name, ...(phone ? { guest_phone: phone } : {}) } : p)}
-                      placeholder="Override guest name"
+                      value={fieldDraft}
+                      onChange={name => { setFieldDraft(name); setFieldDraftPhone('') }}
+                      onSelect={(name, phone) => { setFieldDraft(name); setFieldDraftPhone(phone ?? '') }}
+                      placeholder="Search guest directory or type name"
                       className="[&_input]:border-[#1A56DB] [&_input]:bg-[#F0F4FF]"
                     />
+                    {fieldDraftPhone && (
+                      <p className="mt-1 text-xs text-[#1A56DB]">Phone will also update to: {fieldDraftPhone}</p>
+                    )}
+                    {reasonPickerJSX}
+                  </>
+                ) : (
+                  <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
+                    {booking.guest_name || '—'}
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Guest Phone</Label>
-                    <Input
-                      value={f.guest_phone}
-                      onChange={e => setEditForm(p => p ? { ...p, guest_phone: e.target.value } : p)}
-                      className="border-[#1A56DB] bg-[#F0F4FF]"
-                      placeholder="e.g. +91 98000 00000"
-                    />
-                  </div>
-                </>
-              )}
+                )}
+              </div>
 
+              {/* Guest Phone */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Guest Phone</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('guest_phone', booking.guest_phone || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'guest_phone' ? (
+                  <>
+                    <Input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                           className="border-[#1A56DB] bg-[#F0F4FF]" placeholder="e.g. +91 98000 00000" />
+                    {reasonPickerJSX}
+                  </>
+                ) : (
+                  <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
+                    {booking.guest_phone || '—'}
+                  </div>
+                )}
+              </div>
+
+              {/* Special Instructions */}
               <div className="sm:col-span-2">
-                <Label className="mb-1 block">Special Instructions</Label>
-                {isEditing && f ? (
-                  <Textarea
-                    value={f.special_instructions}
-                    onChange={e => setEditForm(p => p ? { ...p, special_instructions: e.target.value } : p)}
-                    className="border-[#1A56DB] bg-[#F0F4FF] resize-none"
-                    rows={2}
-                    placeholder="Any special instructions…"
-                  />
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Special Instructions</Label>
+                  {canEdit && !editingField && (
+                    <button onClick={() => startField('special_instructions', booking.special_instructions || '')}
+                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {editingField === 'special_instructions' ? (
+                  <>
+                    <Textarea value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                              className="border-[#1A56DB] bg-[#F0F4FF] resize-none" rows={2}
+                              placeholder="Any special instructions…" />
+                    {reasonPickerJSX}
+                  </>
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
                     {booking.special_instructions || '—'}
                   </div>
                 )}
               </div>
+
             </div>
           </div>
 
@@ -2426,41 +2587,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         </DialogContent>
       </Dialog>
 
-      {/* Guest changed — ask correction vs new guest */}
-      <Dialog open={showGuestChoiceDialog} onOpenChange={o => { if (!o) setShowGuestChoiceDialog(false) }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Guest Changed</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-[#434654]">You changed the guest name:</p>
-            <div className="flex items-center justify-center gap-2 bg-[#F3F3FE] rounded-lg px-3 py-2 text-sm">
-              <span className="font-medium text-[#737686]">{booking.guest_name || '—'}</span>
-              <span className="text-[#737686]">→</span>
-              <span className="font-medium text-[#191B23]">{editForm?.guest_name || '—'}</span>
-            </div>
-            <p className="text-xs text-[#737686]">Is this a correction to the same person, or a completely different guest?</p>
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              variant="outline"
-              className="w-full justify-start rounded-sm border-[#C3C5D7]"
-              onClick={() => { setGuestNameAction('update'); setShowGuestChoiceDialog(false); setShowSaveDialog(true) }}
-            >
-              <Pencil className="w-4 h-4 mr-2 text-[#737686]" />
-              Correction — update {booking.guest_name}&apos;s profile
-            </Button>
-            <Button
-              className="w-full justify-start rounded-sm bg-[#1A56DB] hover:bg-[#003FB1]"
-              onClick={() => { setGuestNameAction('new'); setShowGuestChoiceDialog(false); setShowSaveDialog(true) }}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              New guest — save {editForm?.guest_name} separately
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Complete Early dialog */}
       <Dialog open={showCompleteEarly} onOpenChange={o => { if (!o && !completingEarly) { setShowCompleteEarly(false); setCompleteEarlyReason('') } }}>
         <DialogContent className="max-w-sm">
@@ -2494,38 +2620,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             >
               <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
               {completingEarly ? 'Completing…' : 'Complete Early'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save with reason dialog */}
-      <Dialog open={showSaveDialog} onOpenChange={o => { if (!o && !saving) { setShowSaveDialog(false); setEditReason('') } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Reason for Edit</DialogTitle>
-          </DialogHeader>
-          <div>
-            <Label className="mb-1.5 block text-sm">Why are you making this change? *</Label>
-            <Textarea
-              value={editReason}
-              onChange={e => setEditReason(e.target.value)}
-              placeholder="e.g. Client changed pickup time, corrected drop location…"
-              rows={3}
-              className="border-[#C3C5D7] resize-none"
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowSaveDialog(false); setEditReason('') }} disabled={saving}>
-              Back
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!editReason.trim() || saving}
-              className="bg-[#1A56DB] hover:bg-[#003FB1] rounded-sm"
-            >
-              {saving ? 'Saving…' : 'Confirm Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
