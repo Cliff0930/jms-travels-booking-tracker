@@ -336,7 +336,7 @@ export default function ExpensesPage() {
         ) : expenseFetchError ? (
           <div className="p-8 text-center">
             <p className="text-red-600 text-sm font-medium">Could not load expenses.</p>
-            <p className="text-xs text-[#9CA3AF] mt-1">Make sure the expenses table has been created in Supabase.</p>
+            <p className="text-xs text-[#9CA3AF] mt-1">{(expenseFetchError as Error).message}</p>
           </div>
         ) : expenses.length === 0 ? (
           <div className="p-8 text-center">

@@ -12,7 +12,8 @@ export async function GET(request: Request) {
     .from('invoices')
     .select('id, invoice_number, period_from, period_to, created_at, grand_total, subtotal, cgst_amount, sgst_amount, igst_amount, tds_amount, status, reverse_charge, company_id, individual_gstin, addressee_name, addressee_prefix, company:companies!company_id(name, gstin, address)')
     .in('status', ['sent', 'paid', 'partially_paid', 'overdue'])
-    .or(`period_from.like.${month}%,period_to.like.${month}%`)
+    .lte('period_from', `${month}-31`)
+    .gte('period_to', `${month}-01`)
     .order('created_at', { ascending: true })
 
   if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
