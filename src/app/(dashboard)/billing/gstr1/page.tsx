@@ -52,9 +52,13 @@ export default function GSTR1Page() {
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const [activeTab, setActiveTab] = useState<'b2b' | 'b2cs' | 'cdnr' | 'hsn'>('b2b')
 
-  const { data, isLoading } = useQuery<GSTR1Data>({
+  const { data, isLoading, error: gstr1Error } = useQuery<GSTR1Data>({
     queryKey: ['gstr1', month],
-    queryFn: () => fetch(`/api/billing/gstr1?month=${month}`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/billing/gstr1?month=${month}`)
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
     enabled: !!month,
   })
 
@@ -137,9 +141,9 @@ export default function GSTR1Page() {
 
   const s = data?.summary
   const tabs = [
-    { key: 'b2b',  label: `B2B (${data?.b2b.length ?? 0})` },
-    { key: 'b2cs', label: `B2CS (${data?.b2cs.length ?? 0})` },
-    { key: 'cdnr', label: `CDNR (${data?.cdnr.length ?? 0})` },
+    { key: 'b2b',  label: `B2B (${data?.b2b?.length ?? 0})` },
+    { key: 'b2cs', label: `B2CS (${data?.b2cs?.length ?? 0})` },
+    { key: 'cdnr', label: `CDNR (${data?.cdnr?.length ?? 0})` },
     { key: 'hsn',  label: 'HSN/SAC' },
   ] as const
 
@@ -209,6 +213,11 @@ export default function GSTR1Page() {
 
       {isLoading ? (
         <p className="py-8 text-center text-[#737686]">Loading…</p>
+      ) : gstr1Error ? (
+        <div className="py-8 text-center bg-white rounded-lg border border-[#E5E7EB]">
+          <p className="text-red-600 text-sm font-medium">Could not load GSTR-1 data.</p>
+          <p className="text-xs text-[#9CA3AF] mt-1">{(gstr1Error as Error).message}</p>
+        </div>
       ) : (
         <div className="bg-white rounded-lg border border-[#E5E7EB] overflow-x-auto">
           {activeTab === 'b2b' && (
@@ -221,10 +230,10 @@ export default function GSTR1Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
-                {(data?.b2b.length ?? 0) === 0 && (
+                {(data?.b2b?.length ?? 0) === 0 && (
                   <tr><td colSpan={11} className="px-3 py-6 text-center text-[#9CA3AF]">No B2B invoices for this period</td></tr>
                 )}
-                {data?.b2b.map((r, i) => (
+                {data?.b2b?.map((r, i) => (
                   <tr key={i} className="hover:bg-[#F9FAFB]">
                     <td className="px-3 py-2 font-mono text-[#434654]">{r.gstin_of_recipient}</td>
                     <td className="px-3 py-2 text-[#191B23] max-w-[160px] truncate">{r.receiver_name}</td>
@@ -253,10 +262,10 @@ export default function GSTR1Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
-                {(data?.b2cs.length ?? 0) === 0 && (
+                {(data?.b2cs?.length ?? 0) === 0 && (
                   <tr><td colSpan={7} className="px-3 py-6 text-center text-[#9CA3AF]">No B2CS invoices for this period</td></tr>
                 )}
-                {data?.b2cs.map((r, i) => (
+                {data?.b2cs?.map((r, i) => (
                   <tr key={i} className="hover:bg-[#F9FAFB]">
                     <td className="px-3 py-2">{r.type}</td>
                     <td className="px-3 py-2">{r.place_of_supply} — {STATE_CODES[r.place_of_supply]}</td>
@@ -281,10 +290,10 @@ export default function GSTR1Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
-                {(data?.cdnr.length ?? 0) === 0 && (
+                {(data?.cdnr?.length ?? 0) === 0 && (
                   <tr><td colSpan={10} className="px-3 py-6 text-center text-[#9CA3AF]">No credit notes to registered recipients this period</td></tr>
                 )}
-                {data?.cdnr.map((r, i) => (
+                {data?.cdnr?.map((r, i) => (
                   <tr key={i} className="hover:bg-[#F9FAFB]">
                     <td className="px-3 py-2 font-mono text-[#434654]">{r.gstin_of_recipient}</td>
                     <td className="px-3 py-2 text-[#191B23] max-w-[140px] truncate">{r.receiver_name}</td>
@@ -312,7 +321,7 @@ export default function GSTR1Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
-                {data?.hsn.map((r, i) => (
+                {data?.hsn?.map((r, i) => (
                   <tr key={i} className="hover:bg-[#F9FAFB]">
                     <td className="px-3 py-2 font-mono">{r.sac_code}</td>
                     <td className="px-3 py-2 text-[#434654]">{r.description}</td>

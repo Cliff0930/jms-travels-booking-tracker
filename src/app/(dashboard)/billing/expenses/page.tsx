@@ -76,9 +76,13 @@ export default function ExpensesPage() {
   const [form, setForm] = useState<ExpenseForm>(emptyForm)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
-  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
+  const { data: expenses = [], isLoading, error: expenseFetchError } = useQuery<Expense[]>({
     queryKey: ['expenses', month],
-    queryFn: () => fetch(`/api/billing/expenses?month=${month}`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/billing/expenses?month=${month}`)
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
   })
 
   const saveMutation = useMutation({
@@ -329,6 +333,11 @@ export default function ExpensesPage() {
       <div className="bg-white rounded-lg border border-[#E5E7EB] overflow-hidden">
         {isLoading ? (
           <p className="p-8 text-center text-[#737686]">Loading…</p>
+        ) : expenseFetchError ? (
+          <div className="p-8 text-center">
+            <p className="text-red-600 text-sm font-medium">Could not load expenses.</p>
+            <p className="text-xs text-[#9CA3AF] mt-1">Make sure the expenses table has been created in Supabase.</p>
+          </div>
         ) : expenses.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-[#737686]">No expenses recorded for this month.</p>
