@@ -348,7 +348,7 @@ export default function MessagesPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-2 h-[calc(100dvh-14rem)] md:h-[calc(100dvh-8rem)]">
+    <div className="flex flex-col gap-2 h-[calc(100dvh-11rem)] md:h-[calc(100dvh-8rem)]">
       {/* Inline header — title and refresh always on the same row */}
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div>
