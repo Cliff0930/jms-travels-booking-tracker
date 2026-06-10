@@ -94,7 +94,7 @@ export async function sendWhatsAppTemplate({
           channel: 'whatsapp',
           direction: 'outbound',
           recipient: to,
-          content: `[template: ${templateName}] ${params.join(' | ')}`,
+          content: fallbackBody ?? `[template: ${templateName}] ${params.join(' | ')}`,
           booking_id: log.booking_id ?? null,
           client_id: log.client_id ?? null,
           template_used: templateName,
