@@ -5,7 +5,6 @@ import {
   Mail, MessageCircle, ArrowDownLeft, ChevronLeft,
   CheckCircle, XCircle, Clock, RefreshCw, X, Car, Search, Phone,
 } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -349,24 +348,25 @@ export default function MessagesPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-3 h-[calc(100dvh-17rem)] md:h-[calc(100dvh-8rem)]">
-      <PageHeader
-        title="Messages"
-        description={
-          contactsLoading
-            ? 'Loading…'
-            : `${contacts.length} conversation${contacts.length !== 1 ? 's' : ''}${needsAttentionCount > 0 ? ` · ${needsAttentionCount} need${needsAttentionCount === 1 ? 's' : ''} attention` : ''}`
-        }
-        actions={
-          <button
-            onClick={() => { refetchContacts(); qc.invalidateQueries({ queryKey: ['message-thread'] }) }}
-            className="p-2 rounded-lg border border-[#C3C5D7] bg-white hover:bg-[#F3F3FE] transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4 text-[#434654]" />
-          </button>
-        }
-      />
+    <div className="flex flex-col gap-2 h-[calc(100dvh-14rem)] md:h-[calc(100dvh-8rem)]">
+      {/* Inline header — title and refresh always on the same row */}
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-[#191B23]">Messages</h1>
+          <p className="text-sm text-[#737686]">
+            {contactsLoading
+              ? 'Loading…'
+              : `${contacts.length} conversation${contacts.length !== 1 ? 's' : ''}${needsAttentionCount > 0 ? ` · ${needsAttentionCount} need${needsAttentionCount === 1 ? 's' : ''} attention` : ''}`}
+          </p>
+        </div>
+        <button
+          onClick={() => { refetchContacts(); qc.invalidateQueries({ queryKey: ['message-thread'] }) }}
+          className="p-2 rounded-lg border border-[#C3C5D7] bg-white hover:bg-[#F3F3FE] transition-colors shrink-0"
+          title="Refresh"
+        >
+          <RefreshCw className="w-4 h-4 text-[#434654]" />
+        </button>
+      </div>
 
       {/* Channel tabs */}
       <div className="flex gap-2 shrink-0">
