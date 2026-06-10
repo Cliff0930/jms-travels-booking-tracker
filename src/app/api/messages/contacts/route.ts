@@ -48,7 +48,7 @@ export async function GET(request: Request) {
   const [{ data: inbound }, { data: outbound }] = await Promise.all([
     supabase
       .from('raw_messages')
-      .select('id, sender_phone, sender_name, raw_content, received_at, booking_id')
+      .select('id, sender_phone, sender_email, sender_name, raw_content, received_at, booking_id')
       .eq('channel', channel)
       .order('received_at', { ascending: false })
       .limit(500),
@@ -74,10 +74,10 @@ export async function GET(request: Request) {
   }> = {}
 
   for (const m of inbound || []) {
-    const phone = m.sender_phone
-    if (!phone || contactMap[phone]) continue
-    contactMap[phone] = {
-      phone, name: m.sender_name, last_message: m.raw_content,
+    const identifier = m.sender_phone || m.sender_email
+    if (!identifier || contactMap[identifier]) continue
+    contactMap[identifier] = {
+      phone: identifier, name: m.sender_name, last_message: m.raw_content,
       last_time: m.received_at, last_is_inbound: true,
     }
   }
@@ -98,15 +98,19 @@ export async function GET(request: Request) {
     return { ...c, needs_attention: needsAttention }
   })
 
-  // Look up client names by phone
-  const phones = contacts.map(c => c.phone).filter(Boolean)
-  const { data: clients } = phones.length > 0
-    ? await supabase.from('clients').select('id, name, primary_phone').in('primary_phone', phones)
+  // Look up client names — email tab matches on primary_email, WA tab on primary_phone
+  const identifiers = contacts.map(c => c.phone).filter(Boolean)
+  const isEmailTab = channel === 'email'
+  const { data: clients } = identifiers.length > 0
+    ? isEmailTab
+      ? await supabase.from('clients').select('id, name, primary_email').in('primary_email', identifiers)
+      : await supabase.from('clients').select('id, name, primary_phone').in('primary_phone', identifiers)
     : { data: [] }
 
   const clientByPhone: Record<string, { id: string; name: string }> = {}
   for (const c of clients || []) {
-    if (c.primary_phone) clientByPhone[c.primary_phone] = { id: c.id, name: c.name }
+    const key = isEmailTab ? (c as { id: string; name: string; primary_email: string | null }).primary_email : (c as { id: string; name: string; primary_phone: string | null }).primary_phone
+    if (key) clientByPhone[key] = { id: c.id, name: c.name }
   }
 
   const result = contacts.map(c => ({

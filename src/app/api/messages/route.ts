@@ -53,12 +53,16 @@ export async function GET(request: Request) {
       .order('sent_at', { ascending: true })
       .limit(limit)
 
+    const isEmailIdentifier = phone.includes('@')
     let inQ = supabase
       .from('raw_messages')
-      .select('id, channel, sender_phone, sender_name, raw_content, ai_classification, booking_id, received_at')
-      .eq('sender_phone', phone)
+      .select('id, channel, sender_phone, sender_email, sender_name, raw_content, ai_classification, booking_id, received_at')
       .order('received_at', { ascending: true })
       .limit(limit)
+
+    inQ = isEmailIdentifier
+      ? inQ.eq('sender_email', phone)
+      : inQ.eq('sender_phone', phone)
 
     if (from) { outQ = outQ.gte('sent_at', `${from}T00:00:00`); inQ = inQ.gte('received_at', `${from}T00:00:00`) }
     if (to)   { outQ = outQ.lte('sent_at', `${to}T23:59:59`);   inQ = inQ.lte('received_at', `${to}T23:59:59`) }
@@ -82,7 +86,7 @@ export async function GET(request: Request) {
         id: `in_${m.id}`,
         type: 'inbound' as const,
         channel: m.channel,
-        contact: m.sender_phone,
+        contact: m.sender_phone || m.sender_email,
         client_name: m.sender_name ?? null,
         content: m.raw_content,
         template: null,
@@ -112,12 +116,16 @@ export async function GET(request: Request) {
 
     let inQ = supabase
       .from('raw_messages')
-      .select('id, channel, sender_phone, sender_name, raw_content, ai_classification, booking_id, received_at')
+      .select('id, channel, sender_phone, sender_email, sender_name, raw_content, ai_classification, booking_id, received_at')
       .order('received_at', { ascending: true })
       .limit(limit)
 
-    if (client?.primary_phone) {
+    if (client?.primary_phone && client?.primary_email) {
+      inQ = inQ.or(`sender_phone.eq.${client.primary_phone},sender_email.eq.${client.primary_email}`)
+    } else if (client?.primary_phone) {
       inQ = inQ.eq('sender_phone', client.primary_phone)
+    } else if (client?.primary_email) {
+      inQ = inQ.eq('sender_email', client.primary_email)
     } else {
       inQ = inQ.eq('sender_phone', '__no_match__')
     }
@@ -144,7 +152,7 @@ export async function GET(request: Request) {
         id: `in_${m.id}`,
         type: 'inbound' as const,
         channel: m.channel,
-        contact: m.sender_phone,
+        contact: m.sender_phone || m.sender_email,
         client_name: m.sender_name ?? null,
         content: m.raw_content,
         template: null,
