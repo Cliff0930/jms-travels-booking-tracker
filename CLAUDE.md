@@ -97,6 +97,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - 11rem = 4rem (main-layout padding-top) + 1rem (p-4 top) + 5rem (main-layout padding-bottom) + 1rem (p-4 bottom)
 
 **message_logs content:** `sendWhatsAppTemplate` stores `fallbackBody` (not raw params) — all callers must pass `fallbackBody` for readable logs.
+**Junk email filter:** Email tab contacts query uses `.neq('ai_classification', 'junk')` — promotional emails are hidden; only booking/enquiry/unprocessed emails show.
 
 **Key files:** `src/app/(dashboard)/messages/page.tsx`, `src/app/api/messages/contacts/route.ts`, `src/app/api/messages/route.ts`
 
@@ -114,6 +115,11 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 | `POST /api/webhooks/gmail` | Incoming Gmail handler |
 | `GET /api/messages/contacts` | Contact list for inbox (tab=whatsapp\|email\|driver) |
 | `GET /api/messages` | Thread messages (phone=, client_id=, or driver_id=) |
+
+---
+
+## Dashboard — Driver Action Required
+`DriverAlertRow` in `src/app/(dashboard)/page.tsx` shows company name + driver name + plate on all screen sizes (no `hidden sm:block`). The `booking.company` field is already included in `useBookings` API response — no API changes needed to add new fields here.
 
 ---
 
