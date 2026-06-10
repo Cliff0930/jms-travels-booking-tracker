@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Mail, MessageCircle, ArrowDownLeft,
+  Mail, MessageCircle, ArrowDownLeft, ChevronLeft,
   CheckCircle, XCircle, Clock, RefreshCw, X, Car, Search, Phone,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -224,10 +224,17 @@ function ContactCard({ contact, tab, selected, onClick }: {
 
 // ── ThreadHeader ──────────────────────────────────────────────────────────────
 
-function ThreadHeader({ contact, tab }: { contact: Contact; tab: ChannelTab }) {
+function ThreadHeader({ contact, tab, onBack }: { contact: Contact; tab: ChannelTab; onBack: () => void }) {
   const name = contact.name || contact.phone || 'Unknown'
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-[#EDEDF8] bg-white shrink-0">
+    <div className="flex items-center gap-2 px-3 py-3 border-b border-[#EDEDF8] bg-white shrink-0">
+      <button
+        onClick={onBack}
+        className="md:hidden p-1.5 rounded-lg hover:bg-[#F3F3FE] text-[#434654] shrink-0 -ml-1"
+        aria-label="Back to contacts"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
       <div className={cn(
         'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0',
         tab === 'driver' ? 'bg-[#7E3AF2]' : tab === 'email' ? 'bg-[#0F766E]' : 'bg-[#25D366]'
@@ -342,7 +349,7 @@ export default function MessagesPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-3 h-[calc(100dvh-5rem)]">
+    <div className="flex flex-col gap-3 h-[calc(100dvh-17rem)] md:h-[calc(100dvh-8rem)]">
       <PageHeader
         title="Messages"
         description={
@@ -386,8 +393,11 @@ export default function MessagesPage() {
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 border border-[#C3C5D7] rounded-xl overflow-hidden bg-white">
 
-        {/* Left: contact list */}
-        <div className="w-[280px] md:w-[300px] shrink-0 flex flex-col border-r border-[#EDEDF8]">
+        {/* Left: contact list — full width on mobile, hidden when thread open */}
+        <div className={cn(
+          'w-full md:w-[300px] md:shrink-0 flex-col border-r border-[#EDEDF8]',
+          selected ? 'hidden md:flex' : 'flex'
+        )}>
           {/* Search */}
           <div className="p-2.5 border-b border-[#EDEDF8] shrink-0">
             <div className="relative flex items-center">
@@ -429,11 +439,14 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* Right: thread */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Right: thread — full width on mobile, shown only when contact selected */}
+        <div className={cn(
+          'flex-col min-w-0 flex-1',
+          selected ? 'flex' : 'hidden md:flex'
+        )}>
           {selected ? (
             <>
-              <ThreadHeader contact={selected} tab={tab} />
+              <ThreadHeader contact={selected} tab={tab} onBack={() => setSelected(null)} />
               <div ref={threadRef} className="flex-1 overflow-y-auto">
                 {threadLoading ? (
                   <div className="flex justify-center py-12 text-sm text-[#737686]">Loading…</div>
