@@ -3,12 +3,13 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const limit     = 100
+  const limit     = 200
   const from      = searchParams.get('from')
   const to        = searchParams.get('to')
   const q         = searchParams.get('q')?.trim()
   const client_id = searchParams.get('client_id')
   const driver_id = searchParams.get('driver_id')
+  const phone     = searchParams.get('phone')
 
   const supabase = createAdminClient()
 
@@ -40,6 +41,58 @@ export async function GET(request: Request) {
     }))
 
     return NextResponse.json(rows)
+  }
+
+  // ── Phone conversation mode (contact with no client_id) ──────────────
+  if (phone && !client_id) {
+    let outQ = supabase
+      .from('message_logs')
+      .select('id, booking_id, client_id, channel, direction, recipient, content, template_used, status, sent_at')
+      .eq('recipient', phone)
+      .is('driver_id', null)
+      .order('sent_at', { ascending: true })
+      .limit(limit)
+
+    let inQ = supabase
+      .from('raw_messages')
+      .select('id, channel, sender_phone, sender_name, raw_content, ai_classification, booking_id, received_at')
+      .eq('sender_phone', phone)
+      .order('received_at', { ascending: true })
+      .limit(limit)
+
+    if (from) { outQ = outQ.gte('sent_at', `${from}T00:00:00`); inQ = inQ.gte('received_at', `${from}T00:00:00`) }
+    if (to)   { outQ = outQ.lte('sent_at', `${to}T23:59:59`);   inQ = inQ.lte('received_at', `${to}T23:59:59`) }
+
+    const [{ data: outbound }, { data: inbound }] = await Promise.all([outQ, inQ])
+
+    const combined = [
+      ...(outbound || []).map(m => ({
+        id: `out_${m.id}`,
+        type: 'outbound' as const,
+        channel: m.channel,
+        contact: m.recipient,
+        client_name: null,
+        content: m.content,
+        template: m.template_used,
+        status: m.status,
+        booking_id: m.booking_id,
+        timestamp: m.sent_at,
+      })),
+      ...(inbound || []).map(m => ({
+        id: `in_${m.id}`,
+        type: 'inbound' as const,
+        channel: m.channel,
+        contact: m.sender_phone,
+        client_name: m.sender_name ?? null,
+        content: m.raw_content,
+        template: null,
+        status: m.ai_classification || 'received',
+        booking_id: m.booking_id,
+        timestamp: m.received_at,
+      })),
+    ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+    return NextResponse.json(combined)
   }
 
   // ── Client conversation mode (ascending — oldest first for chat view) ──
