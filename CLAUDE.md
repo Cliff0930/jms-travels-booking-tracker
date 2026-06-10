@@ -124,7 +124,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 ---
 
 ## Coding Rules
-- Always describe changes before editing and wait for user confirmation on multi-file features
+- **Before ANY code edit:** (1) explain what you're changing and why, (2) show a before/after example or describe the UI change, (3) ask for approval, (4) wait for "go ahead" — only then edit. No exceptions, single-line fixes included.
 - No comments in code unless the WHY is non-obvious
 - No new abstractions beyond what the task requires
 - Date end-of-month: never use `${month}-31` — use `lt(first day of next month)`
