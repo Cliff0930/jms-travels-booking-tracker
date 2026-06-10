@@ -81,6 +81,27 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 
 ---
 
+## Messages Inbox (`/messages`)
+Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Drivers.
+
+**raw_messages identifiers — critical:**
+- WhatsApp inbound: `sender_phone` set, `sender_email` NULL
+- Email inbound: `sender_email` set, `sender_phone` NULL
+- Never query email contacts by `sender_phone` — they'll all be null
+- Thread API: `phone.includes('@')` → filter by `sender_email`; else `sender_phone`
+- Client name lookup: email tab → `primary_email`, WhatsApp tab → `primary_phone`
+- Client thread with both: `.or('sender_phone.eq.X,sender_email.eq.Y')`
+
+**Mobile height calc:**
+- Outer div: `h-[calc(100dvh-11rem)]` mobile, `h-[calc(100dvh-8rem)]` desktop
+- 11rem = 4rem (main-layout padding-top) + 1rem (p-4 top) + 5rem (main-layout padding-bottom) + 1rem (p-4 bottom)
+
+**message_logs content:** `sendWhatsAppTemplate` stores `fallbackBody` (not raw params) — all callers must pass `fallbackBody` for readable logs.
+
+**Key files:** `src/app/(dashboard)/messages/page.tsx`, `src/app/api/messages/contacts/route.ts`, `src/app/api/messages/route.ts`
+
+---
+
 ## Key API Routes
 | Route | Purpose |
 |---|---|
@@ -91,6 +112,8 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 | `POST /api/driver-status` | Driver arrived/completed form handler |
 | `POST /api/webhooks/whatsapp` | Incoming WhatsApp handler |
 | `POST /api/webhooks/gmail` | Incoming Gmail handler |
+| `GET /api/messages/contacts` | Contact list for inbox (tab=whatsapp\|email\|driver) |
+| `GET /api/messages` | Thread messages (phone=, client_id=, or driver_id=) |
 
 ---
 
