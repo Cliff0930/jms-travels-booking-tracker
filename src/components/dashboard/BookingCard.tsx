@@ -51,6 +51,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const bookerName    = booking.guest_name && booking.client?.name ? booking.client.name : null
   const companyName   = booking.company?.name || booking.client?.company?.name
   const isPossibleDup = (booking.flags as string[] | undefined)?.includes('possible_duplicate')
+  const isNeedsClarification = (booking.flags as string[] | undefined)?.includes('needs_clarification')
   const isOfflineTrip = (booking.flags as string[] | undefined)?.includes('offline_trip')
 
   const src      = SOURCE_CONFIG[booking.source as keyof typeof SOURCE_CONFIG] ?? SOURCE_CONFIG.manual
@@ -60,7 +61,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
 
   return (
     <div
-      className={`bg-white rounded-xl border overflow-hidden cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-px ${isPossibleDup ? 'border-amber-400' : 'border-[#E5E7EB]'} ${statusBarClass(booking.status)}`}
+      className={`bg-white rounded-xl border overflow-hidden cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-px ${isNeedsClarification ? 'border-orange-400' : isPossibleDup ? 'border-amber-400' : 'border-[#E5E7EB]'} ${statusBarClass(booking.status)}`}
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       <div className="p-4">
@@ -77,6 +78,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
               </span>
             )}
+            {isNeedsClarification && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 border border-orange-300">Clarify</span>}
             {isPossibleDup && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">Dup?</span>}
             {booking.trip_type === 'local'      && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700">Local</span>}
             {booking.trip_type === 'outstation' && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700">Outstation</span>}

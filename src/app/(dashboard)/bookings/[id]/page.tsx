@@ -110,6 +110,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   }, [showCosts, inrRate])
 
   const isPossibleDup = booking?.flags?.includes('possible_duplicate') ?? false
+  const isNeedsClarification = booking?.flags?.includes('needs_clarification') ?? false
   const { data: similarBookings = [] } = useQuery<SimilarBooking[]>({
     queryKey: ['booking-similar', id],
     queryFn: () => fetch(`/api/bookings/${id}/similar`).then(r => r.json()),
@@ -267,6 +268,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [applyingLog, setApplyingLog] = useState<string | null>(null)
   const [chasingApproval, setChasingApproval] = useState(false)
   const [dismissingDup, setDismissingDup] = useState(false)
+  const [dismissingClarification, setDismissingClarification] = useState(false)
   const [cancellingOther, setCancellingOther] = useState<string | null>(null)
   const [showCompleteEarly, setShowCompleteEarly] = useState(false)
   const [completeEarlyReason, setCompleteEarlyReason] = useState('')
@@ -540,6 +542,25 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       toast.success(enabled ? 'Settlement duty enabled' : 'Settlement duty disabled')
     } catch {
       toast.error('Failed to update settlement duty')
+    }
+  }
+
+  async function handleDismissClarification() {
+    setDismissingClarification(true)
+    try {
+      const newFlags = (booking!.flags || []).filter((f: string) => f !== 'needs_clarification')
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flags: newFlags }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success('Clarification dismissed')
+    } catch {
+      toast.error('Failed to dismiss')
+    } finally {
+      setDismissingClarification(false)
     }
   }
 
@@ -937,6 +958,33 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   onClick={handleDismissDuplicate}
                 >
                   {dismissingDup ? 'Dismissing…' : 'Not a duplicate — dismiss'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isNeedsClarification && (
+        <div className="mb-5 rounded-lg border border-orange-300 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-orange-800">Needs clarification before confirming</p>
+              <p className="text-xs text-orange-700 mt-0.5">
+                {booking.special_instructions?.includes('⚠️ CLARIFY:')
+                  ? booking.special_instructions.split('\n').find((l: string) => l.includes('⚠️ CLARIFY:'))
+                  : 'Review the special instructions, call the client if needed, then dismiss.'}
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs rounded-sm text-orange-700 border-orange-300 hover:bg-orange-100"
+                  disabled={dismissingClarification}
+                  onClick={handleDismissClarification}
+                >
+                  {dismissingClarification ? 'Dismissing…' : 'Clarified — dismiss'}
                 </Button>
               </div>
             </div>

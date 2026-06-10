@@ -496,6 +496,15 @@ export async function POST(request: Request) {
           }
         } catch { /* non-critical */ }
       }
+
+      // needs_clarification flag — set when Gemini marked ambiguous details with ⚠️ CLARIFY:
+      if (bk.extracted.special_instructions?.includes('⚠️ CLARIFY:')) {
+        try {
+          await supabase.from('bookings')
+            .update({ flags: [...(flags as string[] || []), 'needs_clarification'] })
+            .eq('id', booking.id)
+        } catch { /* non-critical */ }
+      }
     }
 
     if (createdBookings.length === 0) {
@@ -576,6 +585,27 @@ export async function POST(request: Request) {
     }
 
     if (skip_auto_reply) return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
+
+    // If any booking needs clarification, send a generic "received" ack (Option B) instead of detailed confirmation
+    const anyNeedsClarification = createdBookings.some(cb => cb.extracted.special_instructions?.includes('⚠️ CLARIFY:'))
+    if (anyNeedsClarification) {
+      const clarifyRecipient = channel === 'whatsapp'
+        ? ((client as Client)?.primary_phone || sender_phone)
+        : (sender_email || (client as Client)?.primary_email)
+      if (clarifyRecipient) {
+        const genericBody = `Hi ${clientName},\n\nWe have received your booking request. Our team will review and confirm the details shortly.\n\n— JMS Travels`
+        if (channel === 'email') {
+          try {
+            await sendEmail({ to: clarifyRecipient, subject: 'Booking request received — JMS Travels', body: genericBody, cc: emailCc, replyToThreadId: gmail_thread_id || undefined, inReplyToMessageId: original_message_id || undefined })
+          } catch { /* best effort */ }
+          await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient: clarifyRecipient, body: genericBody, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: 'sent' })
+        } else if (channel === 'whatsapp') {
+          const result = await sendWhatsAppMessage({ to: clarifyRecipient, body: genericBody })
+          await logOutbound(supabase, { bookingId: firstBookingId, clientId: (client as Client)?.id, channel, recipient: clarifyRecipient, body: genericBody, templateKey: TEMPLATE_KEYS.BOOKING_RECEIVED, status: result.ok ? 'sent' : `failed: ${result.error}` })
+        }
+      }
+      return NextResponse.json({ ok: true, booking_id: firstBookingId, booking_ids: createdBookings.map(b => b.booking.id) })
+    }
 
     // Send confirmation
     const recipient = channel === 'whatsapp'
