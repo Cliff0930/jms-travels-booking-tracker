@@ -216,6 +216,7 @@ function DriverAlertRow({ booking, message, severity }: {
     ? { border: 'border-l-red-500',  bg: 'hover:bg-red-50/30',   dot: 'bg-red-500' }
     : { border: 'border-l-amber-400', bg: 'hover:bg-amber-50/30', dot: 'bg-amber-400' }
   const driver = booking.driver as { name: string; vehicle_number?: string | null } | null | undefined
+  const company = booking.company as { name: string } | null | undefined
 
   return (
     <Link href={`/bookings/${booking.id}`}
@@ -224,10 +225,11 @@ function DriverAlertRow({ booking, message, severity }: {
       <div className="flex-1 min-w-0">
         <p className="text-xs font-mono text-gray-400 leading-none mb-0.5">{booking.booking_ref}</p>
         <p className="text-sm font-semibold text-gray-900 truncate">{booking.guest_name ?? (booking as any).requested_by ?? '—'}</p>
+        {company && <p className="text-xs text-gray-400 truncate">{company.name}</p>}
         <p className="text-xs text-gray-500 mt-0.5">{message}</p>
       </div>
       {driver && (
-        <div className="text-xs text-right shrink-0 hidden sm:block">
+        <div className="text-xs text-right shrink-0">
           <p className="font-medium text-gray-700">{driver.name}</p>
           {driver.vehicle_number && <p className="text-gray-400">{driver.vehicle_number}</p>}
         </div>
