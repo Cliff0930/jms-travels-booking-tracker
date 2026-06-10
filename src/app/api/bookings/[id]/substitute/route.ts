@@ -61,20 +61,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Notify client about substitution
   if (newDriver) {
-    const vehicleLine = [newDriver.vehicle_name, newDriver.vehicle_color ? `(${newDriver.vehicle_color})` : null].filter(Boolean).join(' ')
-
     const subFallbackBody = [
-      `Hi ${clientName},`,
+      `Hi ${clientName}, we have made a vehicle change for your booking ${booking.booking_ref}. Your updated driver details:`,
       ``,
-      `Please note that your driver for booking ${booking.booking_ref} has been updated.`,
+      `Driver: ${newDriver.name}`,
+      `Phone: ${newDriver.phone}`,
+      `Vehicle: ${newDriver.vehicle_name || '-'} (${newDriver.vehicle_color || '-'})`,
+      `Plate: ${newDriver.vehicle_number || '-'}`,
       ``,
-      `New Driver: ${newDriver.name}`,
-      `Contact: ${newDriver.phone}`,
-      vehicleLine ? `Vehicle: ${vehicleLine}` : null,
-      newDriver.vehicle_number ? `Plate No.: ${newDriver.vehicle_number}` : null,
-      booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
+      `We apologise for any inconvenience.`,
       ``,
-      `We apologise for any inconvenience. — JMS Travels`,
+      `JMS Travels`,
+      `9845572207`,
     ].filter(Boolean).join('\n')
 
     const guestPhone = booking.guest_phone || null
@@ -91,9 +89,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             booking.booking_ref,
             newDriver.name,
             newDriver.phone,
-            vehicleLine || newDriver.vehicle_name || '-',
+            newDriver.vehicle_name || '-',
+            newDriver.vehicle_color || '-',
             newDriver.vehicle_number || '-',
-            booking.pickup_location || 'TBD',
           ],
           fallbackBody: subFallbackBody,
           costBookingId: id,

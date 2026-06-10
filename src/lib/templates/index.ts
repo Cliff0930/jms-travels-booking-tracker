@@ -14,4 +14,5 @@ export const TEMPLATE_KEYS = {
   CANCELLATION_CLIENT: 'cancellation_client',
   CANCELLATION_DRIVER: 'cancellation_driver',
   SUBSTITUTE_VEHICLE_CLIENT: 'substitute_vehicle_client',
+  LEG_DRIVER_BRIEF: 'leg_driver_brief',
 } as const
