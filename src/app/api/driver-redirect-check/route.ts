@@ -18,13 +18,24 @@ export async function GET(request: Request) {
   const action = searchParams.get('action')
   const legId = searchParams.get('leg_id')
 
-  // Leg-specific links are operator-managed — never redirect them
-  if (legId) return NextResponse.json({ redirect_to: null })
   if (!bookingId || (action !== 'arrived' && action !== 'completed')) {
     return NextResponse.json({ redirect_to: null })
   }
 
   const supabase = createAdminClient()
+
+  // Leg-specific links: only check if the leg date is in the future — no booking-level redirects
+  if (legId) {
+    const { data: leg } = await supabase
+      .from('booking_legs')
+      .select('leg_date')
+      .eq('id', legId)
+      .single()
+    if (leg?.leg_date && leg.leg_date > getTodayIST()) {
+      return NextResponse.json({ redirect_to: null, future_trip: true, trip_date: leg.leg_date })
+    }
+    return NextResponse.json({ redirect_to: null })
+  }
 
   // Load booking + driver info
   const { data: booking } = await supabase
