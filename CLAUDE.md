@@ -21,6 +21,7 @@ Built with: Next.js 16.2.4 + shadcn/ui (base-ui variant) + Supabase + Gemini 2.5
 ## shadcn/ui — Critical Breaking Patterns
 This project uses the newer `@base-ui/react` variant — NOT the standard shadcn:
 - `Button` does NOT support `asChild` — use `ButtonLink` at `src/components/ui/button-link.tsx` instead
+- **Driver search:** `DriverSearchCombobox` at `src/components/shared/DriverSearchCombobox.tsx` — searchable by name, plate (spaces stripped for matching), or phone. Used in TripLegsPanel. Same open/close/outside-click pattern as `CompanyCombobox`.
 - `Select` `onValueChange` receives `string | null` — always guard with `v !== null` before using
 - `DropdownMenuTrigger` does not support `asChild`
 - `Dialog` has `sm:max-w-sm` hardcoded — must use `sm:max-w-*` prefix to override width
