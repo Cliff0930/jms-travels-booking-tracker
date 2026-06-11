@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useDrivers } from '@/hooks/useDrivers'
-import { Calendar, User, Send, CheckCircle2 } from 'lucide-react'
+import { Calendar, User, Send, CheckCircle2, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils/date'
 import type { BookingLeg, Driver } from '@/types'
@@ -69,7 +69,22 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
     }
   }
 
+  const [notifying, setNotifying] = useState(false)
   const [generating, setGenerating] = useState(false)
+
+  async function handleNotifyClient() {
+    setNotifying(true)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/legs/notify-client`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Client notified of driver update')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to notify client')
+    } finally {
+      setNotifying(false)
+    }
+  }
 
   async function handleGenerateLegs() {
     setGenerating(true)
@@ -95,6 +110,8 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
       </Button>
     </div>
   )
+
+  const anyDriverAssigned = legs.some(l => l.driver_id)
 
   return (
     <div className="space-y-2">
@@ -182,6 +199,20 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
           </div>
         )
       })}
+      {anyDriverAssigned && (
+        <div className="pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-8 text-xs gap-1.5 border-[#C3C5D7] text-[#434654] hover:border-[#1A56DB] hover:text-[#1A56DB]"
+            onClick={handleNotifyClient}
+            disabled={notifying}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            {notifying ? 'Sending…' : 'Notify Client of Driver Update'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

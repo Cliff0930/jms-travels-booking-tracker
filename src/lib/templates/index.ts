@@ -16,4 +16,5 @@ export const TEMPLATE_KEYS = {
   SUBSTITUTE_VEHICLE_CLIENT: 'substitute_vehicle_client',
   LEG_DRIVER_BRIEF: 'leg_driver_brief',
   LEG_REMOVED_DRIVER: 'leg_removed_driver',
+  LEG_CLIENT_NOTIFY: 'leg_client_notify',
 } as const

@@ -55,6 +55,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   cancellation_client: 'Cancellation',
   cancellation_driver: 'Cancellation (Driver)',
   leg_removed_driver: 'Leg Removed (Driver)',
+  leg_client_notify: 'Leg Driver Update',
   substitute_vehicle_client: 'Driver Change',
 }
 

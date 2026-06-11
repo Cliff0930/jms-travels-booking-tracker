@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
-import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
-import { formalName } from '@/lib/utils/client-name'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import type { Client } from '@/types'
 
@@ -64,11 +62,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (booking && newDriver && leg) {
       const client = booking.client as Client | null
       const company = booking.company as { name?: string; formal_address?: boolean } | null
-      const clientName = formalName(
-        booking.guest_name || client?.name || 'there',
-        booking.guest_name ? null : client?.salutation,
-        company?.formal_address,
-      )
       const guestName = booking.guest_name || client?.name || 'Guest'
       const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
       const companyName = company?.name || '-'
@@ -154,73 +147,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             .update({ link_sent_at: new Date().toISOString() })
             .eq('id', legId),
         ])
-      }
-
-      // --- Client notification ---
-      const clientFallbackBody = [
-        `Hi ${clientName}, we have made a vehicle change for your booking ${booking.booking_ref}. Your updated driver details:`,
-        ``,
-        `Driver: ${newDriver.name}`,
-        `Phone: ${newDriver.phone}`,
-        `Vehicle: ${newDriver.vehicle_name || '-'} (${newDriver.vehicle_color || '-'})`,
-        `Plate: ${newDriver.vehicle_number || '-'}`,
-        ``,
-        `We apologise for any inconvenience.`,
-        ``,
-        `JMS Travels`,
-        `9845572207`,
-      ].join('\n')
-
-      const guestPhoneRaw = booking.guest_phone || null
-      const adminPhone = client?.primary_phone || null
-      const clientPhones = [...new Set([guestPhoneRaw, adminPhone].filter(Boolean))] as string[]
-
-      if (clientPhones.length > 0) {
-        const clientResults = await Promise.all(
-          clientPhones.map(phone => sendWhatsAppSmart({
-            to: phone,
-            templateName: 'jms_substitute_client',
-            params: [
-              clientName,
-              booking.booking_ref,
-              newDriver.name,
-              newDriver.phone || '',
-              newDriver.vehicle_name || '-',
-              newDriver.vehicle_color || '-',
-              newDriver.vehicle_number || '-',
-            ],
-            fallbackBody: clientFallbackBody,
-            costBookingId: id,
-          }))
-        )
-        const anyOk = clientResults.some(r => r.ok)
-        await supabase.from('message_logs').insert({
-          booking_id: id,
-          client_id: booking.client_id,
-          channel: 'whatsapp',
-          direction: 'outbound',
-          recipient: clientPhones.join(', '),
-          content: clientFallbackBody,
-          template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT,
-          status: anyOk ? 'sent' : 'failed',
-        })
-      } else if (client?.primary_email) {
-        const emailResult = await sendEmailSafe({
-          to: client.primary_email,
-          subject: `Driver Update — ${booking.booking_ref}`,
-          body: clientFallbackBody,
-          booking_id: id,
-        })
-        await supabase.from('message_logs').insert({
-          booking_id: id,
-          client_id: booking.client_id,
-          channel: 'email',
-          direction: 'outbound',
-          recipient: client.primary_email,
-          content: clientFallbackBody,
-          template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT,
-          status: emailResult.ok ? 'sent' : 'failed',
-        })
       }
 
       // Push notification to driver app (non-blocking)
