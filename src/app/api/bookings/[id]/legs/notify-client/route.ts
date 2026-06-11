@@ -1,11 +1,33 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendWhatsAppSmart } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/send'
+import { isWhatsAppWindowOpen } from '@/lib/whatsapp/window'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { formatDate } from '@/lib/utils/date'
 import { formalName, formalGuestName } from '@/lib/utils/client-name'
 import { TEMPLATE_KEYS } from '@/lib/templates'
 import type { Client } from '@/types'
+
+type LegDriver = { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string } | null
+
+function buildLegBody(clientName: string, ref: string, dayNumber: number, dayDate: string, driver: LegDriver): string {
+  const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
+  return [
+    `Dear ${clientName},`,
+    '',
+    `Please be informed that the driver for your booking ${ref} has been changed for the following date:`,
+    '',
+    `Day ${dayNumber} — ${dayDate}`,
+    `Driver : ${driver?.name || 'TBD'}`,
+    `Phone  : ${driver?.phone || 'TBD'}`,
+    `Vehicle: ${vehicle}`,
+    '',
+    'We apologise for any inconvenience caused. For assistance, please contact us at 9845572207.',
+    '',
+    'Warm regards,',
+    'JMS Travels',
+  ].join('\n')
+}
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -40,10 +62,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     ? formalGuestName(booking.guest_name, guestClientRecord?.prefix ?? null, guestClientRecord?.designation ?? null, company?.show_designation ?? null)
     : formalName(client?.name || 'there', client?.salutation, company?.formal_address)
 
+  // Consolidated body (used for free-form within 24h + email fallback)
   const allAssigned = assignedLegs.length === legs.length
-
   const dayBlocks = assignedLegs.flatMap(leg => {
-    const driver = leg.driver as { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string } | null
+    const driver = leg.driver as LegDriver
     const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
     return [
       `Day ${leg.day_number} — ${formatDate(leg.leg_date)}`,
@@ -53,8 +75,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       '',
     ]
   })
-
-  const lines = [
+  const consolidatedBody = [
     `Dear ${clientName},`,
     '',
     `Please be informed that the driver(s) for your booking ${booking.booking_ref} have been changed for the following date(s):`,
@@ -65,8 +86,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     '',
     'Warm regards,',
     'JMS Travels',
-  ]
-  const body = lines.join('\n')
+  ].join('\n')
 
   const guestPhone = booking.guest_phone || null
   const adminPhone = client?.primary_phone || null
@@ -75,31 +95,86 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   let status = 'failed'
 
   if (phones.length > 0) {
-    const results = await Promise.all(
-      phones.map(phone => sendWhatsAppSmart({
-        to: phone,
-        templateName: 'leg_client_notify',
-        params: [],
-        fallbackBody: body,
-        costBookingId: id,
-      }))
-    )
-    status = results.some(r => r.ok) ? 'sent' : 'failed'
-    await supabase.from('message_logs').insert({
-      booking_id: id,
-      client_id: booking.client_id,
-      channel: 'whatsapp',
-      direction: 'outbound',
-      recipient: phones.join(', '),
-      content: body,
-      template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
-      status,
-    })
+    // Check 24h window using primary phone
+    let windowOpen = false
+    try { windowOpen = await isWhatsAppWindowOpen(phones[0]) } catch { /* default false */ }
+
+    if (windowOpen) {
+      // Within 24h: send one consolidated free-form to all phones
+      const results = await Promise.all(phones.map(phone => sendWhatsAppMessage({ to: phone, body: consolidatedBody })))
+      status = results.some(r => r.ok) ? 'sent' : 'failed'
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        client_id: booking.client_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: phones.join(', '),
+        content: consolidatedBody,
+        template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
+        status,
+      })
+    } else {
+      // Outside 24h: one template per leg to all phones
+      const legStatuses: boolean[] = []
+      for (const leg of assignedLegs) {
+        const driver = leg.driver as LegDriver
+        const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
+        const legBody = buildLegBody(clientName, booking.booking_ref, leg.day_number, formatDate(leg.leg_date), driver)
+        const legResults = await Promise.all(phones.map(phone => sendWhatsAppTemplate({
+          to: phone,
+          templateName: 'jms_leg_driver_update_client',
+          params: [
+            clientName,
+            booking.booking_ref,
+            String(leg.day_number),
+            formatDate(leg.leg_date),
+            driver?.name || 'TBD',
+            driver?.phone || 'TBD',
+            vehicle,
+          ],
+          fallbackBody: legBody,
+          costBookingId: id,
+        })))
+        legStatuses.push(legResults.some(r => r.ok))
+        await supabase.from('message_logs').insert({
+          booking_id: id,
+          client_id: booking.client_id,
+          channel: 'whatsapp',
+          direction: 'outbound',
+          recipient: phones.join(', '),
+          content: legBody,
+          template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
+          status: legResults.some(r => r.ok) ? 'sent' : 'failed',
+        })
+      }
+      status = legStatuses.some(Boolean) ? 'sent' : 'failed'
+
+      // Idea 3: always email when outside 24h window — guaranteed full details
+      if (client?.primary_email) {
+        const emailResult = await sendEmailSafe({
+          to: client.primary_email,
+          subject: `Driver Update — ${booking.booking_ref}`,
+          body: consolidatedBody,
+          booking_id: id,
+        })
+        await supabase.from('message_logs').insert({
+          booking_id: id,
+          client_id: booking.client_id,
+          channel: 'email',
+          direction: 'outbound',
+          recipient: client.primary_email,
+          content: consolidatedBody,
+          template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
+          status: emailResult.ok ? 'sent' : 'failed',
+        })
+      }
+    }
   } else if (client?.primary_email) {
+    // No phone — always email with full consolidated details
     const result = await sendEmailSafe({
       to: client.primary_email,
       subject: `Driver Update — ${booking.booking_ref}`,
-      body,
+      body: consolidatedBody,
       booking_id: id,
     })
     status = result.ok ? 'sent' : 'failed'
@@ -109,7 +184,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       channel: 'email',
       direction: 'outbound',
       recipient: client.primary_email,
-      content: body,
+      content: consolidatedBody,
       template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
       status,
     })
