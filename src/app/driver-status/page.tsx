@@ -176,6 +176,7 @@ function DriverStatusContent() {
   // True while we check whether this driver should be redirected to a different link.
   // Initialized to true only when params are valid and no leg_id (leg links are never redirected).
   const [redirectLoading, setRedirectLoading] = useState(!!(bookingId && status && token && !legId))
+  const [futureTripDate, setFutureTripDate] = useState<string | null>(null)
 
   // GPS
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -219,10 +220,11 @@ function DriverStatusContent() {
     const timeout = setTimeout(() => controller.abort(), 4000)
     fetch(`/api/driver-redirect-check?${params}`, { signal: controller.signal })
       .then(r => r.json())
-      .then(({ redirect_to }: { redirect_to: string | null }) => {
+      .then(({ redirect_to, future_trip, trip_date }: { redirect_to: string | null; future_trip?: boolean; trip_date?: string }) => {
         if (redirect_to) {
           window.location.replace(redirect_to)
         } else {
+          if (future_trip && trip_date) setFutureTripDate(trip_date)
           setRedirectLoading(false)
         }
       })
@@ -391,6 +393,23 @@ function DriverStatusContent() {
   }
 
   if (redirectLoading) return null
+
+  if (futureTripDate) {
+    const [y, m, d] = futureTripDate.split('-')
+    const formatted = new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+    return (
+      <div className="min-h-screen bg-[#FAF8FF] flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-8 max-w-sm w-full text-center space-y-3">
+          <div className="text-5xl mb-2">🗓️</div>
+          <h2 className="text-lg font-semibold text-[#191B23]">Trip Not Yet Due</h2>
+          <p className="text-sm text-[#737686] leading-relaxed">
+            This trip is scheduled for <strong>{formatted}</strong>. Please open this link on that day.
+          </p>
+          <p className="text-xs text-[#9CA3AF]">For any queries, contact JMS Travels directly.</p>
+        </div>
+      </div>
+    )
+  }
 
   if (alreadyDone) {
     return (

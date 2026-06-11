@@ -45,6 +45,41 @@ export async function GET(request: Request) {
   if (driverUsesApp) return NextResponse.json({ redirect_to: null })
 
   const driverId = booking.driver_id
+  const today = getTodayIST()
+
+  // --- Step 0: Future-dated trip — driver opened a link too early ---
+  if (booking.pickup_date && booking.pickup_date > today) {
+    // Redirect to today's active trip if one exists; otherwise tell the page it's a future link
+    const { data: todayInProgress } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('driver_id', driverId)
+      .eq('status', 'in_progress')
+      .limit(1)
+      .maybeSingle()
+
+    if (todayInProgress) {
+      return NextResponse.json({ redirect_to: driverStatusUrl(todayInProgress.id, 'completed') })
+    }
+
+    const { data: todayConfirmed } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('driver_id', driverId)
+      .eq('status', 'confirmed')
+      .eq('pickup_date', today)
+      .order('pickup_time', { ascending: true, nullsFirst: false })
+      .order('booking_ref', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (todayConfirmed) {
+      return NextResponse.json({ redirect_to: driverStatusUrl(todayConfirmed.id, 'arrived') })
+    }
+
+    // No today trips — surface the date so the page can show a friendly message
+    return NextResponse.json({ redirect_to: null, future_trip: true, trip_date: booking.pickup_date })
+  }
 
   // --- Step 1: Any in_progress booking for this driver? ---
   // An in_progress trip must be completed before anything else.
@@ -66,7 +101,6 @@ export async function GET(request: Request) {
 
   // --- Step 2: Current booking already finished or cancelled? ---
   if (booking.status === 'completed' || booking.status === 'cancelled') {
-    const today = getTodayIST()
     const { data: nextTrip } = await supabase
       .from('bookings')
       .select('id')
@@ -92,7 +126,6 @@ export async function GET(request: Request) {
     booking.pickup_date &&
     booking.pickup_time
   ) {
-    const today = getTodayIST()
     if (booking.pickup_date === today) {
       const { data: earlierTrip } = await supabase
         .from('bookings')
