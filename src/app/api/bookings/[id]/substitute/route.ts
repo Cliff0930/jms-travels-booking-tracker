@@ -8,7 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
-import { formalName } from '@/lib/utils/client-name'
+import { formalName, formalGuestName } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies(name, formal_address)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -52,12 +52,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single()
 
   const client = booking.client as Client | null
-  const subCompany = booking.company as { formal_address?: boolean } | null
-  const clientName = formalName(
-    booking.guest_name || client?.name || 'there',
-    booking.guest_name ? null : client?.salutation,
-    subCompany?.formal_address,
-  )
+  const guestClientForSub = booking.guest_client as { name?: string; prefix?: string; designation?: string } | null
+  const subCompany = booking.company as { formal_address?: boolean; show_designation?: boolean } | null
+  const clientName = booking.guest_name
+    ? formalGuestName(booking.guest_name, guestClientForSub?.prefix ?? null, guestClientForSub?.designation ?? null, subCompany?.show_designation ?? null)
+    : formalName(client?.name || 'there', client?.salutation, subCompany?.formal_address)
 
   // Notify client about substitution
   if (newDriver) {
@@ -145,7 +144,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
     } else {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
-      const guestName = booking.guest_name || client?.name || 'Guest'
+      const guestName = formalGuestName(
+        booking.guest_name || guestClientForSub?.name || client?.name || 'Guest',
+        guestClientForSub?.prefix ?? null,
+        guestClientForSub?.designation ?? null,
+        subCompany?.show_designation ?? null,
+      )
       const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
       const [arrivedLink, completedLink] = await Promise.all([
         createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),

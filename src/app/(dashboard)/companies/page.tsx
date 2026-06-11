@@ -644,6 +644,16 @@ export default function CompaniesPage() {
                           onCheckedChange={v => updateCompany(selectedCompany.id, { formal_address: v })}
                         />
                       </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm">Include Designation in Address</Label>
+                          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Show designation after name in WhatsApp, email, booking, and billing (e.g. Dr. Rajesh Kumar, Deputy Director)</p>
+                        </div>
+                        <Switch
+                          checked={!!selectedCompany.show_designation}
+                          onCheckedChange={v => updateCompany(selectedCompany.id, { show_designation: v })}
+                        />
+                      </div>
                       {selectedCompany.approval_required && (
                         <div className="space-y-3 pt-1">
                           <div>

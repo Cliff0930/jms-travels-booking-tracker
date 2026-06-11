@@ -37,6 +37,7 @@ export interface Company {
   driver_notify_target: 'booker' | 'guest' | 'both'
   pickup_origin_address: string | null
   formal_address: boolean
+  show_designation: boolean
   gstin: string | null
   address: string | null
   created_at: string

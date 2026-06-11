@@ -8,7 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
-import { formalName } from '@/lib/utils/client-name'
+import { formalName, formalGuestName } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies(name, formal_address), driver:drivers(id), cc_emails, source')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation), driver:drivers(id), cc_emails, source')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -81,7 +81,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } else {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'
       const client = booking.client as Client | null
-      const guestName = booking.guest_name || client?.name || 'Guest'
+      const guestClientRecord = booking.guest_client as { name?: string; prefix?: string; designation?: string } | null
+      const company = booking.company as { name?: string; formal_address?: boolean; show_designation?: boolean } | null
+      const rawGuestName = booking.guest_name || guestClientRecord?.name || client?.name || 'Guest'
+      const guestName = formalGuestName(
+        rawGuestName,
+        guestClientRecord?.prefix ?? null,
+        guestClientRecord?.designation ?? null,
+        company?.show_designation ?? null,
+      )
       const guestPhone = booking.guest_phone || client?.primary_phone || 'TBD'
       const [arrivedLink, completedLink] = await Promise.all([
         createShortLink(driverStatusLink(appUrl, id, 'arrived'), id),
@@ -178,12 +186,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const guestPhone = booking.guest_phone || null
     const bookerPhone = client?.primary_phone || null
     const bookerEmail = client?.primary_email || null
-    const companyForName = booking.company as { formal_address?: boolean } | null
-    const clientName = formalName(
-      booking.guest_name || client?.name || 'there',
-      booking.guest_name ? null : client?.salutation,
-      companyForName?.formal_address,
-    )
+    const companyForName = booking.company as { formal_address?: boolean; show_designation?: boolean } | null
+    const guestClientForName = booking.guest_client as { name?: string; prefix?: string; designation?: string } | null
+    const clientName = booking.guest_name
+      ? formalGuestName(booking.guest_name, guestClientForName?.prefix ?? null, guestClientForName?.designation ?? null, companyForName?.show_designation ?? null)
+      : formalName(client?.name || 'there', client?.salutation, companyForName?.formal_address)
 
     if (booking.pickup_date && booking.pickup_time) {
       const dateStr = formatDate(booking.pickup_date)

@@ -62,7 +62,7 @@ interface EligibleIndividual {
 }
 
 function GenerateModal({ companies, onClose, onSaved, prefill }: {
-  companies: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
+  companies: { id: string; name: string; show_designation?: boolean }[]; onClose: () => void; onSaved: () => void
   prefill?: { companyId: string; periodFrom: string; periodTo: string }
 }) {
   const router = useRouter()
@@ -187,7 +187,7 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
           guest_client_id: guestClientId,
           addressee_prefix: selectedIndividual?.prefix ?? null,
           addressee_name: selectedIndividual?.name ?? null,
-          addressee_designation: selectedIndividual?.designation ?? null,
+          addressee_designation: (companies.find(c => c.id === companyId)?.show_designation && selectedIndividual?.designation) ? selectedIndividual.designation : null,
         } : {}),
         ...(billMode === 'individual' ? {
           individual_client_id: walkInClientId || null,
@@ -503,7 +503,7 @@ export default function InvoicesPage() {
     queryKey: ['invoices', statusFilter],
     queryFn: () => fetch(`/api/billing/invoices${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`).then(r => r.json()),
   })
-  const { data: companies = [] } = useQuery<{ id: string; name: string }[]>({
+  const { data: companies = [] } = useQuery<{ id: string; name: string; show_designation?: boolean }[]>({
     queryKey: ['companies-list'],
     queryFn: () => fetch('/api/companies').then(r => r.json()),
   })

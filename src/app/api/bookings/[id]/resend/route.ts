@@ -7,7 +7,7 @@ import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
-import { formalName } from '@/lib/utils/client-name'
+import { formalName, formalGuestName } from '@/lib/utils/client-name'
 
 type MessageType = 'booking_confirmed' | 'driver_details' | 'trip_brief_driver'
 type Channel = 'whatsapp' | 'email'
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, salutation), company:companies(name, formal_address), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen), cc_emails, source')
+    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen), cc_emails, source')
     .eq('id', id)
     .single()
 
@@ -37,12 +37,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const client = booking.client as (Client & { primary_email?: string }) | null
   const driver = booking.driver as { id: string; name: string; phone: string; secondary_phone?: string; vehicle_name?: string; vehicle_number?: string; vehicle_color?: string; uses_app?: boolean; last_app_seen?: string | null } | null
 
-  const resendCompany = booking.company as { formal_address?: boolean } | null
-  const clientName = formalName(
-    booking.guest_name || client?.name || 'there',
-    booking.guest_name ? null : client?.salutation,
-    resendCompany?.formal_address,
-  )
+  const guestClientForResend = booking.guest_client as { name?: string; prefix?: string; designation?: string } | null
+  const resendCompany = booking.company as { formal_address?: boolean; show_designation?: boolean } | null
+  const clientName = booking.guest_name
+    ? formalGuestName(booking.guest_name, guestClientForResend?.prefix ?? null, guestClientForResend?.designation ?? null, resendCompany?.show_designation ?? null)
+    : formalName(client?.name || 'there', client?.salutation, resendCompany?.formal_address)
   const guestPhone = booking.guest_phone || null
   const bookerPhone = client?.primary_phone || null
   const bookerEmail = client?.primary_email || null
@@ -171,7 +170,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     templateName = 'jms_trip_brief_driver'
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-    const guestNameForDriver = booking.guest_name || client?.name || 'Guest'
+    const guestNameForDriver = formalGuestName(
+      booking.guest_name || guestClientForResend?.name || client?.name || 'Guest',
+      guestClientForResend?.prefix ?? null,
+      guestClientForResend?.designation ?? null,
+      resendCompany?.show_designation ?? null,
+    )
     const guestPhoneForDriver = booking.guest_phone || client?.primary_phone || 'TBD'
     const companyName = (booking.company as { name?: string } | null)?.name || null
     const [arrivedLink, completedLink] = await Promise.all([

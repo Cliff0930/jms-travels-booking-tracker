@@ -351,7 +351,10 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                   {initials}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-white leading-tight truncate">{client.name}</h2>
+                  <h2 className="text-base font-bold text-white leading-tight truncate">
+                    {client.prefix ? <span className="font-normal opacity-80">{client.prefix} </span> : null}{client.name}
+                  </h2>
+                  {client.designation && <p className="text-[11px] text-white/70 mt-0.5 truncate">{client.designation}</p>}
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                     <span className="text-[11px] font-medium bg-white/20 text-white px-2 py-0.5 rounded-full capitalize">{client.client_type}</span>
                     {client.is_verified && <span className="text-[11px] font-medium bg-emerald-400/30 text-emerald-100 px-2 py-0.5 rounded-full">✓ Verified</span>}
@@ -697,7 +700,13 @@ export function ClientDetailPanel({ client, open, onClose }: ClientDetailPanelPr
                     <SelectTrigger className="border-[#C3C5D7] h-9 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">—</SelectItem>
-                      {['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      {[
+                        'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Er.', 'CA', 'Adv.', 'Ar.',
+                        'Shri', 'Smt.', 'Km.',
+                        'Gen.', 'Lt. Gen.', 'Maj. Gen.', 'Brig.', 'Col.', 'Lt. Col.', 'Maj.', 'Capt.', 'Lt.',
+                        'Adm.', 'V. Adm.', 'Cdre.',
+                        'Gp. Capt.', 'Wg. Cdr.', 'Sqn. Ldr.', 'Flt. Lt.', 'AVM',
+                      ].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

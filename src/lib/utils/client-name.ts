@@ -18,6 +18,23 @@ export function extractHonorific(rawName: string): { cleanName: string; salutati
 }
 
 /**
+ * Builds the formal address for a guest using their prefix and designation.
+ * Rule: prefix + name [+ ", " + designation only if showDesignation=true].
+ * Falls back to plain name when no prefix is set.
+ */
+export function formalGuestName(
+  name: string,
+  prefix?: string | null,
+  designation?: string | null,
+  showDesignation?: boolean | null,
+): string {
+  if (!name || name === 'there' || name === 'Guest') return name
+  const base = prefix ? `${prefix} ${name}` : name
+  if (designation && showDesignation) return `${base}, ${designation}`
+  return base
+}
+
+/**
  * Appends a formal salutation suffix (Sir/Madam) to a client name.
  * Used for government/official companies where formal address is required.
  *
