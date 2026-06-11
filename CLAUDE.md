@@ -62,6 +62,8 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 - **booking_type:** Valid values are `'company'` and `'personal'` ONLY — `'corporate'` is invalid
 - **Driver status:** Must be updated on all 4 paths: assign, substitute, cancel, complete
 - **Bata:** Computed server-side; `bata_driver` column on `trip_sheets`; company rate overrides driver default by vehicle_name
+- **Silent driver assignment:** `silent: true` in assign POST body skips all WhatsApp/push/email — used for backdating completed trips
+- **Smart driver link redirect:** `GET /api/driver-redirect-check` called on every driver-status page load (client-side useEffect). Redirects to correct link based on driver's active trips. Skipped for app drivers and leg-specific links. Falls back to original form on any error (4s timeout). Future-dated trips/legs show "not yet due" message instead of form.
 
 ---
 
@@ -110,6 +112,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 | `POST /api/bookings/[id]/substitute` | Swap booking-level driver |
 | `PATCH /api/bookings/[id]/legs/[legId]` | Assign driver to specific leg — auto-sends notifications |
 | `POST /api/bookings/[id]/legs/[legId]/send-links` | Send day-specific links to same driver |
+| `GET /api/driver-redirect-check` | Smart redirect check — returns correct link for driver's current state |
 | `POST /api/driver-status` | Driver arrived/completed form handler |
 | `POST /api/webhooks/whatsapp` | Incoming WhatsApp handler |
 | `POST /api/webhooks/gmail` | Incoming Gmail handler |
