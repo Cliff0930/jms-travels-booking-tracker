@@ -1,10 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useDrivers } from '@/hooks/useDrivers'
+import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
 import { Calendar, User, Send, CheckCircle2, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils/date'
@@ -179,22 +179,12 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
                   {sendingLinks === leg.id ? 'Sending…' : linkSentAt ? 'Resend' : `Day ${leg.day_number} Links`}
                 </Button>
               )}
-              <Select
+              <DriverSearchCombobox
                 value={leg.driver_id || ''}
-                items={allDrivers.filter(d => d.is_active).map(d => ({ value: d.id, label: `${d.name} (${d.vehicle_type})` }))}
-                onValueChange={v => v !== null && v !== '' && handleAssign(leg.id, v)}
-              >
-                <SelectTrigger className="flex-1 h-7 text-xs border-[#C3C5D7]" disabled={assigning === leg.id}>
-                  <SelectValue placeholder="Assign driver…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allDrivers.filter(d => d.is_active).map(d => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name} ({d.vehicle_type})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                drivers={allDrivers.filter(d => d.is_active)}
+                onSelect={id => handleAssign(leg.id, id)}
+                disabled={assigning === leg.id}
+              />
             </div>
           </div>
         )
