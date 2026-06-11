@@ -19,7 +19,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .single(),
     supabase
       .from('booking_legs')
-      .select('day_number, leg_date, driver_id, driver:drivers!driver_id(name, phone)')
+      .select('day_number, leg_date, driver_id, driver:drivers!driver_id(name, phone, vehicle_name, vehicle_number)')
       .eq('booking_id', id)
       .order('day_number', { ascending: true }),
   ])
@@ -41,22 +41,30 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     : formalName(client?.name || 'there', client?.salutation, company?.formal_address)
 
   const allAssigned = assignedLegs.length === legs.length
-  const header = allAssigned
-    ? `Hi ${clientName}, driver details for your booking ${booking.booking_ref}:`
-    : `Hi ${clientName}, driver details confirmed so far for your booking ${booking.booking_ref}:`
 
-  const dayLines = assignedLegs.map(leg => {
-    const driver = leg.driver as { name?: string; phone?: string } | null
-    return `Day ${leg.day_number} (${formatDate(leg.leg_date)}) — ${driver?.name || 'TBD'} · ${driver?.phone || 'TBD'}`
+  const dayBlocks = assignedLegs.flatMap(leg => {
+    const driver = leg.driver as { name?: string; phone?: string; vehicle_name?: string; vehicle_number?: string } | null
+    const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
+    return [
+      `Day ${leg.day_number} — ${formatDate(leg.leg_date)}`,
+      `Driver : ${driver?.name || 'TBD'}`,
+      `Phone  : ${driver?.phone || 'TBD'}`,
+      `Vehicle: ${vehicle}`,
+      '',
+    ]
   })
 
   const lines = [
-    header,
+    `Dear ${clientName},`,
     '',
-    ...dayLines,
-    ...(!allAssigned ? ['', 'Drivers for remaining days will be confirmed shortly.'] : []),
+    `Please be informed that the driver(s) for your booking ${booking.booking_ref} have been changed for the following date(s):`,
     '',
-    'JMS Travels — 9845572207',
+    ...dayBlocks,
+    ...(!allAssigned ? ['Drivers for remaining days will be confirmed shortly.', ''] : []),
+    'We apologise for any inconvenience caused. For assistance, please contact us at 9845572207.',
+    '',
+    'Warm regards,',
+    'JMS Travels',
   ]
   const body = lines.join('\n')
 
