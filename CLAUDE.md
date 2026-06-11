@@ -63,6 +63,7 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 - **Short links:** All driver/approval links sent as `https://booking.jmstravels.net/r/xxxxxx` — no time expiry, expire only on use/cancel
 - **Booking refs:** Format `BK-YYYY-XXXX`, counter in `booking_counters` table
 - **booking_type:** Valid values are `'company'` and `'personal'` ONLY — `'corporate'` is invalid
+- **Invoice delete FK order:** `credit_notes` → `billing_payments` → `invoice_line_items` → `invoices` (no CASCADE). Counter reset: `UPDATE app_settings SET value = '0' WHERE key = 'invoice_last_seq_2026-27'`
 - **Driver status:** Must be updated on all 4 paths: assign, substitute, cancel, complete
 - **Bata:** Computed server-side; `bata_driver` column on `trip_sheets`; company rate overrides driver default by vehicle_name
 - **Silent driver assignment:** `silent: true` in assign POST body skips all WhatsApp/push/email — used for backdating completed trips
