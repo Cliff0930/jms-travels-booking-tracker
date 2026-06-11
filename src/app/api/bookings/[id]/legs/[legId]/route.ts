@@ -19,6 +19,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (driver_id !== undefined) updates.driver_id = driver_id
   if (leg_status !== undefined) updates.leg_status = leg_status
 
+  // Capture old leg driver before overwriting (needed to send cancellation notice)
+  let oldLegDriverId: string | null = null
+  if (driver_id !== undefined) {
+    const { data: currentLeg } = await supabase
+      .from('booking_legs').select('driver_id').eq('id', legId).single()
+    oldLegDriverId = currentLeg?.driver_id ?? null
+  }
+
   const { data, error } = await supabase
     .from('booking_legs')
     .update(updates)
@@ -222,6 +230,45 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         `${booking.booking_ref} · ${formatDate(leg.leg_date)}`,
         { bookingId: id }
       ).catch(() => {})
+
+      // Notify old leg driver their assignment was removed
+      if (oldLegDriverId && oldLegDriverId !== driver_id) {
+        const { data: oldLegDriver } = await supabase
+          .from('drivers')
+          .select('name, phone, uses_app, last_app_seen')
+          .eq('id', oldLegDriverId)
+          .single()
+        const oldLegDriverUsesApp = !!(
+          oldLegDriver?.uses_app && oldLegDriver?.last_app_seen &&
+          new Date(oldLegDriver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        )
+        if (oldLegDriver?.phone && oldLegDriver?.name && !oldLegDriverUsesApp) {
+          const removedFallback = `Hi ${oldLegDriver.name}, Day ${leg.day_number} of booking ${booking.booking_ref} (${formatDate(leg.leg_date)}) has been removed from your schedule. For any queries contact JMS Travels: 9845572207 — JMS Travels`
+          const removedResult = await sendWhatsAppSmart({
+            to: oldLegDriver.phone,
+            templateName: 'jms_leg_removed_driver',
+            params: [
+              oldLegDriver.name,
+              String(leg.day_number),
+              booking.booking_ref,
+              formatDate(leg.leg_date),
+            ],
+            fallbackBody: removedFallback,
+            costBookingId: id,
+          })
+          await supabase.from('message_logs').insert({
+            booking_id: id,
+            driver_id: oldLegDriverId,
+            channel: 'whatsapp',
+            direction: 'outbound',
+            recipient: oldLegDriver.phone,
+            content: removedFallback,
+            template_used: TEMPLATE_KEYS.LEG_REMOVED_DRIVER,
+            status: removedResult.ok ? 'sent' : 'failed',
+            whatsapp_message_id: removedResult.whatsappMessageId ?? null,
+          })
+        }
+      }
     }
   }
 

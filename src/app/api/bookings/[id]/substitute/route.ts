@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation), driver:drivers!driver_id(name, phone, uses_app, last_app_seen)')
     .eq('id', id)
     .single()
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -32,6 +32,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (booking.driver_id) {
     await supabase.from('drivers').update({ status: 'available' }).eq('id', booking.driver_id)
+
+    // Notify old driver that their trip has been cancelled
+    const oldDriver = booking.driver as { name?: string; phone?: string; uses_app?: boolean; last_app_seen?: string | null } | null
+    const oldDriverUsesApp = !!(oldDriver?.uses_app && oldDriver?.last_app_seen &&
+      new Date(oldDriver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+    if (oldDriver?.phone && oldDriver?.name && !oldDriverUsesApp) {
+      const cancelFallback = `Hi ${oldDriver.name}, booking ${booking.booking_ref} for ${formatDate(booking.pickup_date)} at ${formatTime(booking.pickup_time)} has been cancelled. You are now available for new assignments. — JMS Travels`
+      const cancelResult = await sendWhatsAppTemplate({
+        to: oldDriver.phone,
+        templateName: 'jms_cancellation_driver',
+        params: [oldDriver.name, booking.booking_ref, formatDate(booking.pickup_date), formatTime(booking.pickup_time)],
+        fallbackBody: cancelFallback,
+        costBookingId: id,
+      })
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        driver_id: booking.driver_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: oldDriver.phone,
+        content: cancelFallback,
+        template_used: TEMPLATE_KEYS.CANCELLATION_DRIVER,
+        status: cancelResult.ok ? 'sent' : 'failed',
+        whatsapp_message_id: cancelResult.whatsappMessageId ?? null,
+      })
+    }
   }
 
   const { data, error } = await supabase

@@ -18,6 +18,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   trip_brief_to_driver: 'Trip Brief',
   cancellation_client: 'Cancellation (Client)',
   cancellation_driver: 'Cancellation (Driver)',
+  leg_removed_driver: 'Leg Removed (Driver)',
   substitute_vehicle_client: 'Substitute Vehicle',
 }
 

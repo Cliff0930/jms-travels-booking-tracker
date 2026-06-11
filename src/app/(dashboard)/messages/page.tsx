@@ -54,6 +54,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   jms_leg_day_links: 'Day Links',
   cancellation_client: 'Cancellation',
   cancellation_driver: 'Cancellation (Driver)',
+  leg_removed_driver: 'Leg Removed (Driver)',
   substitute_vehicle_client: 'Driver Change',
 }
 
