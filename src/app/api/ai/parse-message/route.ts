@@ -451,14 +451,14 @@ export async function POST(request: Request) {
       // Auto-create or reuse guest client profile and link to booking
       if (bk.extracted.guest_name) {
         try {
-          const guestClientId = await findOrCreateGuestClient(supabase, {
+          const guest = await findOrCreateGuestClient(supabase, {
             guestName: bk.extracted.guest_name,
             guestPhone: bk.extracted.guest_phone,
             companyId: (client as Client)?.company_id ?? null,
             salutation: guestSalutation,
           })
-          if (guestClientId) {
-            await supabase.from('bookings').update({ guest_client_id: guestClientId }).eq('id', booking.id)
+          if (guest) {
+            await supabase.from('bookings').update({ guest_client_id: guest.id, guest_name: guest.name }).eq('id', booking.id)
           }
         } catch { /* non-critical */ }
       }

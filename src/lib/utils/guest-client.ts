@@ -15,12 +15,15 @@ interface GuestClientParams {
  * 1. Normalized phone + all common format variants (bare 10-digit, 91-prefixed, raw)
  * 2. Name (case-insensitive) + same company (fallback when no phone or no phone match)
  * 3. Create new record if no match found
+ *
+ * Returns { id, name } where name is always the canonical name stored in the directory —
+ * callers should use this name on the booking rather than the user-typed name.
  */
 export async function findOrCreateGuestClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   { guestName, guestPhone, companyId, salutation }: GuestClientParams,
-): Promise<string | null> {
+): Promise<{ id: string; name: string } | null> {
   // Layer 1: Phone matching with all format variants
   if (guestPhone?.trim()) {
     const normalized = normalizePhone(guestPhone)
@@ -37,26 +40,26 @@ export async function findOrCreateGuestClient(
 
     const { data } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, name')
       .in('primary_phone', candidates)
       .limit(1)
       .maybeSingle()
 
-    if (data?.id) return data.id
+    if (data?.id) return { id: data.id, name: data.name }
   }
 
   // Layer 2: Name + company fallback (no phone or phone didn't match)
   if (companyId) {
     const { data } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, name')
       .eq('client_type', 'guest')
       .ilike('name', guestName.trim())
       .eq('guest_of_company_id', companyId)
       .limit(1)
       .maybeSingle()
 
-    if (data?.id) return data.id
+    if (data?.id) return { id: data.id, name: data.name }
   }
 
   // Layer 3: Create new guest record
@@ -73,8 +76,8 @@ export async function findOrCreateGuestClient(
       is_vip: false,
       salutation: salutation ?? null,
     })
-    .select('id')
+    .select('id, name')
     .single()
 
-  return newGuest?.id ?? null
+  return newGuest ? { id: newGuest.id, name: newGuest.name } : null
 }

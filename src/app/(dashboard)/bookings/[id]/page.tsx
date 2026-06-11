@@ -741,7 +741,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guest_client_id: newClient.id, flags: newFlags }),
+        body: JSON.stringify({ guest_client_id: newClient.id, guest_name: newClient.name, flags: newFlags }),
       })
 
       qc.invalidateQueries({ queryKey: ['bookings', id] })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/utils/phone'
+import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 
 export async function GET(request: Request) {
   const supabase = createAdminClient()
@@ -70,6 +71,27 @@ export async function POST(request: Request) {
     new_status: data.status,
     changed_by: 'system',
   })
+
+  // Auto-link guest to client directory; use canonical name from directory
+  if (data.guest_name) {
+    try {
+      const guest = await findOrCreateGuestClient(supabase, {
+        guestName: data.guest_name as string,
+        guestPhone: data.guest_phone as string | null ?? null,
+        companyId: data.company_id as string | null ?? null,
+      })
+      if (guest) {
+        const newFlags = ((data.flags as string[]) ?? []).filter((f: string) => f !== 'guest_booking')
+        const { data: updated } = await supabase
+          .from('bookings')
+          .update({ guest_client_id: guest.id, guest_name: guest.name, flags: newFlags })
+          .eq('id', data.id)
+          .select()
+          .single()
+        if (updated) Object.assign(data, updated)
+      }
+    } catch { /* non-critical — booking still created */ }
+  }
 
   // Possible-duplicate detection: same client + same date, matching guest or location
   if (data.client_id && data.pickup_date) {

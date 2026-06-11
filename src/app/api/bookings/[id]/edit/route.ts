@@ -35,10 +35,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     changedByName = profile?.name || profile?.email || user.email || 'operator'
   }
 
-  const { changes, reason, guest_name_action } = await request.json() as {
+  const { changes, reason } = await request.json() as {
     changes: Record<string, unknown>
     reason: string
-    guest_name_action?: 'update' | 'new'
   }
 
   if (!reason?.trim()) {
@@ -136,24 +135,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
-      const isCorrection = existingGuestClientId && guest_name_action === 'update'
-
-      if (isCorrection) {
-        // Typo / name correction — update existing guest's profile in place
-        await admin.from('clients').update({
-          name: guestName,
-          ...(guestPhone ? { primary_phone: guestPhone } : {}),
-        }).eq('id', existingGuestClientId)
-      } else {
-        // New guest (or no existing link) — find by phone/name or create
-        const guestClientId = await findOrCreateGuestClient(admin, {
-          guestName,
-          guestPhone,
-          companyId,
-        })
-        if (guestClientId) {
-          await admin.from('bookings').update({ guest_client_id: guestClientId }).eq('id', id)
-        }
+      const guest = await findOrCreateGuestClient(admin, {
+        guestName,
+        guestPhone,
+        companyId,
+      })
+      if (guest) {
+        const currentFlags = (current.flags as string[] | null) ?? []
+        const newFlags = currentFlags.filter((f: string) => f !== 'guest_booking')
+        await admin.from('bookings').update({
+          guest_client_id: guest.id,
+          guest_name: guest.name,
+          flags: newFlags,
+        }).eq('id', id)
       }
     } catch { /* non-critical */ }
   }

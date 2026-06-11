@@ -58,13 +58,13 @@ export async function POST(request: Request) {
 
   if (body.findOrCreate) {
     const { findOrCreate: _, ...rest } = body
-    const clientId = await findOrCreateGuestClient(supabase, {
+    const guest = await findOrCreateGuestClient(supabase, {
       guestName: rest.name,
       guestPhone: rest.primary_phone ?? null,
       companyId: rest.company_id ?? rest.guest_of_company_id ?? null,
     })
-    if (!clientId) return NextResponse.json({ error: 'Failed to find or create guest' }, { status: 500 })
-    const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single()
+    if (!guest) return NextResponse.json({ error: 'Failed to find or create guest' }, { status: 500 })
+    const { data, error } = await supabase.from('clients').select('*').eq('id', guest.id).single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data, { status: 200 })
   }
