@@ -48,6 +48,8 @@ NOTIFY pgrst, 'reload schema';
 | `jms_substitute_client` | 7: clientName, ref, driverName, driverPhone, vehicleName, vehicleColor, plateNumber | Client notified of driver change (no pickup/drop) |
 | `jms_leg_day_links` | 5: dayNumber, ref, legDate, arrivedLink, completedLink | Same driver — send day-specific links per leg |
 | `jms_leg_driver_brief` | 9: driverName, ref, company, guestName, guestPhone, legDate, pax, arrivedLink, completedLink | Different driver assigned to a specific leg (no pickup/drop/time) |
+| `jms_leg_removed_driver` | 4: driverName, dayNumber, bookingRef, legDate | Old leg driver notified when replaced on a specific leg — **pending Meta approval** (free-form via `sendWhatsAppSmart` until approved) |
+| `jms_leg_driver_update_client` | 7: clientName, ref, dayNumber, legDate, driverName, driverPhone, vehicle | Per-leg client notification when outside 24h WA window — **pending Meta approval** |
 
 **Key rule:** Driver messages always use `sendWhatsAppTemplate` (reliable). Client messages use `sendWhatsAppSmart` (free-form if 24h window open, else template).
 App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipped.
@@ -71,7 +73,8 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 - `total_days > 1` creates N `booking_legs` rows
 - Each leg has: `day_number`, `leg_date`, `driver_id` (can differ per leg), `leg_status`, `link_sent_at`
 - **Same driver on all legs:** Operator taps "Send Day X Links" per leg → `jms_leg_day_links` template
-- **Different driver on a leg:** Assign via TripLegsPanel dropdown → `PATCH /api/bookings/[id]/legs/[legId]` auto-fires `jms_leg_driver_brief` to driver + `jms_substitute_client` to client
+- **Different driver on a leg:** Assign via TripLegsPanel dropdown → `PATCH /api/bookings/[id]/legs/[legId]` auto-fires `jms_leg_driver_brief` to new driver + `jms_leg_removed_driver` to old driver (if being replaced). **Client is NOT auto-notified** — operator must manually click "Notify Client of Driver Update" button at the bottom of TripLegsPanel.
+- **Old booking-level driver on substitute:** `POST /api/bookings/[id]/substitute` uses `jms_cancellation_driver` to notify the old driver being replaced.
 
 ---
 
@@ -110,8 +113,9 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 |---|---|
 | `POST /api/bookings/[id]/assign` | Assign driver to booking — sends trip brief + client driver details |
 | `POST /api/bookings/[id]/substitute` | Swap booking-level driver |
-| `PATCH /api/bookings/[id]/legs/[legId]` | Assign driver to specific leg — auto-sends notifications |
+| `PATCH /api/bookings/[id]/legs/[legId]` | Assign driver to specific leg — auto-sends to new driver + old driver; client NOT notified here |
 | `POST /api/bookings/[id]/legs/[legId]/send-links` | Send day-specific links to same driver |
+| `POST /api/bookings/[id]/legs/notify-client` | Manual operator action — sends consolidated driver update to client (free-form if 24h window open; per-leg template + email if closed) |
 | `GET /api/driver-redirect-check` | Smart redirect check — returns correct link for driver's current state |
 | `POST /api/driver-status` | Driver arrived/completed form handler |
 | `POST /api/webhooks/whatsapp` | Incoming WhatsApp handler |
