@@ -115,7 +115,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 | `POST /api/bookings/[id]/substitute` | Swap booking-level driver |
 | `PATCH /api/bookings/[id]/legs/[legId]` | Assign driver to specific leg — auto-sends to new driver + old driver; client NOT notified here |
 | `POST /api/bookings/[id]/legs/[legId]/send-links` | Send day-specific links to same driver |
-| `POST /api/bookings/[id]/legs/notify-client` | Manual operator action — sends consolidated driver update to client (free-form if 24h window open; per-leg template + email if closed) |
+| `POST /api/bookings/[id]/legs/notify-client` | Manual operator action — within 24h: consolidated free-form all days; outside 24h: ONE template for today's leg (or nearest assigned) + email backup. Operator clicks daily for day-by-day updates. |
 | `GET /api/driver-redirect-check` | Smart redirect check — returns correct link for driver's current state |
 | `POST /api/driver-status` | Driver arrived/completed form handler |
 | `POST /api/webhooks/whatsapp` | Incoming WhatsApp handler |
