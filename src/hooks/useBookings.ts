@@ -89,8 +89,8 @@ export function useCancelBooking() {
 export function useAssignDriver() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ bookingId, driverId, gpsTrackingEnabled }: { bookingId: string; driverId: string; gpsTrackingEnabled?: boolean }) =>
-      fetch(`/api/bookings/${bookingId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driver_id: driverId, gps_tracking_enabled: gpsTrackingEnabled }) }).then(r => r.json()),
+    mutationFn: ({ bookingId, driverId, gpsTrackingEnabled, silent }: { bookingId: string; driverId: string; gpsTrackingEnabled?: boolean; silent?: boolean }) =>
+      fetch(`/api/bookings/${bookingId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driver_id: driverId, gps_tracking_enabled: gpsTrackingEnabled, silent }) }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       qc.invalidateQueries({ queryKey: ['drivers'] })

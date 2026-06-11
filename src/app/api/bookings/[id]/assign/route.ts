@@ -13,7 +13,7 @@ import { formalName, formalGuestName } from '@/lib/utils/client-name'
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
-  const { driver_id, gps_tracking_enabled } = await request.json()
+  const { driver_id, gps_tracking_enabled, silent } = await request.json()
 
   if (gps_tracking_enabled != null) {
     await supabase.from('bookings').update({ gps_tracking_enabled: !!gps_tracking_enabled }).eq('id', id)
@@ -64,6 +64,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single()
 
   const driverUsesApp = !!(driver?.uses_app && driver?.last_app_seen && new Date(driver.last_app_seen) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+
+  if (silent) {
+    await supabase.from('message_logs').insert({
+      booking_id: id,
+      driver_id,
+      channel: 'whatsapp',
+      direction: 'outbound',
+      recipient: driver?.phone ?? 'unknown',
+      content: '[Skipped — silent assignment (backdated trip)]',
+      template_used: TEMPLATE_KEYS.TRIP_BRIEF_TO_DRIVER,
+      status: 'skipped',
+    })
+    return NextResponse.json({ ...data, date_conflict: dateConflict })
+  }
 
   if (driver?.phone) {
     if (driverUsesApp) {

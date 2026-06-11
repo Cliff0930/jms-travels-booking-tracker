@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { AlertTriangle, Car, Navigation, Search } from 'lucide-react'
+import { AlertTriangle, Car, Navigation, Search, BellOff } from 'lucide-react'
 import { useDrivers } from '@/hooks/useDrivers'
 import { useAssignDriver } from '@/hooks/useBookings'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -21,10 +21,11 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
   const assignDriver = useAssignDriver()
   const [conflictDriver, setConflictDriver] = useState<Driver | null>(null)
   const [gpsEnabled, setGpsEnabled] = useState(false)
+  const [silent, setSilent] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
-    if (!open) setSearchQuery('')
+    if (!open) { setSearchQuery(''); setSilent(false) }
   }, [open])
 
   function matchesSearch(driver: Driver): boolean {
@@ -58,9 +59,11 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
 
   async function doAssign(driverId: string) {
     try {
-      const result = await assignDriver.mutateAsync({ bookingId: booking.id, driverId, gpsTrackingEnabled: gpsEnabled })
+      const result = await assignDriver.mutateAsync({ bookingId: booking.id, driverId, gpsTrackingEnabled: gpsEnabled, silent })
       if (result?.date_conflict) {
         toast.warning(`Driver assigned — note: they also have booking ${result.date_conflict} on this date`)
+      } else if (silent) {
+        toast.success('Driver assigned silently — no WhatsApp sent (backdated trip)')
       } else {
         toast.success(gpsEnabled ? 'Driver assigned — GPS tracking enabled' : 'Driver assigned — trip brief sent via WhatsApp')
       }
@@ -109,11 +112,11 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
           <DriverStatusBadge status={driver.status} />
           <Button
             size="sm"
-            className="rounded-sm text-xs h-7 bg-[#1A56DB] hover:bg-[#003FB1]"
+            className={`rounded-sm text-xs h-7 ${silent ? 'bg-amber-500 hover:bg-amber-600' : 'bg-[#1A56DB] hover:bg-[#003FB1]'}`}
             onClick={() => handleAssignClick(driver)}
             disabled={assignDriver.isPending}
           >
-            Assign
+            {silent ? 'Assign (Silent)' : 'Assign'}
           </Button>
         </div>
       </div>
@@ -140,23 +143,45 @@ export function AssignDriverModal({ booking, open, onClose }: AssignDriverModalP
             </div>
           </DialogHeader>
 
-          <button
-            type="button"
-            onClick={() => setGpsEnabled(v => !v)}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors mt-3 ${
-              gpsEnabled
-                ? 'border-[#1A56DB] bg-[#EEF2FF] text-[#1A56DB]'
-                : 'border-[#C3C5D7] bg-white text-[#434654]'
-            }`}
-          >
-            <span className="flex items-center gap-2 font-medium">
-              <Navigation className="w-4 h-4" />
-              GPS Route Tracking
-            </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gpsEnabled ? 'bg-[#1A56DB] text-white' : 'bg-[#ECEDF5] text-[#737686]'}`}>
-              {gpsEnabled ? 'ON' : 'OFF'}
-            </span>
-          </button>
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => { setGpsEnabled(v => !v); setSilent(false) }}
+              className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${
+                gpsEnabled
+                  ? 'border-[#1A56DB] bg-[#EEF2FF] text-[#1A56DB]'
+                  : 'border-[#C3C5D7] bg-white text-[#434654]'
+              }`}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <Navigation className="w-4 h-4" />
+                GPS Tracking
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gpsEnabled ? 'bg-[#1A56DB] text-white' : 'bg-[#ECEDF5] text-[#737686]'}`}>
+                {gpsEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSilent(v => !v); setGpsEnabled(false) }}
+              className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${
+                silent
+                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                  : 'border-[#C3C5D7] bg-white text-[#434654]'
+              }`}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <BellOff className="w-4 h-4" />
+                No Notification
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${silent ? 'bg-amber-400 text-white' : 'bg-[#ECEDF5] text-[#737686]'}`}>
+                {silent ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          </div>
+          {silent && (
+            <p className="text-xs text-amber-600 mt-1.5 px-1">No WhatsApp will be sent — use for backdated trips already completed.</p>
+          )}
 
           <div className="relative mt-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737686]" />
