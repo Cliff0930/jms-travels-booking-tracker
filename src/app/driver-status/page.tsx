@@ -173,6 +173,9 @@ function DriverStatusContent() {
   const [isOutstation, setIsOutstation] = useState(false)
   const [tripIdentity, setTripIdentity] = useState<TripIdentity | null>(null)
   const [tripSheetLoaded, setTripSheetLoaded] = useState(false)
+  // True while we check whether this driver should be redirected to a different link.
+  // Initialized to true only when params are valid and no leg_id (leg links are never redirected).
+  const [redirectLoading, setRedirectLoading] = useState(!!(bookingId && status && token && !legId))
 
   // GPS
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -207,6 +210,27 @@ function DriverStatusContent() {
       })
       .catch(() => {})
   }, [bookingId])
+
+  useEffect(() => {
+    if (!bookingId || !status || !token || !redirectLoading) return
+    const params = new URLSearchParams({ booking: bookingId, action: status })
+    if (legId) params.set('leg_id', legId)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    fetch(`/api/driver-redirect-check?${params}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(({ redirect_to }: { redirect_to: string | null }) => {
+        if (redirect_to) {
+          window.location.replace(redirect_to)
+        } else {
+          setRedirectLoading(false)
+        }
+      })
+      .catch(() => setRedirectLoading(false))
+      .finally(() => clearTimeout(timeout))
+    return () => { controller.abort(); clearTimeout(timeout) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, status, token, legId])
 
   useEffect(() => {
     if (!bookingId || !status) return
@@ -365,6 +389,8 @@ function DriverStatusContent() {
   if (!bookingId || !status || !token) {
     return <p className="text-center text-[#737686]">Invalid link — please use the link sent by JMS Travels</p>
   }
+
+  if (redirectLoading) return null
 
   if (alreadyDone) {
     return (
