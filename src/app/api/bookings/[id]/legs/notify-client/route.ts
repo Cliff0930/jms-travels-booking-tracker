@@ -114,40 +114,42 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         status,
       })
     } else {
-      // Outside 24h: one template per leg to all phones
-      const legStatuses: boolean[] = []
-      for (const leg of assignedLegs) {
-        const driver = leg.driver as LegDriver
-        const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
-        const legBody = buildLegBody(clientName, booking.booking_ref, leg.day_number, formatDate(leg.leg_date), driver)
-        const legResults = await Promise.all(phones.map(phone => sendWhatsAppTemplate({
-          to: phone,
-          templateName: 'jms_leg_driver_update_client',
-          params: [
-            clientName,
-            booking.booking_ref,
-            String(leg.day_number),
-            formatDate(leg.leg_date),
-            driver?.name || 'TBD',
-            driver?.phone || 'TBD',
-            vehicle,
-          ],
-          fallbackBody: legBody,
-          costBookingId: id,
-        })))
-        legStatuses.push(legResults.some(r => r.ok))
-        await supabase.from('message_logs').insert({
-          booking_id: id,
-          client_id: booking.client_id,
-          channel: 'whatsapp',
-          direction: 'outbound',
-          recipient: phones.join(', '),
-          content: legBody,
-          template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
-          status: legResults.some(r => r.ok) ? 'sent' : 'failed',
-        })
-      }
-      status = legStatuses.some(Boolean) ? 'sent' : 'failed'
+      // Outside 24h: send ONE template for today's leg (or nearest upcoming/first assigned)
+      // Operator clicks daily — each day sends that day's driver detail only
+      const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const targetLeg = assignedLegs.find(l => l.leg_date === todayIST)
+        ?? assignedLegs.find(l => l.leg_date > todayIST)
+        ?? assignedLegs[0]
+
+      const driver = targetLeg.driver as LegDriver
+      const vehicle = [driver?.vehicle_name, driver?.vehicle_number].filter(Boolean).join(' · ') || 'TBD'
+      const legBody = buildLegBody(clientName, booking.booking_ref, targetLeg.day_number, formatDate(targetLeg.leg_date), driver)
+      const legResults = await Promise.all(phones.map(phone => sendWhatsAppTemplate({
+        to: phone,
+        templateName: 'jms_leg_driver_update_client',
+        params: [
+          clientName,
+          booking.booking_ref,
+          String(targetLeg.day_number),
+          formatDate(targetLeg.leg_date),
+          driver?.name || 'TBD',
+          driver?.phone || 'TBD',
+          vehicle,
+        ],
+        fallbackBody: legBody,
+        costBookingId: id,
+      })))
+      status = legResults.some(r => r.ok) ? 'sent' : 'failed'
+      await supabase.from('message_logs').insert({
+        booking_id: id,
+        client_id: booking.client_id,
+        channel: 'whatsapp',
+        direction: 'outbound',
+        recipient: phones.join(', '),
+        content: legBody,
+        template_used: TEMPLATE_KEYS.LEG_CLIENT_NOTIFY,
+        status,
+      })
 
       // Idea 3: always email when outside 24h window — guaranteed full details
       if (client?.primary_email) {
