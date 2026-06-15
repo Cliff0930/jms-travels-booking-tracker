@@ -324,6 +324,7 @@ function TripCard({
   const [expanded, setExpanded] = useState(true)
   const [showTripsheet, setShowTripsheet] = useState(false)
   const qc = useQueryClient()
+  const sheetId = sheet.sheet_id ?? ''
   const rejectedSet = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
 
   const totalOwed =
@@ -366,6 +367,16 @@ function TripCard({
                   : 'bg-purple-100 text-purple-700'
                 }`}>{sheet.trip_type}</span>
               )}
+              {sheet.booking_status && sheet.booking_status !== 'completed' && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
+                  sheet.booking_status === 'arrived' ? 'bg-yellow-100 text-yellow-700'
+                  : sheet.booking_status === 'driver_assigned' ? 'bg-indigo-100 text-indigo-700'
+                  : 'bg-gray-100 text-gray-600'
+                }`}>{sheet.booking_status.replace('_', ' ')}</span>
+              )}
+              {!sheet.has_tripsheet && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">No tripsheet</span>
+              )}
               {sheet.company_name && <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -392,7 +403,7 @@ function TripCard({
       {showTripsheet && (
         <TripsheetEditPopup
           bookingId={sheet.booking_id}
-          tripSheetId={sheet.sheet_id}
+          tripSheetId={sheetId}
           bookingRef={sheet.booking_ref}
           tripType={sheet.trip_type}
           onClose={() => setShowTripsheet(false)}
@@ -401,7 +412,13 @@ function TripCard({
       )}
 
       {/* Card Body */}
-      {expanded && (
+      {expanded && !sheet.has_tripsheet && (
+        <div className="px-4 py-4 text-center">
+          <p className="text-xs text-[#9CA3AF]">No tripsheet submitted yet — click the booking ref above to add one.</p>
+        </div>
+      )}
+
+      {expanded && sheet.has_tripsheet && (
         <div className="px-4 py-3 space-y-0.5">
 
           {/* Time info for bata verification */}
@@ -455,7 +472,7 @@ function TripCard({
             hasPaid={false}
             settled={settled}
             rejected={false}
-            onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
+            onToggle={(field, val) => onToggle(sheetId, field, val)}
             onReject={() => {}}
           />
 
@@ -470,8 +487,8 @@ function TripCard({
               hasPaid
               settled={settled}
               rejected={rejectedSet.has('toll')}
-              onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
-              onReject={() => onReject(sheet.sheet_id, 'toll', sheet.rejected_items)}
+              onToggle={(field, val) => onToggle(sheetId, field, val)}
+              onReject={() => onReject(sheetId, 'toll', sheet.rejected_items)}
             />
           )}
 
@@ -486,8 +503,8 @@ function TripCard({
               hasPaid
               settled={settled}
               rejected={rejectedSet.has('parking')}
-              onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
-              onReject={() => onReject(sheet.sheet_id, 'parking', sheet.rejected_items)}
+              onToggle={(field, val) => onToggle(sheetId, field, val)}
+              onReject={() => onReject(sheetId, 'parking', sheet.rejected_items)}
             />
           )}
 
@@ -502,8 +519,8 @@ function TripCard({
               hasPaid
               settled={settled}
               rejected={rejectedSet.has('permit')}
-              onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
-              onReject={() => onReject(sheet.sheet_id, 'permit', sheet.rejected_items)}
+              onToggle={(field, val) => onToggle(sheetId, field, val)}
+              onReject={() => onReject(sheetId, 'permit', sheet.rejected_items)}
             />
           )}
 
@@ -518,8 +535,8 @@ function TripCard({
               hasPaid
               settled={settled}
               rejected={rejectedSet.has('bata')}
-              onToggle={(field, val) => onToggle(sheet.sheet_id, field, val)}
-              onReject={() => onReject(sheet.sheet_id, 'bata', sheet.rejected_items)}
+              onToggle={(field, val) => onToggle(sheetId, field, val)}
+              onReject={() => onReject(sheetId, 'bata', sheet.rejected_items)}
             />
           )}
 
@@ -529,7 +546,7 @@ function TripCard({
               <Button
                 size="sm"
                 className="bg-[#059669] hover:bg-[#047857] rounded-sm gap-1.5 h-8 text-xs"
-                onClick={() => onSettleAll(sheet.sheet_id, sheet)}
+                onClick={() => onSettleAll(sheetId, sheet)}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Settle All
               </Button>
@@ -542,7 +559,7 @@ function TripCard({
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs gap-1 border-[#FCA5A5] text-[#DC2626] hover:bg-red-50"
-                onClick={() => onRevoke(sheet.sheet_id)}
+                onClick={() => onRevoke(sheetId)}
               >
                 <RotateCcw className="w-3 h-3" /> Revoke
               </Button>

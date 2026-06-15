@@ -123,7 +123,9 @@ export interface CompanyBataRate {
 }
 
 export interface ReimbursementSheet {
-  sheet_id: string
+  sheet_id: string | null
+  has_tripsheet: boolean
+  booking_status: string
   booking_id: string
   booking_ref: string
   tripsheet_number: string | null

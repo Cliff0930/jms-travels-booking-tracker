@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   let bookingQuery = supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, trip_type, company_id, driver_id, guest_name, guest_phone, requested_by,
+      id, booking_ref, pickup_date, trip_type, company_id, driver_id, guest_name, guest_phone, requested_by, status,
       company:companies!company_id(name),
       client:clients!client_id(primary_phone),
       driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate, bata_rate_outstation),
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         reimbursement_notes, reimbursed_at, created_at
       )
     `)
-    .eq('status', 'completed')
+    .neq('status', 'cancelled')
     .not('driver_id', 'is', null)
     .order('pickup_date', { ascending: false })
 
@@ -73,7 +73,40 @@ export async function GET(request: Request) {
     const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; vehicle_number: string; bata_rate: number | null; bata_rate_outstation: number | null } | null
     const company = booking.company as unknown as { name: string } | null
     const tripType = (booking.trip_type as string | null) ?? 'local'
+    const bookingStatus = (booking as unknown as Record<string, unknown>).status as string
     const sheets = (booking.trip_sheets ?? []) as Array<Record<string, unknown>>
+
+    // Bookings with no tripsheet yet — show as placeholder so they're traceable
+    if (sheets.length === 0) {
+      if (status === 'settled') continue
+      const placeholder = {
+        sheet_id: null, has_tripsheet: false, booking_status: bookingStatus,
+        booking_id: booking.id, booking_ref: booking.booking_ref,
+        tripsheet_number: null, guest_name: booking.guest_name ?? null,
+        guest_phone: booking.guest_phone ?? null, requested_by: booking.requested_by ?? null,
+        client_phone: ((booking.client as unknown as { primary_phone: string | null } | null)?.primary_phone) ?? null,
+        pickup_date: booking.pickup_date, company_id: booking.company_id,
+        company_name: company?.name ?? null, driver_id: driver?.id ?? null,
+        driver_name: driver?.name ?? null, driver_vehicle_name: driver?.vehicle_name ?? null,
+        driver_vehicle_number: driver?.vehicle_number ?? null, trip_type: tripType,
+        manual_opening_time: null, manual_closing_time: null, opening_time: null, closing_time: null, leg_date: null,
+        toll_amount: null, parking_amount: null, permit_amount: null,
+        bata_driver: null, bata_rate: null, bata_amount: null,
+        tripsheet_doc_received: false, toll_received: false, parking_received: false,
+        permit_received: false, bata_received: false, toll_paid: false,
+        parking_paid: false, permit_paid: false, bata_paid: false,
+        reimbursement_notes: null, reimbursed_at: null, rejected_items: null, created_at: '',
+      }
+      if (search) {
+        const haystack = [placeholder.booking_ref, placeholder.driver_name, placeholder.driver_vehicle_name,
+          placeholder.driver_vehicle_number, placeholder.guest_name, placeholder.requested_by,
+          placeholder.guest_phone, placeholder.client_phone].filter(Boolean).join(' ').toLowerCase()
+        const tokens = search.split(/\s+/).filter(Boolean)
+        if (!tokens.every(t => haystack.includes(t))) continue
+      }
+      result.push(placeholder)
+      continue
+    }
 
     for (const sheet of sheets) {
       const toll = (sheet.toll_amount as number | null) ?? 0
@@ -105,7 +138,9 @@ export async function GET(request: Request) {
       }
 
       const entry = {
-        sheet_id: sheet.id,
+        sheet_id: sheet.id as string,
+        has_tripsheet: true,
+        booking_status: bookingStatus,
         booking_id: booking.id,
         booking_ref: booking.booking_ref,
         tripsheet_number: (sheet.tripsheet_number as string | null) ?? null,
@@ -188,7 +223,7 @@ export async function HEAD(_request: Request) {
   const { data } = await supabase
     .from('bookings')
     .select('driver_id, driver:drivers!driver_id(id, name)')
-    .eq('status', 'completed')
+    .neq('status', 'cancelled')
     .not('driver_id', 'is', null)
   return NextResponse.json(data ?? [], { status: 200 })
 }
