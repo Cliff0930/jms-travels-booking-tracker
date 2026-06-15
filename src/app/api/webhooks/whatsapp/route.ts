@@ -13,7 +13,7 @@ import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client, ClientLocation } from '@/types'
 import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
-const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2 hours
+const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000 // 8 hours
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -252,6 +252,11 @@ async function processClientMessage(
     .limit(1)
     .single()
 
+
+  // Track whether the client is resuming after a long gap (>2h) within the same session
+  const isLongGap = activeSession
+    ? (Date.now() - new Date(activeSession.last_message_at).getTime()) > 2 * 60 * 60 * 1000
+    : false
 
   // Get or create session
   let session = activeSession
@@ -572,9 +577,18 @@ async function processClientMessage(
     if (sessionMsgsEnq.length > 0) {
       const lastAgentMsgEnq = [...sessionMsgsEnq].reverse().find(m => m.role === 'agent')
       const reaskEnq = lastAgentMsgEnq?.content ?? 'Could you share your pickup location, date, and time?'
+      const extEnq = (session.extracted as Record<string, unknown>) ?? {}
+      const recapLinesEnq: string[] = []
+      if (isLongGap) {
+        if (extEnq.pickup_date) recapLinesEnq.push(`Date: ${formatDate(extEnq.pickup_date as string)}`)
+        if (extEnq.pickup_time) recapLinesEnq.push(`Time: ${formatTime(extEnq.pickup_time as string)}`)
+        if (extEnq.pickup_location) recapLinesEnq.push(`Pickup: ${extEnq.pickup_location as string}`)
+        if (extEnq.drop_location) recapLinesEnq.push(`Drop: ${extEnq.drop_location as string}`)
+      }
+      const recapPrefixEnq = recapLinesEnq.length > 0 ? `Welcome back! Here's what I have so far:\n${recapLinesEnq.join('\n')}\n\n` : ''
       await sendWhatsAppMessage({
         to: senderPhone,
-        body: `For rates and pricing, please call us at 9845572207.\n\n${reaskEnq}`,
+        body: `For rates and pricing, please call us at 9845572207.\n\n${recapPrefixEnq}${reaskEnq}`,
         log: { client_id: client.id },
       })
       await supabase.from('conversation_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', session.id)
@@ -622,7 +636,16 @@ async function processClientMessage(
     if (sessionMessages.length > 0) {
       const lastAgentMsg = [...sessionMessages].reverse().find(m => m.role === 'agent')
       const reask = lastAgentMsg?.content ?? 'Could you share your pickup location, date, and time?'
-      await sendWhatsAppMessage({ to: senderPhone, body: reask, log: { client_id: client.id } })
+      const extOther = (session.extracted as Record<string, unknown>) ?? {}
+      const recapLinesOther: string[] = []
+      if (isLongGap) {
+        if (extOther.pickup_date) recapLinesOther.push(`Date: ${formatDate(extOther.pickup_date as string)}`)
+        if (extOther.pickup_time) recapLinesOther.push(`Time: ${formatTime(extOther.pickup_time as string)}`)
+        if (extOther.pickup_location) recapLinesOther.push(`Pickup: ${extOther.pickup_location as string}`)
+        if (extOther.drop_location) recapLinesOther.push(`Drop: ${extOther.drop_location as string}`)
+      }
+      const recapPrefixOther = recapLinesOther.length > 0 ? `Welcome back! Here's what I have so far:\n${recapLinesOther.join('\n')}\n\n` : ''
+      await sendWhatsAppMessage({ to: senderPhone, body: `${recapPrefixOther}${reask}`, log: { client_id: client.id } })
       await supabase.from('conversation_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', session.id)
       return
     }
@@ -663,12 +686,23 @@ async function processClientMessage(
   // Still collecting — ask next question
   if (!result.is_complete) {
     if (result.next_question) {
-      const agentMsg = { role: 'agent' as const, content: result.next_question, timestamp: new Date().toISOString() }
+      const ext = result.extracted
+      const recapLines: string[] = []
+      if (isLongGap) {
+        if (ext.pickup_date) recapLines.push(`Date: ${formatDate(ext.pickup_date)}`)
+        if (ext.pickup_time) recapLines.push(`Time: ${formatTime(ext.pickup_time)}`)
+        if (ext.pickup_location) recapLines.push(`Pickup: ${ext.pickup_location}`)
+        if (ext.drop_location) recapLines.push(`Drop: ${ext.drop_location}`)
+      }
+      const outMsg = recapLines.length > 0
+        ? `Welcome back! Here's what I have so far:\n${recapLines.join('\n')}\n\n${result.next_question}`
+        : result.next_question
+      const agentMsg = { role: 'agent' as const, content: outMsg, timestamp: new Date().toISOString() }
       await supabase
         .from('conversation_sessions')
         .update({ messages: [...updatedMessages, agentMsg] })
         .eq('id', session.id)
-      await sendWhatsAppMessage({ to: senderPhone, body: result.next_question, log: { client_id: client.id } })
+      await sendWhatsAppMessage({ to: senderPhone, body: outMsg, log: { client_id: client.id } })
     }
     return
   }

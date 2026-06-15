@@ -165,7 +165,7 @@ export async function converseBooking(
       parsed.extracted.pickup_date = null
       if (!parsed.missing_mandatory.includes('pickup_date')) parsed.missing_mandatory.push('pickup_date')
       parsed.is_complete = false
-      if (!parsed.next_question) parsed.next_question = 'The date you mentioned appears to be in the past. Could you share a future date for your booking?'
+      parsed.next_question = 'The date you mentioned appears to be in the past. Could you share a future date for your booking?'
     }
   }
   if (parsed.modification_request?.changes) {
