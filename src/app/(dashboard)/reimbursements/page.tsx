@@ -5,9 +5,10 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays, Download, RotateCcw } from 'lucide-react'
+import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays, Download, RotateCcw, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import Link from 'next/link'
 import type { ReimbursementSheet } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
@@ -253,8 +254,13 @@ export default function ReimbursementsPage() {
           )}
         </div>
 
-        {/* Outstanding total / Export */}
+        {/* Outstanding total / Export / Offline Trip */}
         <div className="ml-auto flex items-center gap-2">
+          <Link href="/bookings/offline-trip">
+            <Button size="sm" className="h-9 text-xs gap-1.5 bg-[#7E3AF2] hover:bg-[#6C2BD9]">
+              <Plus className="w-3.5 h-3.5" /> Offline Trip
+            </Button>
+          </Link>
           {tab === 'pending' && outstanding > 0 && (
             <div className="text-sm font-bold text-[#DC2626] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
               Outstanding: ₹{outstanding.toFixed(0)}
