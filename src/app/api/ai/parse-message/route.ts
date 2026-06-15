@@ -362,14 +362,19 @@ export async function POST(request: Request) {
           .maybeSingle()
 
         if (dupBooking) {
-          await supabase.from('raw_messages')
-            .update({ ai_classification: 'duplicate', processed: true, processed_at: new Date().toISOString() })
-            .eq('id', raw_message_id)
-          notifyOperator(
-            `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
-            'ops'
-          ).catch(() => {})
-          continue
+          // Allow same-batch duplicates — e.g. "2 Innovas" creates 2 Innova rows in one loop.
+          // Only block if the duplicate came from a different submission entirely.
+          const isWithinCurrentBatch = createdBookings.some(cb => cb.booking.id === dupBooking.id)
+          if (!isWithinCurrentBatch) {
+            await supabase.from('raw_messages')
+              .update({ ai_classification: 'duplicate', processed: true, processed_at: new Date().toISOString() })
+              .eq('id', raw_message_id)
+            notifyOperator(
+              `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
+              'ops'
+            ).catch(() => {})
+            continue
+          }
         }
       }
 
