@@ -110,6 +110,16 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 
 ---
 
+## Reimbursements Page (`/reimbursements`)
+- Shows ALL non-cancelled bookings (not just completed) — filter is `.neq('status','cancelled')`
+- Bookings with no `trip_sheets` row → synthetic placeholder entry: `sheet_id=null`, `has_tripsheet=false`, body shows "No tripsheet yet"
+- `ReimbursementSheet` type: `sheet_id: string | null`, `has_tripsheet: boolean`, `booking_status: string`
+- Status badge shown on cards for non-completed bookings (arrived=yellow, driver_assigned=indigo, pending/confirmed=gray)
+- "Offline Trip" button (purple, top-right) → `/bookings/offline-trip` (creates a backdated completed trip outside the booking system)
+- `/bookings/offline-trip` page is fully built — creates booking + trip_sheet in one form, supports multi-day local with per-day cards, prefill via `?from=bookingId`
+
+---
+
 ## Key API Routes
 | Route | Purpose |
 |---|---|
@@ -124,6 +134,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 | `POST /api/webhooks/gmail` | Incoming Gmail handler |
 | `GET /api/messages/contacts` | Contact list for inbox (tab=whatsapp\|email\|driver) |
 | `GET /api/messages` | Thread messages (phone=, client_id=, or driver_id=) |
+| `POST /api/bookings/offline-trip` | Create a backdated offline booking + trip_sheet (no WhatsApp/email sent) |
 
 ---
 
