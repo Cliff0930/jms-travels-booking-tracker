@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -7,19 +7,27 @@ import { Input } from '@/components/ui/input'
 import {
   Search, CheckCircle2, Circle, ChevronDown, ChevronUp,
   CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight, Phone, Navigation,
+  X, User,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
-import type { ReimbursementSheet, Driver } from '@/types'
+import type { ReimbursementSheet, Driver, Company } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
+import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 
 type Tab = 'active' | 'missing' | 'pending' | 'settled'
 
 export default function ReimbursementsPage() {
   const [tab, setTab] = useState<Tab>('active')
   const [driverId, setDriverId] = useState<string>('all')
+  const [companyId, setCompanyId] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSearch, setClientSearch] = useState('')
+  const [clientLabel, setClientLabel] = useState('')
+  const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  const clientPickerRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -36,12 +44,14 @@ export default function ReimbursementsPage() {
   })
 
   // Main cards — filtered by current tab + controls
-  const qKey = ['reimbursements', tab, driverId, search, dateFrom, dateTo] as const
+  const qKey = ['reimbursements', tab, driverId, companyId, clientId, search, dateFrom, dateTo] as const
   const { data: sheets = [], isLoading } = useQuery<ReimbursementSheet[]>({
     queryKey: qKey,
     queryFn: () => {
       const params = new URLSearchParams({ status: tab })
       if (driverId !== 'all') params.set('driver_id', driverId)
+      if (companyId) params.set('company_id', companyId)
+      if (clientId) params.set('client_id', clientId)
       if (search.trim()) params.set('search', search.trim())
       if (dateFrom) params.set('date_from', dateFrom)
       if (dateTo) params.set('date_to', dateTo)
@@ -70,6 +80,58 @@ export default function ReimbursementsPage() {
     }
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name))
   }, [allDriverSheets])
+
+  const companiesForFilter = useMemo<Company[]>(() => {
+    const seen = new Map<string, string>()
+    for (const s of allDriverSheets) {
+      if (s.company_id && s.company_name && !seen.has(s.company_id))
+        seen.set(s.company_id, s.company_name)
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name } as Company))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [allDriverSheets])
+
+  // Reset client filter when company changes
+  useEffect(() => {
+    setClientId('')
+    setClientSearch('')
+    setClientLabel('')
+  }, [companyId])
+
+  // Close client picker on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (clientPickerRef.current && !clientPickerRef.current.contains(e.target as Node))
+        setClientPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const { data: clientResults = [] } = useQuery<Array<{ id: string; name: string; primary_phone: string | null }>>({
+    queryKey: ['client-filter-search', clientSearch, companyId],
+    queryFn: () => {
+      const p = new URLSearchParams({ q: clientSearch.trim() })
+      if (companyId) p.set('company_any', companyId)
+      return fetch(`/api/clients?${p}`).then(r => r.json())
+    },
+    enabled: clientSearch.trim().length >= 1 && !clientId,
+    staleTime: 10_000,
+  })
+
+  const hasActiveFilters = driverId !== 'all' || companyId !== '' || clientId !== '' || search !== '' || dateFrom !== '' || dateTo !== ''
+
+  function clearAll() {
+    setDriverId('all')
+    setCompanyId('')
+    setClientId('')
+    setClientSearch('')
+    setClientLabel('')
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+  }
 
   // Outstanding = sum of all unpaid items (not rejected) on pending tab
   const outstanding = useMemo(() => {
@@ -256,8 +318,8 @@ export default function ReimbursementsPage() {
               <Plus className="w-3.5 h-3.5" /> Offline Trip
             </Button>
           </Link>
-          {sheets.length > 0 && tab !== 'active' && (
-            <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5 border-[#C3C5D7]" onClick={exportExcel}>
+          {tab !== 'active' && (
+            <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5 border-[#C3C5D7]" onClick={exportExcel} disabled={sheets.length === 0}>
               <Download className="w-3.5 h-3.5" /> Export
             </Button>
           )}
@@ -297,32 +359,87 @@ export default function ReimbursementsPage() {
         </div>
 
         {/* Driver filter */}
-        <div className="flex items-center gap-2">
-          <div className="w-52">
-            <DriverSearchCombobox
-              value={driverId === 'all' ? '' : driverId}
-              drivers={driversForCombobox}
-              onSelect={id => setDriverId(id || 'all')}
-              placeholder="All drivers"
-            />
-          </div>
-          {driverId !== 'all' && (
-            <button
-              onClick={() => setDriverId('all')}
-              className="text-xs text-[#737686] hover:text-[#374151]"
-            >
-              Clear ×
-            </button>
+        <div className="w-44">
+          <DriverSearchCombobox
+            value={driverId === 'all' ? '' : driverId}
+            drivers={driversForCombobox}
+            onSelect={id => setDriverId(id || 'all')}
+            placeholder="All drivers"
+          />
+        </div>
+
+        {/* Company filter */}
+        <div className="w-44">
+          <CompanyCombobox
+            value={companyId}
+            companies={companiesForFilter}
+            onChange={id => setCompanyId(id)}
+            placeholder="All companies"
+          />
+        </div>
+
+        {/* Customer filter */}
+        <div className="relative w-44" ref={clientPickerRef}>
+          {clientId ? (
+            <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-[#C3C5D7] bg-white">
+              <User className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
+              <span className="flex-1 text-sm text-[#191B23] truncate">{clientLabel}</span>
+              <button
+                type="button"
+                onClick={() => { setClientId(''); setClientSearch(''); setClientLabel('') }}
+                className="shrink-0 text-[#9CA3AF] hover:text-[#191B23] transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-[#C3C5D7] bg-white">
+              <User className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" />
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={e => { setClientSearch(e.target.value); setClientPickerOpen(true) }}
+                onFocus={() => setClientPickerOpen(true)}
+                placeholder={companyId ? 'Customer…' : 'All customers'}
+                className="flex-1 text-sm bg-transparent outline-none text-[#191B23] placeholder:text-[#9CA3AF] min-w-0"
+              />
+              {clientSearch && (
+                <button type="button" onClick={() => setClientSearch('')} className="shrink-0 text-[#9CA3AF] hover:text-[#191B23]">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+          {clientPickerOpen && !clientId && clientResults.length > 0 && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {clientResults.slice(0, 10).map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => {
+                    setClientId(c.id)
+                    setClientLabel(c.name)
+                    setClientSearch('')
+                    setClientPickerOpen(false)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-[#EEF2FF] transition-colors border-b border-[#F3F4F6] last:border-0"
+                >
+                  <div className="text-sm font-medium text-[#191B23]">{c.name}</div>
+                  {c.primary_phone && <div className="text-xs text-[#737686]">{c.primary_phone}</div>}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#737686]" />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search name, ref, driver…"
+            placeholder="Search ref, driver…"
             className="pl-9 border-[#C3C5D7] h-9 text-sm"
           />
         </div>
@@ -333,10 +450,17 @@ export default function ReimbursementsPage() {
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border-[#C3C5D7] h-9 text-sm w-36" />
           <span className="text-xs text-[#737686]">–</span>
           <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border-[#C3C5D7] h-9 text-sm w-36" />
-          {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-[#737686] hover:text-[#374151] px-1">✕</button>
-          )}
         </div>
+
+        {/* Clear all */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearAll}
+            className="flex items-center gap-1.5 text-xs text-[#737686] hover:text-[#374151] px-2.5 py-2 rounded-md border border-[#C3C5D7] hover:border-[#9CA3AF] transition-colors shrink-0"
+          >
+            <RotateCcw className="w-3 h-3" /> Clear all
+          </button>
+        )}
       </div>
 
       {/* Cards */}

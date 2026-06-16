@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const driverId = searchParams.get('driver_id')
+  const companyIdFilter = searchParams.get('company_id')
+  const clientIdFilter = searchParams.get('client_id')
   const status = searchParams.get('status') ?? 'pending'
   const search = searchParams.get('search')?.toLowerCase().trim()
   const dateFrom = searchParams.get('date_from')
@@ -40,6 +42,8 @@ export async function GET(request: Request) {
   }
 
   if (driverId) bookingQuery = bookingQuery.eq('driver_id', driverId)
+  if (companyIdFilter) bookingQuery = bookingQuery.eq('company_id', companyIdFilter)
+  if (clientIdFilter) bookingQuery = bookingQuery.or(`client_id.eq.${clientIdFilter},guest_client_id.eq.${clientIdFilter}`)
   if (dateFrom) bookingQuery = bookingQuery.gte('pickup_date', dateFrom)
   if (dateTo) bookingQuery = bookingQuery.lte('pickup_date', dateTo)
 

@@ -9,9 +9,10 @@ interface CompanyComboboxProps {
   onChange: (id: string) => void
   className?: string
   inputClassName?: string
+  placeholder?: string
 }
 
-export function CompanyCombobox({ value, companies, onChange, className = '', inputClassName = '' }: CompanyComboboxProps) {
+export function CompanyCombobox({ value, companies, onChange, className = '', inputClassName = '', placeholder = 'No company' }: CompanyComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -66,7 +67,7 @@ export function CompanyCombobox({ value, companies, onChange, className = '', in
           />
         ) : (
           <span className={`flex-1 text-sm truncate ${selected ? 'text-[#191B23]' : 'text-[#9CA3AF]'}`}>
-            {selected ? selected.name : 'No company'}
+            {selected ? selected.name : placeholder}
           </span>
         )}
 
