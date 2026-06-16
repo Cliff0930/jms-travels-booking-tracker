@@ -99,7 +99,8 @@ export async function POST(request: Request) {
         manual_opening_time, manual_closing_time,
         driver_opening_km, driver_closing_km, driver_opening_time, driver_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver,
-        driver_toll_amount, driver_parking_amount, driver_permit_amount)
+        driver_toll_amount, driver_parking_amount, driver_permit_amount,
+        toll_paid, parking_paid, permit_paid, bata_paid)
     `)
     .eq('driver_id', driver_id)
     .eq('status', 'completed')
@@ -251,12 +252,14 @@ export async function POST(request: Request) {
       (isOutstationTrip && companyRate?.outstation_bata_per_day ? Number(companyRate.outstation_bata_per_day) : null) ??
       (companyRate?.bata_per_day ? Number(companyRate.bata_per_day) : null) ??
       bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
-    // Airport bata is collected from client only — driver is not paid
-    const bataEarnings = tripType === 'airport' ? 0 : r2(bataCount * driverBataRate)
+    // Airport bata collected from client only; also skip if already paid cash via reimbursements
+    const bataEarnings = (tripType === 'airport' || (sheet?.bata_paid as boolean))
+      ? 0 : r2(bataCount * driverBataRate)
 
-    const toll    = Number(sheet?.driver_toll_amount    ?? sheet?.toll_amount    ?? 0)
-    const parking = Number(sheet?.driver_parking_amount ?? sheet?.parking_amount ?? 0)
-    const permit  = Number(sheet?.driver_permit_amount  ?? sheet?.permit_amount  ?? 0)
+    // Skip amounts already paid in cash via the reimbursements page
+    const toll    = (sheet?.toll_paid    as boolean) ? 0 : Number(sheet?.driver_toll_amount    ?? sheet?.toll_amount    ?? 0)
+    const parking = (sheet?.parking_paid as boolean) ? 0 : Number(sheet?.driver_parking_amount ?? sheet?.parking_amount ?? 0)
+    const permit  = (sheet?.permit_paid  as boolean) ? 0 : Number(sheet?.driver_permit_amount  ?? sheet?.permit_amount  ?? 0)
     const reimbursements = r2(toll + parking + permit)
     const tripTotal = r2(hireEarnings + bataEarnings + reimbursements)
 
