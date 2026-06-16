@@ -30,6 +30,7 @@ interface CollectionEntry {
 
 export default function ReimbursementsPage() {
   const [tab, setTab] = useState<Tab>('active')
+  const [showDriverSummary, setShowDriverSummary] = useState(false)
   const [driverId, setDriverId] = useState<string>('all')
   const [companyId, setCompanyId] = useState('')
   const [clientId, setClientId] = useState('')
@@ -409,7 +410,7 @@ export default function ReimbursementsPage() {
             return (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                onClick={() => { setTab(t.key); setShowDriverSummary(false) }}
                 className={`px-4 py-2 font-semibold transition-colors flex items-center gap-1.5 ${
                   isActive ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#6B7280] hover:bg-[#F3F3FE]'
                 }`}
@@ -530,6 +531,20 @@ export default function ReimbursementsPage() {
             <RotateCcw className="w-3 h-3" /> Clear all
           </button>
         )}
+
+        {/* By Driver toggle — pending tab only */}
+        {tab === 'pending' && driverTotals.length > 1 && (
+          <button
+            onClick={() => setShowDriverSummary(v => !v)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-2 rounded-md border transition-colors shrink-0 ${
+              showDriverSummary
+                ? 'bg-blue-700 text-white border-blue-700'
+                : 'text-[#374151] border-[#C3C5D7] hover:border-[#9CA3AF]'
+            }`}
+          >
+            By Driver
+          </button>
+        )}
       </div>
 
       {/* Cards */}
@@ -558,8 +573,8 @@ export default function ReimbursementsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Per-driver summary cards — pending tab only */}
-          {tab === 'pending' && driverTotals.length > 1 && (
+          {/* Per-driver summary cards — shown only when toggled */}
+          {tab === 'pending' && showDriverSummary && driverTotals.length > 1 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-1">
               {driverTotals.map(d => (
                 <button
