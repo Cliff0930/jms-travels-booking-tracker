@@ -257,6 +257,14 @@ function AdvancesContent() {
           )}
         </div>
 
+        {/* Clear all filters */}
+        {(driverFilter !== 'all' || search || dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDriverFilter('all'); setSearch(''); setDateFrom(''); setDateTo(''); router.replace('/advances') }}
+            className="shrink-0 text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-medium transition-colors"
+          ><X className="w-3 h-3" />Clear filters</button>
+        )}
+
         {/* Export */}
         <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5 shrink-0 h-9 text-sm border-gray-200">
           <Download className="w-3.5 h-3.5" />Export
