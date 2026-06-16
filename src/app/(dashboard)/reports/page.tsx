@@ -32,6 +32,7 @@ interface TripSheetRow {
 
 interface BookingWithSheet extends Booking {
   trip_sheet: TripSheetRow | null
+  department?: string | null
   driver?: Booking['driver'] & { vehicle_color?: string; secondary_phone?: string; bata_rate?: number }
 }
 
@@ -231,7 +232,7 @@ export default function ReportsPage() {
         'Time':               b.pickup_time || '',
         'Pax':                b.pax_count ?? '',
         'Trip Type':          b.trip_type,
-        'Service Type':       (b as Record<string, unknown>).service_type as string || '',
+        'Service Type':       b.service_type || '',
         'Total Days':         b.total_days ?? '',
         'Status':             b.status,
         'Source':             b.source,
@@ -497,7 +498,7 @@ export default function ReportsPage() {
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[120px] truncate">{b.department || '—'}</td>
                       <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap">{b.driver?.name || '—'}</td>
                       <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 capitalize">{b.trip_type}</td>
-                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 capitalize whitespace-nowrap">{(b as Record<string, unknown>).service_type as string || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 capitalize whitespace-nowrap">{b.service_type || '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-center">{b.total_days ?? '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 font-mono whitespace-nowrap">{b.driver?.vehicle_number || '—'}</td>
