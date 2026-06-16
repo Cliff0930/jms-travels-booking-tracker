@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Search, CheckCircle2, Circle, ChevronDown, ChevronUp,
-  CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight,
+  CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight, Phone, Navigation,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
@@ -15,19 +15,23 @@ import Link from 'next/link'
 import type { ReimbursementSheet } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
-type Tab = 'missing' | 'pending' | 'settled'
+type Tab = 'active' | 'missing' | 'pending' | 'settled'
 
 interface DriverSummary { id: string; name: string }
 
 export default function ReimbursementsPage() {
-  const [tab, setTab] = useState<Tab>('missing')
+  const [tab, setTab] = useState<Tab>('active')
   const [driverId, setDriverId] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const qc = useQueryClient()
 
-  // Always-on missing count (no driver/date filter — global badge)
+  // Always-on counts for badges (unfiltered — global)
+  const { data: activeAll = [] } = useQuery<ReimbursementSheet[]>({
+    queryKey: ['reimbursements-active-count'],
+    queryFn: () => fetch('/api/reimbursements?status=active').then(r => r.json()),
+  })
   const { data: missingAll = [] } = useQuery<ReimbursementSheet[]>({
     queryKey: ['reimbursements-missing-count'],
     queryFn: () => fetch('/api/reimbursements?status=missing').then(r => r.json()),
@@ -199,6 +203,7 @@ export default function ReimbursementsPage() {
     XLSX.writeFile(wb, `reimbursements-${tab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  const activeCount = activeAll.length
   const missingCount = missingAll.length
 
   return (
@@ -210,7 +215,16 @@ export default function ReimbursementsPage() {
 
       {/* Summary strip */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        {missingCount > 0 && (
+        {activeCount > 0 && tab !== 'active' && (
+          <button
+            onClick={() => setTab('active')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            <Navigation className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">{activeCount} trip{activeCount !== 1 ? 's' : ''} in progress</span>
+          </button>
+        )}
+        {missingCount > 0 && tab !== 'missing' && (
           <button
             onClick={() => setTab('missing')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
@@ -237,7 +251,7 @@ export default function ReimbursementsPage() {
               <Plus className="w-3.5 h-3.5" /> Offline Trip
             </Button>
           </Link>
-          {sheets.length > 0 && (
+          {sheets.length > 0 && tab !== 'active' && (
             <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5 border-[#C3C5D7]" onClick={exportExcel}>
               <Download className="w-3.5 h-3.5" /> Export
             </Button>
@@ -250,9 +264,10 @@ export default function ReimbursementsPage() {
         {/* Tabs */}
         <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm">
           {([
-            { key: 'missing' as Tab, label: 'Missing Tripsheet' },
-            { key: 'pending' as Tab, label: 'Pending' },
-            { key: 'settled' as Tab, label: 'Settled' },
+            { key: 'active' as Tab, label: 'In Progress', badge: activeCount, badgeColor: 'amber' },
+            { key: 'missing' as Tab, label: 'Missing Tripsheet', badge: missingCount, badgeColor: 'red' },
+            { key: 'pending' as Tab, label: 'Pending', badge: 0, badgeColor: '' },
+            { key: 'settled' as Tab, label: 'Settled', badge: 0, badgeColor: '' },
           ]).map(t => {
             const isActive = tab === t.key
             return (
@@ -264,10 +279,12 @@ export default function ReimbursementsPage() {
                 }`}
               >
                 {t.label}
-                {t.key === 'missing' && missingCount > 0 && (
+                {t.badge > 0 && (
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                    isActive ? 'bg-white text-[#1A56DB]' : 'bg-red-100 text-red-600'
-                  }`}>{missingCount}</span>
+                    isActive ? 'bg-white text-[#1A56DB]'
+                    : t.badgeColor === 'red' ? 'bg-red-100 text-red-600'
+                    : 'bg-amber-100 text-amber-700'
+                  }`}>{t.badge}</span>
                 )}
               </button>
             )
@@ -316,15 +333,23 @@ export default function ReimbursementsPage() {
       ) : sheets.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-3xl mb-3">
-            {tab === 'missing' ? '✅' : tab === 'pending' ? '🎉' : '📋'}
+            {tab === 'active' ? '🛣️' : tab === 'missing' ? '✅' : tab === 'pending' ? '🎉' : '📋'}
           </p>
           <p className="text-[#374151] font-semibold text-sm">
-            {tab === 'missing'
-              ? 'All tripsheets received — nothing missing!'
+            {tab === 'active'
+              ? 'No trips currently in progress'
+              : tab === 'missing'
+              ? 'All completed trips have tripsheets — nothing missing!'
               : tab === 'pending'
               ? 'No pending items — all caught up'
               : 'No settled records yet'}
           </p>
+        </div>
+      ) : tab === 'active' ? (
+        <div className="space-y-3">
+          {sheets.map(sheet => (
+            <InProgressCard key={sheet.booking_id} sheet={sheet} />
+          ))}
         </div>
       ) : (
         <div className="space-y-3">
@@ -341,6 +366,91 @@ export default function ReimbursementsPage() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function InProgressCard({ sheet }: { sheet: ReimbursementSheet }) {
+  const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+    confirmed:       { label: 'Confirmed',       bg: 'bg-gray-100',   text: 'text-gray-600'   },
+    driver_assigned: { label: 'Driver Assigned', bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    in_progress:     { label: 'On Trip',         bg: 'bg-amber-100',  text: 'text-amber-700'  },
+  }
+  const cfg = STATUS_CONFIG[sheet.booking_status] ?? { label: sheet.booking_status, bg: 'bg-gray-100', text: 'text-gray-600' }
+
+  return (
+    <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 ${
+      sheet.booking_status === 'in_progress' ? 'border-amber-200' : 'border-[#C3C5D7]'
+    }`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          {/* Row 1: status + ref + badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+            <Link
+              href={`/bookings/${sheet.booking_id}`}
+              className="text-sm font-bold text-[#1A56DB] hover:underline underline-offset-2"
+            >
+              {sheet.booking_ref}
+            </Link>
+            {sheet.trip_type && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
+                sheet.trip_type === 'local' ? 'bg-blue-100 text-blue-700'
+                : sheet.trip_type === 'outstation' ? 'bg-orange-100 text-orange-700'
+                : 'bg-purple-100 text-purple-700'
+              }`}>{sheet.trip_type}</span>
+            )}
+            {sheet.company_name && (
+              <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>
+            )}
+          </div>
+
+          {/* Row 2: driver + vehicle + phone */}
+          <div className="flex items-center gap-2 flex-wrap mt-1.5 text-xs">
+            {sheet.driver_name && <span className="font-semibold text-[#191B23]">{sheet.driver_name}</span>}
+            {sheet.driver_vehicle_name && <span className="text-[#737686]">{sheet.driver_vehicle_name}</span>}
+            {sheet.driver_vehicle_number && (
+              <span className="font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">{sheet.driver_vehicle_number}</span>
+            )}
+            {sheet.driver_phone && (
+              <a
+                href={`tel:${sheet.driver_phone}`}
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1 text-[#1A56DB] hover:underline"
+              >
+                <Phone className="w-3 h-3" />{sheet.driver_phone}
+              </a>
+            )}
+          </div>
+
+          {/* Row 3: date + time + traveller */}
+          <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-[#737686]">
+            {sheet.pickup_date && (
+              <span>{new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+            )}
+            {sheet.pickup_time && <span className="font-medium text-[#374151]">{sheet.pickup_time.slice(0, 5)}</span>}
+            {(sheet.guest_name || sheet.requested_by) && (
+              <span className="text-[#374151] font-medium">{sheet.guest_name || sheet.requested_by}</span>
+            )}
+          </div>
+
+          {/* Row 4: pickup → drop */}
+          {(sheet.pickup_location || sheet.drop_location) && (
+            <div className="flex items-center gap-1 mt-1 text-xs text-[#737686]">
+              {sheet.pickup_location && <span className="truncate max-w-[220px]">{sheet.pickup_location}</span>}
+              {sheet.pickup_location && sheet.drop_location && <ArrowRight className="w-3 h-3 shrink-0 text-[#9CA3AF]" />}
+              {sheet.drop_location && <span className="truncate max-w-[220px]">{sheet.drop_location}</span>}
+            </div>
+          )}
+        </div>
+
+        <Link
+          href={`/bookings/${sheet.booking_id}`}
+          className="shrink-0 text-xs text-[#737686] hover:text-[#1A56DB] transition-colors whitespace-nowrap"
+        >
+          View →
+        </Link>
+      </div>
     </div>
   )
 }

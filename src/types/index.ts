@@ -166,6 +166,11 @@ export interface ReimbursementSheet {
   rejected_items: string | null
   deferred_items: string | null
   created_at: string
+  // tracking fields (populated for active tab)
+  pickup_location: string | null
+  drop_location: string | null
+  pickup_time: string | null
+  driver_phone: string | null
 }
 
 export interface Booking {

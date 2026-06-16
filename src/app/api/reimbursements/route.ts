@@ -14,10 +14,10 @@ export async function GET(request: Request) {
   let bookingQuery = supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, trip_type, company_id, driver_id, guest_name, guest_phone, requested_by, status,
+      id, booking_ref, pickup_date, pickup_time, pickup_location, drop_location, trip_type, company_id, driver_id, guest_name, guest_phone, requested_by, status,
       company:companies!company_id(name),
       client:clients!client_id(primary_phone),
-      driver:drivers!driver_id(id, name, vehicle_name, vehicle_number, bata_rate, bata_rate_outstation),
+      driver:drivers!driver_id(id, name, phone, vehicle_name, vehicle_number, bata_rate, bata_rate_outstation),
       trip_sheets(
         id, tripsheet_number, toll_amount, parking_amount, permit_amount, bata_driver,
         manual_opening_time, manual_closing_time, opening_time, closing_time, booking_leg_id,
@@ -26,9 +26,18 @@ export async function GET(request: Request) {
         reimbursement_notes, reimbursed_at, rejected_items, deferred_items, created_at
       )
     `)
-    .neq('status', 'cancelled')
     .not('driver_id', 'is', null)
     .order('pickup_date', { ascending: false })
+
+  // Status filter per tab
+  if (status === 'active') {
+    bookingQuery = bookingQuery.in('status', ['confirmed', 'driver_assigned', 'in_progress'])
+  } else if (status === 'all') {
+    bookingQuery = bookingQuery.neq('status', 'cancelled')
+  } else {
+    // missing, pending, settled — only completed bookings
+    bookingQuery = bookingQuery.eq('status', 'completed')
+  }
 
   if (driverId) bookingQuery = bookingQuery.eq('driver_id', driverId)
   if (dateFrom) bookingQuery = bookingQuery.gte('pickup_date', dateFrom)
@@ -67,16 +76,62 @@ export async function GET(request: Request) {
     }
   }
 
-  // Flatten to one entry per trip_sheet
   const result = []
   for (const booking of bookings) {
-    const driver = booking.driver as unknown as { id: string; name: string; vehicle_name: string; vehicle_number: string; bata_rate: number | null; bata_rate_outstation: number | null } | null
+    const bRaw = booking as unknown as Record<string, unknown>
+    const driver = booking.driver as unknown as { id: string; name: string; phone: string | null; vehicle_name: string; vehicle_number: string; bata_rate: number | null; bata_rate_outstation: number | null } | null
     const company = booking.company as unknown as { name: string } | null
     const tripType = (booking.trip_type as string | null) ?? 'local'
-    const bookingStatus = (booking as unknown as Record<string, unknown>).status as string
+    const bookingStatus = bRaw.status as string
     const sheets = (booking.trip_sheets ?? []) as Array<Record<string, unknown>>
+    const clientPhone = ((booking.client as unknown as { primary_phone: string | null } | null)?.primary_phone) ?? null
 
-    // Bookings with no tripsheet yet — show as placeholder so they're traceable
+    // Active tab: one tracking entry per booking (confirmed/driver_assigned/in_progress)
+    if (status === 'active') {
+      const firstSheet = sheets[0] ?? null
+      const entry = {
+        sheet_id: firstSheet ? firstSheet.id as string : null,
+        has_tripsheet: sheets.length > 0,
+        booking_status: bookingStatus,
+        booking_id: booking.id,
+        booking_ref: booking.booking_ref,
+        tripsheet_number: firstSheet ? (firstSheet.tripsheet_number as string | null) : null,
+        guest_name: booking.guest_name ?? null,
+        guest_phone: booking.guest_phone ?? null,
+        requested_by: booking.requested_by ?? null,
+        client_phone: clientPhone,
+        pickup_date: booking.pickup_date,
+        pickup_location: (bRaw.pickup_location as string | null) ?? null,
+        drop_location: (bRaw.drop_location as string | null) ?? null,
+        pickup_time: (bRaw.pickup_time as string | null) ?? null,
+        company_id: booking.company_id,
+        company_name: company?.name ?? null,
+        driver_id: driver?.id ?? null,
+        driver_name: driver?.name ?? null,
+        driver_phone: driver?.phone ?? null,
+        driver_vehicle_name: driver?.vehicle_name ?? null,
+        driver_vehicle_number: driver?.vehicle_number ?? null,
+        trip_type: tripType,
+        manual_opening_time: firstSheet ? (firstSheet.manual_opening_time as string | null) : null,
+        manual_closing_time: firstSheet ? (firstSheet.manual_closing_time as string | null) : null,
+        opening_time: null, closing_time: null, leg_date: null,
+        toll_amount: null, parking_amount: null, permit_amount: null,
+        bata_driver: null, bata_rate: null, bata_amount: null,
+        tripsheet_doc_received: false,
+        toll_received: false, parking_received: false, permit_received: false, bata_received: false,
+        toll_paid: false, parking_paid: false, permit_paid: false, bata_paid: false,
+        reimbursement_notes: null, reimbursed_at: null, rejected_items: null, deferred_items: null, created_at: '',
+      }
+      if (search) {
+        const haystack = [entry.booking_ref, entry.driver_name, entry.driver_vehicle_name, entry.driver_vehicle_number,
+          entry.guest_name, entry.requested_by, entry.guest_phone, entry.pickup_location, entry.drop_location].filter(Boolean).join(' ').toLowerCase()
+        if (!search.split(/\s+/).filter(Boolean).every(t => haystack.includes(t))) continue
+      }
+      result.push(entry)
+      continue
+    }
+
+    // Reimbursement tabs (missing/pending/settled/all): all bookings here are completed
     if (sheets.length === 0) {
       if (status === 'settled' || status === 'pending') continue
       const placeholder = {
@@ -84,10 +139,16 @@ export async function GET(request: Request) {
         booking_id: booking.id, booking_ref: booking.booking_ref,
         tripsheet_number: null, guest_name: booking.guest_name ?? null,
         guest_phone: booking.guest_phone ?? null, requested_by: booking.requested_by ?? null,
-        client_phone: ((booking.client as unknown as { primary_phone: string | null } | null)?.primary_phone) ?? null,
-        pickup_date: booking.pickup_date, company_id: booking.company_id,
+        client_phone: clientPhone,
+        pickup_date: booking.pickup_date,
+        pickup_location: (bRaw.pickup_location as string | null) ?? null,
+        drop_location: (bRaw.drop_location as string | null) ?? null,
+        pickup_time: (bRaw.pickup_time as string | null) ?? null,
+        company_id: booking.company_id,
         company_name: company?.name ?? null, driver_id: driver?.id ?? null,
-        driver_name: driver?.name ?? null, driver_vehicle_name: driver?.vehicle_name ?? null,
+        driver_name: driver?.name ?? null,
+        driver_phone: driver?.phone ?? null,
+        driver_vehicle_name: driver?.vehicle_name ?? null,
         driver_vehicle_number: driver?.vehicle_number ?? null, trip_type: tripType,
         manual_opening_time: null, manual_closing_time: null, opening_time: null, closing_time: null, leg_date: null,
         toll_amount: null, parking_amount: null, permit_amount: null,
@@ -101,8 +162,7 @@ export async function GET(request: Request) {
         const haystack = [placeholder.booking_ref, placeholder.driver_name, placeholder.driver_vehicle_name,
           placeholder.driver_vehicle_number, placeholder.guest_name, placeholder.requested_by,
           placeholder.guest_phone, placeholder.client_phone].filter(Boolean).join(' ').toLowerCase()
-        const tokens = search.split(/\s+/).filter(Boolean)
-        if (!tokens.every(t => haystack.includes(t))) continue
+        if (!search.split(/\s+/).filter(Boolean).every(t => haystack.includes(t))) continue
       }
       result.push(placeholder)
       continue
@@ -149,10 +209,14 @@ export async function GET(request: Request) {
         requested_by: (booking.requested_by as string | null) ?? null,
         client_phone: ((booking.client as unknown as { primary_phone: string | null } | null)?.primary_phone) ?? null,
         pickup_date: booking.pickup_date,
+        pickup_location: (bRaw.pickup_location as string | null) ?? null,
+        drop_location: (bRaw.drop_location as string | null) ?? null,
+        pickup_time: (bRaw.pickup_time as string | null) ?? null,
         company_id: booking.company_id,
         company_name: company?.name ?? null,
         driver_id: driver?.id ?? null,
         driver_name: driver?.name ?? null,
+        driver_phone: driver?.phone ?? null,
         driver_vehicle_name: driver?.vehicle_name ?? null,
         driver_vehicle_number: driver?.vehicle_number ?? null,
         trip_type: tripType,
