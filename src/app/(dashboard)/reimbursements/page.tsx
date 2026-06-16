@@ -139,6 +139,26 @@ export default function ReimbursementsPage() {
     setDateTo('')
   }
 
+  // Per-driver pending totals (pending tab only, from currently filtered sheets)
+  const driverTotals = useMemo(() => {
+    if (tab !== 'pending') return []
+    const map = new Map<string, { driver_id: string; driver_name: string; total: number; trips: number }>()
+    for (const s of sheets) {
+      if (!s.driver_id || !s.driver_name) continue
+      const rej = new Set((s.rejected_items ?? '').split(',').filter(Boolean))
+      const sp = s as unknown as Record<string, unknown>
+      const add = (key: string, amt: number | null) =>
+        amt != null && !rej.has(key) && !sp[`${key}_paid`] ? amt : 0
+      const tripTotal = add('toll', s.toll_amount) + add('parking', s.parking_amount)
+        + add('permit', s.permit_amount) + add('bata', s.bata_amount)
+      if (!map.has(s.driver_id)) map.set(s.driver_id, { driver_id: s.driver_id, driver_name: s.driver_name, total: 0, trips: 0 })
+      const row = map.get(s.driver_id)!
+      row.total += tripTotal
+      row.trips += 1
+    }
+    return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total)
+  }, [sheets, tab])
+
   // Outstanding = sum of all unpaid items (not rejected) on pending tab
   const outstanding = useMemo(() => {
     if (tab !== 'pending') return 0
@@ -520,6 +540,23 @@ export default function ReimbursementsPage() {
         </div>
       ) : (
         <div className="space-y-3">
+          {/* Per-driver summary cards — pending tab only */}
+          {tab === 'pending' && driverTotals.length > 1 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-1">
+              {driverTotals.map(d => (
+                <button
+                  key={d.driver_id}
+                  onClick={() => setDriverId(d.driver_id)}
+                  className="text-left bg-white rounded-xl border border-[#C3C5D7] p-3 shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+                >
+                  <div className="text-xs font-semibold text-[#191B23] truncate">{d.driver_name}</div>
+                  <div className="text-lg font-bold text-[#DC2626] mt-1">₹{d.total.toLocaleString('en-IN')}</div>
+                  <div className="text-[10px] text-[#737686] mt-0.5">{d.trips} trip{d.trips !== 1 ? 's' : ''} pending</div>
+                </button>
+              ))}
+            </div>
+          )}
+
           {sheets.map(sheet => (
             <TripCard
               key={sheet.sheet_id ?? sheet.booking_id}
