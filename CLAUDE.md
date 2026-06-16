@@ -111,10 +111,24 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 ---
 
 ## Reimbursements Page (`/reimbursements`)
-- Shows ALL non-cancelled bookings (not just completed) — filter is `.neq('status','cancelled')`
-- Bookings with no `trip_sheets` row → synthetic placeholder entry: `sheet_id=null`, `has_tripsheet=false`, body shows "No tripsheet yet"
-- `ReimbursementSheet` type: `sheet_id: string | null`, `has_tripsheet: boolean`, `booking_status: string`
-- Status badge shown on cards for non-completed bookings (arrived=yellow, driver_assigned=indigo, pending/confirmed=gray)
+**4-tab design:** Active (In Progress) | Missing Tripsheet | Pending | Settled
+- **Active** — confirmed/driver_assigned/in_progress trips; `InProgressCard` shows status badge, route, driver phone (tap-to-call), "View →" link. Default tab.
+- **Missing** — completed bookings with no trip_sheets row. "Create Tripsheet" button → `TripsheetEditPopup`.
+- **Pending** — completed with tripsheet, `tripsheet_doc_received = false`
+- **Settled** — `tripsheet_doc_received = true`; collapsed by default
+
+**Filters:** Driver (`DriverSearchCombobox`), Company (`CompanyCombobox` with `placeholder="All companies"`), Customer (inline type-ahead → `/api/clients?q=&company_any=`, sends `client_id` to API, cascades with company), Search text, Date range, Clear All, Excel Export
+- API params: `status`, `driver_id`, `company_id`, `client_id` (filters on `client_id OR guest_client_id`)
+- `CompanyCombobox` has optional `placeholder` prop added (default 'No company', unchanged for other usages)
+
+**PayRow UX:** Must toggle "Received" ON first → then "Pay Now" / "→ Settle Later" / "Reject" appear
+- Pay Now → `paid=true` → **excluded from monthly settlement** (settlement generator checks `*_paid` flags)
+- Settle Later → adds to `deferred_items` (comma-separated like `rejected_items`) — visual only, all unpaid items go to settlement regardless
+
+**Settlement fix (commit `3843401`):** `/api/billing/driver-settlements/generate/route.ts` reads `toll_paid/parking_paid/permit_paid/bata_paid`. If `paid=true`, amount = 0 in settlement. No double payment.
+
+**`ReimbursementSheet` type:** `sheet_id: string | null`, `has_tripsheet: boolean`, `booking_status: string`, `pickup_location/drop_location/pickup_time/driver_phone: string | null` (active tab only)
+
 - "Offline Trip" button (purple, top-right) → `/bookings/offline-trip` (creates a backdated completed trip outside the booking system)
 - `/bookings/offline-trip` page is fully built — creates booking + trip_sheet in one form, supports multi-day local with per-day cards, prefill via `?from=bookingId`
 
