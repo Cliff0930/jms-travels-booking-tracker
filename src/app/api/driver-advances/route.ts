@@ -35,8 +35,10 @@ export async function GET(request: Request) {
 
   if (status !== 'all') q = q.eq('status', status)
 
+  const type = searchParams.get('type')
   if (driverId) q = q.eq('driver_id', driverId)
   if (bookingId) q = q.eq('booking_id', bookingId)
+  if (type) q = q.eq('type', type)
   if (dateFrom) q = q.gte('created_at', dateFrom)
   if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59')
 

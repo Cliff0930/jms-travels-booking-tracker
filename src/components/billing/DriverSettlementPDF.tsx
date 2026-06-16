@@ -184,6 +184,13 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
     + data.advance_interest_deduction
     + data.other_deductions
 
+  const advanceDed = hasAdvEntries
+    ? (data.advance_entries ?? []).filter(e => e.type === 'advance').reduce((s, e) => s + e.amount, 0)
+    : data.advance_principal_deduction
+  const collectionDed = hasAdvEntries
+    ? (data.advance_entries ?? []).filter(e => e.type === 'collection').reduce((s, e) => s + e.amount, 0)
+    : 0
+
   const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
   const stmtDate = `${String(now.getUTCDate()).padStart(2,'0')}/${String(now.getUTCMonth()+1).padStart(2,'0')}/${now.getUTCFullYear()}`
 
@@ -447,11 +454,29 @@ export function DriverSettlementPDF({ data }: { data: DriverSettlementPDFData })
               <Text style={{ width: SB.val,   fontSize: 8, fontFamily: BOLD, paddingHorizontal: 8, paddingVertical: 4, textAlign: 'right' }}>{fmt2(data.gross_earnings)}</Text>
             </View>
 
-            {/* Total Advance Deductions line (only if any) */}
-            {hasDed && (
+            {/* Deduction lines — split by type when entries available */}
+            {advanceDed > 0 && (
               <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
-                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Total Advance Deductions</Text>
-                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(totalDed)}</Text>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Advance Given</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(advanceDed)}</Text>
+              </View>
+            )}
+            {collectionDed > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Client Collections</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(collectionDed)}</Text>
+              </View>
+            )}
+            {data.advance_interest_deduction > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Advance Interest ({iRate}%)</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(data.advance_interest_deduction)}</Text>
+              </View>
+            )}
+            {data.other_deductions > 0 && (
+              <View style={{ flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: BORDER, minHeight: 16, alignItems: 'center' }}>
+                <Text style={{ width: SB.label, fontSize: 7.5, paddingHorizontal: 8, paddingVertical: 3, borderRightWidth: 0.5, borderRightColor: BORDER }}>Other Deductions</Text>
+                <Text style={{ width: SB.val,   fontSize: 7.5, color: NEG, paddingHorizontal: 8, paddingVertical: 3, textAlign: 'right' }}>-{fmt2(data.other_deductions)}</Text>
               </View>
             )}
 

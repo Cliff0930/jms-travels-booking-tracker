@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import {
   Search, CheckCircle2, Circle, ChevronDown, ChevronUp,
   CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight, Phone, Navigation,
-  X, User,
+  X, User, Banknote, Check,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
@@ -158,6 +158,36 @@ export default function ReimbursementsPage() {
     }, 0)
   }, [sheets, tab])
 
+  // Outstanding client collections (driver collected from client, owes JMS)
+  interface CollectionEntry {
+    id: string; driver_id: string; amount: number; created_at: string; note: string | null; booking_id: string | null
+    driver: { id: string; name: string }
+    booking: { booking_ref: string } | null
+  }
+  const { data: pendingCollections = [], refetch: refetchCollections } = useQuery<CollectionEntry[]>({
+    queryKey: ['driver-advances-collections'],
+    queryFn: () => fetch('/api/driver-advances?status=outstanding&type=collection').then(r => r.json()),
+  })
+  const [markingId, setMarkingId] = useState<string | null>(null)
+
+  async function handleMarkCollected(id: string) {
+    setMarkingId(id)
+    try {
+      const res = await fetch(`/api/driver-advances/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'settled', settled_via: 'Cash Returned' }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Marked as received')
+      refetchCollections()
+    } catch {
+      toast.error('Failed to update')
+    } finally {
+      setMarkingId(null)
+    }
+  }
+
   async function patchSheet(sheetId: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/reimbursements/${sheetId}`, {
       method: 'PATCH',
@@ -279,6 +309,61 @@ export default function ReimbursementsPage() {
         title="Reimbursements"
         description="Track tripsheet collection and driver payments"
       />
+
+      {/* Client Collections Panel */}
+      {pendingCollections.length > 0 && (
+        <div className="mb-5 bg-white rounded-xl border border-orange-200 overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 bg-orange-50 border-b border-orange-200">
+            <div className="flex items-center gap-2">
+              <Banknote className="w-4 h-4 text-orange-600 shrink-0" />
+              <span className="text-sm font-semibold text-orange-800">Client Collections Pending</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">{pendingCollections.length}</span>
+            </div>
+            <div className="text-sm font-bold text-orange-700">
+              ₹{pendingCollections.reduce((s, e) => s + Number(e.amount), 0).toLocaleString('en-IN')} outstanding
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {['Driver', 'Booking Ref', 'Amount', 'Date', 'Note', ''].map(h => (
+                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {pendingCollections.map(e => (
+                  <tr key={e.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{e.driver?.name ?? '—'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {e.booking_id && e.booking?.booking_ref
+                        ? <Link href={`/bookings/${e.booking_id}`} className="text-blue-600 hover:underline font-medium">{e.booking.booking_ref}</Link>
+                        : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 font-semibold text-orange-700 whitespace-nowrap">₹{Number(e.amount).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{new Date(e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                    <td className="px-4 py-2.5 text-gray-500 max-w-[180px] truncate">{e.note ?? '—'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <button
+                        onClick={() => handleMarkCollected(e.id)}
+                        disabled={markingId === e.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                      >
+                        <Check className="w-3 h-3" />
+                        {markingId === e.id ? 'Saving…' : 'Mark Received'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
+            Mark as received if driver paid directly. Otherwise it will be deducted in the monthly settlement.
+          </div>
+        </div>
+      )}
 
       {/* Summary strip */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
