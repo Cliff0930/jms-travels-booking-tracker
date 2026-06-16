@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppTemplate, sendWhatsAppMessage, sendWhatsAppSmart } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate, sendWhatsAppSmart } from '@/lib/whatsapp/send'
 import { sendEmailSafe } from '@/lib/gmail/send'
 import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
@@ -111,6 +111,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ])
 
       const companyName = (booking.company as { name?: string } | null)?.name || null
+
+      // Embed map URL directly inside the pickup/drop param so it's part of the
+      // approved template — avoids sending a separate free-form message that
+      // requires an open 24h window which drivers may not have.
+      const pickupParam = [
+        booking.pickup_location || 'TBD',
+        booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+      ].filter(Boolean).join('\n')
+      const dropParam = [
+        booking.drop_location || 'TBD',
+        booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+      ].filter(Boolean).join('\n')
+
       const fallbackBody = [
         `Hi ${driver.name}, you have a new assignment.`,
         ``,
@@ -118,10 +131,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         companyName ? `Company: ${companyName}` : null,
         `Guest: ${guestName}`,
         `Guest Phone: ${guestPhone}`,
-        `Pickup: ${booking.pickup_location || 'TBD'}`,
-        booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
-        `Drop: ${booking.drop_location || 'TBD'}`,
-        booking.drop_location_url ? `Drop Map: ${booking.drop_location_url}` : null,
+        `Pickup: ${pickupParam}`,
+        `Drop: ${dropParam}`,
         `Date: ${formatDate(booking.pickup_date)}`,
         `Time: ${formatTime(booking.pickup_time)}`,
         `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
@@ -142,8 +153,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           companyName || '-',
           guestName,
           guestPhone,
-          booking.pickup_location || 'TBD',
-          booking.drop_location || 'TBD',
+          pickupParam,
+          dropParam,
           formatDate(booking.pickup_date),
           formatTime(booking.pickup_time),
           booking.pax_count?.toString() || 'TBD',
@@ -165,14 +176,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         status: result.ok ? 'sent' : 'failed',
         whatsapp_message_id: result.whatsappMessageId ?? null,
       })
-
-      if (result.ok && (booking.pickup_location_url || booking.drop_location_url)) {
-        const mapLines = [
-          booking.pickup_location_url ? `Pickup Map: ${booking.pickup_location_url}` : null,
-          booking.drop_location_url   ? `Drop Map: ${booking.drop_location_url}`   : null,
-        ].filter(Boolean).join('\n')
-        await sendWhatsAppMessage({ to: driver.phone, body: mapLines })
-      }
     }
   }
 

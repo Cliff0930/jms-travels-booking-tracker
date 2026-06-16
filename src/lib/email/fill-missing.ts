@@ -42,6 +42,21 @@ export async function fillMissingFromReply(
     }
   } catch { /* non-critical — don't block booking processing */ }
 
+  // Extract any Google Maps URLs the client included in their reply
+  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
+  const urlMatches = [...replyContent.matchAll(urlRegex)]
+  let replyPickupUrl: string | null = null
+  let replyDropUrl: string | null = null
+  for (const match of urlMatches) {
+    const url = match[0]
+    const pos = match.index ?? 0
+    const ctx = replyContent.slice(Math.max(0, pos - 80), pos + url.length + 80).toLowerCase()
+    const isDrop = /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(ctx)
+    if (isDrop && !replyDropUrl) replyDropUrl = url
+    else if (!replyPickupUrl) replyPickupUrl = url
+    else if (!replyDropUrl) replyDropUrl = url
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const extraction = await extractBookingFields(replyContent, client as any, savedLocations)
   const newFields = extraction.bookings[0]?.extracted ?? {}
@@ -55,14 +70,16 @@ export async function fillMissingFromReply(
   if (mergedDate && mergedDate < today) mergedDate = null
 
   const merged = {
-    pickup_location: booking.pickup_location || newFields.pickup_location || null,
-    drop_location:   booking.drop_location   || newFields.drop_location   || null,
-    pickup_date:     mergedDate,
-    pickup_time:     booking.pickup_time     || newFields.pickup_time     || null,
-    pax_count:       booking.pax_count       ?? newFields.pax_count       ?? null,
-    vehicle_type:    booking.vehicle_type    || newFields.vehicle_type    || null,
-    guest_name:      booking.guest_name      || newFields.guest_name      || null,
-    guest_phone:     booking.guest_phone     || newFields.guest_phone     || null,
+    pickup_location:     booking.pickup_location     || newFields.pickup_location     || null,
+    drop_location:       booking.drop_location       || newFields.drop_location       || null,
+    pickup_location_url: booking.pickup_location_url || replyPickupUrl                || null,
+    drop_location_url:   booking.drop_location_url   || replyDropUrl                  || null,
+    pickup_date:         mergedDate,
+    pickup_time:         booking.pickup_time         || newFields.pickup_time         || null,
+    pax_count:           booking.pax_count           ?? newFields.pax_count           ?? null,
+    vehicle_type:        booking.vehicle_type        || newFields.vehicle_type        || null,
+    guest_name:          booking.guest_name          || newFields.guest_name          || null,
+    guest_phone:         booking.guest_phone         || newFields.guest_phone         || null,
     special_instructions: booking.special_instructions || newFields.special_instructions || null,
   }
 

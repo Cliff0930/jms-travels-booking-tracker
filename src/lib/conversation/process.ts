@@ -4,6 +4,30 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { ConversationMessage } from '@/types'
 
+function extractMapsUrls(text: string): { pickup_location_url: string | null; drop_location_url: string | null } {
+  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
+  const matches = [...text.matchAll(urlRegex)]
+  if (matches.length === 0) return { pickup_location_url: null, drop_location_url: null }
+
+  let pickupUrl: string | null = null
+  let dropUrl: string | null = null
+
+  for (const match of matches) {
+    const url = match[0]
+    const pos = match.index ?? 0
+    const surroundingText = text.slice(Math.max(0, pos - 80), pos + url.length + 80).toLowerCase()
+    const isDropContext = /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(surroundingText)
+    const isPickupContext = /\b(pick\s*up|pickup|from\s*:|departing|start|board)\b/.test(surroundingText)
+
+    if (isDropContext && !dropUrl) dropUrl = url
+    else if (isPickupContext && !pickupUrl) pickupUrl = url
+    else if (!pickupUrl) pickupUrl = url
+    else if (!dropUrl) dropUrl = url
+  }
+
+  return { pickup_location_url: pickupUrl, drop_location_url: dropUrl }
+}
+
 // ─── ENTRY POINT ─────────────────────────────────────────────────────────────
 // Called from the webhook (via after()) for immediate response, and from the
 // cron as a backup for any sessions that weren't processed inline.
@@ -39,6 +63,9 @@ export async function processConversationSession(
 
   const messages = sessionRecord.messages as ConversationMessage[]
   if (!messages.length) return
+
+  const clientText = messages.filter(m => m.role === 'client').map(m => m.content).join('\n')
+  const mapsUrls = extractMapsUrls(clientText)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const savedLocations = (client.locations || []) as any[]
@@ -85,6 +112,8 @@ export async function processConversationSession(
         service_type: result.extracted.service_type,
         pickup_location: result.extracted.pickup_location,
         drop_location: result.extracted.drop_location,
+        pickup_location_url: mapsUrls.pickup_location_url,
+        drop_location_url: mapsUrls.drop_location_url,
         pickup_date: result.extracted.pickup_date,
         pickup_time: result.extracted.pickup_time,
         pax_count: result.extracted.pax_count,
