@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Search, CheckCircle2, Circle, ChevronDown, ChevronUp,
   CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight, Phone, Navigation,
@@ -12,12 +11,11 @@ import {
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
-import type { ReimbursementSheet } from '@/types'
+import type { ReimbursementSheet, Driver } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
+import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
 
 type Tab = 'active' | 'missing' | 'pending' | 'settled'
-
-interface DriverSummary { id: string; name: string }
 
 export default function ReimbursementsPage() {
   const [tab, setTab] = useState<Tab>('active')
@@ -57,13 +55,20 @@ export default function ReimbursementsPage() {
     queryFn: () => fetch('/api/reimbursements?status=all').then(r => r.json()),
   })
 
-  const allDrivers = useMemo<DriverSummary[]>(() => {
-    const seen = new Map<string, string>()
+  const driversForCombobox = useMemo<Driver[]>(() => {
+    const seen = new Map<string, Driver>()
     for (const s of allDriverSheets) {
-      if (s.driver_id && s.driver_name && !seen.has(s.driver_id))
-        seen.set(s.driver_id, s.driver_name)
+      if (s.driver_id && s.driver_name && !seen.has(s.driver_id)) {
+        seen.set(s.driver_id, {
+          id: s.driver_id,
+          name: s.driver_name,
+          phone: s.driver_phone ?? '',
+          vehicle_name: s.driver_vehicle_name ?? '',
+          vehicle_number: s.driver_vehicle_number ?? '',
+        } as Driver)
+      }
     }
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name))
   }, [allDriverSheets])
 
   // Outstanding = sum of all unpaid items (not rejected) on pending tab
@@ -292,17 +297,24 @@ export default function ReimbursementsPage() {
         </div>
 
         {/* Driver filter */}
-        <Select value={driverId} onValueChange={v => v && setDriverId(v)}>
-          <SelectTrigger className="border-[#C3C5D7] h-9 text-sm w-48">
-            <SelectValue placeholder="All drivers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Drivers</SelectItem>
-            {allDrivers.map(d => (
-              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <div className="w-52">
+            <DriverSearchCombobox
+              value={driverId === 'all' ? '' : driverId}
+              drivers={driversForCombobox}
+              onSelect={id => setDriverId(id || 'all')}
+              placeholder="All drivers"
+            />
+          </div>
+          {driverId !== 'all' && (
+            <button
+              onClick={() => setDriverId('all')}
+              className="text-xs text-[#737686] hover:text-[#374151]"
+            >
+              Clear ×
+            </button>
+          )}
+        </div>
 
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
