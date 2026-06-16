@@ -165,6 +165,9 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - Service worker `notificationclick` fixed to call `c.navigate(url).then(() => c.focus())` so clicking a push on an already-open app navigates (not just focuses).
 - Calendar + dashboard tiles: `guest_name ?? client?.name ?? requested_by ?? '—'` — client name shown when no separate guest.
 
+## Analytics — Known Gotcha
+- `cancel_reason` does NOT exist on bookings; actual column is `cancelled_reason`. PostgREST silently returns null for the entire query if an unknown column is in the select string — no error thrown, just empty data. Always verify column names against `src/types/index.ts` before adding to a select.
+
 ---
 
 ## Key API Routes
