@@ -16,6 +16,9 @@ import type { ReimbursementSheet, Driver, Company } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
 import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 type Tab = 'active' | 'missing' | 'pending' | 'settled'
 
@@ -189,23 +192,38 @@ export default function ReimbursementsPage() {
     queryKey: ['driver-advances-collections'],
     queryFn: () => fetch('/api/driver-advances?status=outstanding&type=collection').then(r => r.json()),
   })
-  const [markingId, setMarkingId] = useState<string | null>(null)
+  const [collectEntry, setCollectEntry] = useState<CollectionEntry | null>(null)
+  const [collectVia, setCollectVia] = useState('')
+  const [collectDate, setCollectDate] = useState('')
+  const [collectNote, setCollectNote] = useState('')
+  const [collecting, setCollecting] = useState(false)
+  const markingId = null // kept for TripCard prop compat
 
-  async function handleMarkCollected(id: string) {
-    setMarkingId(id)
+  function openCollectDialog(entry: CollectionEntry) {
+    setCollectEntry(entry); setCollectVia(''); setCollectDate(''); setCollectNote('')
+  }
+  function closeCollectDialog() {
+    setCollectEntry(null); setCollectVia(''); setCollectDate(''); setCollectNote('')
+  }
+
+  async function handleConfirmCollected() {
+    if (!collectEntry || !collectVia) return
+    setCollecting(true)
     try {
-      const res = await fetch(`/api/driver-advances/${id}`, {
+      const settled_at = collectDate ? new Date(collectDate).toISOString() : new Date().toISOString()
+      const res = await fetch(`/api/driver-advances/${collectEntry.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'settled', settled_via: 'Cash Returned' }),
+        body: JSON.stringify({ status: 'settled', settled_via: collectVia, note: collectNote || collectEntry.note, settled_at }),
       })
       if (!res.ok) throw new Error()
       toast.success('Marked as received')
       refetchCollections()
+      closeCollectDialog()
     } catch {
       toast.error('Failed to update')
     } finally {
-      setMarkingId(null)
+      setCollecting(false)
     }
   }
 
@@ -568,11 +586,51 @@ export default function ReimbursementsPage() {
               onToggleSetItem={toggleSetItem}
               collections={pendingCollections.filter(c => c.booking_id === sheet.booking_id)}
               markingId={markingId}
-              onMarkCollected={handleMarkCollected}
+              onMarkCollected={openCollectDialog}
             />
           ))}
         </div>
       )}
+
+      {/* Mark Collection as Received dialog */}
+      <Dialog open={!!collectEntry} onOpenChange={o => { if (!o) closeCollectDialog() }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Mark Collection as Received</DialogTitle></DialogHeader>
+          {collectEntry && (
+            <div className="space-y-4 py-2">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-gray-500">Driver</span><span className="font-medium">{collectEntry.driver?.name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-semibold text-orange-600">₹{Number(collectEntry.amount).toLocaleString('en-IN')}</span></div>
+                {collectEntry.note && <div className="flex justify-between"><span className="text-gray-500">Note</span><span className="text-gray-700 truncate max-w-[200px]">{collectEntry.note}</span></div>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>How was it received? *</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {['Cash Returned', 'Bank Transfer', 'Salary Deduction'].map(v => (
+                    <button key={v} onClick={() => setCollectVia(v)}
+                      className={cn('px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors', collectVia === v ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300')}
+                    >{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="collect-date">Date Received <span className="text-gray-400 font-normal">(leave blank for today)</span></Label>
+                <Input id="collect-date" type="date" value={collectDate} onChange={e => setCollectDate(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="collect-note">Note (optional)</Label>
+                <Input id="collect-note" value={collectNote} onChange={e => setCollectNote(e.target.value)} placeholder="e.g. Cash received on 16 Jun" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCollectDialog}>Cancel</Button>
+            <Button onClick={handleConfirmCollected} disabled={!collectVia || collecting}>
+              {collecting ? 'Saving…' : 'Confirm Received'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -674,7 +732,7 @@ function TripCard({
   onToggleSetItem: (sheetId: string, field: 'rejected_items' | 'deferred_items', itemKey: string, current: string | null) => void
   collections?: CollectionEntry[]
   markingId?: string | null
-  onMarkCollected?: (id: string) => void
+  onMarkCollected?: (entry: CollectionEntry) => void
 }) {
   const [expanded, setExpanded] = useState(tab !== 'settled')
   const [showTripsheet, setShowTripsheet] = useState(false)
@@ -950,7 +1008,7 @@ function TripCard({
                     {c.note && <span className="text-xs text-orange-600 truncate">· {c.note}</span>}
                   </div>
                   <button
-                    onClick={() => onMarkCollected?.(c.id)}
+                    onClick={() => onMarkCollected?.(c)}
                     disabled={markingId === c.id}
                     className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
                   >
