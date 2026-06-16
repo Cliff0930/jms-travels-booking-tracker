@@ -68,6 +68,7 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 - **Bata:** Computed server-side; `bata_driver` column on `trip_sheets`; company rate overrides driver default by vehicle_name
 - **Silent driver assignment:** `silent: true` in assign POST body skips all WhatsApp/push/email — used for backdating completed trips
 - **Smart driver link redirect:** `GET /api/driver-redirect-check` called on every driver-status page load (client-side useEffect). Redirects to correct link based on driver's active trips. Skipped for app drivers and leg-specific links. Falls back to original form on any error (4s timeout). Future-dated trips/legs show "not yet due" message instead of form.
+- **Google Maps URLs from clients:** `pickup_location_url` / `drop_location_url` columns on `bookings` store map links sent by clients. Extracted via `extractMapsUrls()` regex in `parse-message/route.ts` (email + single WA message) and `conversation/process.ts` (WA conversation sessions). Also merged from email replies in `fill-missing.ts`. On driver assignment (`assign/route.ts`), the URL is appended inside the `pickup`/`drop` params of `jms_trip_brief_driver` (e.g. `"Address\nMap: https://..."`). Never send as a separate free-form message — drivers may not have an open 24h window. Booking detail page and driver app both already render these URLs as tappable map links.
 
 ---
 
