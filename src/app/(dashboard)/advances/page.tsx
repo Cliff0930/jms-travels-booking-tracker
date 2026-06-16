@@ -8,7 +8,6 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, IndianRupee, ChevronRight, Check, Trash2, Search, Download, X, CalendarDays } from 'lucide-react'
@@ -16,6 +15,8 @@ import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { tokenMatch } from '@/lib/utils/search'
 import * as XLSX from 'xlsx'
+import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
+import type { Driver } from '@/types'
 
 interface AdvanceEntry {
   id: string
@@ -107,6 +108,11 @@ function AdvancesContent() {
     return Array.from(map.values()).sort((a, b) => b.outstanding - a.outstanding)
   }, [entries, tab])
 
+  const { data: allDrivers = [] } = useQuery<Driver[]>({
+    queryKey: ['drivers-list-all'],
+    queryFn: () => fetch('/api/drivers').then(r => r.json()),
+  })
+
   // Fetch outstanding entries for balance cards — scoped to selected driver if one is chosen
   const { data: allOutstanding = [] } = useQuery<AdvanceEntry[]>({
     queryKey: ['driver-advances', 'outstanding', driverFilter],
@@ -133,14 +139,6 @@ function AdvancesContent() {
     if (driverFilter !== 'all') return result.filter(b => b.driver_id === driverFilter)
     return result
   }, [allOutstanding, driverFilter])
-
-  // Build driver list from all entries
-  const driverList = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const e of allOutstanding) if (e.driver?.id) seen.set(e.driver.id, e.driver.name)
-    for (const e of entries) if (e.driver?.id) seen.set(e.driver.id, e.driver.name)
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [allOutstanding, entries])
 
   async function handleSettle() {
     if (!settleEntry || !settleVia) return
@@ -223,15 +221,14 @@ function AdvancesContent() {
         </div>
 
         {/* Driver filter */}
-        <Select value={driverFilter} onValueChange={(v: string | null) => { const val = v ?? 'all'; setDriverFilter(val); router.replace(val !== 'all' ? `/advances?driver_id=${val}` : '/advances') }}>
-          <SelectTrigger className="w-48 border-gray-200 h-9 text-sm">
-            <SelectValue placeholder="All Drivers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Drivers</SelectItem>
-            {driverList.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="w-48">
+          <DriverSearchCombobox
+            value={driverFilter === 'all' ? '' : driverFilter}
+            drivers={allDrivers}
+            onSelect={id => { const val = id || 'all'; setDriverFilter(val); router.replace(val !== 'all' ? `/advances?driver_id=${val}` : '/advances') }}
+            placeholder="All drivers"
+          />
+        </div>
 
         {/* Search */}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
