@@ -355,7 +355,7 @@ export default function ReimbursementsPage() {
         {activeCount > 0 && tab !== 'active' && (
           <button
             onClick={() => setTab('active')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm hover:shadow-md hover:from-amber-600 hover:to-orange-600 transition-all"
           >
             <Navigation className="w-4 h-4 shrink-0" />
             <span className="text-sm font-semibold">{activeCount} trip{activeCount !== 1 ? 's' : ''} in progress</span>
@@ -364,22 +364,22 @@ export default function ReimbursementsPage() {
         {missingCount > 0 && tab !== 'missing' && (
           <button
             onClick={() => setTab('missing')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-sm hover:shadow-md hover:from-red-600 hover:to-rose-700 transition-all"
           >
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span className="text-sm font-semibold">{missingCount} tripsheet{missingCount !== 1 ? 's' : ''} missing</span>
           </button>
         )}
         {tab === 'pending' && outstanding > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">
-            <Clock className="w-4 h-4 shrink-0" />
-            <span className="text-sm font-semibold">₹{outstanding.toFixed(0)} to pay now</span>
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+            <span className="text-base font-bold text-amber-800">₹{outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span className="text-sm font-medium text-amber-700">to pay now</span>
           </div>
         )}
         {tab === 'pending' && deferredTotal > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
-            <ArrowRight className="w-4 h-4 shrink-0" />
-            <span className="text-sm font-semibold">₹{deferredTotal.toFixed(0)} in settlement</span>
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-600">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-sm font-semibold">₹{deferredTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })} in settlement</span>
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -399,27 +399,29 @@ export default function ReimbursementsPage() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         {/* Tabs */}
-        <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm">
+        <div className="flex items-center rounded-xl bg-[#F3F4F6] p-1 gap-0.5 text-sm">
           {([
-            { key: 'pending' as Tab, label: 'Pending', badge: 0, badgeColor: '' },
-            { key: 'missing' as Tab, label: 'Missing Tripsheet', badge: missingCount, badgeColor: 'red' },
-            { key: 'settled' as Tab, label: 'Settled', badge: 0, badgeColor: '' },
-            { key: 'active' as Tab, label: 'In Progress', badge: activeCount, badgeColor: 'amber' },
+            { key: 'pending' as Tab, label: 'Pending', badge: 0, icon: Circle, activeColor: 'bg-[#1A56DB]' },
+            { key: 'missing' as Tab, label: 'Missing', badge: missingCount, icon: AlertTriangle, activeColor: 'bg-red-600' },
+            { key: 'settled' as Tab, label: 'Settled', badge: 0, icon: CheckCircle2, activeColor: 'bg-[#059669]' },
+            { key: 'active' as Tab, label: 'In Progress', badge: activeCount, icon: Navigation, activeColor: 'bg-amber-500' },
           ]).map(t => {
             const isActive = tab === t.key
+            const Icon = t.icon
             return (
               <button
                 key={t.key}
                 onClick={() => { setTab(t.key); setShowDriverSummary(false) }}
-                className={`px-4 py-2 font-semibold transition-colors flex items-center gap-1.5 ${
-                  isActive ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#6B7280] hover:bg-[#F3F3FE]'
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-semibold transition-all whitespace-nowrap ${
+                  isActive ? `${t.activeColor} text-white shadow-sm` : 'text-[#6B7280] hover:text-[#374151] hover:bg-white'
                 }`}
               >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 {t.label}
                 {t.badge > 0 && (
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                    isActive ? 'bg-white text-[#1A56DB]'
-                    : t.badgeColor === 'red' ? 'bg-red-100 text-red-600'
+                    isActive ? 'bg-white/30 text-white'
+                    : t.key === 'missing' ? 'bg-red-100 text-red-600'
                     : 'bg-amber-100 text-amber-700'
                   }`}>{t.badge}</span>
                 )}
@@ -549,12 +551,15 @@ export default function ReimbursementsPage() {
 
       {/* Cards */}
       {isLoading ? (
-        <div className="py-12 text-center text-[#737686]">Loading…</div>
+        <div className="py-12 flex items-center justify-center gap-3 text-[#737686]">
+          <div className="w-5 h-5 rounded-full border-2 border-[#1A56DB] border-t-transparent animate-spin" />
+          <span className="text-sm font-medium">Loading…</span>
+        </div>
       ) : sheets.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="text-3xl mb-3">
+        <div className="py-16 flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-2xl bg-[#F3F4F6] flex items-center justify-center text-3xl">
             {tab === 'active' ? '🛣️' : tab === 'missing' ? '✅' : tab === 'pending' ? '🎉' : '📋'}
-          </p>
+          </div>
           <p className="text-[#374151] font-semibold text-sm">
             {tab === 'active'
               ? 'No trips currently in progress'
@@ -580,11 +585,11 @@ export default function ReimbursementsPage() {
                 <button
                   key={d.driver_id}
                   onClick={() => setDriverId(d.driver_id)}
-                  className="text-left bg-white rounded-xl border border-[#C3C5D7] p-3 shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+                  className="text-left rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all bg-gradient-to-br from-[#1A56DB] to-[#1741B6]"
                 >
-                  <div className="text-xs font-semibold text-[#191B23] truncate">{d.driver_name}</div>
-                  <div className="text-lg font-bold text-[#DC2626] mt-1">₹{d.total.toLocaleString('en-IN')}</div>
-                  <div className="text-[10px] text-[#737686] mt-0.5">{d.trips} trip{d.trips !== 1 ? 's' : ''} pending</div>
+                  <div className="text-xs font-medium text-blue-200 truncate">{d.driver_name}</div>
+                  <div className="text-xl font-bold text-white mt-1">₹{d.total.toLocaleString('en-IN')}</div>
+                  <div className="text-[10px] text-blue-300 mt-0.5">{d.trips} trip{d.trips !== 1 ? 's' : ''} pending</div>
                 </button>
               ))}
             </div>
@@ -659,13 +664,21 @@ function InProgressCard({ sheet }: { sheet: ReimbursementSheet }) {
   const cfg = STATUS_CONFIG[sheet.booking_status] ?? { label: sheet.booking_status, bg: 'bg-gray-100', text: 'text-gray-600' }
 
   return (
-    <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 ${
-      sheet.booking_status === 'in_progress' ? 'border-amber-200' : 'border-[#C3C5D7]'
+    <div className={`bg-white rounded-xl border border-l-4 shadow-sm px-4 py-3 ${
+      sheet.booking_status === 'in_progress'
+        ? 'border-amber-200 border-l-amber-500'
+        : 'border-[#C3C5D7] border-l-indigo-400'
     }`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {/* Row 1: status + ref + badges */}
           <div className="flex items-center gap-2 flex-wrap">
+            {sheet.booking_status === 'in_progress' && (
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+            )}
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
             <Link
               href={`/bookings/${sheet.booking_id}`}
@@ -764,16 +777,16 @@ function TripCard({
   }, 0)
 
   const borderClass = tab === 'missing'
-    ? 'border-red-200'
+    ? 'border-red-200 border-l-4 border-l-red-400'
     : tab === 'settled'
-    ? 'border-[#A7F3D0]'
-    : 'border-[#C3C5D7]'
+    ? 'border-emerald-200 border-l-4 border-l-emerald-500'
+    : 'border-[#C3C5D7] border-l-4 border-l-[#1A56DB]'
 
   const headerBg = tab === 'missing'
     ? 'bg-red-50'
     : tab === 'settled'
-    ? 'bg-[#ECFDF5]'
-    : 'bg-[#F9FAFB]'
+    ? 'bg-emerald-50'
+    : 'bg-[#EFF6FF]'
 
   return (
     <div className={`bg-white rounded-xl border ${borderClass} shadow-sm overflow-hidden`}>
@@ -783,7 +796,13 @@ function TripCard({
         onClick={() => sheet.has_tripsheet && setExpanded(e => !e)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          {tab === 'missing'
+          {sheet.driver_name ? (
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 text-white ${
+              tab === 'missing' ? 'bg-red-500' : tab === 'settled' ? 'bg-emerald-500' : 'bg-[#1A56DB]'
+            }`}>
+              {sheet.driver_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+            </div>
+          ) : tab === 'missing'
             ? <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
             : tab === 'settled'
             ? <CheckCircle2 className="w-4 h-4 text-[#059669] shrink-0" />
@@ -1041,7 +1060,7 @@ function TripCard({
             <div className="flex items-center justify-end pt-3 border-t border-[#F3F4F6] mt-2">
               <Button
                 size="sm"
-                className="bg-[#059669] hover:bg-[#047857] gap-1.5 h-8 text-xs"
+                className="bg-gradient-to-r from-[#059669] to-[#047857] hover:from-[#047857] hover:to-[#065F46] gap-1.5 h-9 text-xs font-semibold shadow-sm transition-all"
                 onClick={() => onSettleAll(sheetId, sheet)}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Settle All
@@ -1097,7 +1116,7 @@ function PayRow({
       <div className="flex items-center justify-between py-2 border-b border-[#F3F4F6] opacity-50">
         <div className="flex items-center gap-2">
           <span className="text-sm text-[#374151] font-medium line-through">{label}</span>
-          {amount != null && <span className="text-sm font-bold text-[#191B23] line-through">₹{amount.toFixed(0)}</span>}
+          {amount != null && <span className="text-sm font-bold text-[#191B23] line-through">₹{Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>}
           <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-200">Rejected</span>
         </div>
         {!settled && (
@@ -1117,7 +1136,7 @@ function PayRow({
       {/* Label + amount */}
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm text-[#374151] font-medium">{label}</span>
-        {amount != null && <span className="text-sm font-bold text-[#191B23]">₹{amount.toFixed(0)}</span>}
+        {amount != null && <span className="text-sm font-bold text-[#191B23]">₹{Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>}
       </div>
 
       {/* Actions */}
@@ -1138,7 +1157,7 @@ function PayRow({
           </span>
         ) : received && deferred ? (
           <>
-            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               <Clock className="w-3 h-3" /> In Settlement
             </span>
             <button
@@ -1152,13 +1171,13 @@ function PayRow({
           <>
             <button
               onClick={() => onToggle(paidField, true)}
-              className="text-xs font-semibold px-2.5 py-1 rounded-full border border-[#059669] text-[#059669] hover:bg-green-50 transition-colors"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#059669] text-white hover:bg-[#047857] transition-colors shadow-sm"
             >
               Pay Now
             </button>
             <button
               onClick={onDefer}
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border border-[#C3C5D7] text-[#6B7280] hover:bg-[#F3F3FE] transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[#C3C5D7] text-[#6B7280] hover:bg-[#F3F3FE] transition-colors"
             >
               <ArrowRight className="w-3 h-3" /> Settle Later
             </button>
