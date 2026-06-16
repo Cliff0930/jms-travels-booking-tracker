@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Fuse from 'fuse.js'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -381,7 +382,11 @@ function AdvancesContent() {
                     </td>
                     <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{fmt(Number(e.amount))}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{MODE_LABELS[e.payment_mode]}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.booking?.booking_ref ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {e.booking_id && e.booking?.booking_ref
+                        ? <Link href={`/bookings/${e.booking_id}`} className="text-blue-600 hover:text-blue-800 hover:underline font-medium">{e.booking.booking_ref}</Link>
+                        : <span className="text-gray-400">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-500 max-w-[180px] truncate">{e.note ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {e.status === 'settled' ? (
