@@ -539,7 +539,7 @@ export async function POST(request: Request) {
         firstExt.pickup_location ? `Pickup: ${firstExt.pickup_location}` : null,
         statusNote,
       ].filter(Boolean).join('\n')
-      notifyOperator(lines, 'ops').catch(() => {})
+      notifyOperator(lines, 'ops', `/bookings/${firstBookingId}`).catch(() => {})
     }
 
     // If any mandatory fields are missing, send one combined reply

@@ -55,7 +55,8 @@ export async function handleApprovalReply(
 
     notifyOperator(
       `❌ Booking cancelled by client\n\nRef: ${booking.booking_ref}\nBy: ${senderContact} via ${channel}\nReason: ${cancelReason}\nPrev status: ${booking.status}\n\nVerify if intentional.`,
-      'ops'
+      'ops',
+      `/bookings/${booking.id}`
     ).catch(() => {})
 
     // Acknowledge the cancellation back to sender

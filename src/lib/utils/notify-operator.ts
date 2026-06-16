@@ -4,18 +4,18 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 // channel='alerts' → push + WhatsApp backup (crash alerts, system errors)
 // channel='ops'    → push only (booking notifications, morning digest, etc.)
-export async function notifyOperator(message: string, channel: 'alerts' | 'ops' = 'alerts'): Promise<void> {
+export async function notifyOperator(message: string, channel: 'alerts' | 'ops' = 'alerts', url?: string): Promise<void> {
   const title = channel === 'alerts' ? '🔴 CabFlow Alert' : '📋 CabFlow'
   const firstLine = message.split('\n')[0] || message
 
   // Persist to DB for the notifications page (fire-and-forget)
   void createAdminClient()
     .from('operator_notifications')
-    .insert({ title, body: message, channel })
+    .insert({ title, body: message, channel, url: url ?? null })
     .then(() => {}, () => {})
 
-  // Push to all subscribed devices (free — always attempt)
-  await sendPushToAll(title, firstLine, '/notifications').catch(e =>
+  // Push to all subscribed devices — clicking navigates to url or /notifications
+  await sendPushToAll(title, firstLine, url || '/notifications').catch(e =>
     console.error('[notifyOperator] push failed:', e)
   )
 

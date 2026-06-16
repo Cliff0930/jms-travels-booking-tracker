@@ -362,7 +362,7 @@ export async function POST(request: Request) {
       `Driver: ${driverName}`,
     ].filter(Boolean).join(' · ')
     const notifTitle = `✅ Trip Completed — ${booking.booking_ref}`
-    void createAdminClient().from('operator_notifications').insert({ title: notifTitle, body: pushBody, channel: 'ops' }).then(() => {}, () => {})
+    void createAdminClient().from('operator_notifications').insert({ title: notifTitle, body: pushBody, channel: 'ops', url: `/bookings/${booking_id}` }).then(() => {}, () => {})
     sendPushToAll(notifTitle, pushBody, `/bookings/${booking_id}`).catch(() => {})
   }
 

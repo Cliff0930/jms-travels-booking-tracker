@@ -830,7 +830,7 @@ async function processClientMessage(
       result.extracted.pickup_date ? `Date: ${result.extracted.pickup_date}${result.extracted.pickup_time ? ` ${result.extracted.pickup_time}` : ''}` : null,
       result.extracted.pickup_location ? `Pickup: ${result.extracted.pickup_location}` : null,
       needsApproval ? '⏳ Pending approval' : '✅ Ready to confirm',
-    ].filter(Boolean).join('\n'), 'ops'),
+    ].filter(Boolean).join('\n'), 'ops', `/bookings/${booking.id}`),
   ])
 
   if (isAfterHours()) {

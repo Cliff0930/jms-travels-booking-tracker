@@ -2,12 +2,14 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, AlertCircle, BookOpen } from 'lucide-react'
+import Link from 'next/link'
 
 type Notification = {
   id: string
   title: string
   body: string
   channel: 'alerts' | 'ops'
+  url: string | null
   read_at: string | null
   created_at: string
 }
@@ -91,41 +93,48 @@ export default function NotificationsPage() {
           const lines = n.body.split('\n').filter(Boolean)
           const isLong = lines.length > 3 || n.body.length > 200
 
-          return (
-            <div
-              key={n.id}
-              className={`rounded-xl border p-4 transition-colors ${
-                isUnread ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 shrink-0">
-                  {n.channel === 'alerts'
-                    ? <AlertCircle className="w-4 h-4 text-red-500" />
-                    : <BookOpen className="w-4 h-4 text-blue-500" />
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-sm font-semibold text-gray-900 truncate">{n.title}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {isUnread && <span className="w-2 h-2 rounded-full bg-blue-600" />}
-                      <span className="text-xs text-gray-400">{timeAgo(n.created_at)}</span>
-                    </div>
-                  </div>
-                  <p className={`text-sm text-gray-600 whitespace-pre-wrap ${!isExpanded && isLong ? 'line-clamp-3' : ''}`}>
-                    {n.body}
-                  </p>
-                  {isLong && (
-                    <button
-                      onClick={() => toggleExpand(n.id)}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1"
-                    >
-                      {isExpanded ? 'Show less' : 'Show more'}
-                    </button>
-                  )}
-                </div>
+          const cardClass = `rounded-xl border p-4 transition-colors ${
+            isUnread ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'
+          } ${n.url ? 'hover:shadow-md cursor-pointer' : ''}`
+
+          const cardContent = (
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                {n.channel === 'alerts'
+                  ? <AlertCircle className="w-4 h-4 text-red-500" />
+                  : <BookOpen className="w-4 h-4 text-blue-500" />
+                }
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-900 truncate">{n.title}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isUnread && <span className="w-2 h-2 rounded-full bg-blue-600" />}
+                    <span className="text-xs text-gray-400">{timeAgo(n.created_at)}</span>
+                  </div>
+                </div>
+                <p className={`text-sm text-gray-600 whitespace-pre-wrap ${!isExpanded && isLong ? 'line-clamp-3' : ''}`}>
+                  {n.body}
+                </p>
+                {isLong && !n.url && (
+                  <button
+                    onClick={() => toggleExpand(n.id)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1"
+                  >
+                    {isExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+
+          return n.url ? (
+            <Link key={n.id} href={n.url} className={`block ${cardClass}`}>
+              {cardContent}
+            </Link>
+          ) : (
+            <div key={n.id} className={cardClass}>
+              {cardContent}
             </div>
           )
         })}
