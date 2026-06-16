@@ -33,6 +33,7 @@ const SAFE_EMPTY_BOOKING: ExtractedBooking = {
     pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null,
     trip_type: 'local', service_type: 'one_way', total_days: 1,
     special_instructions: null, additional_phones: [], company_mentioned: null,
+    department: null,
   },
   missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'],
   is_guest_booking: false,

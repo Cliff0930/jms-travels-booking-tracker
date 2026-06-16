@@ -419,6 +419,7 @@ export async function POST(request: Request) {
           service_type: bk.extracted.service_type,
           total_days: bk.extracted.total_days,
           special_instructions: bk.extracted.special_instructions,
+          department: bk.extracted.department ?? null,
           booking_type: (client as Client)?.company_id ? 'company' : 'personal',
         })
         .select('id, booking_ref')

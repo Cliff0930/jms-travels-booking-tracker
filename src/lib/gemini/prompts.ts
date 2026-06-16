@@ -69,6 +69,7 @@ Fields to extract:
 12. special_instructions — any special notes. Include: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions ("check with him whether he needs vehicle on [date]" → "Follow up with [name] re: [date] vehicle requirement"), guest's ministry/department affiliation, billing notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
+15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels in the message. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
 
 Location keyword resolution:
 If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory. The driver or operator will confirm the exact address with the client.
@@ -112,7 +113,8 @@ Respond with ONLY a JSON object, no other text:
         "total_days": number,
         "special_instructions": "text or null",
         "additional_phones": [],
-        "company_mentioned": "name or null"
+        "company_mentioned": "name or null",
+        "department": "department or team name or null"
       },
       "missing_mandatory": ["list of mandatory fields missing for THIS booking"],
       "is_guest_booking": true or false
@@ -156,9 +158,10 @@ Output:
         "trip_type": "local",
         "service_type": "one_way",
         "total_days": 1,
-        "special_instructions": "Department: R&D. Purpose: Plant Trail.",
+        "special_instructions": "Purpose: Plant Trail.",
         "additional_phones": [],
-        "company_mentioned": null
+        "company_mentioned": null,
+        "department": "R&D"
       },
       "missing_mandatory": [],
       "is_guest_booking": true
@@ -171,7 +174,8 @@ Output:
 Notes:
 - "Name: X, Y" two names = same trip → ONE booking, pax_count=2, guest_name=both
 - "Contact number:" → guest_phone
-- "Department" / "Purpose" → special_instructions
+- "Department" → department field (NOT special_instructions)
+- "Purpose" → special_instructions
 - @mentions and approval lines → ignored
 
 Example 2 — Two separate bookings in one email (different dates/times):
@@ -316,6 +320,7 @@ Fields to extract:
 12. special_instructions — any special notes. Include: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions, guest's ministry/department affiliation, billing notes
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
+15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
 
 Location keyword resolution:
 If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory.
@@ -386,7 +391,8 @@ Respond with ONLY a JSON object, no other text:
         "total_days": number,
         "special_instructions": "text or null",
         "additional_phones": [],
-        "company_mentioned": "name or null"
+        "company_mentioned": "name or null",
+        "department": "department or team name or null"
       },
       "missing_mandatory": ["list of mandatory fields missing for THIS booking"],
       "is_guest_booking": true or false

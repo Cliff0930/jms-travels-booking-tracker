@@ -17,6 +17,7 @@ export interface ExtractedFields {
   special_instructions: string | null
   additional_phones: string[]
   company_mentioned: string | null
+  department: string | null
 }
 
 export interface ExtractedBooking {
@@ -68,7 +69,7 @@ export async function extractBookingFields(
   } catch {
     console.error('[extract] Gemini returned invalid JSON:', cleaned.slice(0, 200))
     return {
-      bookings: [{ extracted: { pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null, pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null, trip_type: 'local' as const, service_type: 'one_way' as const, total_days: 1, special_instructions: null, additional_phones: [], company_mentioned: null }, missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'], is_guest_booking: false }],
+      bookings: [{ extracted: { pickup_location: null, drop_location: null, pickup_date: null, pickup_time: null, pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null, trip_type: 'local' as const, service_type: 'one_way' as const, total_days: 1, special_instructions: null, additional_phones: [], company_mentioned: null, department: null }, missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'], is_guest_booking: false }],
       resolved_keywords: {},
       new_keyword_detected: null,
       confidence: 0,
