@@ -120,11 +120,11 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - `PATCH /api/driver-advances/[id]` supports `settled_at` field + `status='outstanding'` (revoke flow)
 
 ## Reimbursements Page (`/reimbursements`)
-**4-tab design:** Active (In Progress) | Missing Tripsheet | Pending | Settled
-- **Active** — confirmed/driver_assigned/in_progress trips; `InProgressCard` shows status badge, route, driver phone (tap-to-call), "View →" link. Default tab.
-- **Missing** — completed bookings with no trip_sheets row. "Create Tripsheet" button → `TripsheetEditPopup`.
-- **Pending** — completed with tripsheet, `tripsheet_doc_received = false`
+**4-tab design:** Pending | Missing Tripsheet | Settled | Active (In Progress) — **Pending is default tab**
+- **Pending** — completed with tripsheet, `tripsheet_doc_received = false`. Default tab.
+- **Missing Tripsheet** — completed bookings with no trip_sheets row. "Create Tripsheet" button → `TripsheetEditPopup`.
 - **Settled** — `tripsheet_doc_received = true`; collapsed by default
+- **Active (In Progress)** — confirmed/driver_assigned/in_progress trips; `InProgressCard` shows status badge, route, driver phone (tap-to-call), "View →" link.
 
 **Filters:** Driver (`DriverSearchCombobox`), Company (`CompanyCombobox` with `placeholder="All companies"`), Customer (inline type-ahead → `/api/clients?q=&company_any=`, sends `client_id` to API, cascades with company), Search text, Date range, Clear All, Excel Export
 - API params: `status`, `driver_id`, `company_id`, `client_id` (filters on `client_id OR guest_client_id`)
@@ -155,6 +155,15 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 
 - "Offline Trip" button (purple, top-right) → `/bookings/offline-trip` (creates a backdated completed trip outside the booking system)
 - `/bookings/offline-trip` page is fully built — creates booking + trip_sheet in one form, supports multi-day local with per-day cards, prefill via `?from=bookingId`
+
+---
+
+## Operator Notifications (`/notifications`)
+- `operator_notifications` table has `url TEXT` column — **run migration:** `ALTER TABLE operator_notifications ADD COLUMN IF NOT EXISTS url TEXT;`
+- `notifyOperator(message, channel?, url?)` — 3rd param url stored in DB row + used as push click target. Booking notifications pass `/bookings/[id]`.
+- Notifications page: cards with `url` are `<Link>` elements — click navigates to booking. Cards without url are plain divs.
+- Service worker `notificationclick` fixed to call `c.navigate(url).then(() => c.focus())` so clicking a push on an already-open app navigates (not just focuses).
+- Calendar + dashboard tiles: `guest_name ?? client?.name ?? requested_by ?? '—'` — client name shown when no separate guest.
 
 ---
 
