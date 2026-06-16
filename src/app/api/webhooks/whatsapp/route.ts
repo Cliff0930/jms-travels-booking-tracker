@@ -90,6 +90,11 @@ async function processWebhook(body: unknown) {
     if (!messages?.length) return
 
     for (const message of messages) {
+      if (message.type === 'location') {
+        await handleLocationPin(supabase, message)
+        continue
+      }
+
       if (message.type !== 'text') continue
 
       const senderPhone = message.from as string
@@ -229,6 +234,85 @@ async function processWebhook(body: unknown) {
     console.error('WhatsApp webhook error:', err)
     await notifyOperator(`🔴 WhatsApp webhook crashed!\n\nError: ${String(err).slice(0, 300)}\n\nCheck Vercel logs. Incoming message may not have been processed.`).catch(() => {})
   }
+}
+
+async function handleLocationPin(
+  supabase: ReturnType<typeof createAdminClient>,
+  message: Record<string, unknown>,
+) {
+  const senderPhone = message.from as string
+  const loc = message.location as Record<string, unknown> | undefined
+  if (!loc) return
+
+  const lat = loc.latitude as number
+  const lng = loc.longitude as number
+  const placeName = (loc.name as string | undefined) || ''
+  const placeAddress = (loc.address as string | undefined) || ''
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`
+  const locationLabel = placeName || placeAddress || ''
+  const rawContent = locationLabel ? `${locationLabel}\n${mapsUrl}` : mapsUrl
+
+  // Look up sender as a client (try exact phone first, then without country code)
+  let client: { id: string } | null = null
+  const { data: c1 } = await supabase.from('clients').select('id').eq('primary_phone', senderPhone).maybeSingle()
+  if (c1) {
+    client = c1
+  } else if (senderPhone.startsWith('91') && senderPhone.length === 12) {
+    const bare = senderPhone.slice(2)
+    const { data: c2 } = await supabase.from('clients').select('id').eq('primary_phone', bare).maybeSingle()
+    if (c2) client = c2
+  }
+
+  // Find most recent active booking for this client (within 24h)
+  let bookingId: string | null = null
+  let bookingRef: string | null = null
+  if (client) {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: recent } = await supabase
+      .from('bookings')
+      .select('id, booking_ref, pickup_location, pickup_location_url')
+      .eq('client_id', client.id)
+      .gt('created_at', oneDayAgo)
+      .not('status', 'in', '("completed","cancelled")')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recent) {
+      bookingId = recent.id
+      bookingRef = recent.booking_ref
+      const updates: Record<string, string> = { updated_at: new Date().toISOString() }
+      if (!recent.pickup_location_url) updates.pickup_location_url = mapsUrl
+      if (!recent.pickup_location && locationLabel) updates.pickup_location = locationLabel
+      await supabase.from('bookings').update(updates).eq('id', recent.id)
+    }
+  }
+
+  // Store in raw_messages so it appears in booking detail and contacts list
+  try {
+    const whatsappMessageId = message.id as string | undefined
+    const insertRow = {
+      channel: 'whatsapp',
+      sender_phone: senderPhone,
+      raw_content: rawContent,
+      booking_id: bookingId,
+      ai_classification: 'location_pin',
+      processed: true,
+      processed_at: new Date().toISOString(),
+      ...(whatsappMessageId ? { whatsapp_message_id: whatsappMessageId } : {}),
+    }
+    if (whatsappMessageId) {
+      await supabase.from('raw_messages').upsert(insertRow, { onConflict: 'whatsapp_message_id', ignoreDuplicates: true })
+    } else {
+      await supabase.from('raw_messages').insert(insertRow)
+    }
+  } catch { /* non-critical */ }
+
+  const replyBody = bookingRef
+    ? `Thanks! We've saved your location for booking ${bookingRef}. — JMS Travels`
+    : `Thanks for sharing your location! For any queries, call us at 9845572207. — JMS Travels`
+
+  await sendWhatsAppMessage({ to: senderPhone, body: replyBody, log: client ? { client_id: client.id } : {} })
 }
 
 async function processClientMessage(
