@@ -354,12 +354,12 @@ async function processClientMessage(
     const isLocationFollowUp = hasMapsUrl || (noBookingSignals && rawContent.trim().split('\n').length <= 5)
 
     if (isLocationFollowUp) {
-      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       const { data: recentBooking } = await supabase
         .from('bookings')
-        .select('id, booking_ref, pickup_location, trip_type')
+        .select('id, booking_ref, pickup_location, pickup_location_url, trip_type')
         .eq('client_id', client.id)
-        .gt('created_at', tenMinsAgo)
+        .gt('created_at', oneDayAgo)
         .in('status', ['pending', 'draft', 'pending_approval'])
         .order('created_at', { ascending: false })
         .limit(1)
@@ -390,11 +390,14 @@ async function processClientMessage(
           return
         }
         if (mapsUrl || (addressText.length > 10 && !isQuestionOrAction)) {
-          // Actual address or maps link — update pickup_location
-          const newLocation = [addressText, mapsUrl].filter(Boolean).join('\n').trim()
+          // Actual address or maps link — update pickup_location (address only) and pickup_location_url separately
+          const updates: Record<string, string> = { updated_at: new Date().toISOString() }
+          if (addressText) updates.pickup_location = addressText
+          else if (!recentBooking.pickup_location) updates.pickup_location = mapsUrl
+          if (mapsUrl && !recentBooking.pickup_location_url) updates.pickup_location_url = mapsUrl
           await supabase
             .from('bookings')
-            .update({ pickup_location: newLocation, updated_at: new Date().toISOString() })
+            .update(updates)
             .eq('id', recentBooking.id)
           await sendWhatsAppMessage({
             to: senderPhone,
