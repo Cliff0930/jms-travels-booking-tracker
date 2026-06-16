@@ -65,7 +65,7 @@ export async function GET(request: Request) {
   ] = await Promise.all([
     supabase.from('companies').select('id, name, gstin, address, approval_required, approval_channel').eq('id', companyId).single(),
     supabase.from('bookings')
-      .select('id, booking_ref, status, pickup_date, pickup_time, trip_type, guest_name, guest_phone, driver:drivers!driver_id(name), pickup_location, drop_location, cancel_reason')
+      .select('id, booking_ref, status, pickup_date, pickup_time, trip_type, guest_name, guest_phone, driver:drivers!driver_id(name), pickup_location, drop_location')
       .eq('company_id', companyId)
       .gte('pickup_date', dateFrom).lte('pickup_date', dateTo)
       .order('pickup_date', { ascending: false }),
