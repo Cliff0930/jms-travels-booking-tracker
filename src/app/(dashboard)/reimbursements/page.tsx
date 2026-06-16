@@ -29,7 +29,7 @@ interface CollectionEntry {
 }
 
 export default function ReimbursementsPage() {
-  const [tab, setTab] = useState<Tab>('active')
+  const [tab, setTab] = useState<Tab>('pending')
   const [showDriverSummary, setShowDriverSummary] = useState(false)
   const [driverId, setDriverId] = useState<string>('all')
   const [companyId, setCompanyId] = useState('')
@@ -401,10 +401,10 @@ export default function ReimbursementsPage() {
         {/* Tabs */}
         <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm">
           {([
-            { key: 'active' as Tab, label: 'In Progress', badge: activeCount, badgeColor: 'amber' },
-            { key: 'missing' as Tab, label: 'Missing Tripsheet', badge: missingCount, badgeColor: 'red' },
             { key: 'pending' as Tab, label: 'Pending', badge: 0, badgeColor: '' },
+            { key: 'missing' as Tab, label: 'Missing Tripsheet', badge: missingCount, badgeColor: 'red' },
             { key: 'settled' as Tab, label: 'Settled', badge: 0, badgeColor: '' },
+            { key: 'active' as Tab, label: 'In Progress', badge: activeCount, badgeColor: 'amber' },
           ]).map(t => {
             const isActive = tab === t.key
             return (
