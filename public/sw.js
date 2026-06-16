@@ -36,7 +36,9 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const c of list) {
-        if (c.url.includes(self.location.origin) && 'focus' in c) return c.focus()
+        if (c.url.includes(self.location.origin) && 'focus' in c) {
+          return c.navigate(url).then(() => c.focus())
+        }
       }
       if (clients.openWindow) return clients.openWindow(url)
     })

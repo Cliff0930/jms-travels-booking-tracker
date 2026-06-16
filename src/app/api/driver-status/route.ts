@@ -361,7 +361,9 @@ export async function POST(request: Request) {
       booking.drop_location ? `To: ${booking.drop_location}` : null,
       `Driver: ${driverName}`,
     ].filter(Boolean).join(' · ')
-    sendPushToAll(`✅ Trip Completed — ${booking.booking_ref}`, pushBody, `/bookings/${booking_id}`).catch(() => {})
+    const notifTitle = `✅ Trip Completed — ${booking.booking_ref}`
+    void createAdminClient().from('operator_notifications').insert({ title: notifTitle, body: pushBody, channel: 'ops' }).then(() => {}, () => {})
+    sendPushToAll(notifTitle, pushBody, `/bookings/${booking_id}`).catch(() => {})
   }
 
   if (link_code) {
