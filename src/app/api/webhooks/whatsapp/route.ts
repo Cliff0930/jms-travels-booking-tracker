@@ -357,7 +357,7 @@ async function processClientMessage(
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       const { data: recentBooking } = await supabase
         .from('bookings')
-        .select('id, booking_ref, pickup_location, pickup_location_url, trip_type')
+        .select('id, booking_ref, pickup_location, pickup_location_url, drop_location, drop_location_url, trip_type')
         .eq('client_id', client.id)
         .gt('created_at', oneDayAgo)
         .in('status', ['pending', 'draft', 'pending_approval'])
@@ -390,18 +390,24 @@ async function processClientMessage(
           return
         }
         if (mapsUrl || (addressText.length > 10 && !isQuestionOrAction)) {
-          // Actual address or maps link — update pickup_location (address only) and pickup_location_url separately
+          const isDropContext = /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/i.test(rawContent)
           const updates: Record<string, string> = { updated_at: new Date().toISOString() }
-          if (addressText) updates.pickup_location = addressText
-          else if (!recentBooking.pickup_location) updates.pickup_location = mapsUrl
-          if (mapsUrl && !recentBooking.pickup_location_url) updates.pickup_location_url = mapsUrl
+          if (isDropContext) {
+            if (addressText) updates.drop_location = addressText
+            else if (!recentBooking.drop_location) updates.drop_location = mapsUrl
+            if (mapsUrl && !recentBooking.drop_location_url) updates.drop_location_url = mapsUrl
+          } else {
+            if (addressText) updates.pickup_location = addressText
+            else if (!recentBooking.pickup_location) updates.pickup_location = mapsUrl
+            if (mapsUrl && !recentBooking.pickup_location_url) updates.pickup_location_url = mapsUrl
+          }
           await supabase
             .from('bookings')
             .update(updates)
             .eq('id', recentBooking.id)
           await sendWhatsAppMessage({
             to: senderPhone,
-            body: `Thanks! The pickup address for booking ${recentBooking.booking_ref} has been updated.`,
+            body: `Thanks! The ${isDropContext ? 'drop' : 'pickup'} address for booking ${recentBooking.booking_ref} has been updated.`,
             log: { client_id: client.id },
           })
           return
