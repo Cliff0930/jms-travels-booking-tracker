@@ -218,7 +218,7 @@ export default function BookingCalendarPage() {
                       <div className="hidden sm:block space-y-0.5 mt-0.5">
                         {dayBookings.filter(b => b.status !== 'cancelled').slice(0, 2).map(b => (
                           <div key={b.id + (b._legDay ?? '')} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[b.status])}>
-                            {b._legDay ? `Day ${b._legDay}` : fmtTime(b.pickup_time)} · {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? '—'}
+                            {b._legDay ? `Day ${b._legDay}` : fmtTime(b.pickup_time)} · {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? b.client?.name ?? '—'}
                           </div>
                         ))}
                         {dayBookings.filter(b => b.status !== 'cancelled').length > 2 && (
@@ -280,7 +280,7 @@ export default function BookingCalendarPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-mono text-gray-400">{b.booking_ref}</p>
-                      <p className="text-sm font-bold text-gray-900 truncate">{b.guest_name ?? b.requested_by ?? '—'}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">{b.guest_name ?? b.client?.name ?? b.requested_by ?? '—'}</p>
                       {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

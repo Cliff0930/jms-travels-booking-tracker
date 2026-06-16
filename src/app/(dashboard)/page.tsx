@@ -145,7 +145,7 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-mono text-gray-400">{booking.booking_ref}</p>
-          <p className="text-sm font-bold text-gray-900 truncate">{booking.guest_name ?? booking.requested_by ?? '—'}</p>
+          <p className="text-sm font-bold text-gray-900 truncate">{booking.guest_name ?? booking.client?.name ?? booking.requested_by ?? '—'}</p>
           {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
