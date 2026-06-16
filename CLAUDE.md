@@ -110,6 +110,15 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 
 ---
 
+## Advances Page (`/advances`)
+- Booking ref column: clickable `<Link href="/bookings/[id]">` in blue — navigates to booking detail
+- Driver filter: `DriverSearchCombobox` (not a Select dropdown). `driverFilter === 'all'` ↔ `value=''` for the combobox. Fetches all drivers via `useQuery` → `/api/drivers`.
+- Clear filters button: red X button appears when any filter active (driver/search/dateFrom/dateTo), resets all + `router.replace('/advances')`
+- **Revoke settled entries:** `RotateCcw` icon on each settled row → `PATCH /api/driver-advances/[id]` with `{ status: 'outstanding' }` → clears `settled_via`, `settled_at`, `settlement_id` (moves back to outstanding)
+- **Date picker in Settle dialog:** Date input (max=today). Left blank = defaults to today. Sends `settled_at: new Date(settleDate).toISOString()`
+- `GET /api/driver-advances` supports `?type=advance|collection` filter
+- `PATCH /api/driver-advances/[id]` supports `settled_at` field + `status='outstanding'` (revoke flow)
+
 ## Reimbursements Page (`/reimbursements`)
 **4-tab design:** Active (In Progress) | Missing Tripsheet | Pending | Settled
 - **Active** — confirmed/driver_assigned/in_progress trips; `InProgressCard` shows status badge, route, driver phone (tap-to-call), "View →" link. Default tab.
@@ -126,6 +135,21 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - Settle Later → adds to `deferred_items` (comma-separated like `rejected_items`) — visual only, all unpaid items go to settlement regardless
 
 **Settlement fix (commit `3843401`):** `/api/billing/driver-settlements/generate/route.ts` reads `toll_paid/parking_paid/permit_paid/bata_paid`. If `paid=true`, amount = 0 in settlement. No double payment.
+
+**Client collections in TripCards (pending tab):**
+- `type='collection'` entries (client paid driver cash) fetched via `GET /api/driver-advances?status=outstanding&type=collection`
+- Shown as orange rows inside each `TripCard`, above "Settle All" button — Banknote icon + amount + note + "Mark Received" button
+- "Mark Received" opens a full settle dialog (method + date + note) — on confirm calls `PATCH /api/driver-advances/[id]` with `{ status: 'settled', settled_via, settled_at, note }`
+- `CollectionEntry` interface defined at **file level** in `reimbursements/page.tsx` (not inside component) so both page component and `TripCard` can reference it
+
+**"By Driver" toggle (pending tab):**
+- Button in controls row (only when pending tab active + 2+ drivers have pending items); hidden by default (`showDriverSummary` defaults to `false`)
+- Clicking reveals per-driver summary cards showing total pending reimbursements (`driverTotals` useMemo)
+- State resets to hidden when user switches tabs
+
+**Settlement PDF deductions split:**
+- `DriverSettlementPDF.tsx` splits deductions: "Advance Given" (type=advance) / "Client Collections" (type=collection) / "Advance Interest ({rate}%)" / "Other Deductions"
+- Uses `advance_entries` array filtered by `.type` — falls back to single line if no entries
 
 **`ReimbursementSheet` type:** `sheet_id: string | null`, `has_tripsheet: boolean`, `booking_status: string`, `pickup_location/drop_location/pickup_time/driver_phone: string | null` (active tab only)
 
