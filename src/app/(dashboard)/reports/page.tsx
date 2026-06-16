@@ -32,7 +32,7 @@ interface TripSheetRow {
 
 interface BookingWithSheet extends Booking {
   trip_sheet: TripSheetRow | null
-  driver?: Booking['driver'] & { vehicle_color?: string; secondary_phone?: string }
+  driver?: Booking['driver'] & { vehicle_color?: string; secondary_phone?: string; bata_rate?: number }
 }
 
 function quickRange(preset: string): { date_from: string; date_to: string } {
@@ -209,11 +209,17 @@ export default function ReportsPage() {
       const totalKm = driverKm != null
         ? driverKm + (ts?.office_to_pickup_km ?? 0) + (ts?.drop_to_office_km ?? 0)
         : null
+      const bataAmt = ts?.bata_driver != null && b.driver?.bata_rate != null
+        ? ts.bata_driver * Number(b.driver.bata_rate) : null
       return {
         'Booking Ref':        b.booking_ref,
+        'Booking Type':       b.booking_type || '',
         'Client':             b.client?.name || b.guest_name || '',
+        'Traveller':          b.guest_name || '',
+        'Coordinator':        b.requested_by || '',
         'Client Phone':       b.guest_phone || b.client?.primary_phone || '',
         'Company':            b.company?.name || '',
+        'Department':         b.department || '',
         'Driver':             b.driver?.name || '',
         'Driver Phone':       b.driver?.phone || '',
         'Vehicle':            b.driver?.vehicle_name || '',
@@ -225,7 +231,8 @@ export default function ReportsPage() {
         'Time':               b.pickup_time || '',
         'Pax':                b.pax_count ?? '',
         'Trip Type':          b.trip_type,
-        'Service Type':       b.service_type?.replace('_', ' ') || '',
+        'Service Type':       (b as Record<string, unknown>).service_type as string || '',
+        'Total Days':         b.total_days ?? '',
         'Status':             b.status,
         'Source':             b.source,
         'Tripsheet No.':      ts?.tripsheet_number || '',
@@ -239,7 +246,8 @@ export default function ReportsPage() {
         'Toll (₹)':           ts?.toll_amount ?? '',
         'Parking (₹)':        ts?.parking_amount ?? '',
         'Permit (₹)':         ts?.permit_amount ?? '',
-        'Bata (Driver)':      ts?.bata_driver ?? '',
+        'Bata Count':         ts?.bata_driver ?? '',
+        'Bata Amount (₹)':    bataAmt ?? '',
         'Trip Start':         ts?.opening_time ? new Date(ts.opening_time).toLocaleString('en-IN') : '',
         'Trip End':           ts?.closing_time ? new Date(ts.closing_time).toLocaleString('en-IN') : '',
         'Duration':           ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '',
@@ -423,12 +431,19 @@ export default function ReportsPage() {
                 <tr className="bg-gray-900">
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Ref</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Client</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Traveller</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Coordinator</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Date</th>
                   <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Status</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Type</th>
                   <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Company</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Department</th>
                   <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Driver</th>
                   <th className="hidden sm:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Trip</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Service</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Days</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Vehicle</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Plate No.</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Pickup</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Drop</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">Time</th>
@@ -442,17 +457,20 @@ export default function ReportsPage() {
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Driver KM</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">GPS KM</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Total KM</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Office→Pickup</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Drop→Office</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Toll</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Parking</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Permit</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Bata</th>
+                  <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Bata (₹)</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">Driver Hrs</th>
                   <th className="hidden lg:table-cell text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-violet-400 whitespace-nowrap">GPS Hrs</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredBookings.length === 0 ? (
-                  <tr><td colSpan={27} className="px-3 py-10 text-center text-gray-400">No bookings match the selected filters</td></tr>
+                  <tr><td colSpan={37} className="px-3 py-10 text-center text-gray-400">No bookings match the selected filters</td></tr>
                 ) : filteredBookings.map((b, idx) => {
                   const ts = b.trip_sheet
                   const driverKm = (ts?.closing_km != null && ts?.opening_km != null)
@@ -462,18 +480,27 @@ export default function ReportsPage() {
                     : null
                   const gpsHrs    = ts?.opening_time && ts?.closing_time ? fmtDuration(ts.opening_time, ts.closing_time) : '—'
                   const driverHrs = ts?.manual_opening_time && ts?.manual_closing_time ? fmtManualDuration(ts.manual_opening_time, ts.manual_closing_time) : '—'
+                  const bataAmt = ts?.bata_driver != null && b.driver?.bata_rate != null
+                    ? ts.bata_driver * Number(b.driver.bata_rate) : null
                   return (
                     <tr key={b.id} className={cn('hover:bg-indigo-50/40 transition-colors', idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white')}>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <a href={`/bookings/${b.id}`} className="font-bold text-indigo-600 hover:underline hover:text-indigo-800">{b.booking_ref}</a>
                       </td>
                       <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap max-w-[100px] truncate font-medium">{b.client?.name || b.guest_name || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{b.guest_name || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[120px] truncate">{b.requested_by || '—'}</td>
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.pickup_date || '—'}</td>
                       <td className="px-3 py-2.5"><BookingStatusBadge status={b.status} /></td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap capitalize">{b.booking_type || '—'}</td>
                       <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap">{b.company?.name || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap max-w-[120px] truncate">{b.department || '—'}</td>
                       <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 whitespace-nowrap">{b.driver?.name || '—'}</td>
                       <td className="hidden sm:table-cell px-3 py-2.5 text-gray-600 capitalize">{b.trip_type}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 capitalize whitespace-nowrap">{(b as Record<string, unknown>).service_type as string || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-center">{b.total_days ?? '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.driver?.vehicle_name || '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 font-mono whitespace-nowrap">{b.driver?.vehicle_number || '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 max-w-[140px] truncate">{b.pickup_location || '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 max-w-[140px] truncate">{b.drop_location || '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{b.pickup_time || '—'}</td>
@@ -493,10 +520,13 @@ export default function ReportsPage() {
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-800 font-semibold text-right">{driverKm != null ? driverKm.toFixed(1) : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.gps_km != null ? ts.gps_km.toFixed(1) : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-indigo-600 font-bold text-right">{totalKm != null ? totalKm.toFixed(1) : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.office_to_pickup_km != null ? ts.office_to_pickup_km.toFixed(1) : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.drop_to_office_km != null ? ts.drop_to_office_km.toFixed(1) : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.toll_amount != null ? `₹${ts.toll_amount}` : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.parking_amount != null ? `₹${ts.parking_amount}` : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 text-right">{ts?.permit_amount != null ? `₹${ts.permit_amount}` : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-indigo-500 font-medium text-right">{ts?.bata_driver != null && ts.bata_driver > 0 ? `${ts.bata_driver}` : '—'}</td>
+                      <td className="hidden lg:table-cell px-3 py-2.5 text-indigo-500 font-medium text-right">{bataAmt != null ? `₹${bataAmt.toFixed(0)}` : '—'}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{driverHrs}</td>
                       <td className="hidden lg:table-cell px-3 py-2.5 text-gray-500 whitespace-nowrap">{gpsHrs}</td>
                     </tr>

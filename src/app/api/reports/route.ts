@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('bookings')
-    .select('*, client:clients!client_id(name, primary_phone, primary_email), company:companies!company_id(name), driver:drivers!driver_id(name, phone, vehicle_name, vehicle_number, vehicle_type, vehicle_color, secondary_phone)')
+    .select('*, client:clients!client_id(name, primary_phone, primary_email), company:companies!company_id(name), driver:drivers!driver_id(name, phone, vehicle_name, vehicle_number, vehicle_type, vehicle_color, secondary_phone, bata_rate)')
     .order('pickup_date', { ascending: false })
     .order('created_at', { ascending: false })
 
