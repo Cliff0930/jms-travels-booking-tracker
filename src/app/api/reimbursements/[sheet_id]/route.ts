@@ -5,7 +5,7 @@ const ALLOWED_FLAGS = [
   'tripsheet_doc_received',
   'toll_received', 'parking_received', 'permit_received', 'bata_received',
   'toll_paid', 'parking_paid', 'permit_paid', 'bata_paid',
-  'reimbursement_notes', 'rejected_items',
+  'reimbursement_notes', 'rejected_items', 'deferred_items',
 ]
 
 export async function PATCH(
@@ -45,7 +45,7 @@ export async function PATCH(
   // Fetch current sheet state to determine if now fully settled
   const { data: current, error: fetchErr } = await supabase
     .from('trip_sheets')
-    .select('toll_amount, parking_amount, permit_amount, bata_driver, tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received, toll_paid, parking_paid, permit_paid, bata_paid, reimbursed_at, rejected_items')
+    .select('toll_amount, parking_amount, permit_amount, bata_driver, tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received, toll_paid, parking_paid, permit_paid, bata_paid, reimbursed_at, rejected_items, deferred_items')
     .eq('id', sheet_id)
     .single()
   if (fetchErr || !current) return NextResponse.json({ error: 'Sheet not found' }, { status: 404 })
@@ -53,19 +53,20 @@ export async function PATCH(
   // Merge with incoming update
   const merged = { ...current, ...update }
 
-  // Check if fully settled (rejected items count as settled)
+  // Check if fully settled (rejected and deferred items count as settled)
   const toll = (merged.toll_amount as number | null) ?? 0
   const parking = (merged.parking_amount as number | null) ?? 0
   const permit = (merged.permit_amount as number | null) ?? 0
   const bata = (merged.bata_driver as number | null) ?? 0
   const rejected = new Set(((merged.rejected_items as string | null) ?? '').split(',').filter(Boolean))
+  const deferred = new Set(((merged.deferred_items as string | null) ?? '').split(',').filter(Boolean))
 
   const fullySettled =
     merged.tripsheet_doc_received &&
-    (toll <= 0 || rejected.has('toll') || (merged.toll_received && merged.toll_paid)) &&
-    (parking <= 0 || rejected.has('parking') || (merged.parking_received && merged.parking_paid)) &&
-    (permit <= 0 || rejected.has('permit') || (merged.permit_received && merged.permit_paid)) &&
-    (bata <= 0 || rejected.has('bata') || (merged.bata_received && merged.bata_paid))
+    (toll <= 0 || rejected.has('toll') || deferred.has('toll') || (merged.toll_received && merged.toll_paid)) &&
+    (parking <= 0 || rejected.has('parking') || deferred.has('parking') || (merged.parking_received && merged.parking_paid)) &&
+    (permit <= 0 || rejected.has('permit') || deferred.has('permit') || (merged.permit_received && merged.permit_paid)) &&
+    (bata <= 0 || rejected.has('bata') || deferred.has('bata') || (merged.bata_received && merged.bata_paid))
 
   if (fullySettled && !current.reimbursed_at) {
     update.reimbursed_at = new Date().toISOString()

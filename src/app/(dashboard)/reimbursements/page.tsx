@@ -5,28 +5,38 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, CheckCircle2, Circle, ChevronDown, ChevronUp, CalendarDays, Download, RotateCcw, Plus } from 'lucide-react'
+import {
+  Search, CheckCircle2, Circle, ChevronDown, ChevronUp,
+  CalendarDays, Download, RotateCcw, Plus, AlertTriangle, Clock, ArrowRight,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import type { ReimbursementSheet } from '@/types'
 import { TripsheetEditPopup } from '@/components/billing/TripsheetEditPopup'
 
-interface DriverSummary {
-  id: string
-  name: string
-}
+type Tab = 'missing' | 'pending' | 'settled'
+
+interface DriverSummary { id: string; name: string }
 
 export default function ReimbursementsPage() {
-  const [tab, setTab] = useState<'pending' | 'settled'>('pending')
+  const [tab, setTab] = useState<Tab>('missing')
   const [driverId, setDriverId] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const qc = useQueryClient()
 
-  const { data: sheets = [], isLoading, refetch } = useQuery<ReimbursementSheet[]>({
-    queryKey: ['reimbursements', tab, driverId, search, dateFrom, dateTo],
+  // Always-on missing count (no driver/date filter — global badge)
+  const { data: missingAll = [] } = useQuery<ReimbursementSheet[]>({
+    queryKey: ['reimbursements-missing-count'],
+    queryFn: () => fetch('/api/reimbursements?status=missing').then(r => r.json()),
+  })
+
+  // Main cards — filtered by current tab + controls
+  const qKey = ['reimbursements', tab, driverId, search, dateFrom, dateTo] as const
+  const { data: sheets = [], isLoading } = useQuery<ReimbursementSheet[]>({
+    queryKey: qKey,
     queryFn: () => {
       const params = new URLSearchParams({ status: tab })
       if (driverId !== 'all') params.set('driver_id', driverId)
@@ -37,18 +47,7 @@ export default function ReimbursementsPage() {
     },
   })
 
-  // Build driver list from loaded sheets for the dropdown
-  const drivers = useMemo<DriverSummary[]>(() => {
-    const seen = new Map<string, string>()
-    for (const s of sheets) {
-      if (s.driver_id && s.driver_name && !seen.has(s.driver_id)) {
-        seen.set(s.driver_id, s.driver_name)
-      }
-    }
-    // Also fetch from all pending to populate dropdown even when filtering
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [sheets])
-
+  // Driver dropdown populated from all entries
   const { data: allDriverSheets = [] } = useQuery<ReimbursementSheet[]>({
     queryKey: ['reimbursements-all-drivers'],
     queryFn: () => fetch('/api/reimbursements?status=all').then(r => r.json()),
@@ -57,12 +56,36 @@ export default function ReimbursementsPage() {
   const allDrivers = useMemo<DriverSummary[]>(() => {
     const seen = new Map<string, string>()
     for (const s of allDriverSheets) {
-      if (s.driver_id && s.driver_name && !seen.has(s.driver_id)) seen.set(s.driver_id, s.driver_name)
+      if (s.driver_id && s.driver_name && !seen.has(s.driver_id))
+        seen.set(s.driver_id, s.driver_name)
     }
     return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [allDriverSheets])
 
-  const qKey = ['reimbursements', tab, driverId, search, dateFrom, dateTo] as const
+  // Outstanding = sum of all unpaid items (not rejected) on pending tab
+  const outstanding = useMemo(() => {
+    if (tab !== 'pending') return 0
+    return sheets.reduce((sum, s) => {
+      const rej = new Set((s.rejected_items ?? '').split(',').filter(Boolean))
+      const def = new Set((s.deferred_items ?? '').split(',').filter(Boolean))
+      const sp = s as unknown as Record<string, unknown>
+      const add = (key: string, amt: number | null) =>
+        amt != null && !rej.has(key) && !def.has(key) && !sp[`${key}_paid`]
+          ? amt : 0
+      return sum + add('toll', s.toll_amount) + add('parking', s.parking_amount)
+        + add('permit', s.permit_amount) + add('bata', s.bata_amount)
+    }, 0)
+  }, [sheets, tab])
+
+  const deferredTotal = useMemo(() => {
+    if (tab !== 'pending') return 0
+    return sheets.reduce((sum, s) => {
+      const def = new Set((s.deferred_items ?? '').split(',').filter(Boolean))
+      const add = (key: string, amt: number | null) => amt != null && def.has(key) ? amt : 0
+      return sum + add('toll', s.toll_amount) + add('parking', s.parking_amount)
+        + add('permit', s.permit_amount) + add('bata', s.bata_amount)
+    }, 0)
+  }, [sheets, tab])
 
   async function patchSheet(sheetId: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/reimbursements/${sheetId}`, {
@@ -82,8 +105,7 @@ export default function ReimbursementsPage() {
     try {
       const data = await patchSheet(sheetId, { [field]: value })
       const prevSheet = prev?.find(s => s.sheet_id === sheetId)
-      // Invalidate (card moves tabs) when tripsheet_doc_received changes
-      if (data.tripsheet_doc_received !== prevSheet?.tripsheet_doc_received) {
+      if (data.reimbursed_at !== prevSheet?.reimbursed_at || data.tripsheet_doc_received !== prevSheet?.tripsheet_doc_received) {
         qc.invalidateQueries({ queryKey: ['reimbursements'] })
       } else {
         qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
@@ -96,18 +118,23 @@ export default function ReimbursementsPage() {
     }
   }
 
-  async function rejectItem(sheetId: string, itemKey: string, current: string | null) {
-    const rejSet = new Set((current ?? '').split(',').filter(Boolean))
-    rejSet.has(itemKey) ? rejSet.delete(itemKey) : rejSet.add(itemKey)
-    const newVal = Array.from(rejSet).join(',') || null
+  async function toggleSetItem(
+    sheetId: string,
+    field: 'rejected_items' | 'deferred_items',
+    itemKey: string,
+    current: string | null,
+  ) {
+    const set = new Set((current ?? '').split(',').filter(Boolean))
+    set.has(itemKey) ? set.delete(itemKey) : set.add(itemKey)
+    const newVal = Array.from(set).join(',') || null
     const prev = qc.getQueryData<ReimbursementSheet[]>(qKey)
     qc.setQueryData<ReimbursementSheet[]>(qKey, old =>
-      old?.map(s => s.sheet_id === sheetId ? { ...s, rejected_items: newVal } : s) ?? []
+      old?.map(s => s.sheet_id === sheetId ? { ...s, [field]: newVal } : s) ?? []
     )
     try {
-      const data = await patchSheet(sheetId, { rejected_items: newVal })
+      const data = await patchSheet(sheetId, { [field]: newVal })
       const prevSheet = prev?.find(s => s.sheet_id === sheetId)
-      if (data.tripsheet_doc_received !== prevSheet?.tripsheet_doc_received) {
+      if (data.reimbursed_at !== prevSheet?.reimbursed_at) {
         qc.invalidateQueries({ queryKey: ['reimbursements'] })
       }
     } catch {
@@ -118,7 +145,7 @@ export default function ReimbursementsPage() {
 
   async function settleAll(sheetId: string, sheet: ReimbursementSheet) {
     const rejected = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
-    const update: Record<string, boolean> = { tripsheet_doc_received: true }
+    const update: Record<string, unknown> = { tripsheet_doc_received: true }
     if (sheet.toll_amount != null && !rejected.has('toll')) { update.toll_received = true; update.toll_paid = true }
     if (sheet.parking_amount != null && !rejected.has('parking')) { update.parking_received = true; update.parking_paid = true }
     if (sheet.permit_amount != null && !rejected.has('permit')) { update.permit_received = true; update.permit_paid = true }
@@ -140,7 +167,7 @@ export default function ReimbursementsPage() {
   async function revokeSettlement(sheetId: string) {
     try {
       await patchSheet(sheetId, { revoke: true })
-      toast.success('Settlement revoked — moved back to pending')
+      toast.success('Settlement revoked')
       qc.invalidateQueries({ queryKey: ['reimbursements'] })
     } catch {
       toast.error('Failed to revoke')
@@ -169,39 +196,82 @@ export default function ReimbursementsPage() {
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Reimbursements')
-    const label = tab === 'settled' ? 'settled' : 'pending'
-    XLSX.writeFile(wb, `reimbursements-${label}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    XLSX.writeFile(wb, `reimbursements-${tab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  // Compute totals
-  const outstanding = sheets.filter(s => !s.reimbursed_at).reduce((sum, s) => {
-    return sum +
-      (s.toll_amount ?? 0) +
-      (s.parking_amount ?? 0) +
-      (s.permit_amount ?? 0) +
-      (s.bata_amount ?? 0)
-  }, 0)
+  const missingCount = missingAll.length
 
   return (
     <div>
       <PageHeader
         title="Reimbursements"
-        description="Track document collection and cash payments to drivers"
+        description="Track tripsheet collection and driver payments"
       />
+
+      {/* Summary strip */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {missingCount > 0 && (
+          <button
+            onClick={() => setTab('missing')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">{missingCount} tripsheet{missingCount !== 1 ? 's' : ''} missing</span>
+          </button>
+        )}
+        {tab === 'pending' && outstanding > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">
+            <Clock className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">₹{outstanding.toFixed(0)} to pay now</span>
+          </div>
+        )}
+        {tab === 'pending' && deferredTotal > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
+            <ArrowRight className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">₹{deferredTotal.toFixed(0)} in settlement</span>
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Link href="/bookings/offline-trip">
+            <Button size="sm" className="h-9 text-xs gap-1.5 bg-[#7E3AF2] hover:bg-[#6C2BD9]">
+              <Plus className="w-3.5 h-3.5" /> Offline Trip
+            </Button>
+          </Link>
+          {sheets.length > 0 && (
+            <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5 border-[#C3C5D7]" onClick={exportExcel}>
+              <Download className="w-3.5 h-3.5" /> Export
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        {/* Tab */}
+        {/* Tabs */}
         <div className="flex rounded-lg border border-[#C3C5D7] overflow-hidden text-sm">
-          {(['pending', 'settled'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 font-semibold capitalize transition-colors ${tab === t ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#6B7280] hover:bg-[#F3F3FE]'}`}
-            >
-              {t}
-            </button>
-          ))}
+          {([
+            { key: 'missing' as Tab, label: 'Missing Tripsheet' },
+            { key: 'pending' as Tab, label: 'Pending' },
+            { key: 'settled' as Tab, label: 'Settled' },
+          ]).map(t => {
+            const isActive = tab === t.key
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`px-4 py-2 font-semibold transition-colors flex items-center gap-1.5 ${
+                  isActive ? 'bg-[#1A56DB] text-white' : 'bg-white text-[#6B7280] hover:bg-[#F3F3FE]'
+                }`}
+              >
+                {t.label}
+                {t.key === 'missing' && missingCount > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isActive ? 'bg-white text-[#1A56DB]' : 'bg-red-100 text-red-600'
+                  }`}>{missingCount}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
         {/* Driver filter */}
@@ -223,7 +293,7 @@ export default function ReimbursementsPage() {
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search name, ref, driver, vehicle…"
+            placeholder="Search name, ref, driver…"
             className="pl-9 border-[#C3C5D7] h-9 text-sm"
           />
         </div>
@@ -231,73 +301,42 @@ export default function ReimbursementsPage() {
         {/* Date range */}
         <div className="flex items-center gap-1.5 shrink-0">
           <CalendarDays className="w-3.5 h-3.5 text-[#737686]" />
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="border-[#C3C5D7] h-9 text-sm w-36"
-          />
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border-[#C3C5D7] h-9 text-sm w-36" />
           <span className="text-xs text-[#737686]">–</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="border-[#C3C5D7] h-9 text-sm w-36"
-          />
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border-[#C3C5D7] h-9 text-sm w-36" />
           {(dateFrom || dateTo) && (
-            <button
-              onClick={() => { setDateFrom(''); setDateTo('') }}
-              className="text-xs text-[#737686] hover:text-[#374151] px-1"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Outstanding total / Export / Offline Trip */}
-        <div className="ml-auto flex items-center gap-2">
-          <Link href="/bookings/offline-trip">
-            <Button size="sm" className="h-9 text-xs gap-1.5 bg-[#7E3AF2] hover:bg-[#6C2BD9]">
-              <Plus className="w-3.5 h-3.5" /> Offline Trip
-            </Button>
-          </Link>
-          {tab === 'pending' && outstanding > 0 && (
-            <div className="text-sm font-bold text-[#DC2626] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-              Outstanding: ₹{outstanding.toFixed(0)}
-            </div>
-          )}
-          {sheets.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 text-xs gap-1.5 border-[#C3C5D7]"
-              onClick={exportExcel}
-            >
-              <Download className="w-3.5 h-3.5" /> Export Excel
-            </Button>
+            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-[#737686] hover:text-[#374151] px-1">✕</button>
           )}
         </div>
       </div>
 
+      {/* Cards */}
       {isLoading ? (
         <div className="py-12 text-center text-[#737686]">Loading…</div>
       ) : sheets.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="text-[#737686] text-sm">
-            {tab === 'pending' ? 'No pending tripsheets — all documents received' : 'No settled tripsheets yet'}
+        <div className="py-16 text-center">
+          <p className="text-3xl mb-3">
+            {tab === 'missing' ? '✅' : tab === 'pending' ? '🎉' : '📋'}
+          </p>
+          <p className="text-[#374151] font-semibold text-sm">
+            {tab === 'missing'
+              ? 'All tripsheets received — nothing missing!'
+              : tab === 'pending'
+              ? 'No pending items — all caught up'
+              : 'No settled records yet'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {sheets.map(sheet => (
             <TripCard
-              key={sheet.sheet_id}
+              key={sheet.sheet_id ?? sheet.booking_id}
               sheet={sheet}
-              settled={tab === 'settled'}
+              tab={tab}
               onToggle={toggleFlag}
               onSettleAll={settleAll}
               onRevoke={revokeSettlement}
-              onReject={rejectItem}
+              onToggleSetItem={toggleSetItem}
             />
           ))}
         </div>
@@ -307,43 +346,52 @@ export default function ReimbursementsPage() {
 }
 
 function TripCard({
-  sheet,
-  settled,
-  onToggle,
-  onSettleAll,
-  onRevoke,
-  onReject,
+  sheet, tab, onToggle, onSettleAll, onRevoke, onToggleSetItem,
 }: {
   sheet: ReimbursementSheet
-  settled: boolean
+  tab: Tab
   onToggle: (sheetId: string, field: string, value: boolean) => void
   onSettleAll: (sheetId: string, sheet: ReimbursementSheet) => void
   onRevoke: (sheetId: string) => void
-  onReject: (sheetId: string, itemKey: string, current: string | null) => void
+  onToggleSetItem: (sheetId: string, field: 'rejected_items' | 'deferred_items', itemKey: string, current: string | null) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(tab !== 'settled')
   const [showTripsheet, setShowTripsheet] = useState(false)
   const qc = useQueryClient()
   const sheetId = sheet.sheet_id ?? ''
   const rejectedSet = new Set((sheet.rejected_items ?? '').split(',').filter(Boolean))
+  const deferredSet = new Set((sheet.deferred_items ?? '').split(',').filter(Boolean))
 
-  const totalOwed =
-    (!rejectedSet.has('toll') ? (sheet.toll_amount ?? 0) : 0) +
-    (!rejectedSet.has('parking') ? (sheet.parking_amount ?? 0) : 0) +
-    (!rejectedSet.has('permit') ? (sheet.permit_amount ?? 0) : 0) +
-    (!rejectedSet.has('bata') ? (sheet.bata_amount ?? 0) : 0)
-  // Settled = tripsheet document received (payment status is separate)
-  const allSettled = !!sheet.tripsheet_doc_received
+  const sheetRaw = sheet as unknown as Record<string, unknown>
+  const totalOwed = (['toll', 'parking', 'permit', 'bata'] as const).reduce((sum, key) => {
+    if (rejectedSet.has(key) || deferredSet.has(key)) return sum
+    const amt = key === 'bata' ? sheet.bata_amount : sheetRaw[`${key}_amount`] as number | null
+    return sum + (amt ?? 0)
+  }, 0)
+
+  const borderClass = tab === 'missing'
+    ? 'border-red-200'
+    : tab === 'settled'
+    ? 'border-[#A7F3D0]'
+    : 'border-[#C3C5D7]'
+
+  const headerBg = tab === 'missing'
+    ? 'bg-red-50'
+    : tab === 'settled'
+    ? 'bg-[#ECFDF5]'
+    : 'bg-[#F9FAFB]'
 
   return (
-    <div className={`bg-white rounded-xl border ${allSettled ? 'border-[#A7F3D0]' : 'border-[#C3C5D7]'} shadow-sm overflow-hidden`}>
-      {/* Card Header */}
+    <div className={`bg-white rounded-xl border ${borderClass} shadow-sm overflow-hidden`}>
+      {/* Header */}
       <div
-        className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${allSettled ? 'bg-[#ECFDF5]' : 'bg-[#F9FAFB]'}`}
-        onClick={() => setExpanded(e => !e)}
+        className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${headerBg}`}
+        onClick={() => sheet.has_tripsheet && setExpanded(e => !e)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          {allSettled
+          {tab === 'missing'
+            ? <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            : tab === 'settled'
             ? <CheckCircle2 className="w-4 h-4 text-[#059669] shrink-0" />
             : <Circle className="w-4 h-4 text-[#9CA3AF] shrink-0" />
           }
@@ -352,14 +400,18 @@ function TripCard({
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); setShowTripsheet(true) }}
-                className="text-sm font-bold text-[#1A56DB] hover:underline underline-offset-2 cursor-pointer"
+                className="text-sm font-bold text-[#1A56DB] hover:underline underline-offset-2"
               >
                 {sheet.booking_ref}
               </button>
-              {sheet.tripsheet_number && <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">TS#{sheet.tripsheet_number}</span>}
+              {sheet.tripsheet_number && (
+                <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">TS#{sheet.tripsheet_number}</span>
+              )}
               {sheet.driver_name && <span className="text-sm font-semibold text-[#191B23]">{sheet.driver_name}</span>}
               {sheet.driver_vehicle_name && <span className="text-xs text-[#737686]">· {sheet.driver_vehicle_name}</span>}
-              {sheet.driver_vehicle_number && <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">{sheet.driver_vehicle_number}</span>}
+              {sheet.driver_vehicle_number && (
+                <span className="text-xs font-mono bg-[#F3F4F6] text-[#374151] px-1.5 py-0.5 rounded">{sheet.driver_vehicle_number}</span>
+              )}
               {sheet.trip_type && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
                   sheet.trip_type === 'local' ? 'bg-blue-100 text-blue-700'
@@ -370,33 +422,42 @@ function TripCard({
               {sheet.booking_status && sheet.booking_status !== 'completed' && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
                   sheet.booking_status === 'arrived' ? 'bg-yellow-100 text-yellow-700'
-                  : sheet.booking_status === 'driver_assigned' ? 'bg-indigo-100 text-indigo-700'
-                  : 'bg-gray-100 text-gray-600'
+                  : 'bg-indigo-100 text-indigo-700'
                 }`}>{sheet.booking_status.replace('_', ' ')}</span>
               )}
-              {!sheet.has_tripsheet && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">No tripsheet</span>
+              {sheet.company_name && (
+                <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>
               )}
-              {sheet.company_name && <span className="text-xs bg-[#EEF2FF] text-[#4F46E5] px-2 py-0.5 rounded-full font-medium">{sheet.company_name}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
-              {sheet.pickup_date && <span className="text-xs text-[#737686]">{new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>}
+              {sheet.pickup_date && (
+                <span className="text-xs text-[#737686]">
+                  {new Date(sheet.pickup_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                </span>
+              )}
               {(sheet.guest_name || sheet.requested_by) && (
                 <span className="text-xs text-[#374151] font-medium">{sheet.guest_name || sheet.requested_by}</span>
-              )}
-              {(sheet.guest_phone || sheet.client_phone) && (
-                <span className="text-xs text-[#737686]">{sheet.guest_phone || sheet.client_phone}</span>
               )}
             </div>
           </div>
         </div>
+
         <div className="flex items-center gap-3 shrink-0 ml-2">
           {totalOwed > 0 && (
-            <span className={`text-sm font-bold ${allSettled ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
-              {allSettled ? '✓' : ''} ₹{totalOwed.toFixed(0)}
+            <span className={`text-sm font-bold ${tab === 'settled' ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+              ₹{totalOwed.toFixed(0)}
             </span>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-[#737686]" /> : <ChevronDown className="w-4 h-4 text-[#737686]" />}
+          {tab === 'settled' && sheet.reimbursed_at && (
+            <span className="text-xs text-[#059669]">
+              Settled {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+          {sheet.has_tripsheet && (
+            expanded
+              ? <ChevronUp className="w-4 h-4 text-[#737686]" />
+              : <ChevronDown className="w-4 h-4 text-[#737686]" />
+          )}
         </div>
       </div>
 
@@ -407,38 +468,45 @@ function TripCard({
           bookingRef={sheet.booking_ref}
           tripType={sheet.trip_type}
           onClose={() => setShowTripsheet(false)}
-          onSaved={() => qc.invalidateQueries({ queryKey: ['reimbursements'] })}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ['reimbursements'] })
+            qc.invalidateQueries({ queryKey: ['reimbursements-missing-count'] })
+          }}
         />
       )}
 
-      {/* Card Body */}
-      {expanded && !sheet.has_tripsheet && (
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs text-[#9CA3AF]">No tripsheet submitted yet — click the booking ref above to add one.</p>
+      {/* Missing — CTA body */}
+      {tab === 'missing' && (
+        <div className="px-4 py-4 flex items-center justify-between border-t border-red-100 bg-white">
+          <p className="text-sm text-[#6B7280]">No tripsheet submitted yet.</p>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5 bg-[#1A56DB] hover:bg-[#1741B6]"
+            onClick={e => { e.stopPropagation(); setShowTripsheet(true) }}
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Tripsheet
+          </Button>
         </div>
       )}
 
-      {expanded && sheet.has_tripsheet && (
+      {/* Pending / Settled body */}
+      {sheet.has_tripsheet && expanded && (
         <div className="px-4 py-3 space-y-0.5">
-
-          {/* Time info for bata verification */}
+          {/* GPS/time strip for bata verification */}
           {(() => {
             const fmt = (t: string | null | undefined) => {
               if (!t) return '—'
-              // ISO timestamp → HH:MM IST
-              if (t.includes('T') || t.includes('Z')) {
+              if (t.includes('T') || t.includes('Z'))
                 return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })
-              }
               return t
             }
             const hasAny = sheet.manual_opening_time || sheet.manual_closing_time || sheet.opening_time || sheet.closing_time
             if (!hasAny) return null
-            const isOutstation = sheet.trip_type === 'outstation'
-            const dateLabel = isOutstation && sheet.leg_date
+            const dateLabel = sheet.trip_type === 'outstation' && sheet.leg_date
               ? new Date(sheet.leg_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
               : sheet.pickup_date
-                ? new Date(sheet.pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                : null
+              ? new Date(sheet.pickup_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : null
             return (
               <div className="bg-[#F8FAFF] border border-[#E0E7FF] rounded-lg px-3 py-2 mb-2 text-xs">
                 {dateLabel && <span className="font-semibold text-[#4F46E5] mr-2">{dateLabel}</span>}
@@ -464,88 +532,96 @@ function TripCard({
             )
           })()}
 
-          {/* Tripsheet doc row — always shown */}
-          <ItemRow
-            label="Tripsheet Document"
-            receivedField="tripsheet_doc_received"
-            received={sheet.tripsheet_doc_received}
-            hasPaid={false}
-            settled={settled}
-            rejected={false}
-            onToggle={(field, val) => onToggle(sheetId, field, val)}
-            onReject={() => {}}
-          />
+          {/* Tripsheet doc row */}
+          <div className="flex items-center justify-between py-2 border-b border-[#F3F4F6]">
+            <span className="text-sm text-[#374151] font-medium">Tripsheet Document</span>
+            <ToggleChip
+              label="Received"
+              checked={sheet.tripsheet_doc_received}
+              disabled={tab === 'settled'}
+              color="blue"
+              onChange={val => onToggle(sheetId, 'tripsheet_doc_received', val)}
+            />
+          </div>
 
           {sheet.toll_amount != null && (
-            <ItemRow
+            <PayRow
               label="Toll"
               amount={sheet.toll_amount}
               receivedField="toll_received"
               paidField="toll_paid"
+
               received={sheet.toll_received}
               paid={sheet.toll_paid}
-              hasPaid
-              settled={settled}
+              deferred={deferredSet.has('toll')}
               rejected={rejectedSet.has('toll')}
+              settled={tab === 'settled'}
               onToggle={(field, val) => onToggle(sheetId, field, val)}
-              onReject={() => onReject(sheetId, 'toll', sheet.rejected_items)}
+              onDefer={() => onToggleSetItem(sheetId, 'deferred_items', 'toll', sheet.deferred_items)}
+              onReject={() => onToggleSetItem(sheetId, 'rejected_items', 'toll', sheet.rejected_items)}
             />
           )}
 
           {sheet.parking_amount != null && (
-            <ItemRow
+            <PayRow
               label="Parking"
               amount={sheet.parking_amount}
               receivedField="parking_received"
               paidField="parking_paid"
+
               received={sheet.parking_received}
               paid={sheet.parking_paid}
-              hasPaid
-              settled={settled}
+              deferred={deferredSet.has('parking')}
               rejected={rejectedSet.has('parking')}
+              settled={tab === 'settled'}
               onToggle={(field, val) => onToggle(sheetId, field, val)}
-              onReject={() => onReject(sheetId, 'parking', sheet.rejected_items)}
+              onDefer={() => onToggleSetItem(sheetId, 'deferred_items', 'parking', sheet.deferred_items)}
+              onReject={() => onToggleSetItem(sheetId, 'rejected_items', 'parking', sheet.rejected_items)}
             />
           )}
 
           {sheet.permit_amount != null && (
-            <ItemRow
+            <PayRow
               label="Permit"
               amount={sheet.permit_amount}
               receivedField="permit_received"
               paidField="permit_paid"
+
               received={sheet.permit_received}
               paid={sheet.permit_paid}
-              hasPaid
-              settled={settled}
+              deferred={deferredSet.has('permit')}
               rejected={rejectedSet.has('permit')}
+              settled={tab === 'settled'}
               onToggle={(field, val) => onToggle(sheetId, field, val)}
-              onReject={() => onReject(sheetId, 'permit', sheet.rejected_items)}
+              onDefer={() => onToggleSetItem(sheetId, 'deferred_items', 'permit', sheet.deferred_items)}
+              onReject={() => onToggleSetItem(sheetId, 'rejected_items', 'permit', sheet.rejected_items)}
             />
           )}
 
           {sheet.bata_driver != null && (
-            <ItemRow
-              label={`Bata (${sheet.bata_driver} × ${sheet.bata_rate != null ? `₹${sheet.bata_rate}` : 'rate?'})`}
+            <PayRow
+              label={`Bata (${sheet.bata_driver}×${sheet.bata_rate != null ? `₹${sheet.bata_rate}` : '?'})`}
               amount={sheet.bata_amount ?? undefined}
               receivedField="bata_received"
               paidField="bata_paid"
+
               received={sheet.bata_received}
               paid={sheet.bata_paid}
-              hasPaid
-              settled={settled}
+              deferred={deferredSet.has('bata')}
               rejected={rejectedSet.has('bata')}
+              settled={tab === 'settled'}
               onToggle={(field, val) => onToggle(sheetId, field, val)}
-              onReject={() => onReject(sheetId, 'bata', sheet.rejected_items)}
+              onDefer={() => onToggleSetItem(sheetId, 'deferred_items', 'bata', sheet.deferred_items)}
+              onReject={() => onToggleSetItem(sheetId, 'rejected_items', 'bata', sheet.rejected_items)}
             />
           )}
 
-          {/* Footer */}
-          {!settled && !allSettled && (
-            <div className="flex justify-end pt-3 border-t border-[#F3F4F6] mt-2">
+          {/* Pending footer */}
+          {tab === 'pending' && (
+            <div className="flex items-center justify-end pt-3 border-t border-[#F3F4F6] mt-2">
               <Button
                 size="sm"
-                className="bg-[#059669] hover:bg-[#047857] rounded-sm gap-1.5 h-8 text-xs"
+                className="bg-[#059669] hover:bg-[#047857] gap-1.5 h-8 text-xs"
                 onClick={() => onSettleAll(sheetId, sheet)}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Settle All
@@ -553,7 +629,8 @@ function TripCard({
             </div>
           )}
 
-          {allSettled && (
+          {/* Settled footer */}
+          {tab === 'settled' && (
             <div className="flex items-center justify-between pt-2 mt-1 border-t border-[#F3F4F6]">
               <Button
                 size="sm"
@@ -566,7 +643,7 @@ function TripCard({
               <p className="text-xs font-medium">
                 {sheet.reimbursed_at
                   ? <span className="text-[#059669]">Settled &amp; paid · {new Date(sheet.reimbursed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
-                  : <span className="text-[#1A56DB]">Doc received · payment pending</span>
+                  : <span className="text-[#1A56DB]">Doc received · payment via settlement</span>
                 }
               </p>
             </div>
@@ -577,48 +654,104 @@ function TripCard({
   )
 }
 
-function ItemRow({
+function PayRow({
   label, amount, receivedField, paidField,
-  received, paid, hasPaid, settled, rejected, onToggle, onReject,
+  received, paid, deferred, rejected, settled,
+  onToggle, onDefer, onReject,
 }: {
   label: string
-  amount?: number
+  amount?: number | null
   receivedField: string
-  paidField?: string
+  paidField: string
   received: boolean
-  paid?: boolean
-  hasPaid: boolean
-  settled: boolean
+  paid: boolean
+  deferred: boolean
   rejected: boolean
-  onToggle: (field: string, value: boolean) => void
+  settled: boolean
+  onToggle: (field: string, val: boolean) => void
+  onDefer: () => void
   onReject: () => void
 }) {
-  return (
-    <div className={`flex items-center justify-between py-2 border-b border-[#F3F4F6] last:border-0 ${rejected ? 'opacity-50' : ''}`}>
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={`text-sm text-[#374151] font-medium ${rejected ? 'line-through' : ''}`}>{label}</span>
-        {amount != null && <span className={`text-sm font-bold text-[#191B23] ${rejected ? 'line-through' : ''}`}>₹{amount.toFixed(0)}</span>}
-        {rejected && <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-200">Rejected</span>}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {!rejected && (
-          <>
-            <Toggle label="Received" checked={received} disabled={settled} onChange={val => onToggle(receivedField, val)} color="blue" />
-            {hasPaid && paidField && (
-              <Toggle label="Paid" checked={!!paid} disabled={settled || !received} onChange={val => onToggle(paidField, val)} color="green" />
-            )}
-          </>
-        )}
-        {hasPaid && !settled && (
+  if (rejected) {
+    return (
+      <div className="flex items-center justify-between py-2 border-b border-[#F3F4F6] opacity-50">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[#374151] font-medium line-through">{label}</span>
+          {amount != null && <span className="text-sm font-bold text-[#191B23] line-through">₹{amount.toFixed(0)}</span>}
+          <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-200">Rejected</span>
+        </div>
+        {!settled && (
           <button
             onClick={onReject}
-            className={`text-[11px] px-2 py-1 rounded border font-semibold transition-colors ${
-              rejected
-                ? 'border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100'
-                : 'border-[#FCA5A5] text-[#DC2626] hover:bg-red-50'
-            }`}
+            className="text-[11px] px-2 py-1 rounded border font-semibold border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100"
           >
-            {rejected ? '↩ Restore' : '✕ Reject'}
+            ↩ Restore
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0 gap-2">
+      {/* Label + amount */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-sm text-[#374151] font-medium">{label}</span>
+        {amount != null && <span className="text-sm font-bold text-[#191B23]">₹{amount.toFixed(0)}</span>}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        {/* Received toggle */}
+        <ToggleChip
+          label="Received"
+          checked={received}
+          disabled={settled || paid || deferred}
+          color="blue"
+          onChange={val => onToggle(receivedField, val)}
+        />
+
+        {/* Payment state — only shown after received */}
+        {settled || paid ? (
+          <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-[#059669] border border-green-200">
+            <CheckCircle2 className="w-3 h-3" /> Paid
+          </span>
+        ) : received && deferred ? (
+          <>
+            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+              <Clock className="w-3 h-3" /> In Settlement
+            </span>
+            <button
+              onClick={onDefer}
+              className="text-[11px] text-[#9CA3AF] hover:text-[#374151] underline underline-offset-1"
+            >
+              Undo
+            </button>
+          </>
+        ) : received && !paid ? (
+          <>
+            <button
+              onClick={() => onToggle(paidField, true)}
+              className="text-xs font-semibold px-2.5 py-1 rounded-full border border-[#059669] text-[#059669] hover:bg-green-50 transition-colors"
+            >
+              Pay Now
+            </button>
+            <button
+              onClick={onDefer}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border border-[#C3C5D7] text-[#6B7280] hover:bg-[#F3F3FE] transition-colors"
+            >
+              <ArrowRight className="w-3 h-3" /> Settle Later
+            </button>
+          </>
+        ) : null}
+
+        {/* Reject — only shown when not settled, not paid, not deferred */}
+        {!settled && !paid && !deferred && (
+          <button
+            onClick={onReject}
+            className="text-[11px] px-2 py-1 rounded border font-semibold border-[#FCA5A5] text-[#DC2626] hover:bg-red-50"
+          >
+            ✕ Reject
           </button>
         )}
       </div>
@@ -626,18 +759,12 @@ function ItemRow({
   )
 }
 
-function Toggle({
-  label,
-  checked,
-  disabled,
-  onChange,
-  color,
-}: {
+function ToggleChip({ label, checked, disabled, color, onChange }: {
   label: string
   checked: boolean
   disabled: boolean
-  onChange: (val: boolean) => void
   color: 'blue' | 'green'
+  onChange: (val: boolean) => void
 }) {
   const activeClass = color === 'blue'
     ? 'bg-[#1A56DB] border-[#1A56DB] text-white'

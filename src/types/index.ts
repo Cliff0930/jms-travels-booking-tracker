@@ -164,6 +164,7 @@ export interface ReimbursementSheet {
   reimbursement_notes: string | null
   reimbursed_at: string | null
   rejected_items: string | null
+  deferred_items: string | null
   created_at: string
 }
 

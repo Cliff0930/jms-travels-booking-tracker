@@ -23,7 +23,7 @@ export async function GET(request: Request) {
         manual_opening_time, manual_closing_time, opening_time, closing_time, booking_leg_id,
         tripsheet_doc_received, toll_received, parking_received, permit_received, bata_received,
         toll_paid, parking_paid, permit_paid, bata_paid,
-        reimbursement_notes, reimbursed_at, created_at
+        reimbursement_notes, reimbursed_at, rejected_items, deferred_items, created_at
       )
     `)
     .neq('status', 'cancelled')
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
     // Bookings with no tripsheet yet — show as placeholder so they're traceable
     if (sheets.length === 0) {
-      if (status === 'settled') continue
+      if (status === 'settled' || status === 'pending') continue
       const placeholder = {
         sheet_id: null, has_tripsheet: false, booking_status: bookingStatus,
         booking_id: booking.id, booking_ref: booking.booking_ref,
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
         tripsheet_doc_received: false, toll_received: false, parking_received: false,
         permit_received: false, bata_received: false, toll_paid: false,
         parking_paid: false, permit_paid: false, bata_paid: false,
-        reimbursement_notes: null, reimbursed_at: null, rejected_items: null, created_at: '',
+        reimbursement_notes: null, reimbursed_at: null, rejected_items: null, deferred_items: null, created_at: '',
       }
       if (search) {
         const haystack = [placeholder.booking_ref, placeholder.driver_name, placeholder.driver_vehicle_name,
@@ -180,11 +180,14 @@ export async function GET(request: Request) {
         bata_paid: sheet.bata_paid as boolean ?? false,
         reimbursement_notes: sheet.reimbursement_notes as string | null,
         reimbursed_at: sheet.reimbursed_at as string | null,
+        rejected_items: (sheet.rejected_items as string | null) ?? null,
+        deferred_items: (sheet.deferred_items as string | null) ?? null,
         created_at: sheet.created_at as string,
       }
 
-      // Tab split: pending = tripsheet not yet received, settled = tripsheet received
+      // Tab split
       const isSettled = !!entry.tripsheet_doc_received
+      if (status === 'missing') continue // has tripsheet — exclude from missing tab
       if (status === 'settled' && !isSettled) continue
       if (status === 'pending' && isSettled) continue
       // status === 'all' → no filter (used for driver dropdown)
