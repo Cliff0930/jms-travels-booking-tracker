@@ -19,6 +19,12 @@ import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 
 type Tab = 'active' | 'missing' | 'pending' | 'settled'
 
+interface CollectionEntry {
+  id: string; driver_id: string; amount: number; created_at: string; note: string | null; booking_id: string | null
+  driver: { id: string; name: string }
+  booking: { booking_ref: string } | null
+}
+
 export default function ReimbursementsPage() {
   const [tab, setTab] = useState<Tab>('active')
   const [driverId, setDriverId] = useState<string>('all')
@@ -159,11 +165,6 @@ export default function ReimbursementsPage() {
   }, [sheets, tab])
 
   // Outstanding client collections (driver collected from client, owes JMS)
-  interface CollectionEntry {
-    id: string; driver_id: string; amount: number; created_at: string; note: string | null; booking_id: string | null
-    driver: { id: string; name: string }
-    booking: { booking_ref: string } | null
-  }
   const { data: pendingCollections = [], refetch: refetchCollections } = useQuery<CollectionEntry[]>({
     queryKey: ['driver-advances-collections'],
     queryFn: () => fetch('/api/driver-advances?status=outstanding&type=collection').then(r => r.json()),
@@ -309,61 +310,6 @@ export default function ReimbursementsPage() {
         title="Reimbursements"
         description="Track tripsheet collection and driver payments"
       />
-
-      {/* Client Collections Panel */}
-      {pendingCollections.length > 0 && (
-        <div className="mb-5 bg-white rounded-xl border border-orange-200 overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 bg-orange-50 border-b border-orange-200">
-            <div className="flex items-center gap-2">
-              <Banknote className="w-4 h-4 text-orange-600 shrink-0" />
-              <span className="text-sm font-semibold text-orange-800">Client Collections Pending</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">{pendingCollections.length}</span>
-            </div>
-            <div className="text-sm font-bold text-orange-700">
-              ₹{pendingCollections.reduce((s, e) => s + Number(e.amount), 0).toLocaleString('en-IN')} outstanding
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {['Driver', 'Booking Ref', 'Amount', 'Date', 'Note', ''].map(h => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {pendingCollections.map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{e.driver?.name ?? '—'}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {e.booking_id && e.booking?.booking_ref
-                        ? <Link href={`/bookings/${e.booking_id}`} className="text-blue-600 hover:underline font-medium">{e.booking.booking_ref}</Link>
-                        : <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="px-4 py-2.5 font-semibold text-orange-700 whitespace-nowrap">₹{Number(e.amount).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{new Date(e.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                    <td className="px-4 py-2.5 text-gray-500 max-w-[180px] truncate">{e.note ?? '—'}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <button
-                        onClick={() => handleMarkCollected(e.id)}
-                        disabled={markingId === e.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
-                      >
-                        <Check className="w-3 h-3" />
-                        {markingId === e.id ? 'Saving…' : 'Mark Received'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
-            Mark as received if driver paid directly. Otherwise it will be deducted in the monthly settlement.
-          </div>
-        </div>
-      )}
 
       {/* Summary strip */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -583,6 +529,9 @@ export default function ReimbursementsPage() {
               onSettleAll={settleAll}
               onRevoke={revokeSettlement}
               onToggleSetItem={toggleSetItem}
+              collections={pendingCollections.filter(c => c.booking_id === sheet.booking_id)}
+              markingId={markingId}
+              onMarkCollected={handleMarkCollected}
             />
           ))}
         </div>
@@ -678,6 +627,7 @@ function InProgressCard({ sheet }: { sheet: ReimbursementSheet }) {
 
 function TripCard({
   sheet, tab, onToggle, onSettleAll, onRevoke, onToggleSetItem,
+  collections = [], markingId = null, onMarkCollected,
 }: {
   sheet: ReimbursementSheet
   tab: Tab
@@ -685,6 +635,9 @@ function TripCard({
   onSettleAll: (sheetId: string, sheet: ReimbursementSheet) => void
   onRevoke: (sheetId: string) => void
   onToggleSetItem: (sheetId: string, field: 'rejected_items' | 'deferred_items', itemKey: string, current: string | null) => void
+  collections?: CollectionEntry[]
+  markingId?: string | null
+  onMarkCollected?: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(tab !== 'settled')
   const [showTripsheet, setShowTripsheet] = useState(false)
@@ -945,6 +898,32 @@ function TripCard({
               onDefer={() => onToggleSetItem(sheetId, 'deferred_items', 'bata', sheet.deferred_items)}
               onReject={() => onToggleSetItem(sheetId, 'rejected_items', 'bata', sheet.rejected_items)}
             />
+          )}
+
+          {/* Client collections linked to this booking */}
+          {collections.length > 0 && tab === 'pending' && (
+            <div className="mt-2 space-y-1.5">
+              {collections.map(c => (
+                <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Banknote className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span className="text-xs font-semibold text-orange-800">
+                      ₹{Number(c.amount).toLocaleString('en-IN')} collected from client
+                    </span>
+                    {c.note && <span className="text-xs text-orange-600 truncate">· {c.note}</span>}
+                  </div>
+                  <button
+                    onClick={() => onMarkCollected?.(c.id)}
+                    disabled={markingId === c.id}
+                    className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                  >
+                    <Check className="w-3 h-3" />
+                    {markingId === c.id ? 'Saving…' : 'Mark Received'}
+                  </button>
+                </div>
+              ))}
+              <p className="text-[10px] text-gray-400 pb-1">If not received, this amount will be deducted in the driver&apos;s monthly settlement.</p>
+            </div>
           )}
 
           {/* Pending footer */}
