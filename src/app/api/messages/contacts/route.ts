@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       .from('raw_messages')
       .select('id, sender_phone, sender_email, sender_name, raw_content, received_at, booking_id')
       .eq('channel', channel)
-      .neq('ai_classification', 'junk')
+      .or('ai_classification.is.null,ai_classification.neq.junk')
       .order('received_at', { ascending: false })
       .limit(500),
     supabase
