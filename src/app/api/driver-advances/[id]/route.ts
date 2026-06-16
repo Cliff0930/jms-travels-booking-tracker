@@ -19,6 +19,11 @@ export async function PATCH(
     update.status = 'settled'
     update.settled_via = body.settled_via || null
     update.settled_at = new Date().toISOString()
+  } else if (body.status === 'outstanding') {
+    update.status = 'outstanding'
+    update.settled_via = null
+    update.settled_at = null
+    update.settlement_id = null
   }
 
   const { data, error } = await supabase

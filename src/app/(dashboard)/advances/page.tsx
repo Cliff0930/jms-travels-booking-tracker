@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, IndianRupee, ChevronRight, Check, Trash2, Search, Download, X, CalendarDays } from 'lucide-react'
+import { Plus, IndianRupee, ChevronRight, Check, Trash2, Search, Download, X, CalendarDays, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/useCurrentUser'
 import { tokenMatch } from '@/lib/utils/search'
@@ -165,6 +165,16 @@ function AdvancesContent() {
     const res = await fetch(`/api/driver-advances/${id}`, { method: 'DELETE' })
     if (res.ok) { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['driver-advances'] }) }
     else toast.error('Delete failed')
+  }
+
+  async function handleRevoke(id: string) {
+    const res = await fetch(`/api/driver-advances/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'outstanding' }),
+    })
+    if (res.ok) { toast.success('Revoked to outstanding'); qc.invalidateQueries({ queryKey: ['driver-advances'] }) }
+    else toast.error('Revoke failed')
   }
 
   const filteredEntries = useMemo(() => {
@@ -412,6 +422,11 @@ function AdvancesContent() {
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setSettleEntry(e); setSettleVia(''); setSettleNote('') }}>
                             Settle
                           </Button>
+                        )}
+                        {e.status === 'settled' && (
+                          <button onClick={() => handleRevoke(e.id)} title="Revoke to outstanding" className="text-gray-300 hover:text-orange-500 transition-colors">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
                         )}
                         {isAdmin && (
                           <button onClick={() => handleDelete(e.id)} className="text-gray-300 hover:text-red-500 transition-colors">
