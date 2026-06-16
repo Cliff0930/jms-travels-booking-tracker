@@ -71,6 +71,7 @@ function AdvancesContent() {
   const [settleEntry, setSettleEntry] = useState<AdvanceEntry | null>(null)
   const [settleVia, setSettleVia] = useState('')
   const [settleNote, setSettleNote] = useState('')
+  const [settleDate, setSettleDate] = useState('')
   const [settling, setSettling] = useState(false)
 
   // Sync driver filter from URL param on mount
@@ -144,15 +145,18 @@ function AdvancesContent() {
     if (!settleEntry || !settleVia) return
     setSettling(true)
     try {
+      const settled_at = settleDate
+        ? new Date(settleDate).toISOString()
+        : new Date().toISOString()
       const res = await fetch(`/api/driver-advances/${settleEntry.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'settled', settled_via: settleVia, note: settleNote || settleEntry.note }),
+        body: JSON.stringify({ status: 'settled', settled_via: settleVia, note: settleNote || settleEntry.note, settled_at }),
       })
       if (!res.ok) throw new Error('Failed')
       toast.success('Entry marked as settled')
       qc.invalidateQueries({ queryKey: ['driver-advances'] })
-      setSettleEntry(null); setSettleVia(''); setSettleNote('')
+      setSettleEntry(null); setSettleVia(''); setSettleNote(''); setSettleDate('')
     } catch {
       toast.error('Failed to settle entry')
     } finally {
@@ -419,7 +423,7 @@ function AdvancesContent() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {e.status === 'outstanding' && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setSettleEntry(e); setSettleVia(''); setSettleNote('') }}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setSettleEntry(e); setSettleVia(''); setSettleNote(''); setSettleDate('') }}>
                             Settle
                           </Button>
                         )}
@@ -447,7 +451,7 @@ function AdvancesContent() {
       {showAdd && <AddEntryModal onClose={() => setShowAdd(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-advances'] }); setShowAdd(false) }} />}
 
       {/* Settle Dialog */}
-      <Dialog open={!!settleEntry} onOpenChange={o => { if (!o) { setSettleEntry(null); setSettleVia(''); setSettleNote('') } }}>
+      <Dialog open={!!settleEntry} onOpenChange={o => { if (!o) { setSettleEntry(null); setSettleVia(''); setSettleNote(''); setSettleDate('') } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Mark as Settled</DialogTitle></DialogHeader>
           {settleEntry && (
@@ -468,13 +472,17 @@ function AdvancesContent() {
                 </div>
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="settle-date">Date Paid <span className="text-gray-400 font-normal">(leave blank for today)</span></Label>
+                <Input id="settle-date" type="date" value={settleDate} onChange={e => setSettleDate(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="settle-note">Note (optional)</Label>
                 <Input id="settle-note" value={settleNote} onChange={e => setSettleNote(e.target.value)} placeholder="e.g. Cash received on 29 May" />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setSettleEntry(null); setSettleVia('') }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setSettleEntry(null); setSettleVia(''); setSettleDate('') }}>Cancel</Button>
             <Button onClick={handleSettle} disabled={!settleVia || settling}>
               {settling ? 'Saving…' : 'Confirm Settled'}
             </Button>

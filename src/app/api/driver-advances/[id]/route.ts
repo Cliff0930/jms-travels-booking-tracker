@@ -10,6 +10,7 @@ export async function PATCH(
   const body = await request.json() as {
     status?: 'outstanding' | 'settled'
     settled_via?: string
+    settled_at?: string
     note?: string
   }
 
@@ -18,7 +19,7 @@ export async function PATCH(
   if (body.status === 'settled') {
     update.status = 'settled'
     update.settled_via = body.settled_via || null
-    update.settled_at = new Date().toISOString()
+    update.settled_at = body.settled_at ?? new Date().toISOString()
   } else if (body.status === 'outstanding') {
     update.status = 'outstanding'
     update.settled_via = null
