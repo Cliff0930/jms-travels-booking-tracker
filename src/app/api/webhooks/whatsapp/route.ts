@@ -5,6 +5,7 @@ import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { handleClientChange, handleDisambiguationReply, type PendingAction } from '@/lib/utils/change-handler'
 import { extractClientInfo } from '@/lib/gemini/extract-client'
 import { converseBooking, type ConversationResult } from '@/lib/gemini/converse'
+import { extractBookingFields } from '@/lib/gemini/extract'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { notifyOperator } from '@/lib/utils/notify-operator'
@@ -587,16 +588,92 @@ async function processClientMessage(
   ]
 
   // Bulk booking detection: if 3+ distinct guest phones appear in the conversation,
-  // this is a coordinator bulk request — acknowledge and hand off to admin
+  // auto-extract all bookings via LLM, create complete ones, notify operator for incomplete
   const fullText = updatedMessages.map(m => m.content).join('\n')
   const allPhones = fullText.match(/\b[6-9]\d{9}\b/g) ?? []
   const uniqueGuestPhones = new Set(allPhones.filter(p => !senderPhone.endsWith(p)))
   if (uniqueGuestPhones.size >= 3) {
-    await sendWhatsAppMessage({
-      to: senderPhone,
-      body: `Hi ${client.name}, we've received multiple booking requests — thank you! Our team will review each one and confirm individually.\n\nFor urgent assistance, please call 9845572207.\n\n— JMS Travels`,
-      log: { client_id: client.id },
-    })
+    const clientSavedLocs = client.locations ?? []
+    const bulkText = updatedMessages.filter(m => m.role === 'client').map(m => m.content).join('\n\n')
+
+    let extraction = null
+    try {
+      extraction = await extractBookingFields(bulkText, client, clientSavedLocs)
+    } catch (err) {
+      console.error('[whatsapp] bulk extract error:', String(err))
+    }
+
+    const created: string[] = []
+    const incomplete: string[] = []
+
+    if (extraction && extraction.bookings.length > 0) {
+      for (const bk of extraction.bookings) {
+        if (bk.missing_mandatory.length === 0) {
+          const mockResult: ConversationResult = {
+            intent: 'booking',
+            extracted: {
+              pickup_location: bk.extracted.pickup_location ?? null,
+              drop_location: bk.extracted.drop_location ?? null,
+              pickup_date: bk.extracted.pickup_date ?? null,
+              pickup_time: bk.extracted.pickup_time ?? null,
+              pax_count: bk.extracted.pax_count ?? null,
+              vehicle_type: bk.extracted.vehicle_type ?? null,
+              guest_name: bk.extracted.guest_name ?? null,
+              guest_phone: bk.extracted.guest_phone ?? null,
+              trip_type: bk.extracted.trip_type ?? 'local',
+              service_type: bk.extracted.service_type ?? 'one_way',
+              total_days: bk.extracted.total_days ?? 1,
+              special_instructions: bk.extracted.special_instructions ?? null,
+              company_mentioned: bk.extracted.company_mentioned ?? null,
+              booking_type: (client.company_id ? 'company' : 'personal') as 'company' | 'personal',
+            },
+            missing_mandatory: [],
+            is_complete: true,
+            is_new_booking_request: false,
+            is_guest_booking: bk.is_guest_booking,
+            next_question: null,
+            modification_request: null,
+            cancel_reason: null,
+            target_booking_ref: null,
+            new_keyword_detected: null,
+            resolved_keywords: {},
+            confidence: 1,
+          }
+          const booking = await createBookingFromResult(supabase, client, mockResult, senderPhone)
+          if (booking) {
+            const label = bk.extracted.guest_name
+              ? `${bk.extracted.guest_name} — ${formatDate(bk.extracted.pickup_date ?? '')} ${bk.extracted.pickup_time ?? ''}`
+              : `${formatDate(bk.extracted.pickup_date ?? '')} ${bk.extracted.pickup_time ?? ''}`
+            created.push(label)
+          }
+        } else {
+          const label = bk.extracted.guest_name ?? `Trip on ${formatDate(bk.extracted.pickup_date ?? '')}`
+          incomplete.push(`${label} — missing: ${bk.missing_mandatory.join(', ')}`)
+        }
+      }
+    }
+
+    // Operator notification with full session text
+    const sessionText = updatedMessages.filter(m => m.role === 'client').map(m => m.content).join('\n---\n')
+    let opMsg = `📋 Bulk booking request from ${client.name} (${senderPhone})\n\n`
+    if (created.length > 0) opMsg += `✅ Auto-created (${created.length}):\n${created.map(s => `• ${s}`).join('\n')}\n\n`
+    if (incomplete.length > 0) opMsg += `⚠️ Incomplete — create manually (${incomplete.length}):\n${incomplete.map(s => `• ${s}`).join('\n')}\n\n`
+    if (created.length === 0 && incomplete.length === 0) opMsg += `⚠️ Could not parse any bookings — check messages below.\n\n`
+    opMsg += `Messages:\n${sessionText.slice(0, 1500)}`
+    await notifyOperator(opMsg, 'ops').catch(() => {})
+
+    // Single summary ack to coordinator
+    let ack = `Hi ${client.name}, we've received your booking requests`
+    if (created.length > 0 && incomplete.length === 0) {
+      ack += ` and confirmed all ${created.length}. Drivers will be assigned and you'll receive individual trip details shortly.`
+    } else if (created.length > 0) {
+      ack += `. ${created.length} confirmed, ${incomplete.length} need more details — our team will follow up.`
+    } else {
+      ack += ` — thank you! Our team will review and confirm each one individually.`
+    }
+    ack += `\n\nFor urgent assistance, call 9845572207.\n\n— JMS Travels`
+
+    await sendWhatsAppMessage({ to: senderPhone, body: ack, log: { client_id: client.id } })
     await supabase.from('conversation_sessions').delete().eq('id', session.id)
     return
   }
@@ -997,7 +1074,7 @@ async function createBookingFromResult(
       guest_name: ext.guest_name,
       guest_phone: ext.guest_phone,
       total_days: totalDays,
-      special_instructions: ext.special_instructions,
+      special_instructions: ext.special_instructions?.slice(0, 500) ?? null,
       booking_type: ext.booking_type ?? (client.company_id ? 'company' : 'personal'),
       flags,
     })

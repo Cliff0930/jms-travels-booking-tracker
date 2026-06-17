@@ -66,7 +66,7 @@ Fields to extract:
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way", "drop back", "drop him/her/them back", "drop to his/her house/home/residence/office" (when the final drop is the same place as or same type as the pickup). "Drop only" explicitly means one_way. Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
 11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
-12. special_instructions — any special notes. Include: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions ("check with him whether he needs vehicle on [date]" → "Follow up with [name] re: [date] vehicle requirement"), guest's ministry/department affiliation, billing notes
+12. special_instructions — brief notes about THIS booking only: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions, ministry/department affiliation, billing notes. Max 200 characters. Do NOT copy in booking requests for other guests or other trips from the same message.
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
 15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels in the message. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
@@ -79,10 +79,10 @@ If the sender uses words like "home", "office", "residence", "airport", "factory
 Saved locations for this client: {saved_locations}
 
 MULTIPLE BOOKINGS RULE:
-If the message contains multiple clearly distinct trips (different dates, times, or pickup locations listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
+If the message contains multiple clearly distinct trips (different guest names, different pickup times, different dates, or details listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
 MULTI-VEHICLE SAME TRIP: If a single trip requests multiple vehicles by type or quantity ("TT & Innova", "2 Innovas & a Sedan", "3 Innovas"), create one booking entry per individual vehicle — expanding quantities. "2 Innovas" → 2 Innova entries; "2 Innovas & 1 Sedan" → 3 entries total. Each vehicle needs its own driver and tripsheet.
 If it is a single booking with a single vehicle type (even with multiple passengers), return one entry.
-Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
+Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details, a new guest name + phone block with a different pickup time.
 "👆" emoji (or text alternatives: "as above", "refer above", "see above", "check above", "above location", "location above", "above address", "above map", "that location", "that address", "same as above", "^") used as a pointer means "the text immediately above this line" — e.g. "Pick up from 👆residence" or "see above" refers to the multi-line address written above it as the pickup location.
 CONTINUATION SIGNALS — more detail is arriving in the next message. When any of these appear and pickup_location is still missing, do NOT add pickup_location to missing_mandatory and do NOT ask for it. Just acknowledge the details received so far:
 - Emojis: 👇 ⬇️ (pointing down — "address/details below")
@@ -317,7 +317,7 @@ Fields to extract:
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way", "drop back", "drop him/her/them back", "drop to his/her house/home/residence/office" (when the final drop is the same place as or same type as the pickup). "Drop only" explicitly means one_way. Do NOT set "return" for "Pickup and Drop".
 11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
-12. special_instructions — any special notes. Include: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions, guest's ministry/department affiliation, billing notes
+12. special_instructions — brief notes about THIS booking only: explicit end times ("till 1800 hrs" → "Vehicle required till 18:00"), follow-up instructions, ministry/department affiliation, billing notes. Max 200 characters. Do NOT copy in booking requests for other guests or other trips from the same message.
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
 15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
