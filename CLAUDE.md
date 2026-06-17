@@ -75,6 +75,17 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 
 ---
 
+## WhatsApp Bulk Coordinator Flow (shipped 2026-06-17)
+When 3+ distinct guest phone numbers appear in a session (coordinator bulk pattern):
+- **Auto-extract:** `extractBookingFields()` parses all trips from combined session text
+- **Auto-create:** bookings with `missing_mandatory = []` created immediately; others flagged as incomplete
+- **Operator notification:** single rich message (ops channel) — created list + incomplete list + raw messages
+- **Coordinator ack:** single summary message (not one per booking); session deleted
+- **`special_instructions` scope guard:** both EXTRACTION_PROMPT and CONVERSATION_PROMPT say "Max 200 chars, this booking only — do not include other guests' booking requests". Server hard-truncates to 500 chars in `createBookingFromResult()`.
+- Key file: `src/app/api/webhooks/whatsapp/route.ts` (bulk detection + extraction block, ~lines 589-660)
+
+---
+
 ## Multi-leg Booking Flow
 - `total_days > 1` creates N `booking_legs` rows
 - Each leg has: `day_number`, `leg_date`, `driver_id` (can differ per leg), `leg_status`, `link_sent_at`
