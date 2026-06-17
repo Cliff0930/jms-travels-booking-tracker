@@ -68,7 +68,10 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
 - **Bata:** Computed server-side; `bata_driver` column on `trip_sheets`; company rate overrides driver default by vehicle_name
 - **Silent driver assignment:** `silent: true` in assign POST body skips all WhatsApp/push/email — used for backdating completed trips
 - **Smart driver link redirect:** `GET /api/driver-redirect-check` called on every driver-status page load (client-side useEffect). Redirects to correct link based on driver's active trips. Skipped for app drivers and leg-specific links. Falls back to original form on any error (4s timeout). Future-dated trips/legs show "not yet due" message instead of form.
-- **Google Maps URLs from clients:** `pickup_location_url` / `drop_location_url` columns on `bookings` store map links sent by clients. Extracted via `extractMapsUrls()` regex in `parse-message/route.ts` (email + single WA message) and `conversation/process.ts` (WA conversation sessions). Also merged from email replies in `fill-missing.ts`. On driver assignment (`assign/route.ts`), the URL is appended inside the `pickup`/`drop` params of `jms_trip_brief_driver` (e.g. `"Address\nMap: https://..."`). Never send as a separate free-form message — drivers may not have an open 24h window. Booking detail page and driver app both already render these URLs as tappable map links.
+- **Google Maps URLs from clients:** `pickup_location_url` / `drop_location_url` columns on `bookings` store map links sent by clients. On driver assignment (`assign/route.ts`), the URL is appended inside the `pickup`/`drop` params of `jms_trip_brief_driver` (e.g. `"Address\nMap: https://..."`). Never send as a separate free-form message — drivers may not have an open 24h window. Booking detail page and driver app both render these URLs as tappable map links.
+  - **WhatsApp location pin** (`type: 'location'`): `handleLocationPin()` in `webhooks/whatsapp/route.ts` → extracts lat/lng → builds `https://www.google.com/maps?q=${lat},${lng}` → finds most recent active booking for that phone (24h window) → updates `pickup_location_url` → stores with `ai_classification: 'location_pin'` → replies confirming receipt. Always treated as pickup (no text context to detect).
+  - **Text Maps URL follow-up** (in `processClientMessage`): 24h window (not 10 min). URL stored in `pickup_location_url` or `drop_location_url` separately; address text in `pickup_location` or `drop_location`. Keyword detection: `/\b(drop|destination|to\s*:|dropping|reach|arrive)\b/i` → drop fields; else pickup fields.
+  - **During booking session / email parse**: `extractMapsUrls()` in `parse-message/route.ts` + `conversation/process.ts`; same keyword logic. Email replies merged in `fill-missing.ts`.
 
 ---
 
@@ -105,7 +108,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - 11rem = 4rem (main-layout padding-top) + 1rem (p-4 top) + 5rem (main-layout padding-bottom) + 1rem (p-4 bottom)
 
 **message_logs content:** `sendWhatsAppTemplate` stores `fallbackBody` (not raw params) — all callers must pass `fallbackBody` for readable logs.
-**Junk email filter:** Email tab contacts query uses `.neq('ai_classification', 'junk')` — promotional emails are hidden; only booking/enquiry/unprocessed emails show.
+**Junk filter:** Contacts query uses `.or('ai_classification.is.null,ai_classification.neq.junk')` — junk emails hidden, but NULLs included. **Never use `.neq('ai_classification','junk')`** — PostgREST excludes NULLs with neq, hiding messages that never got ai_classification set (location pins, fill-missing replies).
 
 **Key files:** `src/app/(dashboard)/messages/page.tsx`, `src/app/api/messages/contacts/route.ts`, `src/app/api/messages/route.ts`
 
@@ -201,3 +204,4 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - Date end-of-month: never use `${month}-31` — use `lt(first day of next month)`
 - PostgREST two-FK ambiguity: always use `!column_id` hint on joins
 - New timestamp columns: `created_at` on all tables except `raw_messages` (uses `received_at`) and `message_logs` (uses `sent_at`)
+- **PostgREST `.neq()` excludes NULLs:** `col <> 'value'` evaluates to NULL when col IS NULL — `.neq('x','y')` silently hides rows where x is NULL. Always use `.or('x.is.null,x.neq.y')` when NULLs should be included.
