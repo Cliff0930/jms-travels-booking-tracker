@@ -47,7 +47,12 @@ type CalBooking = Omit<Booking, 'driver' | 'company' | 'client'> & {
   company?: { id: string; name: string } | null
   client?: { id: string; name: string } | null
   booking_legs?: CalBookingLeg[]
-  _legDay?: number  // set when booking is shown on a continuation leg date (Day 2+)
+  _legDay?: number           // set when booking is shown on a continuation leg date (Day 2+)
+  _effectiveStatus?: string  // per-leg derived status for Day 2+ entries
+}
+
+function effStatus(b: CalBooking): string {
+  return b._effectiveStatus ?? b.status
 }
 
 // ── main component ────────────────────────────────────────────────────────────
@@ -73,20 +78,29 @@ export default function BookingCalendarPage() {
   // Group by pickup_date AND leg dates (Day 2+)
   const byDate = useMemo(() => {
     const map: Record<string, CalBooking[]> = {}
+    const todayStr = fmtKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
     for (const b of bookings) {
       if (!b.pickup_date) continue
       const pickupKey = b.pickup_date.slice(0, 10)
       if (!map[pickupKey]) map[pickupKey] = []
       map[pickupKey].push(b)
 
-      // Also plot on each continuation leg date
+      // Also plot on each continuation leg date with a per-leg derived status
       for (const leg of (b.booking_legs ?? [])) {
         if (!leg.leg_date || leg.leg_status === 'cancelled') continue
         const legKey = leg.leg_date.slice(0, 10)
         if (legKey === pickupKey) continue  // Day 1 already added above
         if (!map[legKey]) map[legKey] = []
         if (!map[legKey].find(x => x.id === b.id)) {
-          map[legKey].push({ ...b, _legDay: leg.day_number })
+          // Derive status for this specific leg's date
+          const _effectiveStatus = (() => {
+            if (b.status === 'cancelled') return 'cancelled'
+            if (b.status === 'completed') return 'completed'
+            if (legKey > todayStr) return 'confirmed'   // future leg — not started
+            if (legKey < todayStr) return 'completed'   // past leg — must have run
+            return b.status                             // today's leg — use booking status
+          })()
+          map[legKey].push({ ...b, _legDay: leg.day_number, _effectiveStatus })
         }
       }
     }
@@ -115,9 +129,9 @@ export default function BookingCalendarPage() {
   const selectedBookings = useMemo(() => {
     if (!selectedDate) return []
     const list = byDate[selectedDate] ?? []
-    if (statusFilter === 'active') return list.filter(b => !['cancelled','completed'].includes(b.status))
+    if (statusFilter === 'active') return list.filter(b => !['cancelled','completed'].includes(effStatus(b)))
     if (statusFilter === 'all')    return list
-    return list.filter(b => b.status === statusFilter)
+    return list.filter(b => effStatus(b) === statusFilter)
   }, [byDate, selectedDate, statusFilter])
 
   const todayKey = fmtKey(today.getFullYear(), today.getMonth(), today.getDate())
@@ -175,12 +189,12 @@ export default function BookingCalendarPage() {
               const isSelected = dateKey === selectedDate
               const isWeekend  = i % 7 >= 5
 
-              // Group dots by status for display
-              const confirmed  = dayBookings.filter(b => b.status === 'confirmed').length
-              const inProgress = dayBookings.filter(b => b.status === 'in_progress').length
-              const completed  = dayBookings.filter(b => b.status === 'completed').length
-              const cancelled  = dayBookings.filter(b => b.status === 'cancelled').length
-              const draft      = dayBookings.filter(b => ['draft','pending_approval'].includes(b.status)).length
+              // Group dots by status for display (use per-leg effective status for Day 2+ entries)
+              const confirmed  = dayBookings.filter(b => effStatus(b) === 'confirmed').length
+              const inProgress = dayBookings.filter(b => effStatus(b) === 'in_progress').length
+              const completed  = dayBookings.filter(b => effStatus(b) === 'completed').length
+              const cancelled  = dayBookings.filter(b => effStatus(b) === 'cancelled').length
+              const draft      = dayBookings.filter(b => ['draft','pending_approval'].includes(effStatus(b))).length
 
               return (
                 <div
@@ -217,7 +231,7 @@ export default function BookingCalendarPage() {
                       {/* Mini booking list (up to 2) — hidden on mobile, only dots show */}
                       <div className="hidden sm:block space-y-0.5 mt-0.5">
                         {dayBookings.filter(b => b.status !== 'cancelled').slice(0, 2).map(b => (
-                          <div key={b.id + (b._legDay ?? '')} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[b.status])}>
+                          <div key={b.id + (b._legDay ?? '')} className={cn('text-[10px] leading-tight px-1 py-0.5 rounded border truncate font-medium', STATUS_CHIP[effStatus(b)])}>
                             {b._legDay ? `Day ${b._legDay}` : fmtTime(b.pickup_time)} · {(b.driver as { name: string } | null | undefined)?.name ?? b.guest_name ?? b.client?.name ?? '—'}
                           </div>
                         ))}
@@ -276,7 +290,7 @@ export default function BookingCalendarPage() {
               const cardKey = b.id + (b._legDay ?? '')
               const company = b.company as { id: string; name: string } | null | undefined
               return (
-                <Link key={cardKey} href={`/bookings/${b.id}`} className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', STATUS_CHIP[b.status])}>
+                <Link key={cardKey} href={`/bookings/${b.id}`} className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', STATUS_CHIP[effStatus(b)])}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-mono text-gray-400">{b.booking_ref}</p>
@@ -284,8 +298,8 @@ export default function BookingCalendarPage() {
                       {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', STATUS_CHIP[b.status])}>
-                        {STATUS_LABEL[b.status]}
+                      <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', STATUS_CHIP[effStatus(b)])}>
+                        {STATUS_LABEL[effStatus(b)]}
                       </span>
                       <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                     </div>
