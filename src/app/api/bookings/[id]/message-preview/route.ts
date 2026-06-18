@@ -118,6 +118,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
     ])
 
+    const pickupParam = [
+      booking.pickup_location || 'TBD',
+      booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+    ].filter(Boolean).join(' | ')
+    const dropParam = [
+      booking.drop_location || 'TBD',
+      booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+    ].filter(Boolean).join(' | ')
+
     body = [
       `Hi ${driver.name}, you have a new assignment.`,
       ``,
@@ -125,8 +134,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       companyName ? `Company: ${companyName}` : null,
       `Guest: ${guestNameForDriver}`,
       `Guest Phone: ${guestPhoneForDriver}`,
-      `Pickup: ${booking.pickup_location || 'TBD'}`,
-      `Drop: ${booking.drop_location || 'TBD'}`,
+      `Pickup: ${pickupParam}`,
+      `Drop: ${dropParam}`,
       `Date: ${dateFormatted}`,
       `Time: ${timeFormatted}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
