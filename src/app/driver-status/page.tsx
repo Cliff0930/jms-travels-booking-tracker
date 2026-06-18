@@ -175,7 +175,7 @@ function DriverStatusContent() {
   const [tripSheetLoaded, setTripSheetLoaded] = useState(false)
   // True while we check whether this driver should be redirected to a different link.
   // Initialized to true only when params are valid and no leg_id (leg links are never redirected).
-  const [redirectLoading, setRedirectLoading] = useState(!!(bookingId && status && token && !legId))
+  const [redirectLoading, setRedirectLoading] = useState(!!(bookingId && status && token))
   const [futureTripDate, setFutureTripDate] = useState<string | null>(null)
 
   // GPS

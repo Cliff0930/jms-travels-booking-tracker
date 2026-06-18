@@ -152,30 +152,67 @@ export async function POST(request: Request) {
 
   // Trip sheet handling
   if (status === 'arrived') {
-    // Auto-suffix duplicate tripsheet numbers: 2000 → 2000+1 → 2000+2
-    let finalTripsheetNumber: string | null = tripsheet_number || null
-    if (tripsheet_number) {
-      const { data: existing } = await supabase
+    let shouldInsert = true
+    let adoptOrphanId: string | null = null
+
+    if (leg_id) {
+      // Check 1: already arrived for this leg — skip entirely
+      const { data: legSheet } = await supabase
         .from('trip_sheets')
-        .select('tripsheet_number')
-        .or(`tripsheet_number.eq.${tripsheet_number},tripsheet_number.like.${tripsheet_number}+%`)
-      if (existing && existing.length > 0) {
-        finalTripsheetNumber = `${tripsheet_number}+${existing.length}`
+        .select('id')
+        .eq('booking_id', booking_id)
+        .eq('booking_leg_id', leg_id)
+        .maybeSingle()
+
+      if (legSheet) {
+        shouldInsert = false
+      } else {
+        // Check 2: orphan tripsheet from booking-level link — adopt it instead of inserting
+        const { data: orphan } = await supabase
+          .from('trip_sheets')
+          .select('id')
+          .eq('booking_id', booking_id)
+          .is('booking_leg_id', null)
+          .is('closing_time', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (orphan) {
+          adoptOrphanId = orphan.id
+          shouldInsert = false
+        }
       }
     }
 
-    await supabase.from('trip_sheets').insert({
-      booking_id,
-      driver_id: booking.driver_id || null,
-      booking_leg_id: leg_id || null,
-      tripsheet_number: finalTripsheetNumber,
-      opening_km: opening_km ?? null,
-      opening_lat: lat ?? null,
-      opening_lng: lng ?? null,
-      opening_time: new Date().toISOString(),
-      manual_opening_time: manual_opening_time || null,
-      trip_opening_date: booking.trip_type === 'outstation' ? getTodayIST() : null,
-    }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
+    if (adoptOrphanId) {
+      await supabase.from('trip_sheets').update({ booking_leg_id: leg_id }).eq('id', adoptOrphanId)
+    } else if (shouldInsert) {
+      // Auto-suffix duplicate tripsheet numbers: 2000 → 2000+1 → 2000+2
+      let finalTripsheetNumber: string | null = tripsheet_number || null
+      if (tripsheet_number) {
+        const { data: existing } = await supabase
+          .from('trip_sheets')
+          .select('tripsheet_number')
+          .or(`tripsheet_number.eq.${tripsheet_number},tripsheet_number.like.${tripsheet_number}+%`)
+        if (existing && existing.length > 0) {
+          finalTripsheetNumber = `${tripsheet_number}+${existing.length}`
+        }
+      }
+
+      await supabase.from('trip_sheets').insert({
+        booking_id,
+        driver_id: booking.driver_id || null,
+        booking_leg_id: leg_id || null,
+        tripsheet_number: finalTripsheetNumber,
+        opening_km: opening_km ?? null,
+        opening_lat: lat ?? null,
+        opening_lng: lng ?? null,
+        opening_time: new Date().toISOString(),
+        manual_opening_time: manual_opening_time || null,
+        trip_opening_date: booking.trip_type === 'outstation' ? getTodayIST() : null,
+      }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
+    }
   } else {
     // Find matching sheet: leg-specific if leg_id provided, otherwise most recent for booking
     let sheetQuery = supabase

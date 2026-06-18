@@ -24,16 +24,72 @@ export async function GET(request: Request) {
 
   const supabase = createAdminClient()
 
-  // Leg-specific links: only check if the leg date is in the future — no booking-level redirects
+  // Leg-specific links: smart redirect for multi-day trips
   if (legId) {
-    const { data: leg } = await supabase
-      .from('booking_legs')
-      .select('leg_date')
-      .eq('id', legId)
-      .single()
-    if (leg?.leg_date && leg.leg_date > getTodayIST()) {
+    const today = getTodayIST()
+    const [{ data: leg }, { data: bookingForLeg }, { data: allLegsRaw }] = await Promise.all([
+      supabase.from('booking_legs').select('id, day_number, leg_date, driver_id').eq('id', legId).single(),
+      supabase.from('bookings').select('driver_id').eq('id', bookingId).single(),
+      supabase.from('booking_legs').select('id, day_number, leg_date, driver_id').eq('booking_id', bookingId).order('day_number', { ascending: true }),
+    ])
+
+    if (!leg) return NextResponse.json({ redirect_to: null })
+
+    if (leg.leg_date && leg.leg_date > today) {
       return NextResponse.json({ redirect_to: null, future_trip: true, trip_date: leg.leg_date })
     }
+
+    const bookingDriverId = bookingForLeg?.driver_id ?? null
+    const legDriverId = leg.driver_id || bookingDriverId
+    if (!legDriverId) return NextResponse.json({ redirect_to: null })
+
+    // Only consider legs assigned to this driver (leg.driver_id null means uses booking-level driver)
+    const driverLegs = (allLegsRaw || []).filter(l => (l.driver_id || bookingDriverId) === legDriverId)
+    if (driverLegs.length === 0) return NextResponse.json({ redirect_to: null })
+
+    const { data: sheets } = await supabase
+      .from('trip_sheets')
+      .select('booking_leg_id, opening_time, closing_time')
+      .eq('booking_id', bookingId)
+      .in('booking_leg_id', driverLegs.map(l => l.id))
+
+    const sheetByLeg: Record<string, { opening_time: string | null; closing_time: string | null }> = {}
+    for (const s of (sheets || [])) {
+      if (s.booking_leg_id) sheetByLeg[s.booking_leg_id] = s
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://booking.jmstravels.net'
+    const bId = bookingId as string
+    function legUrl(lId: string, a: 'arrived' | 'completed'): string {
+      return `${appUrl}/driver-status?booking=${bId}&status=${a}&token=${generateDriverToken(bId, a)}&leg_id=${lId}`
+    }
+    function legState(lId: string): 'not_started' | 'in_progress' | 'completed' {
+      const s = sheetByLeg[lId]
+      if (!s) return 'not_started'
+      if (s.closing_time) return 'completed'
+      return 'in_progress'
+    }
+
+    const thisState = legState(legId)
+
+    // This leg already completed → redirect to next not-started leg for this driver
+    if (thisState === 'completed') {
+      const next = driverLegs.find(l => l.day_number > leg.day_number && legState(l.id) === 'not_started')
+      if (next) return NextResponse.json({ redirect_to: legUrl(next.id, 'arrived') })
+      return NextResponse.json({ redirect_to: null })
+    }
+
+    // Arrived link on a leg that's already in progress → redirect to its completed link
+    if (thisState === 'in_progress' && action === 'arrived') {
+      return NextResponse.json({ redirect_to: legUrl(legId, 'completed') })
+    }
+
+    // A previous leg is still in progress → driver must complete it first
+    if (action === 'arrived') {
+      const prev = driverLegs.find(l => l.day_number < leg.day_number && legState(l.id) === 'in_progress')
+      if (prev) return NextResponse.json({ redirect_to: legUrl(prev.id, 'completed') })
+    }
+
     return NextResponse.json({ redirect_to: null })
   }
 
