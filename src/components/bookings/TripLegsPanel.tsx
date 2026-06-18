@@ -167,7 +167,7 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
             </div>
             {/* Actions row: below info, indented to align with content */}
             <div className="flex items-center gap-2 mt-2 pl-11">
-              {hasDriver && !isCompleted && (
+              {hasDriver && !isCompleted && leg.day_number > 1 && (
                 <Button
                   size="sm"
                   variant="outline"
