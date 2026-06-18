@@ -183,14 +183,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
     ])
 
+    const pickupParam = [
+      booking.pickup_location || 'TBD',
+      booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+    ].filter(Boolean).join(' | ')
+    const dropParam = [
+      booking.drop_location || 'TBD',
+      booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+    ].filter(Boolean).join(' | ')
+
     templateParams = [
       driver.name,
       booking.booking_ref,
       companyName || '-',
       guestNameForDriver,
       guestPhoneForDriver,
-      booking.pickup_location || 'TBD',
-      booking.drop_location || 'TBD',
+      pickupParam,
+      dropParam,
       formatDate(booking.pickup_date),
       formatTime(booking.pickup_time),
       booking.pax_count?.toString() || 'TBD',
@@ -205,8 +214,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       companyName ? `Company: ${companyName}` : null,
       `Guest: ${guestNameForDriver}`,
       `Guest Phone: ${guestPhoneForDriver}`,
-      `Pickup: ${booking.pickup_location || 'TBD'}`,
-      `Drop: ${booking.drop_location || 'TBD'}`,
+      `Pickup: ${pickupParam}`,
+      `Drop: ${dropParam}`,
       `Date: ${formatDate(booking.pickup_date)}`,
       `Time: ${formatTime(booking.pickup_time)}`,
       `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
@@ -248,6 +257,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await supabase.from('message_logs').insert({
     booking_id: id,
     client_id: client?.id || null,
+    driver_id: message_type === 'trip_brief_driver' ? (driver?.id ?? null) : null,
     channel,
     direction: 'outbound',
     recipient,
