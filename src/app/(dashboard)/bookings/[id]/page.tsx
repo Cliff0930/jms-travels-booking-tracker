@@ -2090,7 +2090,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               {tripSheets.length > 1 && (
                 <div className="flex gap-1 mb-4 border-b border-[#E5E7EB]">
                   {tripSheets.map((s, idx) => {
-                    const dayNum = s.leg?.day_number ?? (idx + 1)
+                    const tabLabel = (() => {
+                      if (s.leg?.leg_date) {
+                        const [y, m, d] = s.leg.leg_date.split('-')
+                        return `${d}/${m}/${y.slice(2)}`
+                      }
+                      return `Day ${s.leg?.day_number ?? (idx + 1)}`
+                    })()
                     const isActive = idx === selectedSheetIdx
                     return (
                       <button
@@ -2102,7 +2108,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                             : 'border-transparent text-[#737686] hover:text-[#434654] hover:bg-[#F9F9FE]'
                         }`}
                       >
-                        Day {dayNum}
+                        {tabLabel}
                       </button>
                     )
                   })}
