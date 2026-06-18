@@ -118,11 +118,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const pickupParam = [
         booking.pickup_location || 'TBD',
         booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
-      ].filter(Boolean).join('\n')
+      ].filter(Boolean).join(' | ')
       const dropParam = [
         booking.drop_location || 'TBD',
         booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
-      ].filter(Boolean).join('\n')
+      ].filter(Boolean).join(' | ')
 
       const fallbackBody = [
         `Hi ${driver.name}, you have a new assignment.`,
