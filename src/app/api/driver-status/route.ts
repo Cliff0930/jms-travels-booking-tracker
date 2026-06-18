@@ -136,8 +136,25 @@ export async function POST(request: Request) {
 
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
 
-  const newBookingStatus = status === 'arrived' ? 'in_progress' : 'completed'
+  let newBookingStatus = status === 'arrived' ? 'in_progress' : 'completed'
   const driverStatus = status === 'arrived' ? 'on_duty' : 'available'
+
+  // For multi-leg bookings: keep in_progress if more legs remain after this one
+  if (status === 'completed' && leg_id) {
+    const { data: allLegs } = await supabase
+      .from('booking_legs')
+      .select('id, day_number')
+      .eq('booking_id', booking_id)
+      .neq('leg_status', 'cancelled')
+
+    if (allLegs && allLegs.length > 0) {
+      const maxDay = Math.max(...allLegs.map(l => l.day_number))
+      const thisLeg = allLegs.find(l => l.id === leg_id)
+      if (thisLeg && thisLeg.day_number < maxDay) {
+        newBookingStatus = 'in_progress'
+      }
+    }
+  }
 
   await supabase.from('bookings').update({ status: newBookingStatus, updated_at: new Date().toISOString() }).eq('id', booking_id)
   await supabase.from('booking_status_history').insert({
@@ -387,8 +404,8 @@ export async function POST(request: Request) {
     })
   }
 
-  // Push notification to operator on trip completion
-  if (status === 'completed') {
+  // Push notification to operator on trip completion (only when all legs are done)
+  if (status === 'completed' && newBookingStatus === 'completed') {
     const driverObj = booking.driver as { name?: string } | null
     const driverName = driverObj?.name || 'Driver'
     const clientName2 = booking.guest_name || (booking.client as { name?: string } | null)?.name || ''
