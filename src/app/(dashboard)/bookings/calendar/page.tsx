@@ -197,6 +197,14 @@ export default function BookingCalendarPage() {
               const cancelled  = dayBookings.filter(b => effStatus(b) === 'cancelled').length
               const draft      = dayBookings.filter(b => ['draft','pending_approval'].includes(effStatus(b))).length
 
+              // Alert badge: red = confirmed with no driver, amber = draft/pending
+              const noDriverAlert = dayBookings.some(b => {
+                const es = effStatus(b)
+                return !b.driver && (es === 'confirmed' || es === 'in_progress')
+              })
+              const draftAlert = dayBookings.some(b => ['draft', 'pending_approval'].includes(effStatus(b)))
+              const alertLevel: 'red' | 'amber' | null = noDriverAlert ? 'red' : draftAlert ? 'amber' : null
+
               return (
                 <div
                   key={i}
@@ -211,12 +219,20 @@ export default function BookingCalendarPage() {
                 >
                   {day && (
                     <>
-                      <span className={cn(
-                        'text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full self-start',
-                        isToday ? 'bg-blue-600 text-white' : 'text-gray-700'
-                      )}>
-                        {day}
-                      </span>
+                      <div className="relative self-start">
+                        <span className={cn(
+                          'text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full',
+                          isToday ? 'bg-blue-600 text-white' : 'text-gray-700'
+                        )}>
+                          {day}
+                        </span>
+                        {alertLevel && (
+                          <span className="absolute -top-0.5 -right-0.5 flex w-2.5 h-2.5">
+                            <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', alertLevel === 'red' ? 'bg-red-400' : 'bg-amber-400')} />
+                            <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', alertLevel === 'red' ? 'bg-red-500' : 'bg-amber-500')} />
+                          </span>
+                        )}
+                      </div>
 
                       {/* Status summary dots */}
                       {dayBookings.length > 0 && (
@@ -290,8 +306,16 @@ export default function BookingCalendarPage() {
               const driver = b.driver as { id: string; name: string; vehicle_name: string | null; vehicle_number: string | null } | null | undefined
               const cardKey = b.id + (b._legDay ?? '')
               const company = b.company as { id: string; name: string } | null | undefined
+              const es = effStatus(b)
+              const noDriver = !driver && (es === 'confirmed' || es === 'in_progress')
+              const isDraft = es === 'draft' || es === 'pending_approval'
               return (
-                <Link key={cardKey} href={`/bookings/${b.id}`} className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', STATUS_CHIP[effStatus(b)])}>
+                <Link key={cardKey} href={`/bookings/${b.id}`} className={cn(
+                  'block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow',
+                  STATUS_CHIP[es],
+                  noDriver && '!border-l-4 !border-l-red-500',
+                  isDraft && '!border-l-4 !border-l-amber-500',
+                )}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-mono text-gray-400">{b.booking_ref}</p>
@@ -299,19 +323,24 @@ export default function BookingCalendarPage() {
                       {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', STATUS_CHIP[effStatus(b)])}>
-                        {STATUS_LABEL[effStatus(b)]}
+                      <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', STATUS_CHIP[es])}>
+                        {STATUS_LABEL[es]}
                       </span>
                       <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                     </div>
                   </div>
+
+                  {(noDriver || isDraft) && (
+                    <div className={cn('flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full w-fit', noDriver ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700')}>
+                      ⚠ {noDriver ? 'No Driver Assigned' : es === 'pending_approval' ? 'Awaiting Approval' : 'Draft — Confirm'}
+                    </div>
+                  )}
 
                   {b._legDay && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                         Day {b._legDay}{b.total_days ? ` of ${b.total_days}` : ''}
                       </span>
-                      <span className="text-[10px] text-gray-400">continuation</span>
                     </div>
                   )}
                   {b.pickup_time && (
@@ -342,8 +371,8 @@ export default function BookingCalendarPage() {
                       </>
                     ) : (
                       <>
-                        <User className="w-3 h-3 text-gray-300 shrink-0" />
-                        <span className="text-xs text-gray-400 italic">No driver assigned</span>
+                        <User className={cn('w-3 h-3 shrink-0', noDriver ? 'text-red-400' : 'text-gray-300')} />
+                        <span className={cn('text-xs italic', noDriver ? 'text-red-500 font-medium' : 'text-gray-400')}>No driver assigned</span>
                       </>
                     )}
                   </div>
