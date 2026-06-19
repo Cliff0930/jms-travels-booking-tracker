@@ -89,8 +89,10 @@ When 3+ distinct guest phone numbers appear in a session (coordinator bulk patte
 ## Multi-leg Booking Flow
 - `total_days > 1` creates N `booking_legs` rows
 - Each leg has: `day_number`, `leg_date`, `driver_id` (can differ per leg), `leg_status`, `link_sent_at`
-- **`leg_status` is NOT updated by the driver-status handler** — only `bookings.status` and `trip_sheets` are written on arrived/completed. Use `trip_sheets` (opening_time / closing_time) as the source of truth for leg state, not `leg_status`.
+- **`leg_status` IS updated by `driver-status/route.ts`** when `leg_id` is present: arrived → `in_progress`, completed → `completed`. Use `leg_status` as the per-leg source of truth. Calendar `effStatus()` and dashboard continuation entries both use real `leg_status` now.
 - **`booking.status` for multi-leg trips:** When a leg completes with a `leg_id`, the handler checks `day_number` against the max non-cancelled leg. Only the last leg sets `completed`; intermediate legs set `in_progress`. Day 1 (booking-level link, no `leg_id`) still sets `completed` prematurely but self-heals when Day 2 arrived link is clicked.
+- **Tripsheet tabs:** all tabs show dates (DD/MM/YY). Day 1 falls back to `booking.pickup_date` since its sheet has no `booking_leg_id`.
+- **Calendar alert badges:** day cells show pulsing dot — red = confirmed with no driver, amber = draft/pending. Cards show `⚠ No Driver Assigned` / `⚠ Draft — Confirm` action tags with bold left border.
 - **Same driver on all legs — Day 1:** Driver already has booking-level arrived/completed links from `jms_trip_brief_driver` sent on assignment. The "Send Day X Links" button is **hidden for Day 1** in TripLegsPanel (`leg.day_number > 1` guard) to prevent conflicting duplicate links.
 - **Same driver on all legs — Day 2+:** Operator taps "Send Day X Links" per leg → `jms_leg_day_links` template (with `leg_id` appended to arrived/completed URLs)
 - **Duplicate tripsheet guard** (`driver-status/route.ts` arrived handler): if leg_id present, checks for existing leg tripsheet (skip) or orphan null-leg tripsheet (adopt by updating `booking_leg_id`) before inserting. Prevents duplicate rows when driver submits both booking-level and day-specific arrived links.
