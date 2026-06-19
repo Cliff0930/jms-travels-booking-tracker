@@ -24,10 +24,14 @@ export function BookingListRow({ booking, onConfirm, onCancel, onAssign }: Props
   const SrcIcon       = src.Icon
   const isPossibleDup = (booking.flags as string[] | undefined)?.includes('possible_duplicate')
   const urgent        = booking.status === 'confirmed' && !booking.driver_id && !!countdown?.pulse
+  const noDriver      = !booking.driver_id && (booking.status === 'confirmed' || booking.status === 'in_progress')
+  const isDraft       = booking.status === 'draft' || booking.status === 'pending_approval'
+
+  const rowBg = noDriver ? 'bg-red-50/40' : isDraft ? 'bg-amber-50/40' : isPossibleDup ? 'bg-amber-50/40' : ''
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] last:border-b-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors group ${statusBarClass(booking.status)} ${isPossibleDup ? 'bg-amber-50/40' : ''}`}
+      className={`flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] last:border-b-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors group ${statusBarClass(booking.status)} ${rowBg}`}
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       {/* Ref + source */}
@@ -52,6 +56,11 @@ export function BookingListRow({ booking, onConfirm, onCancel, onAssign }: Props
           {companyName && <span className="hidden sm:inline px-1 py-0.5 rounded text-[9px] bg-[#EDEDF8] text-[#434654] font-medium shrink-0">{companyName}</span>}
           {booking.client?.is_vip && <span className="text-[9px] font-bold text-amber-600 shrink-0">VIP</span>}
         </div>
+        {(noDriver || isDraft) && (
+          <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${noDriver ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+            ⚠ {noDriver ? 'No Driver' : booking.status === 'pending_approval' ? 'Awaiting Approval' : 'Draft'}
+          </span>
+        )}
         {booking.driver && (
           <div className="flex items-center gap-1 mt-0.5 lg:hidden">
             <Car className="w-3 h-3 text-[#059669] shrink-0" />
