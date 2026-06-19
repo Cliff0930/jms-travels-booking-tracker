@@ -60,6 +60,10 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
   const isToday = dateStr === localDate()
   const active = trips.filter(b => ['confirmed', 'in_progress'].includes(b.status)).length
 
+  const noDriverAlert = trips.some(b => !b.driver && (b.status === 'confirmed' || b.status === 'in_progress'))
+  const draftAlert = trips.some(b => ['draft', 'pending_approval'].includes(b.status))
+  const alertLevel: 'red' | 'amber' | null = noDriverAlert ? 'red' : draftAlert ? 'amber' : null
+
   return (
     <button onClick={onClick} className={cn(
       'flex-1 min-w-[44px] shrink-0 rounded-xl border p-2.5 text-center transition-all focus:outline-none',
@@ -69,10 +73,18 @@ function WeekDayCard({ dateStr, trips, selected, onClick }: {
         selected ? 'text-blue-200' : isToday ? 'text-blue-500' : 'text-gray-400')}>
         {d.toLocaleDateString('en-IN', { weekday: 'short' })}
       </p>
-      <p className={cn('text-xl font-black leading-tight mt-0.5',
-        selected ? 'text-white' : isToday ? 'text-blue-700' : 'text-gray-800')}>
-        {d.getDate()}
-      </p>
+      <div className="relative inline-block mt-0.5">
+        <p className={cn('text-xl font-black leading-tight',
+          selected ? 'text-white' : isToday ? 'text-blue-700' : 'text-gray-800')}>
+          {d.getDate()}
+        </p>
+        {alertLevel && (
+          <span className="absolute -top-0.5 -right-1.5 flex w-2.5 h-2.5">
+            <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', alertLevel === 'red' ? 'bg-red-400' : 'bg-amber-400')} />
+            <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', alertLevel === 'red' ? 'bg-red-500' : 'bg-amber-500')} />
+          </span>
+        )}
+      </div>
       <p className={cn('text-[11px] font-semibold mt-0.5',
         selected ? 'text-blue-100' : trips.length > 0 ? (isToday ? 'text-blue-600' : 'text-gray-500') : 'text-gray-300')}>
         {trips.length > 0 ? `${active}/${trips.length}` : '—'}
