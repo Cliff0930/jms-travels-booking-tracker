@@ -222,3 +222,5 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - PostgREST two-FK ambiguity: always use `!column_id` hint on joins
 - New timestamp columns: `created_at` on all tables except `raw_messages` (uses `received_at`) and `message_logs` (uses `sent_at`)
 - **PostgREST `.neq()` excludes NULLs:** `col <> 'value'` evaluates to NULL when col IS NULL — `.neq('x','y')` silently hides rows where x is NULL. Always use `.or('x.is.null,x.neq.y')` when NULLs should be included.
+- **Do NOT add a default date window to `GET /api/bookings`:** Adding `createdFrom` by default breaks booking ref search for old records — operators look up historical bookings by ref regularly. If query performance is a concern, use pagination or a dedicated search endpoint instead.
+- **`.next/types/validator.ts` TS errors are pre-existing stale cache:** References to deleted routes (`admin/archive-backup`, `admin/archive-delete`, `cron/backup`) in this file are NOT real errors — `.next/` is gitignored and Vercel builds clean. Run `rm -rf .next` locally to clear if distracting.
