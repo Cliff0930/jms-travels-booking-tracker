@@ -2091,8 +2091,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <div className="flex gap-1 mb-4 border-b border-[#E5E7EB]">
                   {tripSheets.map((s, idx) => {
                     const tabLabel = (() => {
-                      if (s.leg?.leg_date) {
-                        const [y, m, d] = s.leg.leg_date.split('-')
+                      const dateStr = s.leg?.leg_date ?? booking.pickup_date
+                      if (dateStr) {
+                        const [y, m, d] = dateStr.split('-')
                         return `${d}/${m}/${y.slice(2)}`
                       }
                       return `Day ${s.leg?.day_number ?? (idx + 1)}`
