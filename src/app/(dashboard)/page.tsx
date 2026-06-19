@@ -441,7 +441,6 @@ export default function DashboardPage() {
       const leg = (b.booking_legs ?? []).find(l => l.leg_date === selectedDay && l.leg_status !== 'cancelled')
       if (leg) {
         const _effectiveStatus = (() => {
-          if (b.status === 'cancelled') return 'cancelled'
           if (leg.leg_status === 'completed') return 'completed'
           if (leg.leg_status === 'in_progress') return 'in_progress'
           return 'confirmed'
