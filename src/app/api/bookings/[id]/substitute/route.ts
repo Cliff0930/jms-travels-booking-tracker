@@ -183,6 +183,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ])
 
       const companyName = (booking.company as { name?: string } | null)?.name || null
+      const subPickupParam = [
+        (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+        booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+      ].filter(Boolean).join(' | ')
+      const subDropParam = [
+        (booking.drop_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+        booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+      ].filter(Boolean).join(' | ')
       const fallbackBody = [
         `Hi ${newDriver.name}, you have a new assignment.`,
         ``,
@@ -190,8 +198,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         companyName ? `Company: ${companyName}` : null,
         `Guest: ${guestName}`,
         `Guest Phone: ${guestPhone}`,
-        `Pickup: ${booking.pickup_location || 'TBD'}`,
-        `Drop: ${booking.drop_location || 'TBD'}`,
+        `Pickup: ${subPickupParam}`,
+        `Drop: ${subDropParam}`,
         `Date: ${formatDate(booking.pickup_date)}`,
         `Time: ${formatTime(booking.pickup_time)}`,
         `Pax: ${booking.pax_count?.toString() || 'TBD'}`,
@@ -212,8 +220,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           companyName || '-',
           guestName,
           guestPhone,
-          booking.pickup_location || 'TBD',
-          booking.drop_location || 'TBD',
+          subPickupParam,
+          subDropParam,
           formatDate(booking.pickup_date),
           formatTime(booking.pickup_time),
           booking.pax_count?.toString() || 'TBD',

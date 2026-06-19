@@ -92,8 +92,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     templateParams = [
       clientName,
       booking.booking_ref,
-      booking.pickup_location || 'TBD',
-      booking.drop_location || '-',
+      (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+      (booking.drop_location || '-').replace(/\r?\n+/g, ' ').trim(),
       dateFormatted,
       timeFormatted,
       tripType,
@@ -184,11 +184,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ])
 
     const pickupParam = [
-      booking.pickup_location || 'TBD',
+      (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
       booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
     ].filter(Boolean).join(' | ')
     const dropParam = [
-      booking.drop_location || 'TBD',
+      (booking.drop_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
       booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
     ].filter(Boolean).join(' | ')
 
