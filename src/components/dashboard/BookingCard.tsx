@@ -58,10 +58,17 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const SrcIcon  = src.Icon
   const countdown = getCountdown(booking.pickup_date, booking.pickup_time)
   const urgent   = booking.status === 'confirmed' && !booking.driver_id && !!countdown?.pulse
+  const noDriver = !booking.driver_id && (booking.status === 'confirmed' || booking.status === 'in_progress')
+  const isDraft  = booking.status === 'draft' || booking.status === 'pending_approval'
+
+  const borderCls = isNeedsClarification ? 'border-orange-400'
+    : noDriver    ? 'border-red-400'
+    : isPossibleDup || isDraft ? 'border-amber-400'
+    : 'border-[#E5E7EB]'
 
   return (
     <div
-      className={`bg-white rounded-xl border overflow-hidden cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-px ${isNeedsClarification ? 'border-orange-400' : isPossibleDup ? 'border-amber-400' : 'border-[#E5E7EB]'} ${statusBarClass(booking.status)}`}
+      className={`bg-white rounded-xl border overflow-hidden cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-px ${borderCls} ${statusBarClass(booking.status)}`}
       onClick={() => router.push(`/bookings/${booking.id}`)}
     >
       <div className="p-4">
@@ -122,6 +129,11 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             <div className="flex items-center gap-1 text-xs text-[#9CA3AF]">
               <User className="w-3 h-3 shrink-0" />
               <span>Booked by {bookerName}</span>
+            </div>
+          )}
+          {(noDriver || isDraft) && (
+            <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${noDriver ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+              ⚠ {noDriver ? 'No Driver Assigned' : booking.status === 'pending_approval' ? 'Awaiting Approval' : 'Draft — Confirm'}
             </div>
           )}
           {/* Route */}
