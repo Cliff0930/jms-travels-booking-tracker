@@ -3,7 +3,10 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { handleApprovalReply } from '@/lib/utils/approval-handler'
 import { fillMissingFromReply } from '@/lib/email/fill-missing'
+import type { FillMissingResult } from '@/lib/email/fill-missing'
 import { notifyOperator } from '@/lib/utils/notify-operator'
+import { sendEmail } from '@/lib/gmail/send'
+import { formatDate, formatTime } from '@/lib/utils/date'
 
 function getGmailAuth() {
   const keyJson = Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!, 'base64').toString()
@@ -166,16 +169,73 @@ export async function POST(request: Request) {
       const isCancelOrModify = /\b(cancel|called off|not required|not needed|no longer require|withdraw|scratch that|trip cancelled|reschedule|postpone|modify|change the|update (the )?booking|push (the )?booking|shift (the )?booking|earlier time|later time|different date)\b/i.test(rawContent)
 
       if (gmailThreadId && !isCancelOrModify) {
-        const { data: draftBooking } = await supabase
+        const { data: draftBookings } = await supabase
           .from('bookings')
           .select('*, client:clients!client_id(*, locations:client_locations(*))')
           .eq('gmail_thread_id', gmailThreadId)
           .eq('status', 'draft')
-          .maybeSingle()
+          .order('created_at', { ascending: true })
 
-        if (draftBooking) {
-          console.log('[gmail-webhook] reply matched draft booking:', draftBooking.booking_ref)
-          await fillMissingFromReply(supabase, draftBooking, rawContent, senderEmail, allCcEmails, gmailThreadId, rfcMessageId)
+        if (draftBookings && draftBookings.length > 0) {
+          console.log('[gmail-webhook] reply matched', draftBookings.length, 'draft booking(s):', draftBookings.map((b: Record<string, unknown>) => b.booking_ref).join(', '))
+
+          if (draftBookings.length === 1) {
+            await fillMissingFromReply(supabase, draftBookings[0], rawContent, senderEmail, allCcEmails, gmailThreadId, rfcMessageId)
+          } else {
+            // Multiple drafts (e.g. client requested 2+ cabs) — fill all, send one consolidated email
+            const results: FillMissingResult[] = []
+            for (const draft of draftBookings) {
+              const result = await fillMissingFromReply(supabase, draft, rawContent, senderEmail, allCcEmails, gmailThreadId, rfcMessageId, true)
+              results.push(result)
+            }
+
+            const firstDraft = draftBookings[0] as Record<string, unknown>
+            const storedCc: string[] = Array.isArray(firstDraft.cc_emails) ? firstDraft.cc_emails as string[] : []
+            const mergedCc = [...new Set([...allCcEmails, ...storedCc])].filter(e => !e.toLowerCase().includes('bookings@jmstravels.net'))
+            const emailCc = mergedCc.length > 0 ? mergedCc : undefined
+            const threading = { replyToThreadId: gmailThreadId, inReplyToMessageId: rfcMessageId }
+            const clientName = results[0].clientName
+            const anyStillMissing = results.some(r => r.stillMissing.length > 0)
+            const anyRequiresApproval = results.some(r => r.companyRequiresApproval)
+
+            if (anyStillMissing) {
+              const allStillMissing = [...new Set(results.flatMap(r => r.stillMissing))]
+              const refs = results.map(r => r.bookingRef).join(', ')
+              const missingList = allStillMissing.map(f => f.replace(/_/g, ' ')).join(', ')
+              const body = [
+                `Hi ${clientName},`,
+                ``,
+                `Thank you for getting back to us (Refs: ${refs}).`,
+                ``,
+                `We still need the following to complete your bookings: ${missingList}.`,
+                ``,
+                `Please reply with these details and we will confirm your bookings right away.`,
+              ].join('\n')
+              try {
+                await sendEmail({ to: senderEmail, subject: `Re: ${emailSubject || 'Booking'}`, body, cc: emailCc, ...threading })
+              } catch (e) { console.error('[gmail-webhook] multi-draft still-missing email failed', e) }
+            } else if (!anyRequiresApproval) {
+              const lines = [
+                `Hi ${clientName},`,
+                ``,
+                `We have received your ${results.length} booking requests. Here is a summary:`,
+                ``,
+              ]
+              results.forEach(({ bookingRef, merged }, i) => {
+                lines.push(`${i + 1}. Ref: ${bookingRef}`)
+                if (merged.pickup_date) lines.push(`   Date    : ${formatDate(merged.pickup_date)}${merged.pickup_time ? ` at ${formatTime(merged.pickup_time)}` : ''}`)
+                if (merged.pickup_location) lines.push(`   Pickup  : ${merged.pickup_location}`)
+                if (merged.drop_location) lines.push(`   Drop    : ${merged.drop_location}`)
+                if (merged.guest_name) lines.push(`   Guest   : ${merged.guest_name}`)
+                lines.push(``)
+              })
+              lines.push(`We will share driver details once assigned. Thank you for choosing JMS Travels.`)
+              const body = lines.join('\n')
+              try {
+                await sendEmail({ to: senderEmail, subject: `${results.length} Bookings Confirmed - JMS Travels`, body, cc: emailCc, ...threading })
+              } catch (e) { console.error('[gmail-webhook] multi-draft confirmation email failed', e) }
+            }
+          }
           continue
         }
       }

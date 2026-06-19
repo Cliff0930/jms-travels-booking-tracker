@@ -351,7 +351,7 @@ export async function POST(request: Request) {
       // Cross-channel duplicate guard: same client + same date + same time within 2 hours
       if ((client as Client)?.id && bk.extracted.pickup_date && bk.extracted.pickup_time) {
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-        const { data: dupBooking } = await supabase
+        const { data: dupBookings } = await supabase
           .from('bookings')
           .select('id, booking_ref, source')
           .eq('client_id', (client as Client).id)
@@ -359,18 +359,17 @@ export async function POST(request: Request) {
           .eq('pickup_time', bk.extracted.pickup_time)
           .in('status', ['draft', 'pending', 'pending_approval'])
           .gt('created_at', twoHoursAgo)
-          .maybeSingle()
 
-        if (dupBooking) {
+        if (dupBookings && dupBookings.length > 0) {
           // Allow same-batch duplicates — e.g. "2 Innovas" creates 2 Innova rows in one loop.
-          // Only block if the duplicate came from a different submission entirely.
-          const isWithinCurrentBatch = createdBookings.some(cb => cb.booking.id === dupBooking.id)
-          if (!isWithinCurrentBatch) {
+          // Only block if all duplicates came from a different submission entirely.
+          const allWithinCurrentBatch = dupBookings.every(dup => createdBookings.some(cb => cb.booking.id === dup.id))
+          if (!allWithinCurrentBatch) {
             await supabase.from('raw_messages')
               .update({ ai_classification: 'duplicate', processed: true, processed_at: new Date().toISOString() })
               .eq('id', raw_message_id)
             notifyOperator(
-              `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBooking.booking_ref} (via ${dupBooking.source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
+              `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBookings[0].booking_ref} (via ${dupBookings[0].source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
               'ops'
             ).catch(() => {})
             continue

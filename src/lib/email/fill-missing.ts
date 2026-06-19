@@ -8,6 +8,25 @@ function getTodayIST(): string {
   return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
+export type FillMissingResult = {
+  stillMissing: string[]
+  merged: {
+    pickup_location: string | null
+    drop_location: string | null
+    pickup_location_url: string | null
+    drop_location_url: string | null
+    pickup_date: string | null
+    pickup_time: string | null
+    pax_count: number | null | undefined
+    vehicle_type: string | null
+    guest_name: string | null
+    guest_phone: string | null
+    special_instructions: string | null
+  }
+  bookingRef: string
+  clientName: string
+  companyRequiresApproval: boolean
+}
 
 export async function fillMissingFromReply(
   supabase: ReturnType<typeof createAdminClient>,
@@ -18,7 +37,8 @@ export async function fillMissingFromReply(
   ccEmails: string[],
   threadId: string,
   originalMessageId?: string,
-): Promise<void> {
+  suppressEmail?: boolean,
+): Promise<FillMissingResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = booking.client as Record<string, any> | null
   const savedLocations = client?.locations || []
@@ -121,34 +141,36 @@ export async function fillMissingFromReply(
   const threading = { replyToThreadId: threadId, inReplyToMessageId: originalMessageId }
 
   if (stillMissing.length > 0) {
-    const missingList = stillMissing.map(f => f.replace(/_/g, ' ')).join(', ')
-    const body = [
-      `Hi ${clientName},`,
-      ``,
-      `Thank you for getting back to us (Ref: ${bookingRef}).`,
-      ``,
-      `We still need the following to complete your booking: ${missingList}.`,
-      ``,
-      `Please reply with these details and we will confirm your booking right away.`,
-    ].join('\n')
-    let sendStatus = 'failed'
-    try {
-      await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading })
-      sendStatus = 'sent'
-    } catch (e) {
-      console.error('[fill-missing] still-missing email failed for', bookingRef, e)
+    if (!suppressEmail) {
+      const missingList = stillMissing.map(f => f.replace(/_/g, ' ')).join(', ')
+      const body = [
+        `Hi ${clientName},`,
+        ``,
+        `Thank you for getting back to us (Ref: ${bookingRef}).`,
+        ``,
+        `We still need the following to complete your booking: ${missingList}.`,
+        ``,
+        `Please reply with these details and we will confirm your booking right away.`,
+      ].join('\n')
+      let sendStatus = 'failed'
+      try {
+        await sendEmail({ to: senderEmail, subject: `Re: Booking ${bookingRef}`, body, cc: emailCc, ...threading })
+        sendStatus = 'sent'
+      } catch (e) {
+        console.error('[fill-missing] still-missing email failed for', bookingRef, e)
+      }
+      await supabase.from('message_logs').insert({
+        booking_id: booking.id,
+        client_id: client?.id || null,
+        channel: 'email',
+        direction: 'outbound',
+        recipient: senderEmail,
+        content: body,
+        template_used: 'missing_info_request',
+        status: sendStatus,
+      })
     }
-    await supabase.from('message_logs').insert({
-      booking_id: booking.id,
-      client_id: client?.id || null,
-      channel: 'email',
-      direction: 'outbound',
-      recipient: senderEmail,
-      content: body,
-      template_used: 'missing_info_request',
-      status: sendStatus,
-    })
-    return
+    return { stillMissing, merged, bookingRef, clientName, companyRequiresApproval: false }
   }
 
   // All fields complete — check if approval required
@@ -159,51 +181,55 @@ export async function fillMissingFromReply(
       await supabase.from('booking_status_history').insert({
         booking_id: booking.id, old_status: 'draft', new_status: 'pending_approval', changed_by: 'system',
       })
-      return
+      return { stillMissing: [], merged, bookingRef, clientName, companyRequiresApproval: true }
     }
   }
 
   // Send booking confirmation
-  const tripLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
-  const detailLines = [
-    `Booking Reference : ${bookingRef}`,
-    merged.pickup_location    ? `Pickup            : ${merged.pickup_location}` : null,
-    merged.drop_location      ? `Drop              : ${merged.drop_location}` : null,
-    merged.pickup_date        ? `Date              : ${formatDate(merged.pickup_date)}` : null,
-    merged.pickup_time        ? `Time              : ${formatTime(merged.pickup_time)}` : null,
-    `Trip Type         : ${tripLabel[booking.trip_type] ?? booking.trip_type ?? 'Local'}`,
-    merged.guest_name         ? `Guest             : ${merged.guest_name}` : null,
-    merged.special_instructions ? `Note              : ${merged.special_instructions}` : null,
-  ].filter(Boolean).join('\n')
+  if (!suppressEmail) {
+    const tripLabel: Record<string, string> = { local: 'Local', outstation: 'Outstation', airport: 'Airport' }
+    const detailLines = [
+      `Booking Reference : ${bookingRef}`,
+      merged.pickup_location    ? `Pickup            : ${merged.pickup_location}` : null,
+      merged.drop_location      ? `Drop              : ${merged.drop_location}` : null,
+      merged.pickup_date        ? `Date              : ${formatDate(merged.pickup_date)}` : null,
+      merged.pickup_time        ? `Time              : ${formatTime(merged.pickup_time)}` : null,
+      `Trip Type         : ${tripLabel[booking.trip_type] ?? booking.trip_type ?? 'Local'}`,
+      merged.guest_name         ? `Guest             : ${merged.guest_name}` : null,
+      merged.special_instructions ? `Note              : ${merged.special_instructions}` : null,
+    ].filter(Boolean).join('\n')
 
-  const body = [
-    `Hi ${clientName},`,
-    ``,
-    `We are pleased to confirm your booking with JMS Travels.`,
-    ``,
-    detailLines,
-    ``,
-    `Our team will share your driver details once assigned.`,
-    ``,
-    `Thank you for choosing JMS Travels.`,
-  ].join('\n')
+    const body = [
+      `Hi ${clientName},`,
+      ``,
+      `We are pleased to confirm your booking with JMS Travels.`,
+      ``,
+      detailLines,
+      ``,
+      `Our team will share your driver details once assigned.`,
+      ``,
+      `Thank you for choosing JMS Travels.`,
+    ].join('\n')
 
-  let confirmStatus = 'failed'
-  try {
-    await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading })
-    confirmStatus = 'sent'
-  } catch (e) {
-    console.error('[fill-missing] confirmation email failed for', bookingRef, e)
+    let confirmStatus = 'failed'
+    try {
+      await sendEmail({ to: senderEmail, subject: `Booking Confirmed - ${bookingRef}`, body, cc: emailCc, ...threading })
+      confirmStatus = 'sent'
+    } catch (e) {
+      console.error('[fill-missing] confirmation email failed for', bookingRef, e)
+    }
+
+    await supabase.from('message_logs').insert({
+      booking_id: booking.id,
+      client_id: client?.id || null,
+      channel: 'email',
+      direction: 'outbound',
+      recipient: senderEmail,
+      content: body,
+      template_used: 'booking_received',
+      status: confirmStatus,
+    })
   }
 
-  await supabase.from('message_logs').insert({
-    booking_id: booking.id,
-    client_id: client?.id || null,
-    channel: 'email',
-    direction: 'outbound',
-    recipient: senderEmail,
-    content: body,
-    template_used: 'booking_received',
-    status: confirmStatus,
-  })
+  return { stillMissing: [], merged, bookingRef, clientName, companyRequiresApproval: false }
 }
