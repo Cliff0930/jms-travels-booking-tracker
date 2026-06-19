@@ -116,11 +116,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // approved template — avoids sending a separate free-form message that
       // requires an open 24h window which drivers may not have.
       const pickupParam = [
-        booking.pickup_location || 'TBD',
+        (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
         booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
       ].filter(Boolean).join(' | ')
       const dropParam = [
-        booking.drop_location || 'TBD',
+        (booking.drop_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
         booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
       ].filter(Boolean).join(' | ')
 
