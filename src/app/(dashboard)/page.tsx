@@ -135,13 +135,14 @@ const TILE_LABEL: Record<string, string> = {
   draft: 'Draft', pending_approval: 'Pending', cancelled: 'Cancelled',
 }
 
-function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
+function BookingTile({ booking }: { booking: Booking & { _legDay?: number; _effectiveStatus?: string } }) {
   const company = booking.company as { id: string; name: string } | null | undefined
   const driver  = booking.driver  as { name: string; vehicle_number?: string | null } | null | undefined
+  const displayStatus = booking._effectiveStatus ?? booking.status
 
   return (
     <Link href={`/bookings/${booking.id}`}
-      className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', TILE_CHIP[booking.status])}>
+      className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', TILE_CHIP[displayStatus])}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-mono text-gray-400">{booking.booking_ref}</p>
@@ -149,8 +150,8 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
           {company && <p className="text-xs text-gray-500 truncate">{company.name}</p>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', TILE_CHIP[booking.status])}>
-            {TILE_LABEL[booking.status] ?? booking.status}
+          <span className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', TILE_CHIP[displayStatus])}>
+            {TILE_LABEL[displayStatus] ?? displayStatus}
           </span>
           <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
         </div>
@@ -161,7 +162,6 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number } }) {
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
             Day {booking._legDay}{booking.total_days ? ` of ${booking.total_days}` : ''}
           </span>
-          <span className="text-[10px] text-gray-400">continuation</span>
         </div>
       )}
 
@@ -439,7 +439,15 @@ export default function DashboardPage() {
         continue
       }
       const leg = (b.booking_legs ?? []).find(l => l.leg_date === selectedDay && l.leg_status !== 'cancelled')
-      if (leg) trips.push({ ...b, _legDay: leg.day_number })
+      if (leg) {
+        const _effectiveStatus = (() => {
+          if (b.status === 'cancelled') return 'cancelled'
+          if (leg.leg_status === 'completed') return 'completed'
+          if (leg.leg_status === 'in_progress') return 'in_progress'
+          return 'confirmed'
+        })()
+        trips.push({ ...b, _legDay: leg.day_number, _effectiveStatus } as Booking & { _legDay?: number; _effectiveStatus?: string })
+      }
     }
     return trips.sort(byTime)
   }, [bookings, selectedDay])

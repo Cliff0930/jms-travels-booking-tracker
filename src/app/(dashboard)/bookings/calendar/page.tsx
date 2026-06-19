@@ -78,7 +78,7 @@ export default function BookingCalendarPage() {
   // Group by pickup_date AND leg dates (Day 2+)
   const byDate = useMemo(() => {
     const map: Record<string, CalBooking[]> = {}
-    const todayStr = fmtKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
+    const todayStr = fmtKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()) // still used for past-date fallback
     for (const b of bookings) {
       if (!b.pickup_date) continue
       const pickupKey = b.pickup_date.slice(0, 10)
@@ -92,13 +92,14 @@ export default function BookingCalendarPage() {
         if (legKey === pickupKey) continue  // Day 1 already added above
         if (!map[legKey]) map[legKey] = []
         if (!map[legKey].find(x => x.id === b.id)) {
-          // Derive status for this specific leg's date
+          // Use actual leg_status as source of truth (updated by driver-status handler)
           const _effectiveStatus = (() => {
             if (b.status === 'cancelled') return 'cancelled'
-            if (b.status === 'completed') return 'completed'
-            if (legKey > todayStr) return 'confirmed'   // future leg — not started
-            if (legKey < todayStr) return 'completed'   // past leg — must have run
-            return b.status                             // today's leg — use booking status
+            if (leg.leg_status === 'completed') return 'completed'
+            if (leg.leg_status === 'in_progress') return 'in_progress'
+            // upcoming: past date = must have run (old data fallback), else confirmed
+            if (legKey < todayStr) return 'completed'
+            return 'confirmed'
           })()
           map[legKey].push({ ...b, _legDay: leg.day_number, _effectiveStatus })
         }

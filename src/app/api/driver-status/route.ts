@@ -167,6 +167,11 @@ export async function POST(request: Request) {
     await supabase.from('drivers').update({ status: driverStatus }).eq('id', booking.driver_id)
   }
 
+  if (leg_id) {
+    const legStatus = status === 'arrived' ? 'in_progress' : 'completed'
+    await supabase.from('booking_legs').update({ leg_status: legStatus }).eq('id', leg_id)
+  }
+
   // Trip sheet handling
   if (status === 'arrived') {
     let shouldInsert = true
