@@ -151,10 +151,17 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number; _effe
   const company = booking.company as { id: string; name: string } | null | undefined
   const driver  = booking.driver  as { name: string; vehicle_number?: string | null } | null | undefined
   const displayStatus = booking._effectiveStatus ?? booking.status
+  const noDriver = !driver && (displayStatus === 'confirmed' || displayStatus === 'in_progress')
+  const isDraft  = displayStatus === 'draft' || displayStatus === 'pending_approval'
 
   return (
     <Link href={`/bookings/${booking.id}`}
-      className={cn('block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow', TILE_CHIP[displayStatus])}>
+      className={cn(
+        'block bg-white rounded-xl border p-3 space-y-2 hover:shadow-md transition-shadow',
+        TILE_CHIP[displayStatus],
+        noDriver && '!border-l-4 !border-l-red-500',
+        isDraft  && '!border-l-4 !border-l-amber-500',
+      )}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-mono text-gray-400">{booking.booking_ref}</p>
@@ -168,6 +175,12 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number; _effe
           <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
         </div>
       </div>
+
+      {(noDriver || isDraft) && (
+        <div className={cn('flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full w-fit', noDriver ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700')}>
+          ⚠ {noDriver ? 'No Driver Assigned' : displayStatus === 'pending_approval' ? 'Awaiting Approval' : 'Draft — Confirm'}
+        </div>
+      )}
 
       {booking._legDay && (
         <div className="flex items-center gap-1.5">
@@ -205,8 +218,8 @@ function BookingTile({ booking }: { booking: Booking & { _legDay?: number; _effe
           </>
         ) : (
           <>
-            <User className="w-3 h-3 text-gray-300 shrink-0" />
-            <span className="text-xs text-gray-400 italic">No driver assigned</span>
+            <User className={cn('w-3 h-3 shrink-0', noDriver ? 'text-red-400' : 'text-gray-300')} />
+            <span className={cn('text-xs italic', noDriver ? 'text-red-500 font-medium' : 'text-gray-400')}>No driver assigned</span>
           </>
         )}
       </div>
