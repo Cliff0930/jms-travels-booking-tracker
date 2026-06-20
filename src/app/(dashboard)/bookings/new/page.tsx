@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle, UserPlus } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Building2, User, FileText, CheckCircle, UserPlus, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils/date'
 import type { Client, Company } from '@/types'
@@ -21,6 +21,8 @@ import { CompanyCombobox } from '@/components/shared/CompanyCombobox'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
+
+interface StopDraft { location: string; time: string; guest: string }
 
 interface FormState {
   booking_type: 'company' | 'personal'
@@ -323,6 +325,17 @@ function NewBookingForm() {
   const createBooking = useCreateBooking()
   const [error, setError] = useState('')
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [multiStop, setMultiStop] = useState(false)
+  const [stopsDraft, setStopsDraft] = useState<StopDraft[]>([
+    { location: '', time: '', guest: '' },
+    { location: '', time: '', guest: '' },
+  ])
+
+  function updateStop(i: number, key: keyof StopDraft, val: string) {
+    setStopsDraft(s => s.map((stop, idx) => idx === i ? { ...stop, [key]: val } : stop))
+  }
+  function addStop() { setStopsDraft(s => [...s, { location: '', time: '', guest: '' }]) }
+  function removeStop(i: number) { setStopsDraft(s => s.filter((_, idx) => idx !== i)) }
 
   const [form, setForm] = useState<FormState>({
     booking_type: 'company',
@@ -389,13 +402,25 @@ function NewBookingForm() {
     setError('')
     if (!form.client_id)                                          { setError('Client is required — select who booked this trip'); return }
     if (form.booking_type === 'company' && !form.company_id)      { setError('Company is required for corporate bookings'); return }
-    if (!form.pickup_location.trim()) { setError('Pickup location is required'); return }
     if (!form.pickup_date)            { setError('Pickup date is required'); return }
     if (!form.pickup_time)            { setError('Pickup time is required'); return }
 
+    const validStops = multiStop ? stopsDraft.filter(s => s.location.trim()) : []
+    if (multiStop) {
+      if (validStops.length < 2) { setError('Multi-stop requires at least 2 pickup addresses'); return }
+    } else {
+      if (!form.pickup_location.trim()) { setError('Pickup location is required'); return }
+    }
+
+    const pickupStops = multiStop && validStops.length >= 2
+      ? validStops.map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null }))
+      : undefined
+    const effectivePickup = multiStop ? validStops[0].location.trim() : form.pickup_location
+
     try {
       const booking = await createBooking.mutateAsync({
-        pickup_location: form.pickup_location,
+        pickup_location: effectivePickup,
+        pickup_stops: pickupStops,
         drop_location: form.drop_location || undefined,
         pickup_date: form.pickup_date,
         pickup_time: form.pickup_time,
@@ -427,7 +452,7 @@ function NewBookingForm() {
     { label: 'Type', value: `${form.booking_type.charAt(0).toUpperCase() + form.booking_type.slice(1)} · ${form.trip_type.charAt(0).toUpperCase() + form.trip_type.slice(1)}` },
     { label: 'Client', value: selectedClient?.name || form.guest_name || null },
     { label: 'Company', value: selectedCompany?.name || null },
-    { label: 'Pickup', value: form.pickup_location || null },
+    { label: 'Pickup', value: multiStop ? (stopsDraft.filter(s => s.location.trim()).length >= 2 ? `${stopsDraft.filter(s => s.location.trim()).length} stops` : null) : (form.pickup_location || null) },
     { label: 'Drop', value: form.drop_location || null },
     { label: 'Date', value: form.pickup_date ? formatDate(form.pickup_date) : null },
     { label: 'Time', value: form.pickup_time || null },
@@ -437,7 +462,8 @@ function NewBookingForm() {
   ].filter(i => i.value)
 
   const isReadyToSubmit = !!(
-    form.pickup_location && form.pickup_date && form.pickup_time &&
+    (multiStop ? stopsDraft.filter(s => s.location.trim()).length >= 2 : form.pickup_location) &&
+    form.pickup_date && form.pickup_time &&
     form.client_id &&
     (form.booking_type === 'personal' || form.company_id)
   )
@@ -576,19 +602,85 @@ function NewBookingForm() {
 
               {/* Locations */}
               <div className="space-y-3 mb-4">
-                <div>
-                  <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
-                    Pickup Location <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={form.pickup_location}
-                    onChange={e => setField('pickup_location', e.target.value)}
-                    placeholder="Full pickup address"
-                    className="border-[#C3C5D7] h-9"
-                    required
-                  />
-                </div>
+                {/* Pickup — single or multi-stop */}
+                {!multiStop ? (
+                  <div>
+                    <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
+                      Pickup Location <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={form.pickup_location}
+                      onChange={e => setField('pickup_location', e.target.value)}
+                      placeholder="Full pickup address"
+                      className="border-[#C3C5D7] h-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMultiStop(true)
+                        setStopsDraft([
+                          { location: form.pickup_location, time: '', guest: '' },
+                          { location: '', time: '', guest: '' },
+                        ])
+                      }}
+                      className="mt-1.5 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline"
+                    >
+                      <Plus className="w-3 h-3" /> Add multiple pickup stops
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs text-[#737686] flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#1A56DB]" />
+                        Pickup Stops <span className="text-red-500">*</span>
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={() => { setMultiStop(false); setField('pickup_location', stopsDraft[0]?.location || '') }}
+                        className="flex items-center gap-0.5 text-xs text-[#737686] hover:text-red-500"
+                      >
+                        <X className="w-3 h-3" /> Single pickup
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {stopsDraft.map((stop, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-[#1A56DB] text-white text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
+                          <Input
+                            value={stop.location}
+                            onChange={e => updateStop(i, 'location', e.target.value)}
+                            placeholder={`Stop ${i + 1} address`}
+                            className="border-[#C3C5D7] h-9 flex-1 min-w-0"
+                            autoFocus={i === 0}
+                          />
+                          <Input
+                            value={stop.time}
+                            type="time"
+                            onChange={e => updateStop(i, 'time', e.target.value)}
+                            className="border-[#C3C5D7] h-9 w-28 shrink-0"
+                          />
+                          <Input
+                            value={stop.guest}
+                            onChange={e => updateStop(i, 'guest', e.target.value)}
+                            placeholder="Guest"
+                            className="border-[#C3C5D7] h-9 w-24 shrink-0"
+                          />
+                          {stopsDraft.length > 2 && (
+                            <button type="button" onClick={() => removeStop(i)} className="text-[#9CA3AF] hover:text-red-500 shrink-0">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" onClick={addStop} className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline mt-1">
+                        <Plus className="w-3 h-3" /> Add stop
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <Label className="text-xs text-[#737686] mb-1.5 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-[#737686]" />

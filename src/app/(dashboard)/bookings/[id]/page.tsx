@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy, Navigation } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy, Navigation, Plus } from 'lucide-react'
 import type { PickupStop } from '@/types'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
@@ -263,6 +263,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [fieldDraft, setFieldDraft] = useState<string>('')
   const [fieldDraft2, setFieldDraft2] = useState<string>('')
   const [fieldDraftPhone, setFieldDraftPhone] = useState<string>('')
+  const [stopsEditorDraft, setStopsEditorDraft] = useState<{ location: string; time: string; guest: string }[]>([])
   const [fieldReason, setFieldReason] = useState<string>('')
   const [fieldReasonOther, setFieldReasonOther] = useState<string>('')
   const [savingField, setSavingField] = useState(false)
@@ -345,6 +346,26 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     setFieldDraftPhone('')
     setFieldReason('')
     setFieldReasonOther('')
+    setStopsEditorDraft([])
+  }
+
+  function startStopsEditor() {
+    if (!booking) return
+    const existing = booking.pickup_stops as PickupStop[] | null
+    setStopsEditorDraft(
+      existing && existing.length >= 2
+        ? existing.map(s => ({ location: s.location, time: s.time || '', guest: s.guest || '' }))
+        : [
+            { location: booking.pickup_location || '', time: '', guest: '' },
+            { location: '', time: '', guest: '' },
+          ]
+    )
+    setEditingField('pickup_stops')
+    setFieldDraft('')
+    setFieldDraft2('')
+    setFieldDraftPhone('')
+    setFieldReason('')
+    setFieldReasonOther('')
   }
 
   async function handleFieldSave() {
@@ -354,7 +375,19 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     setSavingField(true)
     try {
       let changes: Record<string, unknown>
-      if (editingField === 'total_days_date') {
+      if (editingField === 'pickup_stops') {
+        const validStops = stopsEditorDraft
+          .filter(s => s.location.trim())
+          .map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null }))
+        if (validStops.length === 1) {
+          toast.error('Add at least 2 pickup stop addresses, or remove all stops for single pickup')
+          setSavingField(false)
+          return
+        }
+        changes = validStops.length >= 2
+          ? { pickup_stops: validStops, pickup_location: validStops[0].location }
+          : { pickup_stops: null }
+      } else if (editingField === 'total_days_date') {
         changes = { pickup_date: fieldDraft, total_days: parseInt(fieldDraft2) || 1 }
       } else {
         let value: unknown = fieldDraft
@@ -1012,10 +1045,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     )}
                   </Label>
                   {canEdit && !editingField && (
-                    <button onClick={() => startField('pickup_location', booking.pickup_location || '')}
-                            className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {!(booking.pickup_stops as PickupStop[] | null)?.length && (
+                        <button onClick={startStopsEditor}
+                          className="flex items-center gap-1 text-[10px] font-medium text-[#737686] hover:text-[#1A56DB] px-1.5 py-0.5 rounded hover:bg-[#EDEDF8] transition-colors">
+                          <Plus className="w-3 h-3" /> Stops
+                        </button>
+                      )}
+                      <button onClick={() => startField('pickup_location', booking.pickup_location || '')}
+                              className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 {editingField === 'pickup_location' ? (
@@ -1036,17 +1077,89 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              {/* Multi-stop picks — only shown when pickup_stops has 2+ entries */}
+              {/* Multi-stop picks — editor when editing, read-only otherwise */}
               {(() => {
                 const stops = booking.pickup_stops as PickupStop[] | null
-                if (!stops || stops.length < 2) return null
+                const hasStops = stops && stops.length >= 2
+
+                if (editingField === 'pickup_stops') {
+                  return (
+                    <div className="sm:col-span-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="flex items-center gap-1.5">
+                          <Navigation className="w-3.5 h-3.5 text-[#737686]" />
+                          Pickup Stops
+                        </Label>
+                        {hasStops && (
+                          <button type="button" onClick={() => setStopsEditorDraft([])}
+                            className="flex items-center gap-1 text-xs text-[#737686] hover:text-red-500 hover:underline">
+                            <X className="w-3 h-3" /> Remove all stops
+                          </button>
+                        )}
+                      </div>
+                      {stopsEditorDraft.length === 0 ? (
+                        <p className="text-sm text-[#737686] italic mb-2">All stops removed — saving will revert to single pickup.</p>
+                      ) : (
+                        <div className="space-y-2 mb-2">
+                          {stopsEditorDraft.map((stop, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-[#1A56DB] text-white text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
+                              <Input
+                                value={stop.location}
+                                onChange={e => setStopsEditorDraft(d => d.map((s, j) => j === i ? { ...s, location: e.target.value } : s))}
+                                placeholder={`Stop ${i + 1} address`}
+                                className="border-[#1A56DB] bg-[#F0F4FF] flex-1 min-w-0"
+                                autoFocus={i === 0}
+                              />
+                              <Input
+                                type="time"
+                                value={stop.time}
+                                onChange={e => setStopsEditorDraft(d => d.map((s, j) => j === i ? { ...s, time: e.target.value } : s))}
+                                className="border-[#1A56DB] bg-[#F0F4FF] w-28 shrink-0"
+                              />
+                              <Input
+                                value={stop.guest}
+                                onChange={e => setStopsEditorDraft(d => d.map((s, j) => j === i ? { ...s, guest: e.target.value } : s))}
+                                placeholder="Guest"
+                                className="border-[#1A56DB] bg-[#F0F4FF] w-24 shrink-0"
+                              />
+                              {stopsEditorDraft.length > 2 && (
+                                <button type="button"
+                                  onClick={() => setStopsEditorDraft(d => d.filter((_, j) => j !== i))}
+                                  className="text-[#9CA3AF] hover:text-red-500 shrink-0">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button type="button"
+                            onClick={() => setStopsEditorDraft(d => [...d, { location: '', time: '', guest: '' }])}
+                            className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline mt-1">
+                            <Plus className="w-3 h-3" /> Add stop
+                          </button>
+                        </div>
+                      )}
+                      {reasonPickerJSX}
+                    </div>
+                  )
+                }
+
+                if (!hasStops) return null
                 return (
                   <div className="sm:col-span-2">
-                    <Label className="flex items-center gap-1.5 mb-2">
-                      <Navigation className="w-3.5 h-3.5 text-[#737686]" />
-                      Pickup Stops
-                      <span className="text-xs text-[#737686] font-normal">— Multi-stop trip</span>
-                    </Label>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 text-[#737686]" />
+                        Pickup Stops
+                        <span className="text-xs text-[#737686] font-normal">— Multi-stop trip</span>
+                      </Label>
+                      {canEdit && !editingField && (
+                        <button onClick={startStopsEditor}
+                          className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                     <div className="rounded border border-[#C3C5D7] bg-[#F3F3FE] divide-y divide-[#E4E4F0]">
                       {stops.map(s => (
                         <div key={s.order} className="flex items-start gap-3 px-3 py-2 text-sm">
