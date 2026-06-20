@@ -350,7 +350,7 @@ async function processClientMessage(
     // or maps link, check if there's a recent booking to update the pickup_location on.
     const hasMapsUrl = /https?:\/\/(maps\.(app\.goo\.gl|google\.com)|goo\.gl\/maps)/i.test(rawContent)
     const noBookingSignals = !rawContent.match(
-      /\b(book(ing)?|cab|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
+      /\b(book(ing)?|cab|car|vehicle|ride|airport|tonight|tomorrow|today|morning|afternoon|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
     )
     const isLocationFollowUp = noBookingSignals && (hasMapsUrl || rawContent.trim().split('\n').length <= 5)
 
@@ -441,7 +441,7 @@ async function processClientMessage(
     // Explicit modify/cancel keywords
     const hasExplicitModifyKeyword = /\b(cancel|modify|change|reschedule|postpone|update booking)\b/i.test(rawContent)
     // Date patterns: DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YY, YYYY-MM-DD, day names, month names, relative dates
-    const hasDatePattern = /\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|day after tomorrow|next week|next month|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}|\d{1,2}(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i.test(rawContent)
+    const hasDatePattern = /\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|today|day after tomorrow|next week|next month|this morning|this afternoon|this evening|right now|asap|immediately|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}|\d{1,2}(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i.test(rawContent)
     // Time patterns: 9am, 9 AM, 9:00, 9:30 pm, 9.30 am, 09:00
     const hasTimePattern = /\b(\d{1,2}[:.]\d{2}\s*(?:am|pm|hours|hrs)?|\d{1,2}\s*(?:am|pm))\b/i.test(rawContent)
 
@@ -592,7 +592,7 @@ async function processClientMessage(
   const fullText = updatedMessages.map(m => m.content).join('\n')
   const allPhones = fullText.match(/\b[6-9]\d{9}\b/g) ?? []
   const uniqueGuestPhones = new Set(allPhones.filter(p => !senderPhone.endsWith(p)))
-  if (uniqueGuestPhones.size >= 3) {
+  if (uniqueGuestPhones.size >= 2) {
     const clientSavedLocs = client.locations ?? []
     const bulkText = updatedMessages.filter(m => m.role === 'client').map(m => m.content).join('\n\n')
 
