@@ -136,9 +136,18 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   const [tab, setTab] = useState<Tab>('actual')
 
   useEffect(() => {
-    fetch(`/api/bookings/${bookingId}/trip-sheet`)
-      .then(r => r.json())
-      .then((sheets: TripSheet[]) => {
+    async function load() {
+      try {
+        let sheets: TripSheet[] = await fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json())
+
+        if (sheets.length === 0) {
+          const res = await fetch(`/api/bookings/${bookingId}/trip-sheet`, { method: 'POST' })
+          if (res.ok) {
+            const created: TripSheet = await res.json()
+            sheets = [created]
+          }
+        }
+
         const s = sheets.find(x => x.id === tripSheetId) ?? sheets[0] ?? null
         setSheet(s)
         if (s) {
@@ -171,9 +180,13 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
             trip_closing_date:     ns(s.trip_closing_date),
           })
         }
+      } catch {
+        // silent — loading state cleared in finally
+      } finally {
         setLoading(false)
-      })
-      .catch(() => setLoading(false))
+      }
+    }
+    load()
   }, [bookingId, tripSheetId])
 
   function set(key: keyof Form, val: string) {

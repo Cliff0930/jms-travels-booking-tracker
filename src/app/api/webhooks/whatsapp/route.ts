@@ -350,9 +350,9 @@ async function processClientMessage(
     // or maps link, check if there's a recent booking to update the pickup_location on.
     const hasMapsUrl = /https?:\/\/(maps\.(app\.goo\.gl|google\.com)|goo\.gl\/maps)/i.test(rawContent)
     const noBookingSignals = !rawContent.match(
-      /\b(book(ing)?|cab|drop|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
+      /\b(book(ing)?|cab|airport|tomorrow|today|morning|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
     )
-    const isLocationFollowUp = hasMapsUrl || (noBookingSignals && rawContent.trim().split('\n').length <= 5)
+    const isLocationFollowUp = noBookingSignals && (hasMapsUrl || rawContent.trim().split('\n').length <= 5)
 
     if (isLocationFollowUp) {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()

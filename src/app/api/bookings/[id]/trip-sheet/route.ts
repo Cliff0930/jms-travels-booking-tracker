@@ -51,6 +51,28 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json(sheets)
 }
 
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = createAdminClient()
+
+  // Idempotent — return existing sheet if one already exists
+  const { data: existing } = await supabase
+    .from('trip_sheets')
+    .select('*')
+    .eq('booking_id', id)
+    .limit(1)
+    .maybeSingle()
+  if (existing) return NextResponse.json(existing)
+
+  const { data, error } = await supabase
+    .from('trip_sheets')
+    .insert({ booking_id: id })
+    .select()
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const url = new URL(request.url)
