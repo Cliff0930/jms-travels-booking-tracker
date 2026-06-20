@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   supabase.from('drivers').update({ last_app_seen: new Date().toISOString() }).eq('id', verified.driverId)
   const today = getTodayIST()
 
-  const BOOKING_SELECT = 'id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_date, pickup_time, pax_count, guest_name, guest_phone, special_instructions, status, gps_tracking_enabled, is_settlement_duty, trip_type, total_days, booking_legs(id, day_number, leg_date, leg_status), booker:clients!client_id(name, primary_phone), clients!guest_client_id(is_vip, designation), company:companies!company_id(name)'
+  const BOOKING_SELECT = 'id, booking_ref, pickup_location, drop_location, pickup_location_url, drop_location_url, pickup_stops, pickup_date, pickup_time, pax_count, guest_name, guest_phone, special_instructions, status, gps_tracking_enabled, is_settlement_duty, trip_type, total_days, booking_legs(id, day_number, leg_date, leg_status), booker:clients!client_id(name, primary_phone), clients!guest_client_id(is_vip, designation), company:companies!company_id(name)'
 
   let { data } = await supabase
     .from('bookings')
