@@ -5,7 +5,7 @@ const MADAM_RE = /^(Mrs\.?|Ms\.?|Miss\.?|Smt\.?)\s+/i
 export function sanitizeWaParam(text: string): string {
   return text
     .replace(/[\u200B\u200C\u200D\u200E\u200F\u00AD\uFEFF\u2028\u2029]/g, '')
-    .replace(/\r?\n+/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
     .replace(/ {2,}/g, ' ')
     .trim()
 }
