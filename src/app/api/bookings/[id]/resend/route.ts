@@ -257,7 +257,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await supabase.from('message_logs').insert({
     booking_id: id,
     client_id: client?.id || null,
-    driver_id: message_type === 'trip_brief_driver' ? (driver?.id ?? null) : null,
+    driver_id: message_type === 'trip_brief_driver' && recipient === driver?.phone ? (driver?.id ?? null) : null,
     channel,
     direction: 'outbound',
     recipient,
