@@ -1,11 +1,10 @@
 const SIR_RE   = /^(Mr\.?|Shri\.?|Sri\.?|Sh\.?)\s+/i
 const MADAM_RE = /^(Mrs\.?|Ms\.?|Miss\.?|Smt\.?)\s+/i
 
-/** Strips invisible Unicode and collapses spaces — safe for WhatsApp template params */
+/** Strips invisible Unicode and collapses spaces - safe for WhatsApp template params */
 export function sanitizeWaParam(text: string): string {
-  // eslint-disable-next-line no-control-regex
   return text
-    .replace(/[​-‏­﻿  ]/g, '')
+    .replace(/[\u200B\u200C\u200D\u200E\u200F\u00AD\uFEFF\u2028\u2029]/g, '')
     .replace(/\r?\n+/g, ' ')
     .replace(/ {2,}/g, ' ')
     .trim()
