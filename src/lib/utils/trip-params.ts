@@ -1,11 +1,7 @@
 import { sanitizeWaParam } from './client-name'
+import type { PickupStop } from '@/types'
 
-export interface PickupStop {
-  order: number
-  location: string
-  time: string | null
-  guest: string | null
-}
+export type { PickupStop }
 
 /**
  * Builds the pickup template param for WhatsApp — safe for Meta (no newlines).

@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy } from 'lucide-react'
+import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy, Navigation } from 'lucide-react'
+import type { PickupStop } from '@/types'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
@@ -1034,6 +1035,31 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                 )}
               </div>
+
+              {/* Multi-stop picks — only shown when pickup_stops has 2+ entries */}
+              {(() => {
+                const stops = booking.pickup_stops as PickupStop[] | null
+                if (!stops || stops.length < 2) return null
+                return (
+                  <div className="sm:col-span-2">
+                    <Label className="flex items-center gap-1.5 mb-2">
+                      <Navigation className="w-3.5 h-3.5 text-[#737686]" />
+                      Pickup Stops
+                      <span className="text-xs text-[#737686] font-normal">— Multi-stop trip</span>
+                    </Label>
+                    <div className="rounded border border-[#C3C5D7] bg-[#F3F3FE] divide-y divide-[#E4E4F0]">
+                      {stops.map(s => (
+                        <div key={s.order} className="flex items-start gap-3 px-3 py-2 text-sm">
+                          <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#1A56DB] text-white text-xs flex items-center justify-center font-medium">{s.order}</span>
+                          <span className="flex-1 text-[#191B23]">{s.location}</span>
+                          {s.time && <span className="flex-shrink-0 text-[#737686] tabular-nums">{s.time}</span>}
+                          {s.guest && <span className="flex-shrink-0 text-[#434654] font-medium">{s.guest}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Drop Location */}
               <div className="sm:col-span-2">

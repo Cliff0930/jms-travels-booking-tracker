@@ -173,6 +173,13 @@ export interface ReimbursementSheet {
   driver_phone: string | null
 }
 
+export interface PickupStop {
+  order: number
+  location: string
+  time: string | null
+  guest: string | null
+}
+
 export interface Booking {
   id: string
   booking_ref: string
@@ -206,6 +213,7 @@ export interface Booking {
   approved_at: string | null
   approval_note: string | null
   booking_type: 'company' | 'personal' | null
+  pickup_stops: PickupStop[] | null
   guest_client_id: string | null
   cancelled_reason: string | null
   cancelled_at: string | null
