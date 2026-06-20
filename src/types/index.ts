@@ -178,6 +178,7 @@ export interface PickupStop {
   location: string
   time: string | null
   guest: string | null
+  guest_phone: string | null
 }
 
 export interface Booking {

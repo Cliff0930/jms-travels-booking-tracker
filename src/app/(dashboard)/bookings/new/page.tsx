@@ -22,7 +22,7 @@ import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 
 const VEHICLE_TYPES = ['Sedan', 'SUV', 'MUV', 'Van', 'Tempo', 'Bus', 'Luxury']
 
-interface StopDraft { location: string; time: string; guest: string }
+interface StopDraft { location: string; time: string; guest: string; phone: string }
 
 interface FormState {
   booking_type: 'company' | 'personal'
@@ -327,14 +327,14 @@ function NewBookingForm() {
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [multiStop, setMultiStop] = useState(false)
   const [stopsDraft, setStopsDraft] = useState<StopDraft[]>([
-    { location: '', time: '', guest: '' },
-    { location: '', time: '', guest: '' },
+    { location: '', time: '', guest: '', phone: '' },
+    { location: '', time: '', guest: '', phone: '' },
   ])
 
   function updateStop(i: number, key: keyof StopDraft, val: string) {
     setStopsDraft(s => s.map((stop, idx) => idx === i ? { ...stop, [key]: val } : stop))
   }
-  function addStop() { setStopsDraft(s => [...s, { location: '', time: '', guest: '' }]) }
+  function addStop() { setStopsDraft(s => [...s, { location: '', time: '', guest: '', phone: '' }]) }
   function removeStop(i: number) { setStopsDraft(s => s.filter((_, idx) => idx !== i)) }
 
   const [form, setForm] = useState<FormState>({
@@ -413,7 +413,7 @@ function NewBookingForm() {
     }
 
     const pickupStops = multiStop && validStops.length >= 2
-      ? validStops.map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null }))
+      ? validStops.map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null, guest_phone: s.phone.trim() || null }))
       : undefined
     const effectivePickup = multiStop ? validStops[0].location.trim() : form.pickup_location
 
@@ -620,8 +620,8 @@ function NewBookingForm() {
                       onClick={() => {
                         setMultiStop(true)
                         setStopsDraft([
-                          { location: form.pickup_location, time: '', guest: '' },
-                          { location: '', time: '', guest: '' },
+                          { location: form.pickup_location, time: '', guest: '', phone: '' },
+                          { location: '', time: '', guest: '', phone: '' },
                         ])
                       }}
                       className="mt-1.5 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline"
@@ -664,8 +664,15 @@ function NewBookingForm() {
                           <Input
                             value={stop.guest}
                             onChange={e => updateStop(i, 'guest', e.target.value)}
-                            placeholder="Guest"
+                            placeholder="Guest name"
                             className="border-[#C3C5D7] h-9 w-24 shrink-0"
+                          />
+                          <Input
+                            value={stop.phone}
+                            onChange={e => updateStop(i, 'phone', e.target.value)}
+                            placeholder="Phone"
+                            className="border-[#C3C5D7] h-9 w-28 shrink-0"
+                            inputMode="tel"
                           />
                           {stopsDraft.length > 2 && (
                             <button type="button" onClick={() => removeStop(i)} className="text-[#9CA3AF] hover:text-red-500 shrink-0">

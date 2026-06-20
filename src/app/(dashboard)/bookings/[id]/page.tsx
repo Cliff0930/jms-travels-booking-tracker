@@ -263,7 +263,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [fieldDraft, setFieldDraft] = useState<string>('')
   const [fieldDraft2, setFieldDraft2] = useState<string>('')
   const [fieldDraftPhone, setFieldDraftPhone] = useState<string>('')
-  const [stopsEditorDraft, setStopsEditorDraft] = useState<{ location: string; time: string; guest: string }[]>([])
+  const [stopsEditorDraft, setStopsEditorDraft] = useState<{ location: string; time: string; guest: string; phone: string }[]>([])
   const [fieldReason, setFieldReason] = useState<string>('')
   const [fieldReasonOther, setFieldReasonOther] = useState<string>('')
   const [savingField, setSavingField] = useState(false)
@@ -354,10 +354,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     const existing = booking.pickup_stops as PickupStop[] | null
     setStopsEditorDraft(
       existing && existing.length >= 2
-        ? existing.map(s => ({ location: s.location, time: s.time || '', guest: s.guest || '' }))
+        ? existing.map(s => ({ location: s.location, time: s.time || '', guest: s.guest || '', phone: s.guest_phone || '' }))
         : [
-            { location: booking.pickup_location || '', time: '', guest: '' },
-            { location: '', time: '', guest: '' },
+            { location: booking.pickup_location || '', time: '', guest: '', phone: '' },
+            { location: '', time: '', guest: '', phone: '' },
           ]
     )
     setEditingField('pickup_stops')
@@ -378,7 +378,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       if (editingField === 'pickup_stops') {
         const validStops = stopsEditorDraft
           .filter(s => s.location.trim())
-          .map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null }))
+          .map((s, i) => ({ order: i + 1, location: s.location.trim(), time: s.time.trim() || null, guest: s.guest.trim() || null, guest_phone: s.phone.trim() || null }))
         if (validStops.length === 1) {
           toast.error('Add at least 2 pickup stop addresses, or remove all stops for single pickup')
           setSavingField(false)
@@ -1120,8 +1120,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                               <Input
                                 value={stop.guest}
                                 onChange={e => setStopsEditorDraft(d => d.map((s, j) => j === i ? { ...s, guest: e.target.value } : s))}
-                                placeholder="Guest"
+                                placeholder="Guest name"
                                 className="border-[#1A56DB] bg-[#F0F4FF] w-24 shrink-0"
+                              />
+                              <Input
+                                value={stop.phone}
+                                onChange={e => setStopsEditorDraft(d => d.map((s, j) => j === i ? { ...s, phone: e.target.value } : s))}
+                                placeholder="Phone"
+                                className="border-[#1A56DB] bg-[#F0F4FF] w-28 shrink-0"
+                                inputMode="tel"
                               />
                               {stopsEditorDraft.length > 2 && (
                                 <button type="button"
@@ -1133,7 +1140,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                           ))}
                           <button type="button"
-                            onClick={() => setStopsEditorDraft(d => [...d, { location: '', time: '', guest: '' }])}
+                            onClick={() => setStopsEditorDraft(d => [...d, { location: '', time: '', guest: '', phone: '' }])}
                             className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline mt-1">
                             <Plus className="w-3 h-3" /> Add stop
                           </button>
@@ -1167,6 +1174,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                           <span className="flex-1 text-[#191B23]">{s.location}</span>
                           {s.time && <span className="flex-shrink-0 text-[#737686] tabular-nums">{s.time}</span>}
                           {s.guest && <span className="flex-shrink-0 text-[#434654] font-medium">{s.guest}</span>}
+                          {s.guest_phone && (
+                            <a href={`tel:${s.guest_phone}`} className="flex-shrink-0 text-[#1A56DB] tabular-nums text-xs hover:underline">{s.guest_phone}</a>
+                          )}
                         </div>
                       ))}
                     </div>

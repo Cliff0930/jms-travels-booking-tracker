@@ -95,7 +95,7 @@ Multi-line addresses (address split across several lines) should be concatenated
 "Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
 Text and URL run together without a space (e.g. "Thank youhttps://maps...") → separate them; the URL belongs to the location field it was sent alongside.
 
-MULTI-STOP PICKUP TRIPS: Set pickup_stops ONLY when the message explicitly describes ONE vehicle collecting passengers from MULTIPLE sequential locations (e.g. "first from Hotel X, then from Office Y, drop both at airport"). Do NOT confuse with multiple separate bookings. For all normal A→B trips, pickup_stops = null. When set: pickup_location = first stop, drop_location = final destination. Format: [{"order":1,"location":"address","time":"HH:MM or null","guest":"name or null"}, ...]
+MULTI-STOP PICKUP TRIPS: Set pickup_stops ONLY when the message explicitly describes ONE vehicle collecting passengers from MULTIPLE sequential locations (e.g. "first from Hotel X, then from Office Y, drop both at airport"). Do NOT confuse with multiple separate bookings. For all normal A→B trips, pickup_stops = null. When set: pickup_location = first stop, drop_location = final destination. Format: [{"order":1,"location":"address","time":"HH:MM or null","guest":"name or null","guest_phone":"phone or null"}, ...]
 
 Respond with ONLY a JSON object, no other text:
 {
@@ -355,7 +355,7 @@ Multi-line addresses should be concatenated into a single pickup_location or dro
 "Bangalore560043" (city + PIN with no space) → normalise to "Bangalore 560043".
 Text and URL run together without a space (e.g. "Thank youhttps://maps...") → separate them; the URL belongs to the location field it was sent alongside.
 
-MULTI-STOP PICKUP TRIPS: Set pickup_stops ONLY when the email explicitly describes ONE vehicle collecting passengers from MULTIPLE sequential locations (e.g. "first from Hotel X, then from Office Y, drop both at airport"). Do NOT confuse with multiple separate bookings. For all normal A→B trips, pickup_stops = null. When set: pickup_location = first stop, drop_location = final destination. Format: [{"order":1,"location":"address","time":"HH:MM or null","guest":"name or null"}, ...]
+MULTI-STOP PICKUP TRIPS: Set pickup_stops ONLY when the email explicitly describes ONE vehicle collecting passengers from MULTIPLE sequential locations (e.g. "first from Hotel X, then from Office Y, drop both at airport"). Do NOT confuse with multiple separate bookings. For all normal A→B trips, pickup_stops = null. When set: pickup_location = first stop, drop_location = final destination. Format: [{"order":1,"location":"address","time":"HH:MM or null","guest":"name or null","guest_phone":"phone or null"}, ...]
 
 For "cancel_request":
 - Set bookings = [] — do NOT create a new booking
@@ -717,9 +717,10 @@ When multi-pickup IS confirmed:
   pickup_location = first stop's address (same as pickup_stops[0].location)
   drop_location = final destination (where everyone is dropped)
   pickup_stops = array of ALL collection stops in order:
-    [{"order":1,"location":"full address","time":"HH:MM or null","guest":"name or null"}, ...]
+    [{"order":1,"location":"full address","time":"HH:MM or null","guest":"name or null","guest_phone":"phone or null"}, ...]
     time: set only if a specific departure time at that stop is mentioned; otherwise null
     guest: person to be collected at that stop; null if not specified per stop
+    guest_phone: phone number for that guest if given; null if not specified per stop
 
 For all normal (single-pickup) trips: pickup_stops = null — omit the field entirely or set null.
 

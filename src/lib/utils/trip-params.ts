@@ -20,6 +20,7 @@ export function buildPickupParam(
         const parts: string[] = [`Stop ${s.order}: ${sanitizeWaParam(s.location)}`]
         if (s.time) parts.push(s.time)
         if (s.guest) parts.push(sanitizeWaParam(s.guest))
+        if (s.guest_phone) parts.push(sanitizeWaParam(s.guest_phone))
         return parts.join(' ')
       })
       .join(' | ')
@@ -44,7 +45,7 @@ export function buildPickupLines(
   if (stops && stops.length > 1) {
     return stops
       .map(s => {
-        const meta = [s.time, s.guest].filter(Boolean).join(', ')
+        const meta = [s.time, s.guest, s.guest_phone].filter(Boolean).join(', ')
         return `Stop ${s.order}: ${s.location}${meta ? ` (${meta})` : ''}`
       })
       .join('\n')
