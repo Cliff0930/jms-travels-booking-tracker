@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/utils/phone'
 import { logApiCost, calcWhatsAppCost } from '@/lib/api-costs'
 import { isWhatsAppWindowOpen } from './window'
+import { sanitizeWaParam } from '@/lib/utils/client-name'
 
 interface WhatsAppTextMessage {
   to: string
@@ -48,7 +49,7 @@ export async function sendWhatsAppTemplate({
 }: TemplateMessage): Promise<SendResult> {
   const normalizedTo = normalizePhone(to)
 
-  const bodyParameters: TemplateParam[] = params.map(text => ({ type: 'text', text }))
+  const bodyParameters: TemplateParam[] = params.map(text => ({ type: 'text', text: sanitizeWaParam(text) }))
 
   try {
     const res = await fetch(
