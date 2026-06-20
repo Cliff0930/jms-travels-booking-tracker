@@ -87,7 +87,8 @@ One booking, one driver, multiple sequential pickup stops before a single final 
 - **Driver template param:** `Stop 1: MG Road 09:00 Rajesh | Stop 2: Koramangala 09:20 Priya` — single string, no newlines.
 - **Prompts:** MULTI-STOP PICKUP TRIPS section in all 3 Gemini prompts with ✓/✗ examples. Fires only when client explicitly names multiple collection points.
 - **Safety nets (converse.ts):** Single-element `pickup_stops` → cleared. `pickup_stops` set but `pickup_location` null → derives from `stops[0].location`.
-- **Booking detail page:** Numbered stop list shown between Pickup and Drop fields, only when `pickup_stops` has 2+ entries. Read-only display.
+- **Booking detail page:** Numbered stop list shown between Pickup and Drop fields when `pickup_stops` has 2+ entries. Editable via pencil icon → inline editor (location+time+guest per row, add/remove rows, "Remove all stops" option). "+ Stops" button on Pickup Location header when no stops yet. `startStopsEditor()` function populates `stopsEditorDraft` state. `handleFieldSave` handles `'pickup_stops'` → saves `pickup_stops` array + `pickup_location = stops[0].location`; 0 valid stops → saves `pickup_stops: null`.
+- **New booking form:** "Add multiple pickup stops" toggle link below Pickup Location field (in Section 3). Numbered rows with location+time+guest inputs; "Single pickup" button restores single input. On submit: `pickup_stops` array + `pickup_location = stops[0].location` sent to POST `/api/bookings`. State: `multiStop: boolean` + `stopsDraft: StopDraft[]`.
 - **Normal bookings unaffected:** `pickup_stops = null` falls through to existing single-pickup logic in all routes.
 
 ---
