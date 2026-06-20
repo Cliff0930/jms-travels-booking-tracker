@@ -72,7 +72,23 @@ App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipp
   - **WhatsApp location pin** (`type: 'location'`): `handleLocationPin()` in `webhooks/whatsapp/route.ts` → extracts lat/lng → builds `https://www.google.com/maps?q=${lat},${lng}` → finds most recent active booking for that phone (24h window) → updates `pickup_location_url` → stores with `ai_classification: 'location_pin'` → replies confirming receipt. Always treated as pickup (no text context to detect).
   - **Text Maps URL follow-up** (in `processClientMessage`): 24h window (not 10 min). URL stored in `pickup_location_url` or `drop_location_url` separately; address text in `pickup_location` or `drop_location`. Keyword detection: `/\b(drop|destination|to\s*:|dropping|reach|arrive)\b/i` → drop fields; else pickup fields.
   - **During booking session / email parse**: `extractMapsUrls()` in `parse-message/route.ts` + `conversation/process.ts`; same keyword logic. Email replies merged in `fill-missing.ts`.
-  - **Newline stripping (critical):** `booking.pickup_location` / `booking.drop_location` can contain `\n` when Gemini extracts a multi-line address block. Always `.replace(/\r?\n+/g, ' ').trim()` both fields before using them as WhatsApp template params — Meta rejects params with newlines (error #132018). Fixed in `assign/route.ts`, `resend/route.ts`, `substitute/route.ts` (2026-06-19). The ` | Map: ` separator rule and this newline rule are separate concerns — both must be applied.
+  - **Newline stripping (critical):** `booking.pickup_location` / `booking.drop_location` can contain `\n` when Gemini extracts a multi-line address block. Always `.replace(/\r?\n+/g, ' ').trim()` both fields before using them as WhatsApp template params — Meta rejects params with newlines (error #132018). All three routes now use `buildPickupParam()` from `src/lib/utils/trip-params.ts` which handles both newline stripping and multi-stop encoding. The ` | Map: ` separator rule and this newline rule are separate concerns — both are applied inside `buildPickupParam()`.
+
+---
+
+## Multi-Stop Pickup Trip Flow (shipped 2026-06-20)
+One booking, one driver, multiple sequential pickup stops before a single final drop (e.g. "Pick Rajesh from MG Road, then Priya from Koramangala, drop both at airport").
+
+- **Database:** `bookings.pickup_stops` — JSONB column, nullable. Schema: `[{"order":1,"location":"address","time":"HH:MM or null","guest":"name or null"}]`
+- **Type:** `PickupStop` interface in `src/types/index.ts`. `Booking` interface has `pickup_stops: PickupStop[] | null`.
+- **Helpers:** `src/lib/utils/trip-params.ts`
+  - `buildPickupParam(location, locationUrl, stops)` — pipe-separated, no newlines, Meta-safe. Used in template `params[]` in assign/resend/substitute.
+  - `buildPickupLines(location, locationUrl, stops)` — newline-separated for fallback body text only.
+- **Driver template param:** `Stop 1: MG Road 09:00 Rajesh | Stop 2: Koramangala 09:20 Priya` — single string, no newlines.
+- **Prompts:** MULTI-STOP PICKUP TRIPS section in all 3 Gemini prompts with ✓/✗ examples. Fires only when client explicitly names multiple collection points.
+- **Safety nets (converse.ts):** Single-element `pickup_stops` → cleared. `pickup_stops` set but `pickup_location` null → derives from `stops[0].location`.
+- **Booking detail page:** Numbered stop list shown between Pickup and Drop fields, only when `pickup_stops` has 2+ entries. Read-only display.
+- **Normal bookings unaffected:** `pickup_stops = null` falls through to existing single-pickup logic in all routes.
 
 ---
 
