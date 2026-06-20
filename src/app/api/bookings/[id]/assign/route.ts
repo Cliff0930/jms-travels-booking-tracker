@@ -148,9 +148,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         to: driver.phone,
         templateName: 'jms_trip_brief_driver',
         params: [
-          driver.name,
+          sanitizeWaParam(driver.name),
           booking.booking_ref,
-          companyName || '-',
+          sanitizeWaParam(companyName || '-'),
           guestName,
           guestPhone,
           pickupParam,

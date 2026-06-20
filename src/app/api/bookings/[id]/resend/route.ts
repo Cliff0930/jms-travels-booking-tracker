@@ -193,9 +193,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ].filter(Boolean).join(' | ')
 
     templateParams = [
-      driver.name,
+      sanitizeWaParam(driver.name),
       booking.booking_ref,
-      companyName || '-',
+      sanitizeWaParam(companyName || '-'),
       guestNameForDriver,
       guestPhoneForDriver,
       pickupParam,

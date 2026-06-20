@@ -215,9 +215,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         to: newDriver.phone,
         templateName: 'jms_trip_brief_driver',
         params: [
-          newDriver.name,
+          sanitizeWaParam(newDriver.name),
           booking.booking_ref,
-          companyName || '-',
+          sanitizeWaParam(companyName || '-'),
           guestName,
           guestPhone,
           subPickupParam,
