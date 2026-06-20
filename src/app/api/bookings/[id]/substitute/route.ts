@@ -105,7 +105,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const phones = [...new Set([guestPhone, adminPhone].filter(Boolean))] as string[]
 
     if (phones.length > 0) {
-      const results = await Promise.all(
+      await Promise.all(
         phones.map(phone => sendWhatsAppSmart({
           to: phone,
           templateName: 'jms_substitute_client',
@@ -119,20 +119,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             newDriver.vehicle_number || '-',
           ],
           fallbackBody: subFallbackBody,
-          costBookingId: id,
+          log: { booking_id: id, client_id: booking.client_id || undefined, template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT },
         }))
       )
-      const anyOk = results.some(r => r.ok)
-      await supabase.from('message_logs').insert({
-        booking_id: id,
-        client_id: booking.client_id,
-        channel: 'whatsapp',
-        direction: 'outbound',
-        recipient: phones.join(', '),
-        content: subFallbackBody,
-        template_used: TEMPLATE_KEYS.SUBSTITUTE_VEHICLE_CLIENT,
-        status: anyOk ? 'sent' : 'failed',
-      })
     } else if (client?.primary_email) {
       const result = await sendEmailSafe({
         to: client.primary_email,
