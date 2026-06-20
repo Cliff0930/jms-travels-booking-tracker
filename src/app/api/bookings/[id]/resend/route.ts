@@ -8,6 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
 import { formalName, formalGuestName, sanitizeWaParam } from '@/lib/utils/client-name'
+import { buildPickupParam, buildPickupLines } from '@/lib/utils/trip-params'
 
 type MessageType = 'booking_confirmed' | 'driver_details' | 'trip_brief_driver'
 type Channel = 'whatsapp' | 'email'
@@ -183,10 +184,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       createShortLink(driverStatusLink(appUrl, id, 'completed'), id),
     ])
 
-    const pickupParam = [
-      sanitizeWaParam(booking.pickup_location || 'TBD'),
-      booking.pickup_location_url ? `Map: ${sanitizeWaParam(booking.pickup_location_url)}` : null,
-    ].filter(Boolean).join(' | ')
+    const pickupParam = buildPickupParam(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
+    const pickupLines = buildPickupLines(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
     const dropParam = [
       sanitizeWaParam(booking.drop_location || 'TBD'),
       booking.drop_location_url ? `Map: ${sanitizeWaParam(booking.drop_location_url)}` : null,
@@ -214,7 +213,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       companyName ? `Company: ${companyName}` : null,
       `Guest: ${guestNameForDriver}`,
       `Guest Phone: ${guestPhoneForDriver}`,
-      `Pickup: ${pickupParam}`,
+      `Pickup: ${pickupLines}`,
       `Drop: ${dropParam}`,
       `Date: ${formatDate(booking.pickup_date)}`,
       `Time: ${formatTime(booking.pickup_time)}`,

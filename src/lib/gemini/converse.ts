@@ -1,6 +1,7 @@
 import { getGeminiModel } from './client'
 import { CONVERSATION_PROMPT } from './prompts'
 import type { Client, ClientLocation } from '@/types'
+import type { PickupStop } from '@/lib/utils/trip-params'
 
 export interface ModificationChange {
   field: 'pickup_time' | 'pickup_date' | 'pickup_location' | 'drop_location' | 'pax_count' | 'vehicle_type' | 'special_instructions'
@@ -29,6 +30,7 @@ export interface ConversationResult {
     special_instructions: string | null
     company_mentioned: string | null
     booking_type: 'company' | 'personal' | null
+    pickup_stops: PickupStop[] | null
   }
   modification_request: ModificationRequest | null
   cancel_reason: string | null
@@ -148,6 +150,7 @@ export async function converseBooking(
         pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null,
         trip_type: 'local', service_type: 'one_way', total_days: 1,
         special_instructions: null, company_mentioned: null, booking_type: null,
+        pickup_stops: null,
       },
       modification_request: null, cancel_reason: null, target_booking_ref: null,
       missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'],
@@ -174,6 +177,17 @@ export async function converseBooking(
         change.new_value = sanitizePickupDate(change.new_value, today) ?? change.new_value
       }
     }
+  }
+
+  // Safety net: if pickup_stops provided but pickup_location omitted, derive it from first stop
+  const stops = parsed.extracted?.pickup_stops
+  if (Array.isArray(stops) && stops.length > 0 && !parsed.extracted.pickup_location) {
+    parsed.extracted.pickup_location = stops[0].location
+  }
+  // Safety net: single-element pickup_stops is just a normal booking — clear it
+  if (Array.isArray(stops) && stops.length === 1) {
+    parsed.extracted.pickup_location = stops[0].location ?? parsed.extracted.pickup_location
+    parsed.extracted.pickup_stops = null
   }
 
   const hasCompany = !!client?.company_id

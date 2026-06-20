@@ -9,6 +9,7 @@ import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
 import { formalName, formalGuestName, sanitizeWaParam } from '@/lib/utils/client-name'
+import { buildPickupParam, buildPickupLines } from '@/lib/utils/trip-params'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -172,10 +173,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ])
 
       const companyName = (booking.company as { name?: string } | null)?.name || null
-      const subPickupParam = [
-        sanitizeWaParam(booking.pickup_location || 'TBD'),
-        booking.pickup_location_url ? `Map: ${sanitizeWaParam(booking.pickup_location_url)}` : null,
-      ].filter(Boolean).join(' | ')
+      const subPickupParam = buildPickupParam(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
+      const subPickupLines = buildPickupLines(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
       const subDropParam = [
         sanitizeWaParam(booking.drop_location || 'TBD'),
         booking.drop_location_url ? `Map: ${sanitizeWaParam(booking.drop_location_url)}` : null,
@@ -187,7 +186,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         companyName ? `Company: ${companyName}` : null,
         `Guest: ${guestName}`,
         `Guest Phone: ${guestPhone}`,
-        `Pickup: ${subPickupParam}`,
+        `Pickup: ${subPickupLines}`,
         `Drop: ${subDropParam}`,
         `Date: ${formatDate(booking.pickup_date)}`,
         `Time: ${formatTime(booking.pickup_time)}`,

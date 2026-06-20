@@ -9,6 +9,7 @@ import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
 import { formalName, formalGuestName, sanitizeWaParam } from '@/lib/utils/client-name'
+import { buildPickupParam, buildPickupLines } from '@/lib/utils/trip-params'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -112,13 +113,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const companyName = (booking.company as { name?: string } | null)?.name || null
 
-      // Embed map URL directly inside the pickup/drop param so it's part of the
-      // approved template — avoids sending a separate free-form message that
-      // requires an open 24h window which drivers may not have.
-      const pickupParam = [
-        sanitizeWaParam(booking.pickup_location || 'TBD'),
-        booking.pickup_location_url ? `Map: ${sanitizeWaParam(booking.pickup_location_url)}` : null,
-      ].filter(Boolean).join(' | ')
+      // Build pickup param — multi-stop trips encode all stops using " | " separator
+      // (no newlines allowed in Meta template params — error 132018)
+      const pickupParam = buildPickupParam(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
+      const pickupLines = buildPickupLines(booking.pickup_location, booking.pickup_location_url, booking.pickup_stops)
       const dropParam = [
         sanitizeWaParam(booking.drop_location || 'TBD'),
         booking.drop_location_url ? `Map: ${sanitizeWaParam(booking.drop_location_url)}` : null,
@@ -131,7 +129,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         companyName ? `Company: ${companyName}` : null,
         `Guest: ${guestName}`,
         `Guest Phone: ${guestPhone}`,
-        `Pickup: ${pickupParam}`,
+        `Pickup: ${pickupLines}`,
         `Drop: ${dropParam}`,
         `Date: ${formatDate(booking.pickup_date)}`,
         `Time: ${formatTime(booking.pickup_time)}`,
