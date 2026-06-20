@@ -7,7 +7,7 @@ import { driverStatusLink } from '@/lib/utils/driver-token'
 import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { Client } from '@/types'
-import { formalName, formalGuestName } from '@/lib/utils/client-name'
+import { formalName, formalGuestName, sanitizeWaParam } from '@/lib/utils/client-name'
 
 type MessageType = 'booking_confirmed' | 'driver_details' | 'trip_brief_driver'
 type Channel = 'whatsapp' | 'email'
@@ -92,8 +92,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     templateParams = [
       clientName,
       booking.booking_ref,
-      (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
-      (booking.drop_location || '-').replace(/\r?\n+/g, ' ').trim(),
+      sanitizeWaParam(booking.pickup_location || 'TBD'),
+      sanitizeWaParam(booking.drop_location || '-'),
       dateFormatted,
       timeFormatted,
       tripType,
@@ -144,7 +144,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       driver.vehicle_number || '-',
       dateFormatted,
       timeFormatted,
-      booking.pickup_location || 'your confirmed pickup point',
+      sanitizeWaParam(booking.pickup_location || 'your confirmed pickup point'),
     ]
 
     subject = `Driver Assigned - ${booking.booking_ref}`
@@ -184,11 +184,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ])
 
     const pickupParam = [
-      (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+      sanitizeWaParam(booking.pickup_location || 'TBD'),
       booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
     ].filter(Boolean).join(' | ')
     const dropParam = [
-      (booking.drop_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+      sanitizeWaParam(booking.drop_location || 'TBD'),
       booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
     ].filter(Boolean).join(' | ')
 

@@ -1,6 +1,16 @@
 const SIR_RE   = /^(Mr\.?|Shri\.?|Sri\.?|Sh\.?)\s+/i
 const MADAM_RE = /^(Mrs\.?|Ms\.?|Miss\.?|Smt\.?)\s+/i
 
+/** Strips invisible Unicode and collapses spaces — safe for WhatsApp template params */
+export function sanitizeWaParam(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text
+    .replace(/[​-‏­﻿  ]/g, '')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+}
+
 /**
  * Strips an honorific prefix from a raw name and returns the clean name + inferred salutation.
  * e.g. "Mr. Rajesh Kumar" → { cleanName: "Rajesh Kumar", salutation: "sir" }
@@ -28,8 +38,9 @@ export function formalGuestName(
   designation?: string | null,
   showDesignation?: boolean | null,
 ): string {
-  if (!name || name === 'there' || name === 'Guest') return name
-  const base = prefix ? `${prefix} ${name}` : name
+  const clean = sanitizeWaParam(name)
+  if (!clean || clean === 'there' || clean === 'Guest') return clean
+  const base = prefix ? `${prefix} ${clean}` : clean
   if (designation && showDesignation) return `${base}, ${designation}`
   return base
 }
@@ -46,9 +57,10 @@ export function formalName(
   salutation?: string | null,
   companyFormalAddress?: boolean | null,
 ): string {
-  if (!name || name === 'there' || name === 'Guest') return name
-  if (salutation === 'sir') return `${name} Sir`
-  if (salutation === 'madam') return `${name} Madam`
-  if (companyFormalAddress) return `${name} Sir`
-  return name
+  const clean = sanitizeWaParam(name)
+  if (!clean || clean === 'there' || clean === 'Guest') return clean
+  if (salutation === 'sir') return `${clean} Sir`
+  if (salutation === 'madam') return `${clean} Madam`
+  if (companyFormalAddress) return `${clean} Sir`
+  return clean
 }

@@ -8,7 +8,7 @@ import { createShortLink } from '@/lib/utils/short-link'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { sendDriverPushNotification } from '@/lib/utils/driver-push'
 import type { Client } from '@/types'
-import { formalName, formalGuestName } from '@/lib/utils/client-name'
+import { formalName, formalGuestName, sanitizeWaParam } from '@/lib/utils/client-name'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -116,11 +116,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // approved template — avoids sending a separate free-form message that
       // requires an open 24h window which drivers may not have.
       const pickupParam = [
-        (booking.pickup_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+        sanitizeWaParam(booking.pickup_location || 'TBD'),
         booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
       ].filter(Boolean).join(' | ')
       const dropParam = [
-        (booking.drop_location || 'TBD').replace(/\r?\n+/g, ' ').trim(),
+        sanitizeWaParam(booking.drop_location || 'TBD'),
         booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
       ].filter(Boolean).join(' | ')
 
@@ -256,7 +256,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         driver.vehicle_number || '-',
         dateStr,
         timeStr,
-        booking.pickup_location || 'your confirmed pickup point',
+        sanitizeWaParam(booking.pickup_location || 'your confirmed pickup point'),
       ]
 
       if (isEmailSource) {
