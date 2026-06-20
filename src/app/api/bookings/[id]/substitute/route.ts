@@ -185,11 +185,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const companyName = (booking.company as { name?: string } | null)?.name || null
       const subPickupParam = [
         sanitizeWaParam(booking.pickup_location || 'TBD'),
-        booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+        booking.pickup_location_url ? `Map: ${sanitizeWaParam(booking.pickup_location_url)}` : null,
       ].filter(Boolean).join(' | ')
       const subDropParam = [
         sanitizeWaParam(booking.drop_location || 'TBD'),
-        booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+        booking.drop_location_url ? `Map: ${sanitizeWaParam(booking.drop_location_url)}` : null,
       ].filter(Boolean).join(' | ')
       const fallbackBody = [
         `Hi ${newDriver.name}, you have a new assignment.`,

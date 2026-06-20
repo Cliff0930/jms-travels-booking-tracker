@@ -117,11 +117,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // requires an open 24h window which drivers may not have.
       const pickupParam = [
         sanitizeWaParam(booking.pickup_location || 'TBD'),
-        booking.pickup_location_url ? `Map: ${booking.pickup_location_url}` : null,
+        booking.pickup_location_url ? `Map: ${sanitizeWaParam(booking.pickup_location_url)}` : null,
       ].filter(Boolean).join(' | ')
       const dropParam = [
         sanitizeWaParam(booking.drop_location || 'TBD'),
-        booking.drop_location_url ? `Map: ${booking.drop_location_url}` : null,
+        booking.drop_location_url ? `Map: ${sanitizeWaParam(booking.drop_location_url)}` : null,
       ].filter(Boolean).join(' | ')
 
       const fallbackBody = [
