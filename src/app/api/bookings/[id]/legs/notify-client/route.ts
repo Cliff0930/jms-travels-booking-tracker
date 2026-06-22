@@ -158,6 +158,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           subject: `Driver Update — ${booking.booking_ref}`,
           body: consolidatedBody,
           booking_id: id,
+          replyToThreadId: booking.gmail_thread_id || undefined,
         })
         await supabase.from('message_logs').insert({
           booking_id: id,
@@ -178,6 +179,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       subject: `Driver Update — ${booking.booking_ref}`,
       body: consolidatedBody,
       booking_id: id,
+      replyToThreadId: booking.gmail_thread_id || undefined,
     })
     status = result.ok ? 'sent' : 'failed'
     await supabase.from('message_logs').insert({
