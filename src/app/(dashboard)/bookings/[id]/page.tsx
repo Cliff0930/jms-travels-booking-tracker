@@ -393,6 +393,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         let value: unknown = fieldDraft
         if (editingField === 'pax_count') value = fieldDraft ? parseInt(fieldDraft) : null
         if (editingField === 'total_days') value = parseInt(fieldDraft) || 1
+        if (editingField === 'pickup_location_url' || editingField === 'drop_location_url') value = fieldDraft.trim() || null
         changes = { [editingField]: value }
         if (editingField === 'guest_name' && fieldDraftPhone) changes.guest_phone = fieldDraftPhone
       }
@@ -1068,10 +1069,37 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                   <div className={`p-2.5 rounded border text-sm ${booking.flags?.includes('missing_pickup') ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-[#C3C5D7] bg-[#F3F3FE] text-[#191B23]'}`}>
                     {booking.pickup_location || 'Not provided'}
-                    {booking.pickup_location_url && (
-                      <a href={booking.pickup_location_url} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline">
-                        <MapPin className="w-3 h-3" /> Open in Google Maps
-                      </a>
+                    {editingField === 'pickup_location_url' ? (
+                      <>
+                        <Input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                               className="mt-1.5 border-[#1A56DB] bg-[#F0F4FF] text-xs h-7" placeholder="https://maps.app.goo.gl/…" />
+                        {reasonPickerJSX}
+                      </>
+                    ) : booking.pickup_location_url ? (
+                      <div className="mt-1 flex items-center gap-1">
+                        <a href={booking.pickup_location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline flex-1 min-w-0 truncate">
+                          <MapPin className="w-3 h-3 shrink-0" /> Open in Google Maps
+                        </a>
+                        {canEdit && !editingField && (
+                          <>
+                            <button onClick={() => startField('pickup_location_url', booking.pickup_location_url || '')}
+                                    className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] shrink-0" title="Edit map link">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => startField('pickup_location_url', '')}
+                                    className="p-0.5 rounded hover:bg-red-50 text-[#737686] hover:text-red-500 shrink-0" title="Remove map link">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      canEdit && !editingField && (
+                        <button onClick={() => startField('pickup_location_url', '')}
+                                className="mt-1 flex items-center gap-1 text-xs text-[#737686] hover:text-[#1A56DB] hover:underline">
+                          <MapPin className="w-3 h-3" /> + Add map link
+                        </button>
+                      )
                     )}
                   </div>
                 )}
@@ -1208,10 +1236,37 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                   <div className="p-2.5 rounded border border-[#C3C5D7] bg-[#F3F3FE] text-sm text-[#434654]">
                     {booking.drop_location || 'Not provided — call to confirm'}
-                    {booking.drop_location_url && (
-                      <a href={booking.drop_location_url} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-[#1A56DB] hover:underline">
-                        <MapPin className="w-3 h-3" /> Open in Google Maps
-                      </a>
+                    {editingField === 'drop_location_url' ? (
+                      <>
+                        <Input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} autoFocus
+                               className="mt-1.5 border-[#1A56DB] bg-[#F0F4FF] text-xs h-7" placeholder="https://maps.app.goo.gl/…" />
+                        {reasonPickerJSX}
+                      </>
+                    ) : booking.drop_location_url ? (
+                      <div className="mt-1 flex items-center gap-1">
+                        <a href={booking.drop_location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#1A56DB] hover:underline flex-1 min-w-0 truncate">
+                          <MapPin className="w-3 h-3 shrink-0" /> Open in Google Maps
+                        </a>
+                        {canEdit && !editingField && (
+                          <>
+                            <button onClick={() => startField('drop_location_url', booking.drop_location_url || '')}
+                                    className="p-0.5 rounded hover:bg-[#EDEDF8] text-[#737686] hover:text-[#434654] shrink-0" title="Edit map link">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => startField('drop_location_url', '')}
+                                    className="p-0.5 rounded hover:bg-red-50 text-[#737686] hover:text-red-500 shrink-0" title="Remove map link">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      canEdit && !editingField && (
+                        <button onClick={() => startField('drop_location_url', '')}
+                                className="mt-1 flex items-center gap-1 text-xs text-[#737686] hover:text-[#1A56DB] hover:underline">
+                          <MapPin className="w-3 h-3" /> + Add map link
+                        </button>
+                      )
                     )}
                   </div>
                 )}

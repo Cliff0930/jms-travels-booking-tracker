@@ -4,8 +4,10 @@ import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 
 const FIELD_LABELS: Record<string, string> = {
   pickup_location: 'Pickup Location',
+  pickup_location_url: 'Pickup Map Link',
   pickup_stops: 'Pickup Stops',
   drop_location: 'Drop Location',
+  drop_location_url: 'Drop Map Link',
   pickup_date: 'Pickup Date',
   pickup_time: 'Pickup Time',
   pax_count: 'Passengers',

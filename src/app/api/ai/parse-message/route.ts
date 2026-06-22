@@ -40,9 +40,15 @@ function extractMapsUrls(text: string): { pickup_location_url: string | null; dr
   for (const match of matches) {
     const url = match[0]
     const pos = match.index ?? 0
-    const surroundingText = text.slice(Math.max(0, pos - 80), pos + url.length + 80).toLowerCase()
-    const isDropContext = /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(surroundingText)
-    const isPickupContext = /\b(pick\s*up|pickup|from\s*:|departing|start|board)\b/.test(surroundingText)
+    // Use 300-char look-behind to capture "Pickup Location" labels above long multi-line addresses
+    const lookBehind = text.slice(Math.max(0, pos - 300), pos).toLowerCase()
+    const lookAhead = text.slice(pos + url.length, Math.min(text.length, pos + url.length + 80)).toLowerCase()
+    const isPickupContext = /\b(pick\s*up|pickup|from\s*:|departing|start|board)\b/.test(lookBehind)
+    // Only classify as drop if pickup context is NOT found in the look-behind
+    const isDropContext = !isPickupContext && (
+      /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(lookAhead) ||
+      /\b(drop|destination|to\s*:|dropping|reach|arrive)\b/.test(lookBehind)
+    )
 
     if (isDropContext && !dropUrl) {
       dropUrl = url
