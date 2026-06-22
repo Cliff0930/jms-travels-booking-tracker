@@ -20,9 +20,8 @@ export async function POST(request: Request) {
   try {
     const messageId = await sendEmail({
       to: recipient,
-      subject: `CabFlow Email Test — ${new Date().toISOString()}`,
-      body: `This is a test email sent from CabFlow at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}.\n\nIf you received this, Gmail sending is working correctly.`,
-      skipSignature: true,
+      subject: `JMS Travel — Email Signature Test`,
+      body: `Hi,\n\nThis is a test email from JMS Travels booking system.\n\nIf you can see the signature below with the logo and contact details, everything is set up correctly.`,
     })
     return NextResponse.json({ ok: true, messageId, to: recipient })
   } catch (e: unknown) {
