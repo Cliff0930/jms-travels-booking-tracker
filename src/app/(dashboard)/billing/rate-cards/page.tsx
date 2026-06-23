@@ -378,7 +378,7 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
 
   const F = ({ label, field }: { label: string; field: keyof typeof form }) => (
     <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-xs text-gray-500">{label}</Label>
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
         <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
@@ -388,39 +388,76 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Add Driver Rate Override</DialogTitle></DialogHeader>
-        <p className="text-xs text-gray-500 -mt-2">What JMS pays the driver for trips from this company. Overrides commission% in Driver Settlement.</p>
-        <div className="py-2 space-y-3">
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-indigo-100 p-2 shrink-0">
+              <IndianRupee className="h-4 w-4 text-indigo-600" />
+            </div>
+            <div>
+              <DialogTitle className="text-base">Add Driver Rate Override</DialogTitle>
+              <p className="text-xs text-gray-400 mt-0.5">What JMS pays the driver for trips from this company. Overrides commission% in Driver Settlement.</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Company & Vehicle */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Company *</Label>
+              <Label className="text-xs text-gray-500">Company *</Label>
               <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  {form.company_id
+                    ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
+                    : <span className="text-muted-foreground text-sm">Select company</span>
+                  }
+                </SelectTrigger>
                 <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Vehicle Type *</Label>
+              <Label className="text-xs text-gray-500">Vehicle Type *</Label>
               <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  {form.vehicle_type
+                    ? <span>{form.vehicle_type}</span>
+                    : <span className="text-muted-foreground text-sm">Select vehicle</span>
+                  }
+                </SelectTrigger>
                 <SelectContent>{vehicles.map(v => <SelectItem key={v.vehicle_name} value={v.vehicle_name}>{v.vehicle_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <F label="4hr/40km — Driver gets" field="rate_4hr" />
-            <F label="8hr/80km — Driver gets" field="rate_8hr" />
-            <F label="Extra KM rate (/km)" field="extra_km_rate" />
-            <F label="Extra Hour rate (/hr)" field="extra_hr_rate" />
-            <F label="Outstation (/km)" field="outstation_rate_per_km" />
-            <F label="Local Bata/day" field="bata_per_day" />
-            <F label="Outstation Bata/day" field="outstation_bata_per_day" />
+
+          {/* Local Rates */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+              <F label="4hr / 40km — Driver gets" field="rate_4hr" />
+              <F label="8hr / 80km — Driver gets" field="rate_8hr" />
+              <F label="Extra KM Rate (/km)" field="extra_km_rate" />
+              <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
+            </div>
+          </div>
+
+          {/* Outstation & Bata */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outstation &amp; Bata</p>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-amber-50/60 border border-amber-100 p-3">
+              <F label="Outstation Rate (/km)" field="outstation_rate_per_km" />
+              <div />
+              <F label="Local Bata / day" field="bata_per_day" />
+              <F label="Outstation Bata / day" field="outstation_bata_per_day" />
+            </div>
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Driver Rate'}</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+            {saving ? 'Saving…' : <><Plus className="w-3.5 h-3.5" />Save Driver Rate</>}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
