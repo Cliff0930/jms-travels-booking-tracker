@@ -159,7 +159,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
     calc = { ...calcOutstation(actualKms, days, rate), bata: r2(bataRate * bataCount) }
   } else if (booking?.trip_type === 'airport') {
-    calc = { ...calcAirport(actualKms, actualMinutes, rate), bata: 0 }
+    const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+    calc = { ...calcAirport(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
   } else {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
     calc = { ...calcLocal(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }

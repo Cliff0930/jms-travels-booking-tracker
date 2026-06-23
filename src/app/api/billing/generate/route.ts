@@ -269,7 +269,8 @@ export async function POST(request: Request) {
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
     } else if (b.trip_type === 'airport') {
-      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: 0 }
+      const airportBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * airportBataRate) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }
@@ -366,7 +367,8 @@ export async function POST(request: Request) {
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
     } else if (b.trip_type === 'airport') {
-      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: 0 }
+      const airportBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * airportBataRate) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }

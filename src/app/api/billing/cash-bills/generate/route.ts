@@ -169,7 +169,7 @@ export async function GET(request: Request) {
       calc = { ...rest, hireCharges, bataAmount: roundTo2(rate.outstation_bata_per_day * bataCount) }
     } else if (b.trip_type === 'airport') {
       const { hireCharges, ...rest } = calcAirportTrip(actualKms, actualMinutes, rate)
-      calc = { ...rest, hireCharges, bataAmount: 0 }
+      calc = { ...rest, hireCharges, bataAmount: roundTo2(rate.local_bata * bataCount) }
     } else {
       const { hireCharges, ...rest } = calcLocalTrip(actualKms, actualMinutes, rate)
       calc = { ...rest, hireCharges, bataAmount: roundTo2(rate.local_bata * bataCount) }
