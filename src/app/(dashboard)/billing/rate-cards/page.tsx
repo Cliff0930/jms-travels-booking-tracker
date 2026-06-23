@@ -109,8 +109,8 @@ function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: ()
   )
 }
 
-function ClientRateModal({ companies, onClose, onSaved }: {
-  companies: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
+function ClientRateModal({ companies, vehicleNames, onClose, onSaved }: {
+  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState({
     company_id: '', vehicle_type: '', package_4hr_rate: '', package_8hr_rate: '',
@@ -120,9 +120,6 @@ function ClientRateModal({ companies, onClose, onSaved }: {
     bill_bata_to_client: false, special_notes: '', effective_from: new Date().toISOString().slice(0, 10),
   })
   const [saving, setSaving] = useState(false)
-
-  const { data: driversForModal = [] } = useQuery<{ id: string; vehicle_name: string }[]>({ queryKey: ['drivers-for-rates'], queryFn: () => fetch('/api/drivers').then(r => r.json()) })
-  const uniqueVehicleNames = useMemo(() => [...new Set(driversForModal.filter(d => d.vehicle_name).map(d => d.vehicle_name))].sort(), [driversForModal])
 
   async function handleSave() {
     if (!form.company_id || !form.vehicle_type) { toast.error('Select company and vehicle type'); return }
@@ -197,7 +194,7 @@ function ClientRateModal({ companies, onClose, onSaved }: {
                     : <span className="text-muted-foreground text-sm">Select vehicle</span>
                   }
                 </SelectTrigger>
-                <SelectContent>{uniqueVehicleNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+                <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
@@ -277,7 +274,7 @@ function ClientRateModal({ companies, onClose, onSaved }: {
 }
 
 // Quick "Add Rate" for a driver vehicle that has no rate card yet
-function AddRateButton({ vehicleName, vehicleCategory, onSaved }: { vehicleName: string; vehicleCategory: string; onSaved: () => void }) {
+function AddRateButton({ vehicleName, vehicleCategory = '', onSaved }: { vehicleName: string; vehicleCategory?: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
     package_4hr_rate: '900', package_8hr_rate: '1900',
@@ -343,9 +340,9 @@ function AddRateButton({ vehicleName, vehicleCategory, onSaved }: { vehicleName:
   )
 }
 
-function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
+function DriverRateModal({ companies, vehicleNames, onClose, onSaved }: {
   companies: { id: string; name: string }[]
-  vehicles: { vehicle_name: string }[]
+  vehicleNames: { id: string; name: string }[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -425,7 +422,7 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
                     : <span className="text-muted-foreground text-sm">Select vehicle</span>
                   }
                 </SelectTrigger>
-                <SelectContent>{vehicles.map(v => <SelectItem key={v.vehicle_name} value={v.vehicle_name}>{v.vehicle_name}</SelectItem>)}</SelectContent>
+                <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
@@ -467,7 +464,6 @@ function DriverRateModal({ companies, vehicles, onClose, onSaved }: {
 export default function RateCardsPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'default' | 'client' | 'driver'>('default')
-  const [categoryFilter, setCategoryFilter] = useState('All')
   const [editingRate, setEditingRate] = useState<RateCard | null>(null)
   const [showClientModal, setShowClientModal] = useState(false)
   const [showDriverModal, setShowDriverModal] = useState(false)
@@ -488,40 +484,16 @@ export default function RateCardsPage() {
     queryKey: ['companies-list'],
     queryFn: () => fetch('/api/companies').then(r => r.json()),
   })
-  // Fetch drivers to build the live vehicle list (vehicle_name + vehicle_type)
-  const { data: drivers = [] } = useQuery<{ id: string; vehicle_name: string; vehicle_type: string; is_active: boolean }[]>({
-    queryKey: ['drivers-for-rates'],
-    queryFn: () => fetch('/api/drivers').then(r => r.json()),
+  const { data: vehicleNames = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['vehicle-names'],
+    queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
 
-  // Build unique vehicle list from active drivers, merged with existing rate card data
   const rateMap = useMemo(() => {
     const m: Record<string, RateCard> = {}
     for (const r of rates) m[r.vehicle_type.toUpperCase()] = r
     return m
   }, [rates])
-
-  const driverVehicles = useMemo(() => {
-    const seen = new Map<string, { vehicle_name: string; vehicle_type: string }>()
-    for (const d of drivers) {
-      if (d.vehicle_name && !seen.has(d.vehicle_name.toUpperCase())) {
-        seen.set(d.vehicle_name.toUpperCase(), { vehicle_name: d.vehicle_name, vehicle_type: d.vehicle_type })
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) => a.vehicle_name.localeCompare(b.vehicle_name))
-  }, [drivers])
-
-  // For the category filter, use driver vehicle_type values
-  const driverCategories = useMemo(() => {
-    const cats = new Set(driverVehicles.map(v => v.vehicle_type))
-    return ['All', ...Array.from(cats).sort()]
-  }, [driverVehicles])
-
-  const filteredVehicles = useMemo(() => {
-    return categoryFilter === 'All'
-      ? driverVehicles
-      : driverVehicles.filter(v => v.vehicle_type === categoryFilter)
-  }, [driverVehicles, categoryFilter])
 
   async function deleteClientRate(id: string) {
     if (!confirm('Remove this client rate override?')) return
@@ -564,39 +536,26 @@ export default function RateCardsPage() {
 
       {tab === 'default' && (
         <>
-          {/* Category filter — built from driver vehicle types */}
-          <div className="flex flex-wrap gap-2">
-            {driverCategories.map(c => (
-              <button key={c} onClick={() => setCategoryFilter(c)}
-                className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                  categoryFilter === c ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300')}
-              >{c}</button>
-            ))}
-          </div>
-
-          {driverVehicles.length === 0 ? (
+          {vehicleNames.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-200">
-              No drivers added yet. Add drivers first — their vehicle types will appear here automatically.
+              No vehicle names yet. Go to Settings → Vehicle Names to add your vehicle types.
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {['Vehicle Name', 'Type (from Driver)', '4hr/40km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
+                    {['Vehicle Name', '4hr/40km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
                       <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredVehicles.map(v => {
-                    const r = rateMap[v.vehicle_name.toUpperCase()]
+                  {vehicleNames.map(v => {
+                    const r = rateMap[v.name.toUpperCase()]
                     return (
-                      <tr key={v.vehicle_name} className={cn('hover:bg-gray-50', !r && 'bg-amber-50')}>
-                        <td className="px-3 py-2.5 font-semibold text-gray-900 whitespace-nowrap">{v.vehicle_name}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{v.vehicle_type}</span>
-                        </td>
+                      <tr key={v.id} className={cn('hover:bg-gray-50', !r && 'bg-amber-50')}>
+                        <td className="px-3 py-2.5 font-semibold text-gray-900 whitespace-nowrap">{v.name}</td>
                         {r ? (
                           <>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_4hr_rate)}</td>
@@ -617,7 +576,7 @@ export default function RateCardsPage() {
                           <>
                             <td colSpan={8} className="px-3 py-2.5 text-amber-600 text-xs italic">No rate set — click Add Rate to configure</td>
                             <td className="px-3 py-2.5">
-                              <AddRateButton vehicleName={v.vehicle_name} vehicleCategory={v.vehicle_type} onSaved={() => qc.invalidateQueries({ queryKey: ['rate-cards'] })} />
+                              <AddRateButton vehicleName={v.name} onSaved={() => qc.invalidateQueries({ queryKey: ['rate-cards'] })} />
                             </td>
                           </>
                         )}
@@ -628,7 +587,7 @@ export default function RateCardsPage() {
               </table>
             </div>
           )}
-          <p className="text-xs text-gray-400">Vehicle list is synced live from your driver profiles. Add a driver → their vehicle appears here automatically.</p>
+          <p className="text-xs text-gray-400">Vehicle list is synced from Settings → Vehicle Names. Add vehicles there and they appear here automatically.</p>
         </>
       )}
 
@@ -711,8 +670,8 @@ export default function RateCardsPage() {
       )}
 
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
-      {showClientModal && <ClientRateModal companies={companies} onClose={() => setShowClientModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false) }} />}
-      {showDriverModal && <DriverRateModal companies={companies} vehicles={driverVehicles} onClose={() => setShowDriverModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false) }} />}
+      {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} onClose={() => setShowClientModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false) }} />}
+      {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} onClose={() => setShowDriverModal(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false) }} />}
     </div>
   )
 }
