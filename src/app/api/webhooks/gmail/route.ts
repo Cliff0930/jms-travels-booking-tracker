@@ -59,14 +59,30 @@ export async function POST(request: Request) {
       .from('app_settings')
       .upsert({ key: 'gmail_last_history_id', value: String(historyId), updated_at: new Date().toISOString() })
 
-    const { data: history } = await gmail.users.history.list({
-      userId: 'me',
-      startHistoryId,
-      historyTypes: ['messageAdded'],
-      labelId: 'INBOX',
-    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let historyResponse: any = null
+    try {
+      historyResponse = await gmail.users.history.list({
+        userId: 'me',
+        startHistoryId,
+        historyTypes: ['messageAdded'],
+        labelId: 'INBOX',
+      })
+    } catch (histErr: unknown) {
+      if (String(histErr).includes('Requested entity was not found')) {
+        // Stored historyId expired (Gmail keeps ~7 days). Reset to the current notification ID
+        // so next webhook call starts fresh — no crash alert needed.
+        console.warn('[gmail-webhook] historyId expired — resetting to current:', historyId)
+        await supabase.from('app_settings').upsert({ key: 'gmail_last_history_id', value: String(historyId), updated_at: new Date().toISOString() })
+        return NextResponse.json({ ok: true })
+      }
+      throw histErr
+    }
 
-    const messageIds = history.history?.flatMap(h => h.messagesAdded?.map(m => m.message?.id) || []).filter(Boolean) || []
+    const messageIds = (historyResponse?.data?.history ?? []).flatMap(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (h: any) => h.messagesAdded?.map((m: any) => m.message?.id) || []
+    ).filter(Boolean) as string[]
     console.log('[gmail-webhook] messageIds found:', messageIds.length, messageIds)
 
     for (const messageId of messageIds) {
