@@ -725,9 +725,10 @@ export async function POST(request: Request) {
         .update({ ai_classification: 'processing_failed', processed: false })
         .eq('id', raw_message_id)
     } catch { /* best effort */ }
-    // Alert operator — include enough info to manually create the booking
+    // Push-only alert — no WhatsApp for processing errors
     await notifyOperator(
-      `🔴 Booking processing failed!\n\nFrom: ${sender_email || sender_phone || 'unknown'}\nChannel: ${channel}\nError: ${String(err).slice(0, 200)}\n\nRaw message ID: ${raw_message_id}\nAction: Check raw_messages table and create booking manually.`
+      `🔴 Booking processing failed!\n\nFrom: ${sender_email || sender_phone || 'unknown'}\nChannel: ${channel}\nError: ${String(err).slice(0, 200)}\n\nRaw message ID: ${raw_message_id}\nAction: Check raw_messages table and create booking manually.`,
+      'ops'
     ).catch(() => {})
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
