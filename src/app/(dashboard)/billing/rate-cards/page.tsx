@@ -148,61 +148,128 @@ function ClientRateModal({ companies, onClose, onSaved }: {
     setSaving(false)
   }
 
+  const F = ({ label, field }: { label: string; field: 'package_4hr_rate' | 'package_8hr_rate' | 'extra_km_rate' | 'extra_hr_rate' | 'outstation_rate_per_km' }) => (
+    <div className="space-y-1">
+      <Label className="text-xs text-gray-500">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+        <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
+      </div>
+    </div>
+  )
+
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Add Client Rate Override</DialogTitle></DialogHeader>
-        <div className="py-2 space-y-3">
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-100 p-2 shrink-0">
+              <IndianRupee className="h-4 w-4 text-blue-600" />
+            </div>
+            <div>
+              <DialogTitle className="text-base">Add Client Rate Override</DialogTitle>
+              <p className="text-xs text-gray-400 mt-0.5">Custom billing rates for a specific company &amp; vehicle</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {/* Company & Vehicle */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Company *</Label>
+              <Label className="text-xs text-gray-500">Company *</Label>
               <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  {form.company_id
+                    ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
+                    : <span className="text-muted-foreground text-sm">Select company</span>
+                  }
+                </SelectTrigger>
                 <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Vehicle Type *</Label>
+              <Label className="text-xs text-gray-500">Vehicle Type *</Label>
               <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  {form.vehicle_type
+                    ? <span>{form.vehicle_type}</span>
+                    : <span className="text-muted-foreground text-sm">Select vehicle</span>
+                  }
+                </SelectTrigger>
                 <SelectContent>{uniqueVehicleNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            {(['package_4hr_rate', 'package_8hr_rate', 'extra_km_rate', 'extra_hr_rate', 'outstation_rate_per_km', 'outstation_min_kms_per_day', 'tds_percent'] as const).map(field => (
-              <div key={field} className="space-y-1">
-                <Label className="text-xs">{({ package_4hr_rate: '4hr Package (₹)', package_8hr_rate: '8hr Package (₹)', extra_km_rate: 'Extra KM Rate', extra_hr_rate: 'Extra Hour Rate', outstation_rate_per_km: 'Outstation/km', outstation_min_kms_per_day: 'Min KMs/day', tds_percent: 'TDS %' } as Record<string, string>)[field]}</Label>
-                <Input className="h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
-              </div>
-            ))}
-            <div className="space-y-1">
-              <Label className="text-xs">Effective From</Label>
-              <Input className="h-8 text-sm" type="date" value={form.effective_from} onChange={e => setForm(f => ({ ...f, effective_from: e.target.value }))} />
+          </div>
+
+          {/* Local Rates */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+              <F label="4hr / 40km Package" field="package_4hr_rate" />
+              <F label="8hr / 80km Package" field="package_8hr_rate" />
+              <F label="Extra KM Rate (/km)" field="extra_km_rate" />
+              <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="bill_bata" checked={form.bill_bata_to_client} onChange={e => setForm(f => ({ ...f, bill_bata_to_client: e.target.checked }))} />
-            <Label htmlFor="bill_bata" className="text-sm">Bill bata to this client</Label>
-          </div>
-          {form.bill_bata_to_client && (
-            <div className="grid grid-cols-2 gap-3">
+
+          {/* Outstation Rates */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outstation Rates</p>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-amber-50/60 border border-amber-100 p-3">
+              <F label="Rate per KM" field="outstation_rate_per_km" />
               <div className="space-y-1">
-                <Label className="text-xs">Local Bata Rate (₹/bata day)</Label>
-                <Input className="h-8 text-sm" type="number" value={form.local_bata_rate} onChange={e => setForm(f => ({ ...f, local_bata_rate: e.target.value }))} placeholder="e.g. 500" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Outstation Bata Rate (₹/bata day)</Label>
-                <Input className="h-8 text-sm" type="number" value={form.outstation_bata_rate} onChange={e => setForm(f => ({ ...f, outstation_bata_rate: e.target.value }))} placeholder="e.g. 750" />
+                <Label className="text-xs text-gray-500">Min KMs / day</Label>
+                <Input className="h-8 text-sm" value={form.outstation_min_kms_per_day} onChange={e => setForm(f => ({ ...f, outstation_min_kms_per_day: e.target.value }))} type="number" />
               </div>
             </div>
-          )}
+          </div>
+
+          {/* Billing Settings */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Billing Settings</p>
+            <div className="space-y-3 rounded-lg bg-gray-50 border border-gray-100 p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">TDS %</Label>
+                  <Input className="h-8 text-sm" value={form.tds_percent} onChange={e => setForm(f => ({ ...f, tds_percent: e.target.value }))} type="number" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Effective From</Label>
+                  <Input className="h-8 text-sm" type="date" value={form.effective_from} onChange={e => setForm(f => ({ ...f, effective_from: e.target.value }))} />
+                </div>
+              </div>
+              <label htmlFor="bill_bata" className="flex items-center gap-2.5 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <input type="checkbox" id="bill_bata" className="h-4 w-4 rounded" checked={form.bill_bata_to_client} onChange={e => setForm(f => ({ ...f, bill_bata_to_client: e.target.checked }))} />
+                <span className="text-sm text-gray-700">Bill bata to this client</span>
+              </label>
+              {form.bill_bata_to_client && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Local Bata Rate (₹/day)</Label>
+                    <Input className="h-8 text-sm" type="number" value={form.local_bata_rate} onChange={e => setForm(f => ({ ...f, local_bata_rate: e.target.value }))} placeholder="e.g. 500" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Outstation Bata Rate (₹/day)</Label>
+                    <Input className="h-8 text-sm" type="number" value={form.outstation_bata_rate} onChange={e => setForm(f => ({ ...f, outstation_bata_rate: e.target.value }))} placeholder="e.g. 750" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Special Notes */}
           <div className="space-y-1">
-            <Label className="text-xs">Special Notes</Label>
-            <Input className="h-8 text-sm" value={form.special_notes} onChange={e => setForm(f => ({ ...f, special_notes: e.target.value }))} placeholder="e.g. No minimum KMs" />
+            <Label className="text-xs text-gray-500">Special Notes</Label>
+            <Input className="h-8 text-sm" value={form.special_notes} onChange={e => setForm(f => ({ ...f, special_notes: e.target.value }))} placeholder="e.g. No minimum KMs for this client" />
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Add Rate'}</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+            {saving ? 'Saving…' : <><Plus className="w-3.5 h-3.5" />Add Rate Override</>}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
