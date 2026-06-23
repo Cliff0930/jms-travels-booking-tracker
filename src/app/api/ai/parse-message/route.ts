@@ -354,7 +354,9 @@ export async function POST(request: Request) {
     for (let i = 0; i < extraction.bookings.length; i++) {
       const bk = extraction.bookings[i]
 
-      // Cross-channel duplicate guard: same client + same date + same time within 2 hours
+      // Cross-channel duplicate guard: same client + same date + same time within 2 hours.
+      // No longer blocks — creates the booking with possible_duplicate flag so operator can review and delete if needed.
+      let possibleDupRefs: string[] = []
       if ((client as Client)?.id && bk.extracted.pickup_date && bk.extracted.pickup_time) {
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
         const { data: dupBookings } = await supabase
@@ -363,22 +365,14 @@ export async function POST(request: Request) {
           .eq('client_id', (client as Client).id)
           .eq('pickup_date', bk.extracted.pickup_date)
           .eq('pickup_time', bk.extracted.pickup_time)
-          .in('status', ['draft', 'pending', 'pending_approval'])
+          .in('status', ['draft', 'pending', 'pending_approval', 'confirmed'])
           .gt('created_at', twoHoursAgo)
 
         if (dupBookings && dupBookings.length > 0) {
           // Allow same-batch duplicates — e.g. "2 Innovas" creates 2 Innova rows in one loop.
-          // Only block if all duplicates came from a different submission entirely.
           const allWithinCurrentBatch = dupBookings.every(dup => createdBookings.some(cb => cb.booking.id === dup.id))
           if (!allWithinCurrentBatch) {
-            await supabase.from('raw_messages')
-              .update({ ai_classification: 'duplicate', processed: true, processed_at: new Date().toISOString() })
-              .eq('id', raw_message_id)
-            notifyOperator(
-              `⚠️ Duplicate booking blocked!\n\nExisting: ${dupBookings[0].booking_ref} (via ${dupBookings[0].source})\nNew attempt via ${channel} from ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nNo new booking created. Review if intentional.`,
-              'ops'
-            ).catch(() => {})
-            continue
+            possibleDupRefs = dupBookings.map(d => (d as { booking_ref: string }).booking_ref)
           }
         }
       }
@@ -398,6 +392,7 @@ export async function POST(request: Request) {
       if (!(client as Client)?.company_id) flags.push('unknown_company')
       if (!bk.extracted.drop_location)   flags.push('missing_drop')
       if (bk.is_guest_booking && !(client as Client)?.id) flags.push('guest_booking')
+      if (possibleDupRefs.length > 0)    flags.push('possible_duplicate')
 
       const { data: booking } = await supabase
         .from('bookings')
@@ -434,6 +429,14 @@ export async function POST(request: Request) {
       if (!booking) continue
 
       createdBookings.push({ booking, extracted: bk.extracted })
+
+      if (possibleDupRefs.length > 0) {
+        notifyOperator(
+          `⚠️ Possible duplicate created!\n\nNew: ${booking.booking_ref} (via ${channel})\nExists: ${possibleDupRefs.join(', ')}\nFrom: ${sender_email || sender_phone || 'unknown'}\nDate: ${bk.extracted.pickup_date} at ${bk.extracted.pickup_time}\n\nReview both bookings — delete the one that is wrong or apply corrections from the new one.`,
+          'ops',
+          `/bookings/${booking.id}`
+        ).catch(() => {})
+      }
 
       // Log Gemini cost against the first booking created
       if (i === 0 && result._usage) {
