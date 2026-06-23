@@ -208,6 +208,47 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - Service worker `notificationclick` fixed to call `c.navigate(url).then(() => c.focus())` so clicking a push on an already-open app navigates (not just focuses).
 - Calendar + dashboard tiles: `guest_name ?? client?.name ?? requested_by ?? '—'` — client name shown when no separate guest.
 
+## Billing — Slab Logic & Override
+
+### Trip types and `trip_type` field
+`bookings.trip_type`: `'local'` | `'outstation'` | `'airport'`
+
+### Rate card slabs
+- **4hr/40km** — local, short trip. Auto-selected if actual KMs ≤ 40 AND overtime over 4hr ≤ 105 min.
+- **8hr/80km** — local, full day. Auto-selected otherwise.
+- **Airport 4hr/80km** — fixed package for airport runs. `package_airport_rate` column on all 3 rate card tables (`rate_cards`, `client_rate_cards`, `company_driver_rates`).
+- **Outstation** — per-KM × max(actual KMs, min_kms_per_day × days).
+
+### Rounding rules
+- **Client billing** (invoices, cash-bills): extra time fraction > 20 min → round up to next full hour (`roundExtraHrsClient`)
+- **Driver billing** (driver-settlements): extra time fraction > 40 min → round up to next full hour (`roundExtraHrsDriver`)
+
+### Bata rules
+- Local/4HR/8HR: client IS charged bata (threshold-based count); driver earns bata
+- Airport: client IS charged bata (same threshold as local); driver earns ₹0 bata
+- Outstation: outstation bata rate applies to both client and driver
+
+### Slab override (`trip_sheets.slab_override TEXT`)
+Operator can override auto-detected slab in TripsheetEditPopup → Actual tab. Values: `'4HR'`, `'8HR'`, `'AIRPORT'`, `'OUTSTATION'`, `null` (auto).
+- All 4 billing routes check `slab_override` first, then fall through to `b.trip_type` auto-detect.
+- `effectiveTripType = slabOverride ?? b.trip_type` pattern used in driver-settlements.
+- Outstation override: calculates per-KM as normal outstation regardless of `b.trip_type`.
+- AIRPORT override: zeroes driver bata (same as booking-level airport).
+- `calcForced4HR` / `calcForced8HR` helper functions in all 3 client billing routes force a specific local slab.
+- `calcHireCharges` in driver-settlements handles uppercase `'4HR'`/`'8HR'`/`'OUTSTATION'`/`'AIRPORT'` (from override) and lowercase `'outstation'`/`'airport'` (from booking) via `tUpper` check.
+- UI: green chip = auto-detected, blue chip = manually overridden. "Reset to auto" sets `slab_override = null`.
+
+### Key billing files
+| File | Purpose |
+|---|---|
+| `src/app/api/billing/generate/route.ts` | Client invoice generation (company + individual) |
+| `src/app/api/billing/invoices/[id]/recalculate-line-item/route.ts` | Per-line recalculation after tripsheet edit |
+| `src/app/api/billing/cash-bills/generate/route.ts` | Personal/cash trip billing |
+| `src/app/api/billing/driver-settlements/generate/route.ts` | Driver pay settlement |
+| `src/components/billing/TripsheetEditPopup.tsx` | Tripsheet edit dialog (used in 5 places); has slab selector in Actual tab |
+
+---
+
 ## Analytics — Known Gotcha
 - `cancel_reason` does NOT exist on bookings; actual column is `cancelled_reason`. PostgREST silently returns null for the entire query if an unknown column is in the select string — no error thrown, just empty data. Always verify column names against `src/types/index.ts` before adding to a select.
 
