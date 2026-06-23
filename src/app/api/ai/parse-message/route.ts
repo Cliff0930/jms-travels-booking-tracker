@@ -535,10 +535,18 @@ export async function POST(request: Request) {
     }
 
     if (createdBookings.length === 0) {
+      const from = sender_email || sender_phone || 'unknown'
       await notifyOperator(
-        `⚠️ Email received but no booking created\n\nFrom: ${sender_email || sender_phone || 'unknown'}\nChannel: ${channel}\n\nGemini classified as booking but extracted 0 entries. The email may have partial or ambiguous details.\n\nRaw message ID: ${raw_message_id}\n\nPlease check and create the booking manually if needed.`,
+        `⚠️ Message received but no booking created\n\nFrom: ${from}\nChannel: ${channel}\n\nGemini classified as booking but could not extract valid booking details.\n\nRaw message ID: ${raw_message_id}\n\nPlease check and create the booking manually if needed.`,
         'ops'
       ).catch(() => {})
+      const operatorPhone = process.env.OPERATOR_WHATSAPP_NUMBER
+      if (operatorPhone) {
+        await sendWhatsAppMessage({
+          to: operatorPhone,
+          body: `⚠️ Booking not created\n\nFrom: ${from}\nChannel: ${channel}\n\nMessage received but no booking could be created — details may be irrelevant or unclear.\n\nPlease check and create manually if needed.`,
+        }).catch(() => {})
+      }
       return NextResponse.json({ ok: true, booking_id: null })
     }
 
@@ -565,24 +573,6 @@ export async function POST(request: Request) {
         statusNote,
       ].filter(Boolean).join('\n')
       notifyOperator(lines, 'ops', `/bookings/${firstBookingId}`).catch(() => {})
-
-      // WhatsApp operator for partial drafts — push alone can be missed
-      if (allMissing.length > 0) {
-        const operatorPhone = process.env.OPERATOR_WHATSAPP_NUMBER
-        if (operatorPhone) {
-          const waMsg = [
-            `⚠️ Partial Booking — Missing Info`,
-            `Ref: ${refs}`,
-            `From: ${sender_email || sender_phone || 'unknown'}`,
-            firstExt.pickup_date ? `Date: ${firstExt.pickup_date}${firstExt.pickup_time ? ` at ${firstExt.pickup_time}` : ''}` : null,
-            firstExt.pickup_location ? `Pickup: ${firstExt.pickup_location}` : null,
-            `Missing: ${allMissing.map(f => f.replace(/_/g, ' ')).join(', ')}`,
-            ``,
-            `Missing info request sent to client automatically.`,
-          ].filter(Boolean).join('\n')
-          sendWhatsAppMessage({ to: operatorPhone, body: waMsg }).catch(() => {})
-        }
-      }
     }
 
     // If any mandatory fields are missing, send one combined reply
