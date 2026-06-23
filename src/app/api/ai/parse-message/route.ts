@@ -535,6 +535,10 @@ export async function POST(request: Request) {
     }
 
     if (createdBookings.length === 0) {
+      await notifyOperator(
+        `⚠️ Email received but no booking created\n\nFrom: ${sender_email || sender_phone || 'unknown'}\nChannel: ${channel}\n\nGemini classified as booking but extracted 0 entries. The email may have partial or ambiguous details.\n\nRaw message ID: ${raw_message_id}\n\nPlease check and create the booking manually if needed.`,
+        'ops'
+      ).catch(() => {})
       return NextResponse.json({ ok: true, booking_id: null })
     }
 
