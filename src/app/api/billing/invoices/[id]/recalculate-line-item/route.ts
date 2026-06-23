@@ -71,6 +71,26 @@ function calcAirport(kms: number, actualMinutes: number, rate: RateCard) {
   return { pkgType: 'AIRPORT', pkgKms: AIRPORT_KMS, pkgHrs: AIRPORT_HRS, pkgRate: rate.package_airport_rate ?? 0, extKms, extKmAmt, extHrs, extHrAmt, hire: r2((rate.package_airport_rate ?? 0) + extKmAmt + extHrAmt) }
 }
 
+function calcForced4HR(kms: number, actualMinutes: number, rate: RateCard) {
+  const pkgMins = rate.package_4hr_hrs * 60
+  const extMins = Math.max(0, actualMinutes - pkgMins)
+  const extKms = Math.max(0, kms - rate.package_4hr_kms)
+  const extHrs = roundExtraHrsClient(extMins)
+  const extKmAmt = r2(extKms * rate.extra_km_rate)
+  const extHrAmt = r2(extHrs * rate.extra_hr_rate)
+  return { pkgType: '4HR', pkgKms: rate.package_4hr_kms, pkgHrs: rate.package_4hr_hrs, pkgRate: rate.package_4hr_rate, extKms, extKmAmt, extHrs, extHrAmt, hire: r2(rate.package_4hr_rate + extKmAmt + extHrAmt) }
+}
+
+function calcForced8HR(kms: number, actualMinutes: number, rate: RateCard) {
+  const pkgMins = rate.package_8hr_hrs * 60
+  const extMins = Math.max(0, actualMinutes - pkgMins)
+  const extKms = Math.max(0, kms - rate.package_8hr_kms)
+  const extHrs = roundExtraHrsClient(extMins)
+  const extKmAmt = r2(extKms * rate.extra_km_rate)
+  const extHrAmt = r2(extHrs * rate.extra_hr_rate)
+  return { pkgType: '8HR', pkgKms: rate.package_8hr_kms, pkgHrs: rate.package_8hr_hrs, pkgRate: rate.package_8hr_rate, extKms, extKmAmt, extHrs, extHrAmt, hire: r2(rate.package_8hr_rate + extKmAmt + extHrAmt) }
+}
+
 function calcOutstation(kms: number, days: number, rate: RateCard) {
   const billKms = Math.max(kms, rate.outstation_min_kms_per_day * days)
   return {
@@ -145,7 +165,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null,
   )
   const days = booking?.total_days ?? 1
-  const displayHrs = booking?.trip_type === 'outstation' ? days : actualHrs
+  const slabOverride = (sheet?.slab_override as string | null | undefined) ?? null
+  const displayHrs = (slabOverride === 'OUTSTATION' || (!slabOverride && booking?.trip_type === 'outstation')) ? days : actualHrs
   const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
   const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
   const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
@@ -155,12 +176,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const cbKeyAll = `${driverVehicleName}:all`
 
   let calc
-  if (booking?.trip_type === 'outstation') {
+  if (slabOverride === 'OUTSTATION' || (!slabOverride && booking?.trip_type === 'outstation')) {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
     calc = { ...calcOutstation(actualKms, days, rate), bata: r2(bataRate * bataCount) }
-  } else if (booking?.trip_type === 'airport') {
+  } else if (slabOverride === 'AIRPORT' || (!slabOverride && booking?.trip_type === 'airport')) {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
     calc = { ...calcAirport(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
+  } else if (slabOverride === '8HR') {
+    const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+    calc = { ...calcForced8HR(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
+  } else if (slabOverride === '4HR') {
+    const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+    calc = { ...calcForced4HR(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
   } else {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
     calc = { ...calcLocal(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }

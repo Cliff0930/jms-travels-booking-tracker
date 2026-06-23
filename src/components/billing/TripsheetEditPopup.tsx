@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight } from 'lucide-react'
+import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TripSheet {
@@ -36,6 +36,7 @@ interface TripSheet {
   client_toll_amount: number | null
   client_parking_amount: number | null
   client_permit_amount: number | null
+  slab_override: string | null
 }
 
 interface Props {
@@ -66,6 +67,30 @@ type Form = {
   client_toll_amount: string; client_parking_amount: string; client_permit_amount: string
   bata_client: string
   trip_opening_date: string; trip_closing_date: string
+}
+
+const SLABS = [
+  { id: '4HR',       label: '4hr/40km'        },
+  { id: 'AIRPORT',   label: 'Airport 4hr/80km' },
+  { id: '8HR',       label: '8hr/80km'         },
+  { id: 'OUTSTATION', label: 'Outstation'       },
+] as const
+
+function detectAutoSlab(tripType: string | null | undefined, form: Form): string {
+  if (tripType === 'outstation') return 'OUTSTATION'
+  if (tripType === 'airport')    return 'AIRPORT'
+  const openKm  = parseFloat(form.opening_km  || '0')
+  const closeKm = parseFloat(form.closing_km  || '0')
+  const actualKms = closeKm > openKm ? closeKm - openKm : 0
+  const parseT = (t: string): number | null => {
+    const p = t.split(':').map(Number)
+    return p.length >= 2 && !isNaN(p[0]) ? p[0] * 60 + (p[1] || 0) : null
+  }
+  const o = parseT(form.manual_opening_time)
+  const c = parseT(form.manual_closing_time)
+  let mins = 0
+  if (o !== null && c !== null) { mins = c - o; if (mins < 0) mins += 1440 }
+  return actualKms <= 40 && Math.max(0, mins - 240) <= 105 ? '4HR' : '8HR'
 }
 
 function nn(v: number | null | undefined): string { return v != null ? String(v) : '' }
@@ -134,6 +159,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   const [saving, setSaving] = useState<SaveMode | null>(null)
   const [form, setForm] = useState<Form | null>(null)
   const [tab, setTab] = useState<Tab>('actual')
+  const [slabOverride, setSlabOverride] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -151,6 +177,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         const s = sheets.find(x => x.id === tripSheetId) ?? sheets[0] ?? null
         setSheet(s)
         if (s) {
+          setSlabOverride(s.slab_override ?? null)
           setForm({
             tripsheet_number:      ns(s.tripsheet_number),
             opening_km:            nn(s.opening_km),
@@ -247,6 +274,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           bata_client:           n(form.bata_client),
           trip_opening_date:     s(form.trip_opening_date),
           trip_closing_date:     s(form.trip_closing_date),
+          slab_override:         slabOverride,
         })
         await recalculate()
       } else if (mode === 'driver') {
@@ -259,6 +287,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           driver_parking_amount: n(form.driver_parking_amount),
           driver_permit_amount:  n(form.driver_permit_amount),
           bata_driver:           n(form.bata_driver),
+          slab_override:         slabOverride,
         })
       } else {
         await patchSheet({
@@ -272,6 +301,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           bata_client:           n(form.bata_client),
           trip_opening_date:     s(form.trip_opening_date),
           trip_closing_date:     s(form.trip_closing_date),
+          slab_override:         slabOverride,
         })
         await recalculate()
       }
@@ -376,6 +406,45 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
                         placeholder="e.g. TS-2001"
                       />
                     </FieldRow>
+                  </div>
+
+                  {/* Billing Slab */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                        <Tag className="w-3 h-3" /> Billing Slab
+                      </p>
+                      {slabOverride && (
+                        <button
+                          onClick={() => setSlabOverride(null)}
+                          className="text-[10px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5 transition-colors"
+                        >
+                          <X className="w-3 h-3" /> Reset to auto
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {SLABS.map(sl => {
+                        const autoSlab   = detectAutoSlab(tripType, f)
+                        const isAuto     = !slabOverride && sl.id === autoSlab
+                        const isOverride = slabOverride === sl.id
+                        return (
+                          <button
+                            key={sl.id}
+                            onClick={() => setSlabOverride(slabOverride === sl.id ? null : sl.id)}
+                            className={cn(
+                              'px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors',
+                              isOverride && 'bg-blue-600 border-blue-600 text-white',
+                              isAuto     && 'bg-emerald-600 border-emerald-600 text-white',
+                              !isAuto && !isOverride && 'bg-white border-gray-200 text-gray-500 hover:border-gray-400',
+                            )}
+                          >
+                            {sl.label}
+                            {isAuto && <span className="ml-1 opacity-75 font-normal text-[10px]">auto</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
 
                   {/* Outstation dates */}

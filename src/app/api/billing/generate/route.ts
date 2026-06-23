@@ -84,6 +84,28 @@ function calcAirportTrip(actualKms: number, actualMinutes: number, rate: RateCar
   return { packageType: 'AIRPORT', packageKms: AIRPORT_KMS, packageRate: rate.package_airport_rate ?? 0, extraKms, extraKmAmount, extraHrs, extraHrAmount, hireCharges }
 }
 
+function calcForced4HR(actualKms: number, actualMinutes: number, rate: RateCard) {
+  const pkgMins = rate.package_4hr_hrs * 60
+  const extraMins = Math.max(0, actualMinutes - pkgMins)
+  const extraKms = Math.max(0, actualKms - rate.package_4hr_kms)
+  const extraHrs = roundExtraHrsClient(extraMins)
+  const extraKmAmount = roundTo2(extraKms * rate.extra_km_rate)
+  const extraHrAmount = roundTo2(extraHrs * rate.extra_hr_rate)
+  const hireCharges = roundTo2(rate.package_4hr_rate + extraKmAmount + extraHrAmount)
+  return { packageType: '4HR', packageKms: rate.package_4hr_kms, packageRate: rate.package_4hr_rate, extraKms, extraKmAmount, extraHrs, extraHrAmount, hireCharges }
+}
+
+function calcForced8HR(actualKms: number, actualMinutes: number, rate: RateCard) {
+  const pkgMins = rate.package_8hr_hrs * 60
+  const extraMins = Math.max(0, actualMinutes - pkgMins)
+  const extraKms = Math.max(0, actualKms - rate.package_8hr_kms)
+  const extraHrs = roundExtraHrsClient(extraMins)
+  const extraKmAmount = roundTo2(extraKms * rate.extra_km_rate)
+  const extraHrAmount = roundTo2(extraHrs * rate.extra_hr_rate)
+  const hireCharges = roundTo2(rate.package_8hr_rate + extraKmAmount + extraHrAmount)
+  return { packageType: '8HR', packageKms: rate.package_8hr_kms, packageRate: rate.package_8hr_rate, extraKms, extraKmAmount, extraHrs, extraHrAmount, hireCharges }
+}
+
 function calcOutstationTrip(actualKms: number, days: number, rate: RateCard) {
   const billableKms = Math.max(actualKms, rate.outstation_min_kms_per_day * days)
   const hireCharges = roundTo2(billableKms * rate.outstation_rate_per_km)
@@ -159,7 +181,7 @@ export async function POST(request: Request) {
     trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
       client_opening_km, client_closing_km, client_opening_time, client_closing_time,
       toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
-      client_toll_amount, client_parking_amount, client_permit_amount)`
+      client_toll_amount, client_parking_amount, client_permit_amount, slab_override)`
 
   // Fetch completed bookings in period
   let bookingsQ = supabase.from('bookings').select(bookingSelect)
@@ -250,8 +272,9 @@ export async function POST(request: Request) {
       (sheet?.client_opening_time  ?? sheet?.manual_opening_time)  as string | null,
       (sheet?.client_closing_time  ?? sheet?.manual_closing_time) as string | null
     )
+    const slabOverride = (sheet?.slab_override as string | null | undefined) ?? null
     // For outstation, store total_days in actual_hrs (hrs unused in billing; PDF uses this to show "X Day/s")
-    const displayHrs = b.trip_type === 'outstation' ? (b.total_days ?? 1) : actualHrs
+    const displayHrs = (slabOverride === 'OUTSTATION' || (!slabOverride && b.trip_type === 'outstation')) ? (b.total_days ?? 1) : actualHrs
     const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
     const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
     const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
@@ -264,13 +287,19 @@ export async function POST(request: Request) {
     const cbKey  = `${driverVehicleName}:${b.trip_type ?? 'local'}`
     const cbKeyAll = `${driverVehicleName}:all`
     let calc
-    if (b.trip_type === 'outstation') {
+    if (slabOverride === 'OUTSTATION' || (!slabOverride && b.trip_type === 'outstation')) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
-    } else if (b.trip_type === 'airport') {
+    } else if (slabOverride === 'AIRPORT' || (!slabOverride && b.trip_type === 'airport')) {
       const airportBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * airportBataRate) }
+    } else if (slabOverride === '8HR') {
+      const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcForced8HR(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * bataRate) }
+    } else if (slabOverride === '4HR') {
+      const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcForced4HR(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * bataRate) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }
@@ -353,7 +382,8 @@ export async function POST(request: Request) {
     const actualKms = closeKm > openKm ? closeKm - openKm : 0
     const actualHrs = calcHours((sheet?.client_opening_time ?? sheet?.manual_opening_time) as string | null, (sheet?.client_closing_time ?? sheet?.manual_closing_time) as string | null)
     const actualMinutes = calcMinutes((sheet?.client_opening_time ?? sheet?.manual_opening_time) as string | null, (sheet?.client_closing_time ?? sheet?.manual_closing_time) as string | null)
-    const displayHrs = b.trip_type === 'outstation' ? (b.total_days ?? 1) : actualHrs
+    const slabOverrideMissed = (sheet?.slab_override as string | null | undefined) ?? null
+    const displayHrs = (slabOverrideMissed === 'OUTSTATION' || (!slabOverrideMissed && b.trip_type === 'outstation')) ? (b.total_days ?? 1) : actualHrs
     const toll    = Number(sheet?.client_toll_amount    ?? sheet?.toll_amount    ?? 0)
     const parking = Number(sheet?.client_parking_amount ?? sheet?.parking_amount ?? 0)
     const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
@@ -362,13 +392,19 @@ export async function POST(request: Request) {
     const cbKey = `${driverVehicleName}:${b.trip_type ?? 'local'}`
     const cbKeyAll = `${driverVehicleName}:all`
     let calc
-    if (b.trip_type === 'outstation') {
+    if (slabOverrideMissed === 'OUTSTATION' || (!slabOverrideMissed && b.trip_type === 'outstation')) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
-    } else if (b.trip_type === 'airport') {
+    } else if (slabOverrideMissed === 'AIRPORT' || (!slabOverrideMissed && b.trip_type === 'airport')) {
       const airportBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * airportBataRate) }
+    } else if (slabOverrideMissed === '8HR') {
+      const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcForced8HR(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * bataRate) }
+    } else if (slabOverrideMissed === '4HR') {
+      const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
+      calc = { ...calcForced4HR(actualKms, actualMinutes, rate), bataAmount: roundTo2(bataClientCount * bataRate) }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }

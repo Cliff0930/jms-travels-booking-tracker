@@ -50,11 +50,12 @@ const DEFAULT_RATE: RateCard = {
 }
 
 function calcHireCharges(actualKms: number, actualMinutes: number, days: number, tripType: string, rate: RateCard): number {
-  if (tripType === 'outstation') {
+  const tUpper = tripType.toUpperCase()
+  if (tUpper === 'OUTSTATION') {
     const billable = Math.max(actualKms, rate.outstation_min_kms_per_day * days)
     return r2(billable * rate.outstation_rate_per_km)
   }
-  if (tripType === 'airport') {
+  if (tUpper === 'AIRPORT') {
     const AIRPORT_KMS = 80, AIRPORT_HRS = 4
     const pkgMins = AIRPORT_HRS * 60
     const extMins = Math.max(0, actualMinutes - pkgMins)
@@ -62,6 +63,22 @@ function calcHireCharges(actualKms: number, actualMinutes: number, days: number,
     const extraKmAmt = r2(Math.max(0, actualKms - AIRPORT_KMS) * rate.extra_km_rate)
     const extraHrAmt = r2(extHrs * rate.extra_hr_rate)
     return r2((rate.package_airport_rate ?? 0) + extraKmAmt + extraHrAmt)
+  }
+  if (tripType === '4HR') {
+    const p4Mins = rate.package_4hr_hrs * 60
+    const e4Mins = Math.max(0, actualMinutes - p4Mins)
+    const e4Hrs = roundExtraHrsDriver(e4Mins)
+    const km4Amt = r2(Math.max(0, actualKms - rate.package_4hr_kms) * rate.extra_km_rate)
+    const hr4Amt = r2(e4Hrs * rate.extra_hr_rate)
+    return r2(rate.package_4hr_rate + km4Amt + hr4Amt)
+  }
+  if (tripType === '8HR') {
+    const p8Mins = rate.package_8hr_hrs * 60
+    const e8Mins = Math.max(0, actualMinutes - p8Mins)
+    const e8Hrs = roundExtraHrsDriver(e8Mins)
+    const km8Amt = r2(Math.max(0, actualKms - rate.package_8hr_kms) * rate.extra_km_rate)
+    const hr8Amt = r2(e8Hrs * rate.extra_hr_rate)
+    return r2(rate.package_8hr_rate + km8Amt + hr8Amt)
   }
   const pkg4Mins = rate.package_4hr_hrs * 60
   const extraMinsOver4 = Math.max(0, actualMinutes - pkg4Mins)
@@ -111,7 +128,7 @@ export async function POST(request: Request) {
         driver_opening_km, driver_closing_km, driver_opening_time, driver_closing_time,
         toll_amount, parking_amount, permit_amount, bata_driver,
         driver_toll_amount, driver_parking_amount, driver_permit_amount,
-        toll_paid, parking_paid, permit_paid, bata_paid)
+        toll_paid, parking_paid, permit_paid, bata_paid, slab_override)
     `)
     .eq('driver_id', driver_id)
     .eq('status', 'completed')
@@ -226,7 +243,9 @@ export async function POST(request: Request) {
     )
     const days = b.total_days ?? 1
 
-    const hireCharges = calcHireCharges(actualKms, actualMinutes, days, b.trip_type, rate)
+    const slabOverride = (sheet?.slab_override as string | null | undefined) ?? null
+    const effectiveTripType = slabOverride ?? b.trip_type ?? 'local'
+    const hireCharges = calcHireCharges(actualKms, actualMinutes, days, effectiveTripType, rate)
 
     // Priority: driver fixed rates → company driver rates → commission%
     let hireEarnings: number
@@ -234,7 +253,7 @@ export async function POST(request: Request) {
     const companyRate = companyDriverRateMap[companyId]?.[driverVehicle] as Record<string,unknown> | undefined
 
     if (driverFixed) {
-      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, driverFixed))
+      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, effectiveTripType, driverFixed))
       rateSource = 'fixed'
     } else if (companyRate?.rate_4hr || companyRate?.rate_8hr || companyRate?.rate_airport || companyRate?.outstation_rate_per_km) {
       const companyDriverCard: RateCard = {
@@ -246,7 +265,7 @@ export async function POST(request: Request) {
         outstation_rate_per_km: Number(companyRate.outstation_rate_per_km ?? 14),
         outstation_min_kms_per_day: 300,
       }
-      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, companyDriverCard) * (1 - commissionPct / 100))
+      hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, effectiveTripType, companyDriverCard) * (1 - commissionPct / 100))
       rateSource = 'company'
     } else {
       hireEarnings = r2(hireCharges * (1 - commissionPct / 100))
@@ -266,7 +285,7 @@ export async function POST(request: Request) {
       (companyRate?.bata_per_day ? Number(companyRate.bata_per_day) : null) ??
       bataMap[bataKey] ?? bataMap[bataKeyAll] ?? defaultBataRate
     // Airport bata collected from client only; also skip if already paid cash via reimbursements
-    const bataEarnings = (tripType === 'airport' || (sheet?.bata_paid as boolean))
+    const bataEarnings = (tripType === 'airport' || slabOverride === 'AIRPORT' || (sheet?.bata_paid as boolean))
       ? 0 : r2(bataCount * driverBataRate)
 
     // Skip amounts already paid in cash via the reimbursements page
