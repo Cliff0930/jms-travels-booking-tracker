@@ -565,6 +565,24 @@ export async function POST(request: Request) {
         statusNote,
       ].filter(Boolean).join('\n')
       notifyOperator(lines, 'ops', `/bookings/${firstBookingId}`).catch(() => {})
+
+      // WhatsApp operator for partial drafts — push alone can be missed
+      if (allMissing.length > 0) {
+        const operatorPhone = process.env.OPERATOR_WHATSAPP_NUMBER
+        if (operatorPhone) {
+          const waMsg = [
+            `⚠️ Partial Booking — Missing Info`,
+            `Ref: ${refs}`,
+            `From: ${sender_email || sender_phone || 'unknown'}`,
+            firstExt.pickup_date ? `Date: ${firstExt.pickup_date}${firstExt.pickup_time ? ` at ${firstExt.pickup_time}` : ''}` : null,
+            firstExt.pickup_location ? `Pickup: ${firstExt.pickup_location}` : null,
+            `Missing: ${allMissing.map(f => f.replace(/_/g, ' ')).join(', ')}`,
+            ``,
+            `Missing info request sent to client automatically.`,
+          ].filter(Boolean).join('\n')
+          sendWhatsAppMessage({ to: operatorPhone, body: waMsg }).catch(() => {})
+        }
+      }
     }
 
     // If any mandatory fields are missing, send one combined reply
