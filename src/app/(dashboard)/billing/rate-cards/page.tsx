@@ -47,6 +47,18 @@ function fmt(n: number | null | undefined) {
   return '₹' + Number(n).toLocaleString('en-IN')
 }
 
+function RateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-gray-500">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+        <Input className="pl-6 h-8 text-sm" value={value} onChange={e => onChange(e.target.value)} type="number" />
+      </div>
+    </div>
+  )
+}
+
 function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     package_4hr_rate: String(rate.package_4hr_rate),
@@ -145,16 +157,6 @@ function ClientRateModal({ companies, vehicleNames, onClose, onSaved }: {
     setSaving(false)
   }
 
-  const F = ({ label, field }: { label: string; field: 'package_4hr_rate' | 'package_8hr_rate' | 'extra_km_rate' | 'extra_hr_rate' | 'outstation_rate_per_km' }) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-gray-500">{label}</Label>
-      <div className="relative">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
-        <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
-      </div>
-    </div>
-  )
-
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-xl">
@@ -203,10 +205,10 @@ function ClientRateModal({ companies, vehicleNames, onClose, onSaved }: {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
-              <F label="4hr / 40km Package" field="package_4hr_rate" />
-              <F label="8hr / 80km Package" field="package_8hr_rate" />
-              <F label="Extra KM Rate (/km)" field="extra_km_rate" />
-              <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
+              <RateField label="4hr / 40km Package" value={form.package_4hr_rate} onChange={v => setForm(f => ({ ...f, package_4hr_rate: v }))} />
+              <RateField label="8hr / 80km Package" value={form.package_8hr_rate} onChange={v => setForm(f => ({ ...f, package_8hr_rate: v }))} />
+              <RateField label="Extra KM Rate (/km)" value={form.extra_km_rate} onChange={v => setForm(f => ({ ...f, extra_km_rate: v }))} />
+              <RateField label="Extra Hour Rate (/hr)" value={form.extra_hr_rate} onChange={v => setForm(f => ({ ...f, extra_hr_rate: v }))} />
             </div>
           </div>
 
@@ -214,7 +216,7 @@ function ClientRateModal({ companies, vehicleNames, onClose, onSaved }: {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outstation Rates</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-amber-50/60 border border-amber-100 p-3">
-              <F label="Rate per KM" field="outstation_rate_per_km" />
+              <RateField label="Rate per KM" value={form.outstation_rate_per_km} onChange={v => setForm(f => ({ ...f, outstation_rate_per_km: v }))} />
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">Min KMs / day</Label>
                 <Input className="h-8 text-sm" value={form.outstation_min_kms_per_day} onChange={e => setForm(f => ({ ...f, outstation_min_kms_per_day: e.target.value }))} type="number" />
@@ -373,16 +375,6 @@ function DriverRateModal({ companies, vehicleNames, onClose, onSaved }: {
     setSaving(false)
   }
 
-  const F = ({ label, field }: { label: string; field: keyof typeof form }) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-gray-500">{label}</Label>
-      <div className="relative">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
-        <Input className="pl-6 h-8 text-sm" value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} type="number" />
-      </div>
-    </div>
-  )
-
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-xl">
@@ -431,10 +423,10 @@ function DriverRateModal({ companies, vehicleNames, onClose, onSaved }: {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
-              <F label="4hr / 40km — Driver gets" field="rate_4hr" />
-              <F label="8hr / 80km — Driver gets" field="rate_8hr" />
-              <F label="Extra KM Rate (/km)" field="extra_km_rate" />
-              <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
+              <RateField label="4hr / 40km — Driver gets" value={form.rate_4hr} onChange={v => setForm(f => ({ ...f, rate_4hr: v }))} />
+              <RateField label="8hr / 80km — Driver gets" value={form.rate_8hr} onChange={v => setForm(f => ({ ...f, rate_8hr: v }))} />
+              <RateField label="Extra KM Rate (/km)" value={form.extra_km_rate} onChange={v => setForm(f => ({ ...f, extra_km_rate: v }))} />
+              <RateField label="Extra Hour Rate (/hr)" value={form.extra_hr_rate} onChange={v => setForm(f => ({ ...f, extra_hr_rate: v }))} />
             </div>
           </div>
 
@@ -442,10 +434,10 @@ function DriverRateModal({ companies, vehicleNames, onClose, onSaved }: {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outstation &amp; Bata</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-amber-50/60 border border-amber-100 p-3">
-              <F label="Outstation Rate (/km)" field="outstation_rate_per_km" />
+              <RateField label="Outstation Rate (/km)" value={form.outstation_rate_per_km} onChange={v => setForm(f => ({ ...f, outstation_rate_per_km: v }))} />
               <div />
-              <F label="Local Bata / day" field="bata_per_day" />
-              <F label="Outstation Bata / day" field="outstation_bata_per_day" />
+              <RateField label="Local Bata / day" value={form.bata_per_day} onChange={v => setForm(f => ({ ...f, bata_per_day: v }))} />
+              <RateField label="Outstation Bata / day" value={form.outstation_bata_per_day} onChange={v => setForm(f => ({ ...f, outstation_bata_per_day: v }))} />
             </div>
           </div>
         </div>
