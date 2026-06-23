@@ -35,6 +35,7 @@ function roundExtraHrsDriver(extraMins: number): number {
 
 interface RateCard {
   package_4hr_kms: number; package_4hr_hrs: number; package_4hr_rate: number
+  package_airport_rate: number
   package_8hr_kms: number; package_8hr_hrs: number; package_8hr_rate: number
   extra_km_rate: number; extra_hr_rate: number
   outstation_rate_per_km: number; outstation_min_kms_per_day: number
@@ -42,6 +43,7 @@ interface RateCard {
 
 const DEFAULT_RATE: RateCard = {
   package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+  package_airport_rate: 0,
   package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
   extra_km_rate: 14, extra_hr_rate: 250,
   outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
@@ -51,6 +53,15 @@ function calcHireCharges(actualKms: number, actualMinutes: number, days: number,
   if (tripType === 'outstation') {
     const billable = Math.max(actualKms, rate.outstation_min_kms_per_day * days)
     return r2(billable * rate.outstation_rate_per_km)
+  }
+  if (tripType === 'airport') {
+    const AIRPORT_KMS = 80, AIRPORT_HRS = 4
+    const pkgMins = AIRPORT_HRS * 60
+    const extMins = Math.max(0, actualMinutes - pkgMins)
+    const extHrs = roundExtraHrsDriver(extMins)
+    const extraKmAmt = r2(Math.max(0, actualKms - AIRPORT_KMS) * rate.extra_km_rate)
+    const extraHrAmt = r2(extHrs * rate.extra_hr_rate)
+    return r2((rate.package_airport_rate ?? 0) + extraKmAmt + extraHrAmt)
   }
   const pkg4Mins = rate.package_4hr_hrs * 60
   const extraMinsOver4 = Math.max(0, actualMinutes - pkg4Mins)
@@ -165,6 +176,7 @@ export async function POST(request: Request) {
   const driverFixed = (driver.fixed_rate_4hr || driver.fixed_rate_8hr || driver.fixed_rate_outstation_km)
     ? {
         package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: Number(driver.fixed_rate_4hr ?? 900),
+        package_airport_rate: Number(driver.fixed_rate_4hr ?? 0),
         package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: Number(driver.fixed_rate_8hr ?? 1900),
         extra_km_rate: Number(driver.fixed_rate_extra_km ?? 14),
         extra_hr_rate: Number(driver.fixed_rate_extra_hr ?? 250),
@@ -224,9 +236,10 @@ export async function POST(request: Request) {
     if (driverFixed) {
       hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, b.trip_type, driverFixed))
       rateSource = 'fixed'
-    } else if (companyRate?.rate_4hr || companyRate?.rate_8hr || companyRate?.outstation_rate_per_km) {
+    } else if (companyRate?.rate_4hr || companyRate?.rate_8hr || companyRate?.rate_airport || companyRate?.outstation_rate_per_km) {
       const companyDriverCard: RateCard = {
         package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: Number(companyRate.rate_4hr ?? 900),
+        package_airport_rate: Number(companyRate.rate_airport ?? companyRate.rate_4hr ?? 0),
         package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: Number(companyRate.rate_8hr ?? 1900),
         extra_km_rate: Number(companyRate.extra_km_rate ?? 14),
         extra_hr_rate: Number(companyRate.extra_hr_rate ?? 250),

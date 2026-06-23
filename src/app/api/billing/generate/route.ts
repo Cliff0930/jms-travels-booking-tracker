@@ -39,6 +39,7 @@ interface RateCard {
   package_4hr_kms: number
   package_4hr_hrs: number
   package_4hr_rate: number
+  package_airport_rate: number
   package_8hr_kms: number
   package_8hr_hrs: number
   package_8hr_rate: number
@@ -69,6 +70,18 @@ function calcLocalTrip(actualKms: number, actualMinutes: number, rate: RateCard)
   const extraHrAmount = roundTo2(extraHrs * rate.extra_hr_rate)
   const hireCharges = roundTo2(packageRate + extraKmAmount + extraHrAmount)
   return { packageType, packageKms, packageRate, extraKms, extraKmAmount, extraHrs, extraHrAmount, hireCharges }
+}
+
+function calcAirportTrip(actualKms: number, actualMinutes: number, rate: RateCard) {
+  const AIRPORT_KMS = 80, AIRPORT_HRS = 4
+  const pkgMins = AIRPORT_HRS * 60
+  const extraMins = Math.max(0, actualMinutes - pkgMins)
+  const extraKms = Math.max(0, actualKms - AIRPORT_KMS)
+  const extraHrs = roundExtraHrsClient(extraMins)
+  const extraKmAmount = roundTo2(extraKms * rate.extra_km_rate)
+  const extraHrAmount = roundTo2(extraHrs * rate.extra_hr_rate)
+  const hireCharges = roundTo2((rate.package_airport_rate ?? 0) + extraKmAmount + extraHrAmount)
+  return { packageType: 'AIRPORT', packageKms: AIRPORT_KMS, packageRate: rate.package_airport_rate ?? 0, extraKms, extraKmAmount, extraHrs, extraHrAmount, hireCharges }
 }
 
 function calcOutstationTrip(actualKms: number, days: number, rate: RateCard) {
@@ -218,6 +231,7 @@ export async function POST(request: Request) {
     const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
     const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
       package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+      package_airport_rate: 0,
       package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
       extra_km_rate: 14, extra_hr_rate: 250,
       outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
@@ -254,6 +268,8 @@ export async function POST(request: Request) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
+    } else if (b.trip_type === 'airport') {
+      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: 0 }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }
@@ -325,6 +341,7 @@ export async function POST(request: Request) {
     const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
     const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
       package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+      package_airport_rate: 0,
       package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
       extra_km_rate: 14, extra_hr_rate: 250,
       outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
@@ -348,6 +365,8 @@ export async function POST(request: Request) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
       const { bataAmount: _b, ...outstationCalc } = calcOutstationTrip(actualKms, days, rate)
       calc = { ...outstationCalc, bataAmount: roundTo2(outstationBataRate * bataClientCount) }
+    } else if (b.trip_type === 'airport') {
+      calc = { ...calcAirportTrip(actualKms, actualMinutes, rate), bataAmount: 0 }
     } else {
       const localBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
       const { bataAmount: _b, ...localCalc } = { bataAmount: 0, ...calcLocalTrip(actualKms, actualMinutes, rate) }

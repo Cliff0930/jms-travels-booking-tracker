@@ -35,6 +35,7 @@ function roundExtraHrsClient(extraMins: number): number {
 
 interface RateCard {
   package_4hr_kms: number; package_4hr_hrs: number; package_4hr_rate: number
+  package_airport_rate: number
   package_8hr_kms: number; package_8hr_hrs: number; package_8hr_rate: number
   extra_km_rate: number; extra_hr_rate: number
   outstation_rate_per_km: number; outstation_min_kms_per_day: number
@@ -57,6 +58,17 @@ function calcLocal(kms: number, actualMinutes: number, rate: RateCard) {
   const extKmAmt = r2(extKms * rate.extra_km_rate)
   const extHrAmt = r2(extHrs * rate.extra_hr_rate)
   return { pkgType, pkgKms, pkgHrs, pkgRate, extKms, extKmAmt, extHrs, extHrAmt, hire: r2(pkgRate + extKmAmt + extHrAmt) }
+}
+
+function calcAirport(kms: number, actualMinutes: number, rate: RateCard) {
+  const AIRPORT_KMS = 80, AIRPORT_HRS = 4
+  const pkgMins = AIRPORT_HRS * 60
+  const extMins = Math.max(0, actualMinutes - pkgMins)
+  const extKms = Math.max(0, kms - AIRPORT_KMS)
+  const extHrs = roundExtraHrsClient(extMins)
+  const extKmAmt = r2(extKms * rate.extra_km_rate)
+  const extHrAmt = r2(extHrs * rate.extra_hr_rate)
+  return { pkgType: 'AIRPORT', pkgKms: AIRPORT_KMS, pkgHrs: AIRPORT_HRS, pkgRate: rate.package_airport_rate ?? 0, extKms, extKmAmt, extHrs, extHrAmt, hire: r2((rate.package_airport_rate ?? 0) + extKmAmt + extHrAmt) }
 }
 
 function calcOutstation(kms: number, days: number, rate: RateCard) {
@@ -114,6 +126,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const vType = driverVehicleName || (booking?.vehicle_type ?? '').toUpperCase()
   const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
     package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+    package_airport_rate: 0,
     package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
     extra_km_rate: 14, extra_hr_rate: 250,
     outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
@@ -144,9 +157,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let calc
   if (booking?.trip_type === 'outstation') {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
-    const { hire } = calcOutstation(actualKms, days, rate)
     calc = { ...calcOutstation(actualKms, days, rate), bata: r2(bataRate * bataCount) }
-    void hire
+  } else if (booking?.trip_type === 'airport') {
+    calc = { ...calcAirport(actualKms, actualMinutes, rate), bata: 0 }
   } else {
     const bataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.local_bata ?? 300
     calc = { ...calcLocal(actualKms, actualMinutes, rate), bata: r2(bataCount * bataRate) }
