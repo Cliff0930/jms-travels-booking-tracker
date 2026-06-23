@@ -4,7 +4,7 @@ import { classifyAndExtract } from '@/lib/gemini/classify-and-extract'
 import { logApiCost, calcGeminiCost } from '@/lib/api-costs'
 import type { ExtractedFields } from '@/lib/gemini/extract'
 import { fillTemplate, TEMPLATE_KEYS } from '@/lib/templates'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendEmail } from '@/lib/gmail/send'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
@@ -542,9 +542,10 @@ export async function POST(request: Request) {
       ).catch(() => {})
       const operatorPhone = process.env.OPERATOR_WHATSAPP_NUMBER
       if (operatorPhone) {
-        await sendWhatsAppMessage({
+        await sendWhatsAppTemplate({
           to: operatorPhone,
-          body: `⚠️ Booking not created\n\nFrom: ${from}\nChannel: ${channel}\n\nMessage received but no booking could be created — details may be irrelevant or unclear.\n\nPlease check and create manually if needed.`,
+          templateName: 'operator_alert',
+          params: [`Booking not created\nFrom: ${from}\nChannel: ${channel}\nMessage received but no booking could be created — details may be irrelevant or unclear.\nPlease check and create manually if needed.`],
         }).catch(() => {})
       }
       return NextResponse.json({ ok: true, booking_id: null })

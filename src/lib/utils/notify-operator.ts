@@ -1,4 +1,4 @@
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { sendPushToAll } from '@/lib/utils/push-notify'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -26,7 +26,7 @@ export async function notifyOperator(message: string, channel: 'alerts' | 'ops' 
       console.error('[notifyOperator] No OPERATOR_WHATSAPP_NUMBER — alert only sent via push:', message.slice(0, 120))
       return
     }
-    await sendWhatsAppMessage({ to: phone, body: `⚠️ CabFlow\n\n${message}` })
+    await sendWhatsAppTemplate({ to: phone, templateName: 'operator_alert', params: [message.slice(0, 900)] })
       .catch(e => console.error('[notifyOperator] WhatsApp failed to deliver alert:', e))
   }
 }

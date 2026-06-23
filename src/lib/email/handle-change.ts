@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/gmail/send'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
+import { sendWhatsAppTemplate } from '@/lib/whatsapp/send'
 import { notifyOperator as globalNotifyOperator } from '@/lib/utils/notify-operator'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { EmailModificationChange } from '@/lib/gemini/classify-and-extract'
@@ -318,7 +318,7 @@ export async function handleEmailModify(
       ``,
       `Please update the booking and notify the driver.`,
     ].filter(Boolean).join('\n')
-    await sendWhatsAppMessage({ to: operatorPhone, body: waMsg }).catch(() => {})
+    await sendWhatsAppTemplate({ to: operatorPhone, templateName: 'operator_alert', params: [waMsg.slice(0, 900)] }).catch(() => {})
   }
 
   await notify(
