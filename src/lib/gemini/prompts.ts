@@ -335,9 +335,11 @@ Saved locations for this client: {saved_locations}
 MULTIPLE BOOKINGS RULE:
 If the message contains multiple clearly distinct trips (different dates, times, or pickup locations listed as separate blocks), return one entry per trip in the "bookings" array. A single person's name/phone at the bottom applies to ALL bookings.
 If it is a single booking (even with multiple passengers), return one entry.
-Separators that signal a new booking: "CAB 1 / CAB 2", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
+Separators that signal a new booking: "CAB 1 / CAB 2 / CAB N", "Vehicle 1 / Vehicle 2 / Vehicle N", "AND" (in uppercase between trip blocks), a blank line followed by a new set of trip details.
+VEHICLE BLOCKS WITH NAMED EMPLOYEES: When the email contains "Vehicle 1:", "Vehicle 2:", "Vehicle N:" sections and each section lists its own "Employee Name:" and "Contact Number:", create one booking per vehicle block. Use that block's Employee Name as guest_name and Contact Number as guest_phone for its booking. A sign-off line outside the vehicle blocks ("For any queries contact me: [name] [phone]", "Regards, [name]", "POC: [name]") is the booking coordinator — never treat it as the guest.
 
 MULTI-VEHICLE BOOKINGS: When the message explicitly requests multiple vehicles ("1 sedan + 1 TT", "2 Innovas & a Sedan", "arrange 3 Innovas", "TT & Innova" etc.) → create one booking entry per individual vehicle, expanding quantities. Examples: "TT & Innova" → 2 entries; "2 Innovas & 1 Sedan" → 3 entries (Innova, Innova, Sedan); "3 Innovas" → 3 entries (Innova, Innova, Innova). Each vehicle needs its own driver, trip link, and tripsheet — that is why each must be a separate booking entry. All shared fields (pickup_date, pickup_time, pickup_location, drop_location, guest_name, guest_phone, pax_count) are identical across all entries. When "Drop Location: A > B" or "A and B" appears alongside multi-vehicle wording, assign the FIRST location as drop for booking 1 (sedan/cab) and the SECOND location as drop for booking 2 (TT/Tempo Traveller). If a contact or POC table lists two contacts, assign the first contact's phone as guest_phone for booking 1 and the second contact's phone as guest_phone for booking 2. If the drop split is unclear, set special_instructions to "⚠️ CLARIFY: Drop location from email is '[original text]' — confirm which vehicle goes to which destination." for ALL entries.
+VEHICLE TYPE ASSIGNMENT FOR VEHICLE BLOCKS: When the top-level message specifies vehicle types ("3 sedan and 1 Innova") AND the forwarded section has matching numbered Vehicle blocks, each Vehicle block also needs a vehicle_type. Assign in sequence: first N blocks get the first type, remaining blocks get the second type. Example: "3 sedan and 1 Innova" with 4 Vehicle blocks → Vehicles 1–3 = Sedan, Vehicle 4 = Innova. When per-block employee names and phones are present, use them as individual guest_name/guest_phone instead of shared values.
 
 FORWARDED EMAIL CHAINS: When the message contains a forwarded or quoted section (identified by "On [date] [name] wrote:", "----- Forwarded message -----", "---------- Forwarded message ----------", or a "From:" line inside the body) — read the FULL email including quoted content. The top-level message establishes booking intent (e.g. "Please arrange 1 sedan & 1 TT for this booking"); the forwarded/quoted section provides trip details (date, time, pickup, drop, pax, contacts). Extract fields from BOTH sections combined. The sender of the outermost message is the booker.
 
@@ -625,6 +627,168 @@ Output:
   "resolved_keywords": {},
   "new_keyword_detected": null
 }
+
+Example 8 — Corporate Vehicle blocks with named employees (forwarded email chain):
+Message:
+"""
+Subject: Re: Cab facility
+As discussed Arrange 3 sedan and 1 innova vehicle.
+
+On Tue, 23 Jun, 2026, 09:26 Anusha M, <anusha.m@licious.com> wrote:
+Vehicle 1:
+Employee Name: Vivek Bhandari
+Department: SMT
+Pickup Date: 23/06/2026
+Pickup Time: 11:30am
+Number of Passengers: 3
+Pickup Location: HO Office
+Drop Location: Offline store
+Contact Number: +91 77607 34284
+Remarks: Offline store visit
+
+Vehicle 2:
+Employee Name: Karthik Reddy
+Department: SMT
+Pickup Date: 23/06/2026
+Pickup Time: 11:30am
+Number of Passengers: 3
+Pickup Location: HO Office
+Drop Location: Offline store
+Contact Number: +91 79814 03453
+Remarks: Offline store visit
+
+Vehicle 3:
+Employee Name: Kenneth Abraham
+Department: SMT
+Pickup Date: 23/06/2026
+Pickup Time: 11:30am
+Number of Passengers: 3
+Pickup Location: HO Office
+Drop Location: Offline store
+Contact Number: +91 94861 37213
+Remarks: Offline store visit
+
+Vehicle 4:
+Employee Name: Krupan Gowda
+Department: SMT
+Pickup Date: 23/06/2026
+Pickup Time: 11:30am
+Number of Passengers: 3
+Pickup Location: HO Office
+Drop Location: Offline store
+Contact Number: +91 97396 85792
+Remarks: Offline store visit
+
+For any queries contact me: Anusha 9480095681
+"""
+Output:
+{
+  "classification": "booking",
+  "confidence": 0.97,
+  "reason": "4 separate Vehicle blocks each with a named employee and contact — one booking per vehicle.",
+  "target_booking_ref": null,
+  "cancel_reason": null,
+  "modification_request": {"changes": [], "booking_ref": null},
+  "bookings": [
+    {
+      "extracted": {
+        "pickup_location": "HO Office",
+        "drop_location": "Offline store",
+        "pickup_date": "2026-06-23",
+        "pickup_time": "11:30",
+        "pax_count": 3,
+        "vehicle_type": "Sedan",
+        "guest_name": "Vivek Bhandari",
+        "guest_phone": "7760734284",
+        "trip_type": "local",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Offline store visit",
+        "additional_phones": [],
+        "company_mentioned": null,
+        "department": "SMT",
+        "pickup_stops": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    },
+    {
+      "extracted": {
+        "pickup_location": "HO Office",
+        "drop_location": "Offline store",
+        "pickup_date": "2026-06-23",
+        "pickup_time": "11:30",
+        "pax_count": 3,
+        "vehicle_type": "Sedan",
+        "guest_name": "Karthik Reddy",
+        "guest_phone": "7981403453",
+        "trip_type": "local",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Offline store visit",
+        "additional_phones": [],
+        "company_mentioned": null,
+        "department": "SMT",
+        "pickup_stops": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    },
+    {
+      "extracted": {
+        "pickup_location": "HO Office",
+        "drop_location": "Offline store",
+        "pickup_date": "2026-06-23",
+        "pickup_time": "11:30",
+        "pax_count": 3,
+        "vehicle_type": "Sedan",
+        "guest_name": "Kenneth Abraham",
+        "guest_phone": "9486137213",
+        "trip_type": "local",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Offline store visit",
+        "additional_phones": [],
+        "company_mentioned": null,
+        "department": "SMT",
+        "pickup_stops": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    },
+    {
+      "extracted": {
+        "pickup_location": "HO Office",
+        "drop_location": "Offline store",
+        "pickup_date": "2026-06-23",
+        "pickup_time": "11:30",
+        "pax_count": 3,
+        "vehicle_type": "Innova",
+        "guest_name": "Krupan Gowda",
+        "guest_phone": "9739685792",
+        "trip_type": "local",
+        "service_type": "one_way",
+        "total_days": 1,
+        "special_instructions": "Offline store visit",
+        "additional_phones": [],
+        "company_mentioned": null,
+        "department": "SMT",
+        "pickup_stops": null
+      },
+      "missing_mandatory": [],
+      "is_guest_booking": true
+    }
+  ],
+  "resolved_keywords": {},
+  "new_keyword_detected": null
+}
+Notes:
+- 4 "Vehicle N:" blocks each with own Employee Name + Contact → 4 separate bookings, NOT one
+- "For any queries contact me: Anusha 9480095681" = coordinator sign-off, NOT a guest — ignored entirely
+- Vehicle type from top-level: "3 sedan and 1 Innova" → Vehicles 1–3 = Sedan, Vehicle 4 = Innova
+- Phone normalised: strip +91 and spaces (+91 77607 34284 → 7760734284)
+- Department from each block → department field (not special_instructions)
+- Remarks → special_instructions per booking
 
 Message to classify and extract from:
 """
