@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/gmail/send'
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { notifyOperator as globalNotifyOperator } from '@/lib/utils/notify-operator'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import type { EmailModificationChange } from '@/lib/gemini/classify-and-extract'
@@ -292,7 +293,7 @@ export async function handleEmailModify(
     return
   }
 
-  // Driver assigned — log as pending, ask operator to review
+  // Driver assigned — log as pending, WhatsApp operator with full details, ask operator to review
   const pendingEntries = changeEntries.map(c => ({
     ...c, new_value: `${c.new_value} (requested, not yet applied)`,
   }))
@@ -303,6 +304,22 @@ export async function handleEmailModify(
     reason: 'Client requested change via email — pending operator review',
     changes: pendingEntries,
   })
+
+  // WhatsApp operator directly so the detail is visible even without opening the app
+  const operatorPhone = process.env.OPERATOR_WHATSAPP_NUMBER
+  if (operatorPhone) {
+    const waMsg = [
+      `⚠️ Change Request — Action Needed`,
+      `Booking: ${booking.booking_ref}`,
+      `Client: ${clientName} (${senderEmail})`,
+      ...changeEntries.map(c => `${c.label}: ${fmtValue(c.field, c.old_value)} → ${fmtValue(c.field, c.new_value)}`),
+      `Driver: ${driver?.name ?? 'assigned'}${driver?.phone ? ` | ${driver.phone}` : ''}`,
+      booking.pickup_location ? `Pickup: ${booking.pickup_location}` : null,
+      ``,
+      `Please update the booking and notify the driver.`,
+    ].filter(Boolean).join('\n')
+    await sendWhatsAppMessage({ to: operatorPhone, body: waMsg }).catch(() => {})
+  }
 
   await notify(
     [

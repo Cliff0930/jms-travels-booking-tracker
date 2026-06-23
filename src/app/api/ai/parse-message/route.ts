@@ -145,13 +145,25 @@ async function findBookingForCancelModify(
     if (data) return { booking: data, found: 'ref' }
   }
   if (gmailThreadId) {
-    const { data } = await supabase
+    const { data: threadBookings } = await supabase
       .from('bookings')
       .select('*, driver:drivers!driver_id(name, phone)')
       .eq('gmail_thread_id', gmailThreadId)
       .not('status', 'in', '("completed","cancelled")')
-      .maybeSingle()
-    if (data) return { booking: data, found: 'thread' }
+      .order('pickup_date', { ascending: true })
+    if (threadBookings && threadBookings.length > 0) {
+      const now = new Date()
+      // Pick the first booking whose pickup datetime is still in the future.
+      // This handles multi-booking threads (e.g. June 23+24 trip) — correctly
+      // skips the already-passed leg and lands on the next upcoming one.
+      const future = threadBookings.filter(b => {
+        if (!b.pickup_date) return true
+        const pickupStr = `${b.pickup_date as string}T${(b.pickup_time as string | null) ?? '23:59'}:00+05:30`
+        return new Date(pickupStr) > now
+      })
+      const chosen = future[0] ?? threadBookings[threadBookings.length - 1]
+      return { booking: chosen, found: 'thread' }
+    }
   }
   if (clientId) {
     const { data } = await supabase
