@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 interface RateCard {
   id: string; vehicle_type: string; category: string
-  package_4hr_rate: number; package_8hr_rate: number
+  package_4hr_rate: number; package_airport_rate: number; package_8hr_rate: number
   extra_km_rate: number; extra_hr_rate: number
   outstation_rate_per_km: number; outstation_min_kms_per_day: number
   local_bata: number; outstation_bata_per_day: number
@@ -22,7 +22,7 @@ interface RateCard {
 
 interface ClientRateCard {
   id: string; company_id: string; vehicle_type: string
-  package_4hr_rate: number | null; package_8hr_rate: number | null
+  package_4hr_rate: number | null; package_airport_rate: number | null; package_8hr_rate: number | null
   extra_km_rate: number | null; extra_hr_rate: number | null
   outstation_rate_per_km: number | null; outstation_min_kms_per_day: number | null
   bill_bata_to_client: boolean; tds_percent: number
@@ -33,7 +33,7 @@ interface ClientRateCard {
 
 interface DriverRateCard {
   id: string; company_id: string; vehicle_type: string
-  rate_4hr: number | null; rate_8hr: number | null
+  rate_4hr: number | null; rate_airport: number | null; rate_8hr: number | null
   extra_km_rate: number | null; extra_hr_rate: number | null
   outstation_rate_per_km: number | null
   bata_per_day: number | null; outstation_bata_per_day: number | null
@@ -62,6 +62,7 @@ function RateField({ label, value, onChange }: { label: string; value: string; o
 function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     package_4hr_rate: String(rate.package_4hr_rate),
+    package_airport_rate: String(rate.package_airport_rate),
     package_8hr_rate: String(rate.package_8hr_rate),
     extra_km_rate: String(rate.extra_km_rate),
     extra_hr_rate: String(rate.extra_hr_rate),
@@ -100,6 +101,7 @@ function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: ()
         <div className="py-2 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <F label="4hr/40km Package" field="package_4hr_rate" />
+            <F label="Airport 4hr/80km Package" field="package_airport_rate" />
             <F label="8hr/80km Package" field="package_8hr_rate" />
             <F label="Extra KM Rate (per km)" field="extra_km_rate" />
             <F label="Extra Hour Rate (per hr)" field="extra_hr_rate" />
@@ -125,7 +127,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
   companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState({
-    company_id: defaultCompanyId ?? '', vehicle_type: '', package_4hr_rate: '', package_8hr_rate: '',
+    company_id: defaultCompanyId ?? '', vehicle_type: '', package_4hr_rate: '', package_airport_rate: '', package_8hr_rate: '',
     extra_km_rate: '14', extra_hr_rate: '250', outstation_rate_per_km: '',
     outstation_min_kms_per_day: '300', tds_percent: '0',
     local_bata_rate: '', outstation_bata_rate: '',
@@ -139,6 +141,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
     const body = {
       company_id: form.company_id, vehicle_type: form.vehicle_type,
       package_4hr_rate: form.package_4hr_rate ? Number(form.package_4hr_rate) : null,
+      package_airport_rate: form.package_airport_rate ? Number(form.package_airport_rate) : null,
       package_8hr_rate: form.package_8hr_rate ? Number(form.package_8hr_rate) : null,
       extra_km_rate: form.extra_km_rate ? Number(form.extra_km_rate) : null,
       extra_hr_rate: form.extra_hr_rate ? Number(form.extra_hr_rate) : null,
@@ -206,6 +209,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
               <RateField label="4hr / 40km Package" value={form.package_4hr_rate} onChange={v => setForm(f => ({ ...f, package_4hr_rate: v }))} />
+              <RateField label="Airport 4hr / 80km Package" value={form.package_airport_rate} onChange={v => setForm(f => ({ ...f, package_airport_rate: v }))} />
               <RateField label="8hr / 80km Package" value={form.package_8hr_rate} onChange={v => setForm(f => ({ ...f, package_8hr_rate: v }))} />
               <RateField label="Extra KM Rate (/km)" value={form.extra_km_rate} onChange={v => setForm(f => ({ ...f, extra_km_rate: v }))} />
               <RateField label="Extra Hour Rate (/hr)" value={form.extra_hr_rate} onChange={v => setForm(f => ({ ...f, extra_hr_rate: v }))} />
@@ -279,7 +283,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
 function AddRateButton({ vehicleName, vehicleCategory = '', onSaved }: { vehicleName: string; vehicleCategory?: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
-    package_4hr_rate: '900', package_8hr_rate: '1900',
+    package_4hr_rate: '900', package_airport_rate: '', package_8hr_rate: '1900',
     extra_km_rate: '14', extra_hr_rate: '250',
     outstation_rate_per_km: '14', outstation_min_kms_per_day: '300',
     local_bata: '300', outstation_bata_per_day: '450',
@@ -320,6 +324,7 @@ function AddRateButton({ vehicleName, vehicleCategory = '', onSaved }: { vehicle
             <DialogHeader><DialogTitle>Add Rate — {vehicleName} ({vehicleCategory})</DialogTitle></DialogHeader>
             <div className="py-2 grid grid-cols-2 gap-3">
               <F label="4hr/40km Package" field="package_4hr_rate" />
+              <F label="Airport 4hr/80km Package" field="package_airport_rate" />
               <F label="8hr/80km Package" field="package_8hr_rate" />
               <F label="Extra KM Rate (/km)" field="extra_km_rate" />
               <F label="Extra Hour Rate (/hr)" field="extra_hr_rate" />
@@ -351,7 +356,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
 }) {
   const [form, setForm] = useState({
     company_id: defaultCompanyId ?? '', vehicle_type: '',
-    rate_4hr: '', rate_8hr: '', extra_km_rate: '', extra_hr_rate: '',
+    rate_4hr: '', rate_airport: '', rate_8hr: '', extra_km_rate: '', extra_hr_rate: '',
     outstation_rate_per_km: '', bata_per_day: '', outstation_bata_per_day: '',
   })
   const [saving, setSaving] = useState(false)
@@ -363,6 +368,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
       company_id:             form.company_id,
       vehicle_type:           form.vehicle_type,
       rate_4hr:               form.rate_4hr               ? Number(form.rate_4hr)               : null,
+      rate_airport:           form.rate_airport           ? Number(form.rate_airport)           : null,
       rate_8hr:               form.rate_8hr               ? Number(form.rate_8hr)               : null,
       extra_km_rate:          form.extra_km_rate          ? Number(form.extra_km_rate)          : null,
       extra_hr_rate:          form.extra_hr_rate          ? Number(form.extra_hr_rate)          : null,
@@ -425,6 +431,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Local Rates</p>
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50/60 border border-blue-100 p-3">
               <RateField label="4hr / 40km — Driver gets" value={form.rate_4hr} onChange={v => setForm(f => ({ ...f, rate_4hr: v }))} />
+              <RateField label="Airport 4hr / 80km — Driver gets" value={form.rate_airport} onChange={v => setForm(f => ({ ...f, rate_airport: v }))} />
               <RateField label="8hr / 80km — Driver gets" value={form.rate_8hr} onChange={v => setForm(f => ({ ...f, rate_8hr: v }))} />
               <RateField label="Extra KM Rate (/km)" value={form.extra_km_rate} onChange={v => setForm(f => ({ ...f, extra_km_rate: v }))} />
               <RateField label="Extra Hour Rate (/hr)" value={form.extra_hr_rate} onChange={v => setForm(f => ({ ...f, extra_hr_rate: v }))} />
@@ -589,7 +596,7 @@ export default function RateCardsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {['Vehicle Name', '4hr/40km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
+                    {['Vehicle Name', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KM', 'L.Bata', 'O.Bata', ''].map(h => (
                       <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -603,6 +610,7 @@ export default function RateCardsPage() {
                         {r ? (
                           <>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_4hr_rate)}</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{r.package_airport_rate ? fmt(r.package_airport_rate) : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_8hr_rate)}</td>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_km_rate)}/km</td>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.extra_hr_rate)}/hr</td>
@@ -618,7 +626,7 @@ export default function RateCardsPage() {
                           </>
                         ) : (
                           <>
-                            <td colSpan={8} className="px-3 py-2.5 text-amber-600 text-xs italic">No rate set — click Add Rate to configure</td>
+                            <td colSpan={9} className="px-3 py-2.5 text-amber-600 text-xs italic">No rate set — click Add Rate to configure</td>
                             <td className="px-3 py-2.5">
                               <AddRateButton vehicleName={v.name} onSaved={() => qc.invalidateQueries({ queryKey: ['rate-cards'] })} />
                             </td>
@@ -669,7 +677,7 @@ export default function RateCardsPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                          {['Vehicle', '4hr', '8hr', 'Extra KM', 'Extra Hr', 'Outn/km', 'TDS%', 'Bill Bata', 'Effective', ''].map(h => (
+                          {['Vehicle', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'TDS%', 'Bill Bata', 'Effective', ''].map(h => (
                             <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -679,6 +687,7 @@ export default function RateCardsPage() {
                           <tr key={r.id} className="hover:bg-gray-50">
                             <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.vehicle_type}</td>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_4hr_rate)}</td>
+                            <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{r.package_airport_rate ? fmt(r.package_airport_rate) : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-800 whitespace-nowrap">{fmt(r.package_8hr_rate)}</td>
                             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_km_rate ? `₹${r.extra_km_rate}/km` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_hr_rate ? `₹${r.extra_hr_rate}/hr` : '—'}</td>
@@ -739,12 +748,12 @@ export default function RateCardsPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr>
-                          <th colSpan={8} className="px-3 py-1.5 text-left text-xs font-semibold text-indigo-600 uppercase bg-indigo-50/60 border-b border-indigo-100">Driver Pay Rates</th>
-                          <th colSpan={2} className="px-3 py-1.5 text-left text-xs font-semibold text-blue-600 uppercase bg-blue-50/60 border-b border-blue-100">Client Ref</th>
+                          <th colSpan={9} className="px-3 py-1.5 text-left text-xs font-semibold text-indigo-600 uppercase bg-indigo-50/60 border-b border-indigo-100">Driver Pay Rates</th>
+                          <th colSpan={3} className="px-3 py-1.5 text-left text-xs font-semibold text-blue-600 uppercase bg-blue-50/60 border-b border-blue-100">Client Ref</th>
                           <th className="bg-gray-50/60 border-b border-gray-100" />
                         </tr>
                         <tr className="bg-gray-50 border-b border-gray-100">
-                          {['Vehicle', '4hr Pay', '8hr Pay', 'Extra KM', 'Extra Hr', 'Outn/km', 'Local Bata', 'Outn Bata', 'Client 4hr', 'Client 8hr', ''].map(h => (
+                          {['Vehicle', '4hr Pay', 'Airport Pay', '8hr Pay', 'Extra KM', 'Extra Hr', 'Outn/km', 'Local Bata', 'Outn Bata', 'Client 4hr', 'Client Airport', 'Client 8hr', ''].map(h => (
                             <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -756,6 +765,7 @@ export default function RateCardsPage() {
                             <tr key={r.id} className="hover:bg-gray-50">
                               <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.vehicle_type}</td>
                               <td className="px-3 py-2.5 font-semibold text-indigo-700 whitespace-nowrap">{r.rate_4hr ? `₹${r.rate_4hr}` : '—'}</td>
+                              <td className="px-3 py-2.5 font-semibold text-indigo-700 whitespace-nowrap">{r.rate_airport ? `₹${r.rate_airport}` : '—'}</td>
                               <td className="px-3 py-2.5 font-semibold text-indigo-700 whitespace-nowrap">{r.rate_8hr ? `₹${r.rate_8hr}` : '—'}</td>
                               <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_km_rate ? `₹${r.extra_km_rate}/km` : '—'}</td>
                               <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_hr_rate ? `₹${r.extra_hr_rate}/hr` : '—'}</td>
@@ -764,6 +774,9 @@ export default function RateCardsPage() {
                               <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_bata_per_day ? `₹${r.outstation_bata_per_day}/day` : '—'}</td>
                               <td className="px-3 py-2.5 whitespace-nowrap">
                                 {clientRef ? <span className="text-blue-600 font-medium">{fmt(clientRef.package_4hr_rate)}</span> : <span className="text-gray-300 text-xs">no override</span>}
+                              </td>
+                              <td className="px-3 py-2.5 whitespace-nowrap">
+                                {clientRef ? <span className="text-blue-600 font-medium">{clientRef.package_airport_rate ? fmt(clientRef.package_airport_rate) : '—'}</span> : <span className="text-gray-300 text-xs">—</span>}
                               </td>
                               <td className="px-3 py-2.5 whitespace-nowrap">
                                 {clientRef ? <span className="text-blue-600 font-medium">{fmt(clientRef.package_8hr_rate)}</span> : <span className="text-gray-300 text-xs">—</span>}
