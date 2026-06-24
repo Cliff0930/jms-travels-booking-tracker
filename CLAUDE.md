@@ -51,6 +51,7 @@ NOTIFY pgrst, 'reload schema';
 | `jms_leg_driver_brief` | 9: driverName, ref, company, guestName, guestPhone, legDate, pax, arrivedLink, completedLink | Different driver assigned to a specific leg (no pickup/drop/time) |
 | `jms_leg_removed_driver` | 4: driverName, dayNumber, bookingRef, legDate | Old leg driver notified when replaced on a specific leg — **pending Meta approval** (free-form via `sendWhatsAppSmart` until approved) |
 | `jms_leg_driver_update_client` | 7: clientName, ref, dayNumber, legDate, driverName, driverPhone, vehicle | Per-leg client notification when outside 24h WA window — **pending Meta approval** |
+| `jms_driver_assigned_coordinator` | 10: bookerName, guestName, ref, driverName, driverContact, vehicleName, plateNo, date, time, pickupLocation | Driver details sent to company booker's WA when booking is for a guest — says "assigned for {{guestName}}'s trip" — **pending Meta approval** (falls back to `bookerEmailBody` free-form until approved) |
 
 **Key rule:** Driver messages always use `sendWhatsAppTemplate` (reliable). Client messages use `sendWhatsAppSmart` (free-form if 24h window open, else template).
 App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipped.

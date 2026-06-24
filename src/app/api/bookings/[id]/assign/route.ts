@@ -206,6 +206,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const clientName = booking.guest_name
       ? formalGuestName(booking.guest_name, guestClientForName?.prefix ?? null, guestClientForName?.designation ?? null, companyForName?.show_designation ?? null)
       : formalName(client?.name || 'there', client?.salutation, companyForName?.formal_address)
+    // bookerName is always the company contact — used for email greeting regardless of guest_name
+    const bookerName = formalName(client?.name || 'there', client?.salutation, companyForName?.formal_address)
 
     if (booking.pickup_date && booking.pickup_time) {
       const dateStr = formatDate(booking.pickup_date)
@@ -224,6 +226,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         driver.vehicle_number ? `Plate No.   : ${driver.vehicle_number}` : null,
       ].filter(Boolean).join('\n')
 
+      // Email to booker — greets the company contact by name and identifies the trip by guest name
+      const tripRef = booking.guest_name
+        ? `${clientName}'s upcoming trip (Ref: ${booking.booking_ref})`
+        : `your upcoming trip (Ref: ${booking.booking_ref})`
+      const bookerEmailBody = [
+        `Hi ${bookerName},`,
+        ``,
+        `We are pleased to inform you that a driver has been assigned for ${tripRef}.`,
+        ``,
+        `Driver Details`,
+        `--------------`,
+        driverDetails,
+        ``,
+        `Your pickup is scheduled for ${dateStr} at ${timeStr} from ${booking.pickup_location || 'your confirmed pickup point'}.`,
+        ``,
+        `Please feel free to contact your driver directly for any assistance. For any other queries, we are always happy to help.`,
+      ].join('\n')
+
+      // WhatsApp to guest — greets the traveller directly
       const driverBody = [
         `Hi ${clientName},`,
         ``,
@@ -263,7 +284,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           const result = await sendEmailSafe({
             to: bookerEmail,
             subject: `Driver Assigned - ${booking.booking_ref}`,
-            body: driverBody,
+            body: bookerEmailBody,
             cc: bookingCc.length > 0 ? bookingCc : undefined,
             booking_id: id,
             replyToThreadId: booking.gmail_thread_id || undefined,
@@ -276,7 +297,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             channel: 'email',
             direction: 'outbound',
             recipient: bookerEmail,
-            content: driverBody,
+            content: bookerEmailBody,
             template_used: 'driver_details_to_client',
             status: result.ok ? 'sent' : 'failed',
           })
@@ -298,21 +319,44 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           [guestPhone, bookerPhone]
         ).filter((p): p is string => !!p)
 
-        await Promise.all(waRecipients.map(phone =>
-          sendWhatsAppSmart({
+        await Promise.all(waRecipients.map(phone => {
+          // When the booker's phone is different from the guest's phone and a guest exists,
+          // send the coordinator template that names the guest so the booker knows which trip
+          const isBookerNotGuest = phone === bookerPhone && phone !== guestPhone && !!booking.guest_name
+          if (isBookerNotGuest) {
+            return sendWhatsAppSmart({
+              to: phone,
+              templateName: 'jms_driver_assigned_coordinator',
+              params: [
+                bookerName,
+                clientName,
+                booking.booking_ref,
+                driver.name,
+                contactLine,
+                vehicleLine || driver.vehicle_name || '-',
+                driver.vehicle_number || '-',
+                dateStr,
+                timeStr,
+                sanitizeWaParam(booking.pickup_location || 'your confirmed pickup point'),
+              ],
+              fallbackBody: bookerEmailBody,
+              log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
+            })
+          }
+          return sendWhatsAppSmart({
             to: phone,
             templateName: 'jms_driver_assigned',
             params: driverTemplateParams,
             fallbackBody: driverBody,
             log: { booking_id: id, client_id: client?.id || undefined, template_used: 'driver_details_to_client' },
           })
-        ))
+        }))
 
         if (bookerEmail && notifyTarget !== 'guest') {
           const result = await sendEmailSafe({
             to: bookerEmail,
             subject: `Driver Assigned - ${booking.booking_ref}`,
-            body: driverBody,
+            body: bookerEmailBody,
             booking_id: id,
             replyToThreadId: booking.gmail_thread_id || undefined,
           })
@@ -324,7 +368,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             channel: 'email',
             direction: 'outbound',
             recipient: bookerEmail,
-            content: driverBody,
+            content: bookerEmailBody,
             template_used: 'driver_details_to_client',
             status: result.ok ? 'sent' : 'failed',
           })

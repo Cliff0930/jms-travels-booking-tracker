@@ -318,19 +318,27 @@ export async function POST(request: Request) {
     const extraction = result
     const today = getTodayIST()
 
-    // Sanitise past dates in all bookings
-    for (const bk of extraction.bookings) {
+    // When multiple bookings are extracted and some have past dates, those are ghost bookings
+    // from deeply nested quoted email history (old completed trips) — drop them.
+    // If ALL extracted bookings have past dates (client sent a wrong date in a fresh email),
+    // keep them with the date cleared so we can ask for a valid future date.
+    const hasAnyValidDate = extraction.bookings.some(
+      bk => bk.extracted.pickup_date && bk.extracted.pickup_date >= today
+    )
+    const bookingsToProcess = extraction.bookings.flatMap(bk => {
       if (bk.extracted.pickup_date && bk.extracted.pickup_date < today) {
+        if (hasAnyValidDate) return []
         bk.extracted.pickup_date = null
         if (!bk.missing_mandatory.includes('pickup_date')) bk.missing_mandatory.push('pickup_date')
       }
-    }
+      return [bk]
+    })
 
-    const allMissing = extraction.bookings.flatMap(b => b.missing_mandatory)
+    const allMissing = bookingsToProcess.flatMap(b => b.missing_mandatory)
 
     await supabase
       .from('raw_messages')
-      .update({ ai_extracted_fields: extraction.bookings[0]?.extracted, ai_missing_fields: allMissing })
+      .update({ ai_extracted_fields: bookingsToProcess[0]?.extracted, ai_missing_fields: allMissing })
       .eq('id', raw_message_id)
 
     // Auto-create client from email if not found in database
@@ -363,8 +371,8 @@ export async function POST(request: Request) {
     // Create one booking per extracted entry
     const createdBookings: Array<{ booking: { id: string; booking_ref: string }; extracted: ExtractedFields }> = []
 
-    for (let i = 0; i < extraction.bookings.length; i++) {
-      const bk = extraction.bookings[i]
+    for (let i = 0; i < bookingsToProcess.length; i++) {
+      const bk = bookingsToProcess[i]
 
       // Cross-channel duplicate guard: same client + same date + same time within 2 hours.
       // No longer blocks — creates the booking with possible_duplicate flag so operator can review and delete if needed.
