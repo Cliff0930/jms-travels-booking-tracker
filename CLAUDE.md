@@ -51,7 +51,7 @@ NOTIFY pgrst, 'reload schema';
 | `jms_leg_driver_brief` | 9: driverName, ref, company, guestName, guestPhone, legDate, pax, arrivedLink, completedLink | Different driver assigned to a specific leg (no pickup/drop/time) |
 | `jms_leg_removed_driver` | 4: driverName, dayNumber, bookingRef, legDate | Old leg driver notified when replaced on a specific leg — **pending Meta approval** (free-form via `sendWhatsAppSmart` until approved) |
 | `jms_leg_driver_update_client` | 7: clientName, ref, dayNumber, legDate, driverName, driverPhone, vehicle | Per-leg client notification when outside 24h WA window — **pending Meta approval** |
-| `jms_driver_assigned_coordinator` | 10: bookerName, guestName, ref, driverName, driverContact, vehicleName, plateNo, date, time, pickupLocation | Driver details sent to company booker's WA when booking is for a guest — says "assigned for {{guestName}}'s trip" — **pending Meta approval** (falls back to `bookerEmailBody` free-form until approved) |
+| `jms_driver_assigned_coordinator` | 10: bookerName, guestName, ref, driverName, driverContact, vehicleName, plateNo, date, time, pickupLocation | Driver details sent to company booker's WA when booking is for a guest — says "assigned for {{guestName}}'s trip" — **approved 2026-06-24** |
 
 **Key rule:** Driver messages always use `sendWhatsAppTemplate` (reliable). Client messages use `sendWhatsAppSmart` (free-form if 24h window open, else template).
 App drivers (uses_app=true, last_app_seen < 7 days): skip WhatsApp, log as skipped.
@@ -95,6 +95,34 @@ One booking, one driver, multiple sequential pickup stops before a single final 
 - **Booking detail page:** Numbered stop list shown between Pickup and Drop fields when `pickup_stops` has 2+ entries. Editable via pencil icon → inline editor (location+time+guest per row, add/remove rows, "Remove all stops" option). "+ Stops" button on Pickup Location header when no stops yet. `startStopsEditor()` function populates `stopsEditorDraft` state. `handleFieldSave` handles `'pickup_stops'` → saves `pickup_stops` array + `pickup_location = stops[0].location`; 0 valid stops → saves `pickup_stops: null`.
 - **New booking form:** "Add multiple pickup stops" toggle link below Pickup Location field (in Section 3). Numbered rows with location+time+guest inputs; "Single pickup" button restores single input. On submit: `pickup_stops` array + `pickup_location = stops[0].location` sent to POST `/api/bookings`. State: `multiStop: boolean` + `stopsDraft: StopDraft[]`.
 - **Normal bookings unaffected:** `pickup_stops = null` falls through to existing single-pickup logic in all routes.
+
+---
+
+## Email & WhatsApp AI Pipeline — Key Rules & Safeguards
+
+### Gemini prompt guardrails (prompts.ts — all 3 prompts)
+- **Deep nested quotes (fixed 2026-06-24):** `CLASSIFY_AND_EXTRACT_PROMPT` reads the top-level message + FIRST quoted section only. Content after a SECOND "On [date] wrote:" line (or `>>` prefixes) is ignored — prevents ghost bookings from already-fulfilled trips buried in email chains.
+- **Vague time words (fixed 2026-06-24):** "morning / afternoon / evening / night" → `pickup_time = null`, added to `missing_mandatory`. Gemini must not guess a clock time from these words.
+- **Reschedule emails (fixed 2026-06-24):** Subject containing "Revised / Rescheduled / Updated / Correction" + a date/time change → classify as `modify_request`, not `booking`. Stops duplicate bookings when a client resends a revised itinerary.
+- **Signature phones (fixed 2026-06-24):** Email signature patterns ("Regards, Name | +91 XXXXX") are explicitly excluded from `guest_phone`. Only phones appearing in the trip-detail body count.
+
+### parse-message safety nets (`/api/ai/parse-message/route.ts`)
+- **Past-date filter (fixed 2026-06-24):** When Gemini returns multiple bookings and some have past dates, those are dropped (ghost bookings from quoted history). If ALL dates are past, dates are cleared and `pickup_date` added to `missing_mandatory`.
+- **Past-time filter — same day (fixed 2026-06-24):** Extends the past-date filter: if `pickup_date === today` AND `pickup_time <= current IST time`, that booking is also treated as past. Catches ghost bookings for trips that already ran earlier today.
+- **Reply-To email (fixed 2026-06-24):** Gmail webhook extracts the `Reply-To` header and passes it as `reply_to_email` to `parse-message`. If it differs from the `From` address, it is merged into `cc_emails` on the booking so coordinators using noreply/portal sender addresses still receive driver details and booking confirmations.
+- **Template double-brace fix (SQL migration 2026-06-24):** `message_templates` rows previously had `{{variable}}` double-brace placeholders. `fillTemplate()` uses single-brace regex `{var}` — inner `{var}` was replaced but the outer `{}` remained (e.g. `{Madhu V}`). Fixed by SQL: `UPDATE message_templates SET body = replace(replace(body, '{{', '{'), '}}', '}')`.
+
+### Driver details — booker vs guest split (`assign/route.ts`, fixed 2026-06-24)
+When `booking.guest_name` is set (company coordinator booked for a guest traveller):
+- **`bookerName`** — always the company contact (`client.name`). Used in email greeting and `jms_driver_assigned_coordinator` WA.
+- **`clientName`** — the traveller: guest name (with prefix/designation) when `guest_name` is set, otherwise the company contact.
+- **`bookerEmailBody`** — greets `bookerName`, says "driver assigned for [guestName]'s upcoming trip". Sent via email to company contact and as fallback to coordinator WA.
+- **`driverBody`** — greets `clientName` directly ("Hi [Guest],"), says "your upcoming trip". Sent via WA to the guest phone.
+- When booker phone ≠ guest phone and a guest exists: coordinator gets `jms_driver_assigned_coordinator` (10-param, names the guest); guest gets `jms_driver_assigned` (9-param, personal "your trip").
+
+### WhatsApp disambiguation (`change-handler.ts`, fixed 2026-06-24)
+- Active-booking list in cancel/modify disambiguation is capped at **3** (was 10).
+- Client can still reach any booking by typing its ref, guest name, date, or time — the handler has 8 resolution strategies including a live DB lookup by ref for bookings outside the top 3.
 
 ---
 
