@@ -307,7 +307,7 @@ export async function handleClientChange(
     .or(`pickup_date.is.null,pickup_date.gte.${todayIST}`)
     .order('pickup_date', { ascending: true, nullsFirst: false })
     .order('pickup_time', { ascending: true, nullsFirst: false })
-    .limit(10)
+    .limit(3)
 
   if (!allBookings?.length) {
     return { reply: `I couldn't find any active booking for your account. Would you like to make a new booking?`, pendingAction: null }
@@ -361,7 +361,7 @@ export async function handleClientChange(
       ``,
       list,
       ``,
-      `Reply with a number or booking reference (e.g. ${allBookings[0].booking_ref}).`,
+      `Reply with the number, guest name, or booking reference. For any other booking, share the reference number.`,
     ].join('\n')
 
     const pendingAction: PendingAction = {

@@ -29,6 +29,11 @@ function getTodayIST(): string {
   return new Date(Date.now() + istOffset).toISOString().slice(0, 10)
 }
 
+function getNowTimeIST(): string {
+  const ist = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+  return `${String(ist.getUTCHours()).padStart(2, '0')}:${String(ist.getUTCMinutes()).padStart(2, '0')}`
+}
+
 function extractMapsUrls(text: string): { pickup_location_url: string | null; drop_location_url: string | null } {
   const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
   const matches = [...text.matchAll(urlRegex)]
@@ -178,9 +183,16 @@ async function findBookingForCancelModify(
 }
 
 export async function POST(request: Request) {
-  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, gmail_thread_id, original_message_id, skip_auto_reply, skip_approval } = await request.json()
+  const { raw_message_id, client: clientFromReq, message, channel, sender_email, sender_name, sender_phone, cc_emails, reply_to_email, gmail_thread_id, original_message_id, skip_auto_reply, skip_approval } = await request.json()
   let client = clientFromReq
   const supabase = createAdminClient()
+  // Merge reply_to_email into cc list so coordinators who use a Reply-To address
+  // receive booking notifications even when their sender address is a noreply/portal address
+  const replyToEmail: string | null = typeof reply_to_email === 'string' && reply_to_email ? reply_to_email : null
+  const baseCcEmails: string[] = (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails as string[] : []
+  const effectiveCcEmails: string[] = (replyToEmail && replyToEmail !== sender_email && !baseCcEmails.includes(replyToEmail))
+    ? [...baseCcEmails, replyToEmail]
+    : baseCcEmails
 
   try {
     // Hard block: never process emails from our own address — prevents booking loops
@@ -265,7 +277,7 @@ export async function POST(request: Request) {
         replyToThreadId: gmail_thread_id || undefined,
         inReplyToMessageId: original_message_id || undefined,
       }
-      const ccForReply = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails as string[] : undefined
+      const ccForReply = effectiveCcEmails.length > 0 ? effectiveCcEmails : undefined
       const emailClient = client as Client | null
       const clientName = formalName(
         emailClient?.name || sender_name || 'there',
@@ -318,15 +330,24 @@ export async function POST(request: Request) {
     const extraction = result
     const today = getTodayIST()
 
-    // When multiple bookings are extracted and some have past dates, those are ghost bookings
-    // from deeply nested quoted email history (old completed trips) — drop them.
-    // If ALL extracted bookings have past dates (client sent a wrong date in a fresh email),
-    // keep them with the date cleared so we can ask for a valid future date.
-    const hasAnyValidDate = extraction.bookings.some(
-      bk => bk.extracted.pickup_date && bk.extracted.pickup_date >= today
-    )
+    // When multiple bookings are extracted and some have past dates/times, those are ghost
+    // bookings from nested email history — drop them. If ALL are past, keep with date cleared
+    // so we can ask for a valid future date.
+    const nowTimeIST = getNowTimeIST()
+    const hasAnyValidDate = extraction.bookings.some(bk => {
+      if (!bk.extracted.pickup_date) return false
+      if (bk.extracted.pickup_date > today) return true
+      if (bk.extracted.pickup_date === today) {
+        if (!bk.extracted.pickup_time) return true
+        return bk.extracted.pickup_time > nowTimeIST
+      }
+      return false
+    })
     const bookingsToProcess = extraction.bookings.flatMap(bk => {
-      if (bk.extracted.pickup_date && bk.extracted.pickup_date < today) {
+      const isPastDate = !!bk.extracted.pickup_date && bk.extracted.pickup_date < today
+      const isTodayPastTime = bk.extracted.pickup_date === today &&
+        !!bk.extracted.pickup_time && bk.extracted.pickup_time <= nowTimeIST
+      if (isPastDate || isTodayPastTime) {
         if (hasAnyValidDate) return []
         bk.extracted.pickup_date = null
         if (!bk.missing_mandatory.includes('pickup_date')) bk.missing_mandatory.push('pickup_date')
@@ -423,7 +444,7 @@ export async function POST(request: Request) {
           source: channel,
           requested_by: sender_email || sender_phone || null,
           flags,
-          cc_emails: (channel === 'email' && Array.isArray(cc_emails) && cc_emails.length > 0) ? cc_emails : null,
+          cc_emails: effectiveCcEmails.length > 0 ? effectiveCcEmails : null,
           gmail_thread_id: (channel === 'email' && gmail_thread_id) ? gmail_thread_id : null,
           pickup_location: bk.extracted.pickup_location,
           drop_location: bk.extracted.drop_location,
@@ -566,7 +587,7 @@ export async function POST(request: Request) {
       emailClient2?.salutation,
       (emailClient2?.company as Company | null)?.formal_address,
     )
-    const emailCc = Array.isArray(cc_emails) && cc_emails.length > 0 ? cc_emails : undefined
+    const emailCc = effectiveCcEmails.length > 0 ? effectiveCcEmails : undefined
 
     // Notify operator of every new booking — fire and forget
     {

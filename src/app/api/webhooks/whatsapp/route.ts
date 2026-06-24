@@ -588,11 +588,13 @@ async function processClientMessage(
   ]
 
   // Bulk booking detection: if 3+ distinct guest phones appear in the conversation,
-  // auto-extract all bookings via LLM, create complete ones, notify operator for incomplete
+  // auto-extract all bookings via LLM, create complete ones, notify operator for incomplete.
+  // Threshold is 3 (not 2) to avoid misclassifying a single-trip booking with 2 named guests
+  // as a bulk request — 2 guests with 2 phones is still one booking.
   const fullText = updatedMessages.map(m => m.content).join('\n')
   const allPhones = fullText.match(/\b[6-9]\d{9}\b/g) ?? []
   const uniqueGuestPhones = new Set(allPhones.filter(p => !senderPhone.endsWith(p)))
-  if (uniqueGuestPhones.size >= 2) {
+  if (uniqueGuestPhones.size >= 3) {
     const clientSavedLocs = client.locations ?? []
     const bulkText = updatedMessages.filter(m => m.role === 'client').map(m => m.content).join('\n\n')
 

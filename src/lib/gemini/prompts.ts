@@ -50,6 +50,7 @@ DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as word
 - NEVER output the word "today", "tomorrow", or a weekday name as the pickup_date value — always convert to YYYY-MM-DD
 
 IMPORTANT: pickup_date must NEVER be before {today}. If the extracted date is in the past, set pickup_date to null and add "pickup_date" to missing_mandatory.
+IMPORTANT: If no specific clock time appears in the message — only vague words like "morning", "afternoon", "evening", or "night" — set pickup_time to null and add "pickup_time" to missing_mandatory. Do NOT guess or infer a time from these words.
 
 Known client profile (may be empty for new clients):
 {client_profile}
@@ -62,7 +63,7 @@ Fields to extract:
 5. pax_count — number of passengers (OPTIONAL for known clients — use profile default if not mentioned)
 6. vehicle_type — type of vehicle needed (OPTIONAL for known clients — use profile default if not mentioned). Extract from parentheses too: "cab (Etios)" → "Etios"
 7. guest_name — if booking is for someone other than the sender. When multiple guests are listed (each with a name + phone on separate lines), set guest_name to all names joined (e.g. "Dr Yogesh Singh, Dr Manesh Kale, Mr Sahidul Islam") and pax_count accordingly. If a guest's name is followed by a ministry, department, or organization name (e.g. "Dr. Om Krishnan, Meity" where "Meity" = Ministry of Electronics and IT), treat the org/department as special_instructions, NOT as guest_name.
-8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
+8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Email signature patterns such as "Regards, [Name] | +91 XXXXX" or "Best, [Name] — [Phone] — [Company]" are the sender's own contact info — never treat a signature phone as guest_phone even if no other phone appears in the email. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way", "drop back", "drop him/her/them back", "drop to his/her house/home/residence/office" (when the final drop is the same place as or same type as the pickup). "Drop only" explicitly means one_way. Do NOT set "return" for "Pickup and Drop" — that just means standard cab service.
 11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
@@ -282,6 +283,7 @@ Classification rules:
 - WhatsApp forwards, OTPs, bank alerts are always junk
 - If the message contains BOTH a cancel/modify intent AND new booking details for a different trip → classify as "booking" (new booking takes priority)
 - If the message is ONLY about cancelling or changing an existing booking with no new trip → classify as cancel_request or modify_request
+- If the email subject contains words like "Revised", "Rescheduled", "Updated", or "Correction" AND the body references an existing guest or trip with only a date/time change → classify as "modify_request", not "booking"
 
 STEP 2 — EXTRACT booking details (ONLY when classification = "booking")
 If classification is NOT "booking", set bookings = [], resolved_keywords = {}, new_keyword_detected = null and stop.
@@ -304,6 +306,7 @@ DATE RESOLUTION RULES — always output pickup_date as YYYY-MM-DD, never as word
 - NEVER output the word "today", "tomorrow", or a weekday name as the pickup_date value — always convert to YYYY-MM-DD
 
 IMPORTANT: pickup_date must NEVER be before {today}. If the extracted date is in the past, set pickup_date to null and add "pickup_date" to missing_mandatory.
+IMPORTANT: If no specific clock time appears in the message — only vague words like "morning", "afternoon", "evening", or "night" — set pickup_time to null and add "pickup_time" to missing_mandatory. Do NOT guess or infer a time from these words.
 
 Known client profile (may be empty for new clients):
 {client_profile}
@@ -316,7 +319,7 @@ Fields to extract:
 5. pax_count — number of passengers (OPTIONAL for known clients — use profile default if not mentioned)
 6. vehicle_type — type of vehicle needed (OPTIONAL for known clients — use profile default if not mentioned). Extract from parentheses too: "cab (Etios)" → "Etios"
 7. guest_name — if booking is for someone other than the sender. When multiple guests are listed (each with a name + phone on separate lines), set guest_name to all names joined (e.g. "Dr Yogesh Singh, Dr Manesh Kale, Mr Sahidul Islam") and pax_count accordingly. If a guest's name is followed by a ministry, department, or organization name (e.g. "Dr. Om Krishnan, Meity" where "Meity" = Ministry of Electronics and IT), treat the org/department as special_instructions, NOT as guest_name.
-8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
+8. guest_phone — the traveler's direct contact number (MANDATORY when guest_name is present — the driver must be able to contact the traveler directly; add "guest_phone" to missing_mandatory if not provided). When multiple guests each have their own phone, use the FIRST listed phone as guest_phone and put the rest in additional_phones. Use the phone number associated with the guest/traveler, NOT a phone number appearing only in the sender's email signature. Email signature patterns such as "Regards, [Name] | +91 XXXXX" or "Best, [Name] — [Phone] — [Company]" are the sender's own contact info — never treat a signature phone as guest_phone even if no other phone appears in the email. Normalise to 10 digits: strip +91 country code and spaces (e.g. "+91 96325 30008" → "9632530008")
 9. trip_type — "local" or "outstation" (infer from context, default "local")
 10. service_type — "one_way" or "return" (default "one_way"). Set "return" when remarks say "and back", "return at evening", "full day return", "return trip", "2 way", "two way", "drop back", "drop him/her/them back", "drop to his/her house/home/residence/office" (when the final drop is the same place as or same type as the pickup). "Drop only" explicitly means one_way. Do NOT set "return" for "Pickup and Drop".
 11. total_days — number of days if outstation (default 1). "Attached" or "attached vehicle" = dedicated multi-day local booking; set trip_type="local" and total_days to the number of days mentioned. For attached bookings, pickup_time and pickup_location are NOT mandatory if not provided — create the booking with whatever is given; the driver or operator will coordinate the daily details on-ground.
@@ -827,6 +830,7 @@ TODAY (IST): {today} ({day_of_week})
 - DD.MM.YY / DD-MM-YY with 2-digit year ("09.05.26") → expand to 20YY; "09.05.26" = 2026-05-09
 - Always output pickup_date as YYYY-MM-DD. NEVER output the words "today", "tomorrow", or any day name as the value — always convert to YYYY-MM-DD.
 - Dates before {today} → set pickup_date to null, add "pickup_date" to missing_mandatory
+- If no specific clock time appears (only vague words like "morning", "afternoon", "evening", "night"), set pickup_time to null — ask for the exact time rather than guessing
 - In next_question text: when referencing the date, always write it in readable format (e.g. "3 May 2026") — NEVER write "today" or "tomorrow" in your replies
 
 DAY NAME LOOKUP — pre-computed, use exactly as given, do NOT recalculate:

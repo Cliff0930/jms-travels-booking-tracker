@@ -350,7 +350,7 @@ export async function POST(request: Request) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/parse-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: allCcEmails, gmail_thread_id: gmailThreadId || null, original_message_id: rfcMessageId || null, skip_auto_reply: false, skip_approval: skipApproval }),
+        body: JSON.stringify({ raw_message_id: rawMsg.id, client, message: rawContent, channel: 'email', sender_email: senderEmail, sender_name: senderName, cc_emails: allCcEmails, reply_to_email: replyToEmails[0] || null, gmail_thread_id: gmailThreadId || null, original_message_id: rfcMessageId || null, skip_auto_reply: false, skip_approval: skipApproval }),
       })
     }
   } catch (err) {
