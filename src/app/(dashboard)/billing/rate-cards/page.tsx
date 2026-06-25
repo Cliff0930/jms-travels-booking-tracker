@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Pencil, Plus, IndianRupee, Building2, ChevronDown, Search } from 'lucide-react'
+import { Pencil, Plus, IndianRupee, Building2, ChevronDown, Search, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface RateCard {
@@ -543,6 +543,125 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
   )
 }
 
+function DuplicateClientModal({
+  sourceCompanyName, sourceRates, companies, clientRates, driverRates, onClose, onSaved,
+}: {
+  sourceCompanyName: string
+  sourceRates: ClientRateCard[]
+  companies: { id: string; name: string }[]
+  clientRates: ClientRateCard[]
+  driverRates: DriverRateCard[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [targetCompanyId, setTargetCompanyId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const sourceCompanyId = sourceRates[0]?.company_id
+
+  const availableCompanies = useMemo(() =>
+    companies.filter(c => c.id !== sourceCompanyId).sort((a, b) => a.name.localeCompare(b.name)),
+    [companies, sourceCompanyId]
+  )
+
+  const targetExistingVehicles = useMemo(() => {
+    if (!targetCompanyId) return new Set<string>()
+    return new Set(clientRates.filter(r => r.company_id === targetCompanyId).map(r => r.vehicle_type.toUpperCase()))
+  }, [targetCompanyId, clientRates])
+
+  const toCopy = sourceRates.filter(r => !targetExistingVehicles.has(r.vehicle_type.toUpperCase()))
+  const toSkip = sourceRates.filter(r => targetExistingVehicles.has(r.vehicle_type.toUpperCase()))
+
+  async function handleDuplicate() {
+    if (!targetCompanyId) { toast.error('Select a company'); return }
+    if (!toCopy.length) { toast.error('Target company already has all these vehicle rates'); return }
+    setSaving(true)
+    try {
+      await Promise.all(toCopy.map(r =>
+        fetch('/api/billing/client-rate-cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_id: targetCompanyId,
+            vehicle_type: r.vehicle_type,
+            package_4hr_rate: r.package_4hr_rate,
+            package_airport_rate: r.package_airport_rate,
+            package_8hr_rate: r.package_8hr_rate,
+            extra_km_rate: r.extra_km_rate,
+            extra_hr_rate: r.extra_hr_rate,
+            outstation_rate_per_km: r.outstation_rate_per_km,
+            outstation_min_kms_per_day: r.outstation_min_kms_per_day,
+            tds_percent: r.tds_percent,
+            bill_bata_to_client: r.bill_bata_to_client,
+            local_bata_rate: r.local_bata_rate,
+            outstation_bata_rate: r.outstation_bata_rate,
+            special_notes: r.special_notes,
+            effective_from: r.effective_from,
+          }),
+        })
+      ))
+      const missingDriverOverrides = toCopy.filter(r =>
+        !driverRates.some(dr =>
+          dr.company_id === targetCompanyId && dr.vehicle_type.toUpperCase() === r.vehicle_type.toUpperCase()
+        )
+      )
+      if (missingDriverOverrides.length) {
+        await Promise.all(missingDriverOverrides.map(r =>
+          fetch('/api/billing/driver-rate-cards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buildDriverRateBody({ ...r, company_id: targetCompanyId })),
+          })
+        ))
+      }
+      const targetName = availableCompanies.find(c => c.id === targetCompanyId)?.name ?? ''
+      toast.success(`Duplicated ${toCopy.length} rate${toCopy.length !== 1 ? 's' : ''} to ${targetName}`)
+      onSaved()
+    } catch {
+      toast.error('Failed to duplicate rates')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Duplicate {sourceCompanyName} Rates</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 overflow-y-auto flex-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-gray-500">Copy all rates to</Label>
+            <Select value={targetCompanyId} onValueChange={v => v !== null && setTargetCompanyId(v)}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select company…" /></SelectTrigger>
+              <SelectContent>
+                {availableCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {targetCompanyId && (
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-1 text-xs">
+              <p className="font-medium text-gray-700">{toCopy.length} vehicle{toCopy.length !== 1 ? 's' : ''} will be copied:</p>
+              {toCopy.map(r => <p key={r.id} className="text-gray-600 pl-2">• {r.vehicle_type}</p>)}
+              {toSkip.length > 0 && (
+                <>
+                  <p className="font-medium text-amber-600 pt-1">{toSkip.length} skipped (already exists in target):</p>
+                  {toSkip.map(r => <p key={r.id} className="text-amber-500 pl-2">• {r.vehicle_type}</p>)}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleDuplicate} disabled={saving || !targetCompanyId || !toCopy.length}>
+            {saving ? 'Duplicating…' : <><Copy className="w-3.5 h-3.5 mr-1.5" />Duplicate</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function RateCardsPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'default' | 'client' | 'driver'>('default')
@@ -553,6 +672,7 @@ export default function RateCardsPage() {
   const [driverModalDefaultCompany, setDriverModalDefaultCompany] = useState<string | undefined>()
   const [editingClientRate, setEditingClientRate] = useState<ClientRateCard | null>(null)
   const [editingDriverRate, setEditingDriverRate] = useState<DriverRateCard | null>(null)
+  const [duplicatingClientGroup, setDuplicatingClientGroup] = useState<{ company_id: string; companyName: string; rates: ClientRateCard[] } | null>(null)
   const [clientSearch, setClientSearch] = useState('')
   const [driverSearch, setDriverSearch] = useState('')
   const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set())
@@ -772,6 +892,9 @@ export default function RateCardsPage() {
                     <button onClick={() => openClientModal(company_id)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium">
                       <Plus className="w-3 h-3" />Add Rate
                     </button>
+                    <button onClick={() => setDuplicatingClientGroup({ company_id, companyName, rates })} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium">
+                      <Copy className="w-3 h-3" />Duplicate
+                    </button>
                     <button onClick={() => toggleClientCollapse(company_id)} className="text-gray-400 hover:text-gray-600">
                       <ChevronDown className={cn('w-4 h-4 transition-transform duration-200', isCollapsed && '-rotate-90')} />
                     </button>
@@ -913,6 +1036,7 @@ export default function RateCardsPage() {
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
       {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} driverRates={driverRates} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
       {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} driverRates={driverRates} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
+      {duplicatingClientGroup && <DuplicateClientModal sourceCompanyName={duplicatingClientGroup.companyName} sourceRates={duplicatingClientGroup.rates} companies={companies} clientRates={clientRates} driverRates={driverRates} onClose={() => setDuplicatingClientGroup(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setDuplicatingClientGroup(null) }} />}
       {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={driverModalDefaultCompany} onClose={() => { setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} />}
       {editingDriverRate && <DriverRateModal companies={companies} vehicleNames={vehicleNames} existing={editingDriverRate} onClose={() => setEditingDriverRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setEditingDriverRate(null) }} />}
     </div>
