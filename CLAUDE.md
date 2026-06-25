@@ -23,6 +23,7 @@ This project uses the newer `@base-ui/react` variant — NOT the standard shadcn
 - `Button` does NOT support `asChild` — use `ButtonLink` at `src/components/ui/button-link.tsx` instead
 - **Driver search:** `DriverSearchCombobox` at `src/components/shared/DriverSearchCombobox.tsx` — searchable by name, plate (spaces stripped for matching), or phone. Used in TripLegsPanel. Same open/close/outside-click pattern as `CompanyCombobox`.
 - `Select` `onValueChange` receives `string | null` — always guard with `v !== null` before using
+- `Select` `SelectValue` renders the raw `value` prop (e.g. UUID), NOT the label text. Always render children directly in `SelectTrigger` with a manual lookup: `{selectedId ? <span>{items.find(i => i.id === selectedId)?.name}</span> : <span className="text-muted-foreground">Placeholder…</span>}`
 - `DropdownMenuTrigger` does not support `asChild`
 - `Dialog` has `sm:max-w-sm` hardcoded — must use `sm:max-w-*` prefix to override width
 
@@ -177,6 +178,7 @@ Outstation = always **1 leg**, 1 arrived link, 1 completed link for the whole tr
 - **`booking.status` for multi-leg trips:** When a leg completes with a `leg_id`, the handler checks `day_number` against the max non-cancelled leg. Only the last leg sets `completed`; intermediate legs set `in_progress`. Day 1 (booking-level link, no `leg_id`) still sets `completed` prematurely but self-heals when Day 2 arrived link is clicked.
 - **Tripsheet tabs:** all tabs show dates (DD/MM/YY). Day 1 falls back to `booking.pickup_date` since its sheet has no `booking_leg_id`.
 - **Alert indicators (all four views):** Calendar day cells, dashboard WeekDayCard tiles, bookings list BookingCard (card view), and BookingListRow (list view) all show the same alert system. Pulsing dot on day cells. Individual cards/rows: `⚠ No Driver Assigned` (red border/tint + tag) for confirmed/in-progress with no driver; `⚠ Draft — Confirm` / `⚠ Awaiting Approval` (amber border/tint + tag) for draft/pending. Dashboard BookingTile + BookingCard use `!border-l-4 !border-l-red-500/amber-500`. BookingListRow uses `bg-red-50/40` / `bg-amber-50/40` row tint + tag under traveller name (always visible, no breakpoint hiding). BookingCard border priority: needsClarification (orange) > noDriver (red) > possibleDup/isDraft (amber) > default.
+- **Calendar/dashboard leg filter (shipped 2026-06-25):** Continuation legs (Day 2+) are only plotted on the calendar/dashboard if the leg **actually ran** (`leg_status === 'completed'` or `'in_progress'`). If the booking is `completed` or `cancelled` and the leg is still `'upcoming'` (the default on creation), it is skipped. Day 1 (pickup_date) always shows. Applied in `src/app/(dashboard)/bookings/calendar/page.tsx` (single `legRan` check) and `src/app/(dashboard)/page.tsx` (weekDays `.some()` and selectedDayTrips `.find()`). Any new calendar/week view must apply the same guard.
 - **Same driver on all legs — Day 1:** Driver already has booking-level arrived/completed links from `jms_trip_brief_driver` sent on assignment. The "Send Day X Links" button is **hidden for Day 1** in TripLegsPanel (`leg.day_number > 1` guard) to prevent conflicting duplicate links.
 - **Same driver on all legs — Day 2+:** Operator taps "Send Day X Links" per leg → `jms_leg_day_links` template (with `leg_id` appended to arrived/completed URLs)
 - **Duplicate tripsheet guard** (`driver-status/route.ts` arrived handler): if leg_id present, checks for existing leg tripsheet (skip) or orphan null-leg tripsheet (adopt by updating `booking_leg_id`) before inserting. Prevents duplicate rows when driver submits both booking-level and day-specific arrived links.
@@ -291,7 +293,7 @@ Two-panel WhatsApp-web-style inbox. Three channel tabs: WhatsApp · Email · Dri
 - Outstation: outstation bata rate applies to both client and driver
 
 ### Slab override (`trip_sheets.slab_override TEXT`)
-Operator can override auto-detected slab in TripsheetEditPopup → Actual tab. Values: `'4HR'`, `'8HR'`, `'AIRPORT'`, `'OUTSTATION'`, `null` (auto).
+Operator can override auto-detected slab in **two places**: (1) `TripsheetEditPopup` → Actual tab (used on reimbursements and other pages); (2) the inline tripsheet edit form on the booking detail page (`src/app/(dashboard)/bookings/[id]/page.tsx`) — the booking detail has its own separate inline edit (not TripsheetEditPopup), so the slab selector is duplicated there with a local SLABS array + inline auto-detect using `booking.trip_type` + `parseHHMM()`. Values: `'4HR'`, `'8HR'`, `'AIRPORT'`, `'OUTSTATION'`, `null` (auto).
 - All 4 billing routes check `slab_override` first, then fall through to `b.trip_type` auto-detect.
 - `effectiveTripType = slabOverride ?? b.trip_type` pattern used in driver-settlements.
 - Outstation override: calculates per-KM as normal outstation regardless of `b.trip_type`.
@@ -299,6 +301,13 @@ Operator can override auto-detected slab in TripsheetEditPopup → Actual tab. V
 - `calcForced4HR` / `calcForced8HR` helper functions in all 3 client billing routes force a specific local slab.
 - `calcHireCharges` in driver-settlements handles uppercase `'4HR'`/`'8HR'`/`'OUTSTATION'`/`'AIRPORT'` (from override) and lowercase `'outstation'`/`'airport'` (from booking) via `tUpper` check.
 - UI: green chip = auto-detected, blue chip = manually overridden. "Reset to auto" sets `slab_override = null`.
+
+### Rate Cards page — Client Override rules (shipped 2026-06-25)
+- **Add form company dropdown:** only shows companies with NO existing client rate overrides. Once a company has any rate, add more vehicles via the "Add Rate" button on their card header (which locks the company as read-only in the modal via `defaultCompanyId` prop).
+- **Add form vehicle dropdown:** only shows vehicles not already set for the selected company. Resets to empty when company changes.
+- **Duplicate company button:** copies all vehicle rows to a target company; target dropdown also filtered to companies with no existing overrides; skips vehicle types already in target.
+- **Duplicate row button (copy icon):** copies one vehicle row to a new vehicle type within the same company; vehicle dropdown filtered to unset vehicles for that company.
+- **Driver override auto-sync:** new client override → auto-create driver override if missing. Edit never syncs. Page-load one-time backfill via `syncedRef`. See `buildDriverRateBody()` in `rate-cards/page.tsx`.
 
 ### Key billing files
 | File | Purpose |
