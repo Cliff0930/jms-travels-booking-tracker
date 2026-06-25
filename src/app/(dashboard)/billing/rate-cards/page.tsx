@@ -782,7 +782,7 @@ export default function RateCardsPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                          {['Vehicle', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KMs', 'TDS%', 'Bill Bata', 'Local Bata', 'Outn Bata', 'Effective', 'Notes', ''].map(h => (
+                          {['Vehicle', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KMs', 'TDS%', 'Bill Bata', 'Local Bata', 'Outn Bata', ''].map(h => (
                             <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -806,8 +806,6 @@ export default function RateCardsPage() {
                             </td>
                             <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.local_bata_rate ? `₹${r.local_bata_rate}/day` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.outstation_bata_rate ? `₹${r.outstation_bata_rate}/day` : '—'}</td>
-                            <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.effective_from}</td>
-                            <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.special_notes ?? ''}>{r.special_notes || '—'}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 <button onClick={() => setEditingClientRate(r)} className="text-blue-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
