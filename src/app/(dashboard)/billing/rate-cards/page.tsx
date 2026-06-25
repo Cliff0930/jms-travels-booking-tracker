@@ -543,6 +543,104 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
   )
 }
 
+function DuplicateRowModal({
+  sourceRate, companyRates, vehicleNames, driverRates, onClose, onSaved,
+}: {
+  sourceRate: ClientRateCard
+  companyRates: ClientRateCard[]
+  vehicleNames: { id: string; name: string }[]
+  driverRates: DriverRateCard[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [targetVehicle, setTargetVehicle] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const existingVehicles = useMemo(() =>
+    new Set(companyRates.map(r => r.vehicle_type.toUpperCase())),
+    [companyRates]
+  )
+
+  const availableVehicles = useMemo(() =>
+    vehicleNames.filter(v => !existingVehicles.has(v.name.toUpperCase())).sort((a, b) => a.name.localeCompare(b.name)),
+    [vehicleNames, existingVehicles]
+  )
+
+  async function handleDuplicate() {
+    if (!targetVehicle) { toast.error('Select a vehicle type'); return }
+    setSaving(true)
+    try {
+      await fetch('/api/billing/client-rate-cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: sourceRate.company_id,
+          vehicle_type: targetVehicle,
+          package_4hr_rate: sourceRate.package_4hr_rate,
+          package_airport_rate: sourceRate.package_airport_rate,
+          package_8hr_rate: sourceRate.package_8hr_rate,
+          extra_km_rate: sourceRate.extra_km_rate,
+          extra_hr_rate: sourceRate.extra_hr_rate,
+          outstation_rate_per_km: sourceRate.outstation_rate_per_km,
+          outstation_min_kms_per_day: sourceRate.outstation_min_kms_per_day,
+          tds_percent: sourceRate.tds_percent,
+          bill_bata_to_client: sourceRate.bill_bata_to_client,
+          local_bata_rate: sourceRate.local_bata_rate,
+          outstation_bata_rate: sourceRate.outstation_bata_rate,
+          special_notes: sourceRate.special_notes,
+          effective_from: sourceRate.effective_from,
+        }),
+      })
+      const driverAlreadyExists = driverRates.some(dr =>
+        dr.company_id === sourceRate.company_id && dr.vehicle_type.toUpperCase() === targetVehicle.toUpperCase()
+      )
+      if (!driverAlreadyExists) {
+        await fetch('/api/billing/driver-rate-cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildDriverRateBody({ ...sourceRate, vehicle_type: targetVehicle })),
+        })
+      }
+      toast.success(`Duplicated as ${targetVehicle}`)
+      onSaved()
+    } catch {
+      toast.error('Failed to duplicate row')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Duplicate {sourceRate.vehicle_type} Row</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 overflow-y-auto flex-1">
+          <p className="text-xs text-gray-500">Copy all rates from <span className="font-medium text-gray-700">{sourceRate.vehicle_type}</span> to a new vehicle type:</p>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-gray-500">New vehicle type</Label>
+            <Select value={targetVehicle} onValueChange={v => v !== null && setTargetVehicle(v)}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
+              <SelectContent>
+                {availableVehicles.length === 0
+                  ? <SelectItem value="__none" disabled>All vehicle types already have rates</SelectItem>
+                  : availableVehicles.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)
+                }
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleDuplicate} disabled={saving || !targetVehicle || availableVehicles.length === 0}>
+            {saving ? 'Duplicating…' : <><Copy className="w-3.5 h-3.5 mr-1.5" />Duplicate Row</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function DuplicateClientModal({
   sourceCompanyName, sourceRates, companies, clientRates, driverRates, onClose, onSaved,
 }: {
@@ -673,6 +771,7 @@ export default function RateCardsPage() {
   const [editingClientRate, setEditingClientRate] = useState<ClientRateCard | null>(null)
   const [editingDriverRate, setEditingDriverRate] = useState<DriverRateCard | null>(null)
   const [duplicatingClientGroup, setDuplicatingClientGroup] = useState<{ company_id: string; companyName: string; rates: ClientRateCard[] } | null>(null)
+  const [duplicatingRow, setDuplicatingRow] = useState<{ rate: ClientRateCard; companyRates: ClientRateCard[] } | null>(null)
   const [clientSearch, setClientSearch] = useState('')
   const [driverSearch, setDriverSearch] = useState('')
   const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set())
@@ -932,6 +1031,7 @@ export default function RateCardsPage() {
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 <button onClick={() => setEditingClientRate(r)} className="text-blue-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => setDuplicatingRow({ rate: r, companyRates: rates })} className="text-gray-400 hover:text-gray-600"><Copy className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => deleteClientRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
                               </div>
                             </td>
@@ -1037,6 +1137,7 @@ export default function RateCardsPage() {
       {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} driverRates={driverRates} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
       {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} driverRates={driverRates} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
       {duplicatingClientGroup && <DuplicateClientModal sourceCompanyName={duplicatingClientGroup.companyName} sourceRates={duplicatingClientGroup.rates} companies={companies} clientRates={clientRates} driverRates={driverRates} onClose={() => setDuplicatingClientGroup(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setDuplicatingClientGroup(null) }} />}
+      {duplicatingRow && <DuplicateRowModal sourceRate={duplicatingRow.rate} companyRates={duplicatingRow.companyRates} vehicleNames={vehicleNames} driverRates={driverRates} onClose={() => setDuplicatingRow(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setDuplicatingRow(null) }} />}
       {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={driverModalDefaultCompany} onClose={() => { setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} />}
       {editingDriverRate && <DriverRateModal companies={companies} vehicleNames={vehicleNames} existing={editingDriverRate} onClose={() => setEditingDriverRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setEditingDriverRate(null) }} />}
     </div>
