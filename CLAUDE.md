@@ -100,6 +100,12 @@ One booking, one driver, multiple sequential pickup stops before a single final 
 
 ## Email & WhatsApp AI Pipeline — Key Rules & Safeguards
 
+### Gemini API billing (as of 2026-06-25)
+- **AI Studio prepaid key** — `GEMINI_API_KEY` in Vercel env. Prepaid wallet separate from GCP billing account.
+- **Auto-reload: ON** — card charged automatically when balance is low. Silent depletion risk (June 9 incident — 3 missed bookings) is now mitigated. Verify reload threshold at aistudio.google.com ≥₹200.
+- **Monthly spend:** ~₹310/month at current volume (~15 req/day). Rate limits: 2,000 RPM on paid tier — sufficient.
+- **If WhatsApp bot stops processing:** check `raw_messages` for `processed=false, ai_classification=null` before assuming a code bug. Then check aistudio.google.com balance and verify auto-reload didn't fail.
+
 ### Gemini prompt guardrails (prompts.ts — all 3 prompts)
 - **Deep nested quotes (fixed 2026-06-24):** `CLASSIFY_AND_EXTRACT_PROMPT` reads the top-level message + FIRST quoted section only. Content after a SECOND "On [date] wrote:" line (or `>>` prefixes) is ignored — prevents ghost bookings from already-fulfilled trips buried in email chains.
 - **Vague time words (fixed 2026-06-24):** "morning / afternoon / evening / night" → `pickup_time = null`, added to `missing_mandatory`. Gemini must not guess a clock time from these words.
