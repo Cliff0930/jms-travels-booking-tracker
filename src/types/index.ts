@@ -221,12 +221,33 @@ export interface Booking {
   gps_tracking_enabled: boolean
   is_settlement_duty: boolean
   exclude_from_billing: boolean
+  trip_group_id: string | null
   created_at: string
   updated_at: string
   client?: Client
   company?: Company
   driver?: Driver
   booking_legs?: BookingLeg[]
+}
+
+export interface TripGroupBooking {
+  id: string
+  booking_ref: string
+  pickup_date: string | null
+  trip_type: TripType
+  status: BookingStatus
+  driver_id: string | null
+  guest_name: string | null
+  pickup_location: string | null
+  drop_location: string | null
+  driver?: { name?: string; vehicle_name?: string; vehicle_number?: string } | null
+}
+
+export interface TripGroup {
+  id: string
+  label: string
+  created_at: string
+  bookings?: TripGroupBooking[]
 }
 
 export interface BookingLeg {

@@ -105,9 +105,11 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
   if (legs.length === 0) return (
     <div className="flex items-center gap-3">
       <p className="text-sm text-[#737686]">No legs found.</p>
-      <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 rounded-sm" onClick={handleGenerateLegs} disabled={generating}>
-        {generating ? 'Generating…' : 'Generate Legs'}
-      </Button>
+      {tripType !== 'outstation' && (
+        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 rounded-sm" onClick={handleGenerateLegs} disabled={generating}>
+          {generating ? 'Generating…' : 'Generate Legs'}
+        </Button>
+      )}
     </div>
   )
 

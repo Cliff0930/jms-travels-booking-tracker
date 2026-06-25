@@ -9,6 +9,7 @@ import { ApproveByCallModal } from '@/components/bookings/ApproveByCallModal'
 import { BookingMessageChat } from '@/components/bookings/BookingMessageChat'
 import { SubstituteDriverModal } from '@/components/bookings/SubstituteDriverModal'
 import { TripLegsPanel } from '@/components/bookings/TripLegsPanel'
+import { TripGroupPanel } from '@/components/bookings/TripGroupPanel'
 import { TripTimeline } from '@/components/bookings/TripTimeline'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -1688,6 +1689,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               <TripLegsPanel bookingId={booking.id} driverAssigned={!!booking.driver_id} tripType={booking.trip_type} />
             </div>
           )}
+
+          <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+            <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Group</h2>
+            <TripGroupPanel
+              bookingId={booking.id}
+              bookingRef={booking.booking_ref}
+              tripGroupId={booking.trip_group_id ?? null}
+            />
+          </div>
 
           {booking.approval_status && (
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">

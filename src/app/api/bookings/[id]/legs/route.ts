@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('pickup_date, total_days')
+    .select('pickup_date, total_days, trip_type')
     .eq('id', id)
     .single()
 
@@ -29,13 +29,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Booking not found or missing date/days' }, { status: 400 })
   }
 
-  const legs = Array.from({ length: booking.total_days }, (_, i) => {
-    const date = new Date(booking.pickup_date)
-    date.setDate(date.getDate() + i)
+  // Outstation: always 1 leg — dates captured on completion via trip_opening_date/trip_closing_date
+  const legCount = booking.trip_type === 'outstation' ? 1 : booking.total_days
+
+  const legs = Array.from({ length: legCount }, (_, i) => {
+    const date = new Date(booking.pickup_date + 'T00:00:00Z')
+    date.setUTCDate(date.getUTCDate() + i)
     return {
       booking_id: id,
       day_number: i + 1,
-      leg_date: date.toISOString().split('T')[0],
+      leg_date: date.toISOString().slice(0, 10),
       leg_status: 'upcoming',
     }
   })
