@@ -175,7 +175,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 py-1 overflow-y-auto flex-1">
           {/* Company & Vehicle */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -397,7 +397,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 py-1 overflow-y-auto flex-1">
           {/* Company & Vehicle */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
