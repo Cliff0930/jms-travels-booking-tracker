@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -620,7 +620,9 @@ function DuplicateRowModal({
           <div className="space-y-1.5">
             <Label className="text-xs text-gray-500">New vehicle type</Label>
             <Select value={targetVehicle} onValueChange={v => v !== null && setTargetVehicle(v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
+              <SelectTrigger className="h-9 text-sm">
+                {targetVehicle ? <span>{targetVehicle}</span> : <span className="text-muted-foreground text-sm">Select vehicle…</span>}
+              </SelectTrigger>
               <SelectContent>
                 {availableVehicles.length === 0
                   ? <SelectItem value="__none" disabled>All vehicle types already have rates</SelectItem>
@@ -730,7 +732,9 @@ function DuplicateClientModal({
           <div className="space-y-1.5">
             <Label className="text-xs text-gray-500">Copy all rates to</Label>
             <Select value={targetCompanyId} onValueChange={v => v !== null && setTargetCompanyId(v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select company…" /></SelectTrigger>
+              <SelectTrigger className="h-9 text-sm">
+                {targetCompanyId ? <span>{availableCompanies.find(c => c.id === targetCompanyId)?.name}</span> : <span className="text-muted-foreground text-sm">Select company…</span>}
+              </SelectTrigger>
               <SelectContent>
                 {availableCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
