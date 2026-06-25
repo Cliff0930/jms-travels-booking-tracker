@@ -672,9 +672,10 @@ function DuplicateClientModal({
   const [saving, setSaving] = useState(false)
   const sourceCompanyId = sourceRates[0]?.company_id
 
+  const companiesWithRates = useMemo(() => new Set(clientRates.map(r => r.company_id)), [clientRates])
   const availableCompanies = useMemo(() =>
-    companies.filter(c => c.id !== sourceCompanyId).sort((a, b) => a.name.localeCompare(b.name)),
-    [companies, sourceCompanyId]
+    companies.filter(c => c.id !== sourceCompanyId && !companiesWithRates.has(c.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    [companies, sourceCompanyId, companiesWithRates]
   )
 
   const targetExistingVehicles = useMemo(() => {
