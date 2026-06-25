@@ -149,6 +149,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     client_closing_time: string | null
     gps_km: number | null
     route_image_url: string | null
+    slab_override: string | null
     leg?: { day_number: number; leg_date: string } | null
     invoiced?: boolean
   }
@@ -287,6 +288,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     driver_opening_time: string; driver_closing_time: string
     client_opening_km: string; client_closing_km: string
     client_opening_time: string; client_closing_time: string
+    slab_override: string | null
   } | null>(null)
   const [sheetViewTab, setSheetViewTab] = useState<'actual' | 'driver' | 'client'>('actual')
   const [savingSheet, setSavingSheet] = useState(false)
@@ -709,6 +711,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       client_closing_km:   String(sheet.client_closing_km  ?? sheet.closing_km  ?? ''),
       client_opening_time: sheet.client_opening_time  ?? sheet.manual_opening_time ?? '',
       client_closing_time: sheet.client_closing_time  ?? sheet.manual_closing_time ?? '',
+      slab_override: sheet.slab_override ?? null,
     })
     setEditingSheet(true)
   }
@@ -736,6 +739,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         client_closing_km:   sheetEditForm.client_closing_km   !== '' ? Number(sheetEditForm.client_closing_km)  : null,
         client_opening_time: sheetEditForm.client_opening_time  || null,
         client_closing_time: sheetEditForm.client_closing_time  || null,
+        slab_override: sheetEditForm.slab_override ?? null,
       }
       const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
@@ -2343,6 +2347,60 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <Input className="h-8 text-sm mt-1" value={sheetEditForm.tripsheet_number} onChange={e => setSheetEditForm(f => f && ({ ...f, tripsheet_number: e.target.value }))} placeholder="e.g. 2001" />
                     </div>
                     <div />
+                  </div>
+
+                  {/* Billing Slab Override */}
+                  {(() => {
+                    const SLABS = [
+                      { id: '4HR', label: '4hr/40km' },
+                      { id: 'AIRPORT', label: 'Airport' },
+                      { id: '8HR', label: '8hr/80km' },
+                      { id: 'OUTSTATION', label: 'Outstation' },
+                    ]
+                    const autoSlab = booking.trip_type === 'outstation' ? 'OUTSTATION' : booking.trip_type === 'airport' ? 'AIRPORT' : (() => {
+                      const openKm = parseFloat(sheetEditForm.opening_km || '0')
+                      const closeKm = parseFloat(sheetEditForm.closing_km || '0')
+                      const kms = closeKm > openKm ? closeKm - openKm : 0
+                      const o = parseHHMM(sheetEditForm.manual_opening_time)
+                      const c = parseHHMM(sheetEditForm.manual_closing_time)
+                      const mins = o != null && c != null ? (c < o ? c + 1440 - o : c - o) : 0
+                      return kms <= 40 && mins <= 4 * 60 + 105 ? '4HR' : '8HR'
+                    })()
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-[#737686]">Billing Slab</Label>
+                          {sheetEditForm.slab_override && (
+                            <button onClick={() => setSheetEditForm(f => f && ({ ...f, slab_override: null }))} className="text-[10px] text-gray-400 hover:text-gray-600">
+                              Reset to auto
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {SLABS.map(sl => {
+                            const isOverride = sheetEditForm.slab_override === sl.id
+                            const isAuto = !sheetEditForm.slab_override && sl.id === autoSlab
+                            return (
+                              <button
+                                key={sl.id}
+                                onClick={() => setSheetEditForm(f => f && ({ ...f, slab_override: f.slab_override === sl.id ? null : sl.id }))}
+                                className={cn(
+                                  'px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors',
+                                  isOverride && 'bg-blue-600 border-blue-600 text-white',
+                                  isAuto && 'bg-emerald-600 border-emerald-600 text-white',
+                                  !isAuto && !isOverride && 'bg-white border-gray-200 text-gray-500 hover:border-gray-400',
+                                )}
+                              >
+                                {sl.label}{isAuto && <span className="ml-1 opacity-75 font-normal text-[10px]">auto</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs text-[#737686]">Opening KM</Label>
                       <Input type="number" className="h-8 text-sm mt-1" value={sheetEditForm.opening_km} onChange={e => setSheetEditForm(f => f && ({ ...f, opening_km: e.target.value }))} placeholder="0" />
