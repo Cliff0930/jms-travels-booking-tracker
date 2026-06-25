@@ -288,6 +288,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             cc: bookingCc.length > 0 ? bookingCc : undefined,
             booking_id: id,
             replyToThreadId: booking.gmail_thread_id || undefined,
+            inReplyToMessageId: booking.gmail_original_message_id || undefined,
           })
           if (!result.ok) console.error(`[assign] Driver email failed booking=${id} error=${result.error}`)
 
@@ -359,6 +360,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             body: bookerEmailBody,
             booking_id: id,
             replyToThreadId: booking.gmail_thread_id || undefined,
+            inReplyToMessageId: booking.gmail_original_message_id || undefined,
           })
           if (!result.ok) console.error(`[assign] Driver email (WA source) failed booking=${id} error=${result.error}`)
 

@@ -192,6 +192,7 @@ export interface Booking {
   requested_by: string | null
   cc_emails: string[] | null
   gmail_thread_id: string | null
+  gmail_original_message_id: string | null
   status: BookingStatus
   trip_type: TripType
   service_type: ServiceType

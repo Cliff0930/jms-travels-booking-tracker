@@ -446,6 +446,7 @@ export async function POST(request: Request) {
           flags,
           cc_emails: effectiveCcEmails.length > 0 ? effectiveCcEmails : null,
           gmail_thread_id: (channel === 'email' && gmail_thread_id) ? gmail_thread_id : null,
+          gmail_original_message_id: (channel === 'email' && original_message_id) ? original_message_id : null,
           pickup_location: bk.extracted.pickup_location,
           drop_location: bk.extracted.drop_location,
           pickup_location_url: mapsUrls.pickup_location_url,

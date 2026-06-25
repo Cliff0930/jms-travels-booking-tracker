@@ -248,7 +248,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     sendError = result.error
     waMessageId = result.whatsappMessageId
   } else {
-    const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined, booking_id: id, replyToThreadId: booking.gmail_thread_id || undefined })
+    const result = await sendEmailSafe({ to: recipient, subject, body, cc: message_type === 'booking_confirmed' && bookingCc.length ? bookingCc : undefined, booking_id: id, replyToThreadId: booking.gmail_thread_id || undefined, inReplyToMessageId: booking.gmail_original_message_id || undefined })
     sendOk = result.ok
     sendError = result.error
   }
