@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -123,8 +123,23 @@ function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: ()
   )
 }
 
-function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, onClose, onSaved }: {
-  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; existing?: ClientRateCard; onClose: () => void; onSaved: () => void
+function buildDriverRateBody(cr: { company_id: string; vehicle_type: string; package_4hr_rate: number | null; package_airport_rate: number | null; package_8hr_rate: number | null; extra_km_rate: number | null; extra_hr_rate: number | null; outstation_rate_per_km: number | null; local_bata_rate: number | null; outstation_bata_rate: number | null }) {
+  return {
+    company_id: cr.company_id,
+    vehicle_type: cr.vehicle_type,
+    rate_4hr: cr.package_4hr_rate,
+    rate_airport: cr.package_airport_rate,
+    rate_8hr: cr.package_8hr_rate,
+    extra_km_rate: cr.extra_km_rate,
+    extra_hr_rate: cr.extra_hr_rate,
+    outstation_rate_per_km: cr.outstation_rate_per_km,
+    bata_per_day: cr.local_bata_rate,
+    outstation_bata_per_day: cr.outstation_bata_rate,
+  }
+}
+
+function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, driverRates, onClose, onSaved }: {
+  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; existing?: ClientRateCard; driverRates: DriverRateCard[]; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState({
     company_id: existing?.company_id ?? defaultCompanyId ?? '',
@@ -144,6 +159,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
     effective_from: existing?.effective_from ?? new Date().toISOString().slice(0, 10),
   })
   const [saving, setSaving] = useState(false)
+  const qc = useQueryClient()
 
   async function handleSave() {
     if (!form.company_id || !form.vehicle_type) { toast.error('Select company and vehicle type'); return }
@@ -166,8 +182,38 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
     }
     const url = existing ? `/api/billing/client-rate-cards/${existing.id}` : '/api/billing/client-rate-cards'
     const res = await fetch(url, { method: existing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (res.ok) { toast.success(existing ? 'Client rate updated' : 'Client rate added'); onSaved() }
-    else toast.error('Failed to save')
+    if (res.ok) {
+      // On new client override: auto-create driver override if one doesn't exist yet
+      if (!existing) {
+        const driverExists = driverRates.some(dr =>
+          dr.company_id === form.company_id &&
+          dr.vehicle_type.toUpperCase() === form.vehicle_type.toUpperCase()
+        )
+        if (!driverExists) {
+          await fetch('/api/billing/driver-rate-cards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buildDriverRateBody({
+              company_id: form.company_id,
+              vehicle_type: form.vehicle_type,
+              package_4hr_rate: body.package_4hr_rate,
+              package_airport_rate: body.package_airport_rate,
+              package_8hr_rate: body.package_8hr_rate,
+              extra_km_rate: body.extra_km_rate,
+              extra_hr_rate: body.extra_hr_rate,
+              outstation_rate_per_km: body.outstation_rate_per_km,
+              local_bata_rate: body.local_bata_rate,
+              outstation_bata_rate: body.outstation_bata_rate,
+            })),
+          })
+          qc.invalidateQueries({ queryKey: ['driver-rate-cards'] })
+        }
+      }
+      toast.success(existing ? 'Client rate updated' : 'Client rate added')
+      onSaved()
+    } else {
+      toast.error('Failed to save')
+    }
     setSaving(false)
   }
 
@@ -516,11 +562,11 @@ export default function RateCardsPage() {
     queryKey: ['rate-cards'],
     queryFn: () => fetch('/api/billing/rate-cards').then(r => r.json()),
   })
-  const { data: clientRates = [] } = useQuery<ClientRateCard[]>({
+  const { data: clientRates = [], isSuccess: clientRatesLoaded } = useQuery<ClientRateCard[]>({
     queryKey: ['client-rate-cards'],
     queryFn: () => fetch('/api/billing/client-rate-cards').then(r => r.json()),
   })
-  const { data: driverRates = [] } = useQuery<DriverRateCard[]>({
+  const { data: driverRates = [], isSuccess: driverRatesLoaded } = useQuery<DriverRateCard[]>({
     queryKey: ['driver-rate-cards'],
     queryFn: () => fetch('/api/billing/driver-rate-cards').then(r => r.json()),
   })
@@ -532,6 +578,27 @@ export default function RateCardsPage() {
     queryKey: ['vehicle-names'],
     queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
+
+  // One-time backfill: create driver overrides for any client overrides that don't have one yet
+  const syncedRef = useRef(false)
+  useEffect(() => {
+    if (syncedRef.current || !clientRatesLoaded || !driverRatesLoaded) return
+    syncedRef.current = true
+    const missing = clientRates.filter(cr =>
+      !driverRates.some(dr =>
+        dr.company_id === cr.company_id &&
+        dr.vehicle_type.toUpperCase() === cr.vehicle_type.toUpperCase()
+      )
+    )
+    if (!missing.length) return
+    Promise.all(missing.map(cr =>
+      fetch('/api/billing/driver-rate-cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildDriverRateBody(cr)),
+      })
+    )).then(() => qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }))
+  }, [clientRatesLoaded, driverRatesLoaded])
 
   const rateMap = useMemo(() => {
     const m: Record<string, RateCard> = {}
@@ -842,8 +909,8 @@ export default function RateCardsPage() {
       )}
 
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
-      {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
-      {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
+      {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} driverRates={driverRates} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
+      {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} driverRates={driverRates} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
       {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={driverModalDefaultCompany} onClose={() => { setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} />}
       {editingDriverRate && <DriverRateModal companies={companies} vehicleNames={vehicleNames} existing={editingDriverRate} onClose={() => setEditingDriverRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setEditingDriverRate(null) }} />}
     </div>

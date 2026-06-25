@@ -22,6 +22,7 @@ export async function POST(request: Request) {
         company_id:              body.company_id,
         vehicle_type:            body.vehicle_type,
         rate_4hr:                body.rate_4hr       ?? null,
+        rate_airport:            body.rate_airport   ?? null,
         rate_8hr:                body.rate_8hr       ?? null,
         extra_km_rate:           body.extra_km_rate  ?? null,
         extra_hr_rate:           body.extra_hr_rate  ?? null,
