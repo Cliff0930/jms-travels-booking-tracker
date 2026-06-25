@@ -123,15 +123,25 @@ function RateEditModal({ rate, onClose, onSaved }: { rate: RateCard; onClose: ()
   )
 }
 
-function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, onSaved }: {
-  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; onClose: () => void; onSaved: () => void
+function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, onClose, onSaved }: {
+  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; existing?: ClientRateCard; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState({
-    company_id: defaultCompanyId ?? '', vehicle_type: '', package_4hr_rate: '', package_airport_rate: '', package_8hr_rate: '',
-    extra_km_rate: '14', extra_hr_rate: '250', outstation_rate_per_km: '',
-    outstation_min_kms_per_day: '300', tds_percent: '0',
-    local_bata_rate: '', outstation_bata_rate: '',
-    bill_bata_to_client: false, special_notes: '', effective_from: new Date().toISOString().slice(0, 10),
+    company_id: existing?.company_id ?? defaultCompanyId ?? '',
+    vehicle_type: existing?.vehicle_type ?? '',
+    package_4hr_rate: existing?.package_4hr_rate != null ? String(existing.package_4hr_rate) : '',
+    package_airport_rate: existing?.package_airport_rate != null ? String(existing.package_airport_rate) : '',
+    package_8hr_rate: existing?.package_8hr_rate != null ? String(existing.package_8hr_rate) : '',
+    extra_km_rate: existing?.extra_km_rate != null ? String(existing.extra_km_rate) : '14',
+    extra_hr_rate: existing?.extra_hr_rate != null ? String(existing.extra_hr_rate) : '250',
+    outstation_rate_per_km: existing?.outstation_rate_per_km != null ? String(existing.outstation_rate_per_km) : '',
+    outstation_min_kms_per_day: existing?.outstation_min_kms_per_day != null ? String(existing.outstation_min_kms_per_day) : '300',
+    tds_percent: existing?.tds_percent != null ? String(existing.tds_percent) : '0',
+    local_bata_rate: existing?.local_bata_rate != null ? String(existing.local_bata_rate) : '',
+    outstation_bata_rate: existing?.outstation_bata_rate != null ? String(existing.outstation_bata_rate) : '',
+    bill_bata_to_client: existing?.bill_bata_to_client ?? false,
+    special_notes: existing?.special_notes ?? '',
+    effective_from: existing?.effective_from ?? new Date().toISOString().slice(0, 10),
   })
   const [saving, setSaving] = useState(false)
 
@@ -154,8 +164,9 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
       special_notes: form.special_notes || null,
       effective_from: form.effective_from,
     }
-    const res = await fetch('/api/billing/client-rate-cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (res.ok) { toast.success('Client rate added'); onSaved() }
+    const url = existing ? `/api/billing/client-rate-cards/${existing.id}` : '/api/billing/client-rate-cards'
+    const res = await fetch(url, { method: existing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (res.ok) { toast.success(existing ? 'Client rate updated' : 'Client rate added'); onSaved() }
     else toast.error('Failed to save')
     setSaving(false)
   }
@@ -169,7 +180,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
               <IndianRupee className="h-4 w-4 text-blue-600" />
             </div>
             <div>
-              <DialogTitle className="text-base">Add Client Rate Override</DialogTitle>
+              <DialogTitle className="text-base">{existing ? 'Edit Client Rate Override' : 'Add Client Rate Override'}</DialogTitle>
               <p className="text-xs text-gray-400 mt-0.5">Custom billing rates for a specific company &amp; vehicle</p>
             </div>
           </div>
@@ -180,27 +191,35 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Company *</Label>
-              <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  {form.company_id
-                    ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
-                    : <span className="text-muted-foreground text-sm">Select company</span>
-                  }
-                </SelectTrigger>
-                <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {existing ? (
+                <div className="h-8 px-3 flex items-center text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">{companies.find(c => c.id === form.company_id)?.name ?? form.company_id}</div>
+              ) : (
+                <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
+                  <SelectTrigger className="h-8 text-sm w-full">
+                    {form.company_id
+                      ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
+                      : <span className="text-muted-foreground text-sm">Select company</span>
+                    }
+                  </SelectTrigger>
+                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Vehicle Type *</Label>
-              <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  {form.vehicle_type
-                    ? <span>{form.vehicle_type}</span>
-                    : <span className="text-muted-foreground text-sm">Select vehicle</span>
-                  }
-                </SelectTrigger>
-                <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {existing ? (
+                <div className="h-8 px-3 flex items-center text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">{form.vehicle_type}</div>
+              ) : (
+                <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
+                  <SelectTrigger className="h-8 text-sm w-full">
+                    {form.vehicle_type
+                      ? <span>{form.vehicle_type}</span>
+                      : <span className="text-muted-foreground text-sm">Select vehicle</span>
+                    }
+                  </SelectTrigger>
+                  <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -271,7 +290,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-            {saving ? 'Saving…' : <><Plus className="w-3.5 h-3.5" />Add Rate Override</>}
+            {saving ? 'Saving…' : existing ? 'Save Changes' : <><Plus className="w-3.5 h-3.5" />Add Rate Override</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -347,17 +366,25 @@ function AddRateButton({ vehicleName, vehicleCategory = '', onSaved }: { vehicle
   )
 }
 
-function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, onSaved }: {
+function DriverRateModal({ companies, vehicleNames, defaultCompanyId, existing, onClose, onSaved }: {
   companies: { id: string; name: string }[]
   vehicleNames: { id: string; name: string }[]
   defaultCompanyId?: string
+  existing?: DriverRateCard
   onClose: () => void
   onSaved: () => void
 }) {
   const [form, setForm] = useState({
-    company_id: defaultCompanyId ?? '', vehicle_type: '',
-    rate_4hr: '', rate_airport: '', rate_8hr: '', extra_km_rate: '', extra_hr_rate: '',
-    outstation_rate_per_km: '', bata_per_day: '', outstation_bata_per_day: '',
+    company_id: existing?.company_id ?? defaultCompanyId ?? '',
+    vehicle_type: existing?.vehicle_type ?? '',
+    rate_4hr: existing?.rate_4hr != null ? String(existing.rate_4hr) : '',
+    rate_airport: existing?.rate_airport != null ? String(existing.rate_airport) : '',
+    rate_8hr: existing?.rate_8hr != null ? String(existing.rate_8hr) : '',
+    extra_km_rate: existing?.extra_km_rate != null ? String(existing.extra_km_rate) : '',
+    extra_hr_rate: existing?.extra_hr_rate != null ? String(existing.extra_hr_rate) : '',
+    outstation_rate_per_km: existing?.outstation_rate_per_km != null ? String(existing.outstation_rate_per_km) : '',
+    bata_per_day: existing?.bata_per_day != null ? String(existing.bata_per_day) : '',
+    outstation_bata_per_day: existing?.outstation_bata_per_day != null ? String(existing.outstation_bata_per_day) : '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -376,8 +403,9 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
       bata_per_day:            form.bata_per_day            ? Number(form.bata_per_day)            : null,
       outstation_bata_per_day: form.outstation_bata_per_day ? Number(form.outstation_bata_per_day) : null,
     }
-    const res = await fetch('/api/billing/driver-rate-cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (res.ok) { toast.success('Driver rate saved'); onSaved() }
+    const url = existing ? `/api/billing/driver-rate-cards/${existing.id}` : '/api/billing/driver-rate-cards'
+    const res = await fetch(url, { method: existing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (res.ok) { toast.success(existing ? 'Driver rate updated' : 'Driver rate saved'); onSaved() }
     else toast.error('Failed to save')
     setSaving(false)
   }
@@ -391,7 +419,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
               <IndianRupee className="h-4 w-4 text-indigo-600" />
             </div>
             <div>
-              <DialogTitle className="text-base">Add Driver Rate Override</DialogTitle>
+              <DialogTitle className="text-base">{existing ? 'Edit Driver Rate Override' : 'Add Driver Rate Override'}</DialogTitle>
               <p className="text-xs text-gray-400 mt-0.5">What JMS pays the driver for trips from this company. Overrides commission% in Driver Settlement.</p>
             </div>
           </div>
@@ -402,27 +430,35 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Company *</Label>
-              <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  {form.company_id
-                    ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
-                    : <span className="text-muted-foreground text-sm">Select company</span>
-                  }
-                </SelectTrigger>
-                <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {existing ? (
+                <div className="h-8 px-3 flex items-center text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">{companies.find(c => c.id === form.company_id)?.name ?? form.company_id}</div>
+              ) : (
+                <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
+                  <SelectTrigger className="h-8 text-sm w-full">
+                    {form.company_id
+                      ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
+                      : <span className="text-muted-foreground text-sm">Select company</span>
+                    }
+                  </SelectTrigger>
+                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Vehicle Type *</Label>
-              <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  {form.vehicle_type
-                    ? <span>{form.vehicle_type}</span>
-                    : <span className="text-muted-foreground text-sm">Select vehicle</span>
-                  }
-                </SelectTrigger>
-                <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {existing ? (
+                <div className="h-8 px-3 flex items-center text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">{form.vehicle_type}</div>
+              ) : (
+                <Select value={form.vehicle_type} onValueChange={(v: string | null) => setForm(f => ({ ...f, vehicle_type: v ?? '' }))}>
+                  <SelectTrigger className="h-8 text-sm w-full">
+                    {form.vehicle_type
+                      ? <span>{form.vehicle_type}</span>
+                      : <span className="text-muted-foreground text-sm">Select vehicle</span>
+                    }
+                  </SelectTrigger>
+                  <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -453,7 +489,7 @@ function DriverRateModal({ companies, vehicleNames, defaultCompanyId, onClose, o
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-            {saving ? 'Saving…' : <><Plus className="w-3.5 h-3.5" />Save Driver Rate</>}
+            {saving ? 'Saving…' : existing ? 'Save Changes' : <><Plus className="w-3.5 h-3.5" />Save Driver Rate</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -469,6 +505,8 @@ export default function RateCardsPage() {
   const [showDriverModal, setShowDriverModal] = useState(false)
   const [clientModalDefaultCompany, setClientModalDefaultCompany] = useState<string | undefined>()
   const [driverModalDefaultCompany, setDriverModalDefaultCompany] = useState<string | undefined>()
+  const [editingClientRate, setEditingClientRate] = useState<ClientRateCard | null>(null)
+  const [editingDriverRate, setEditingDriverRate] = useState<DriverRateCard | null>(null)
   const [clientSearch, setClientSearch] = useState('')
   const [driverSearch, setDriverSearch] = useState('')
   const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set())
@@ -700,7 +738,10 @@ export default function RateCardsPage() {
                             </td>
                             <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.effective_from}</td>
                             <td className="px-3 py-2.5">
-                              <button onClick={() => deleteClientRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setEditingClientRate(r)} className="text-blue-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => deleteClientRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -782,7 +823,10 @@ export default function RateCardsPage() {
                                 {clientRef ? <span className="text-blue-600 font-medium">{fmt(clientRef.package_8hr_rate)}</span> : <span className="text-gray-300 text-xs">—</span>}
                               </td>
                               <td className="px-3 py-2.5">
-                                <button onClick={() => deleteDriverRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => setEditingDriverRate(r)} className="text-indigo-400 hover:text-indigo-600"><Pencil className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => deleteDriverRate(r.id)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                                </div>
                               </td>
                             </tr>
                           )
@@ -799,7 +843,9 @@ export default function RateCardsPage() {
 
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
       {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
+      {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
       {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={driverModalDefaultCompany} onClose={() => { setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} />}
+      {editingDriverRate && <DriverRateModal companies={companies} vehicleNames={vehicleNames} existing={editingDriverRate} onClose={() => setEditingDriverRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setEditingDriverRate(null) }} />}
     </div>
   )
 }
