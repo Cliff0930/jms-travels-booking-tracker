@@ -782,7 +782,7 @@ export default function RateCardsPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                          {['Vehicle', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'TDS%', 'Bill Bata', 'Effective', ''].map(h => (
+                          {['Vehicle', '4hr/40km', 'Airport 4hr/80km', '8hr/80km', 'Extra KM', 'Extra Hr', 'Outn/km', 'Min KMs', 'TDS%', 'Bill Bata', 'Local Bata', 'Outn Bata', 'Effective', 'Notes', ''].map(h => (
                             <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -797,13 +797,17 @@ export default function RateCardsPage() {
                             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_km_rate ? `₹${r.extra_km_rate}/km` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.extra_hr_rate ? `₹${r.extra_hr_rate}/hr` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{r.outstation_rate_per_km ? `₹${r.outstation_rate_per_km}/km` : '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.outstation_min_kms_per_day ? `${r.outstation_min_kms_per_day} km` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.tds_percent}%</td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', r.bill_bata_to_client ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500')}>
                                 {r.bill_bata_to_client ? 'Yes' : 'No'}
                               </span>
                             </td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.local_bata_rate ? `₹${r.local_bata_rate}/day` : '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.outstation_bata_rate ? `₹${r.outstation_bata_rate}/day` : '—'}</td>
                             <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.effective_from}</td>
+                            <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.special_notes ?? ''}>{r.special_notes || '—'}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 <button onClick={() => setEditingClientRate(r)} className="text-blue-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
