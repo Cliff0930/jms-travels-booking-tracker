@@ -138,8 +138,8 @@ function buildDriverRateBody(cr: { company_id: string; vehicle_type: string; pac
   }
 }
 
-function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, driverRates, onClose, onSaved }: {
-  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; existing?: ClientRateCard; driverRates: DriverRateCard[]; onClose: () => void; onSaved: () => void
+function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, driverRates, clientRates, onClose, onSaved }: {
+  companies: { id: string; name: string }[]; vehicleNames: { id: string; name: string }[]; defaultCompanyId?: string; existing?: ClientRateCard; driverRates: DriverRateCard[]; clientRates: ClientRateCard[]; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState({
     company_id: existing?.company_id ?? defaultCompanyId ?? '',
@@ -160,6 +160,20 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
   })
   const [saving, setSaving] = useState(false)
   const qc = useQueryClient()
+
+  const companiesWithRates = useMemo(() => new Set(clientRates.map(r => r.company_id)), [clientRates])
+  const availableCompanies = useMemo(() =>
+    companies.filter(c => !companiesWithRates.has(c.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    [companies, companiesWithRates]
+  )
+  const usedVehiclesForCompany = useMemo(() =>
+    new Set(clientRates.filter(r => r.company_id === form.company_id).map(r => r.vehicle_type.toUpperCase())),
+    [clientRates, form.company_id]
+  )
+  const availableVehicles = useMemo(() =>
+    vehicleNames.filter(v => !usedVehiclesForCompany.has(v.name.toUpperCase())),
+    [vehicleNames, usedVehiclesForCompany]
+  )
 
   async function handleSave() {
     if (!form.company_id || !form.vehicle_type) { toast.error('Select company and vehicle type'); return }
@@ -237,17 +251,17 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Company *</Label>
-              {existing ? (
+              {existing || defaultCompanyId ? (
                 <div className="h-8 px-3 flex items-center text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700">{companies.find(c => c.id === form.company_id)?.name ?? form.company_id}</div>
               ) : (
-                <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '' }))}>
+                <Select value={form.company_id} onValueChange={(v: string | null) => setForm(f => ({ ...f, company_id: v ?? '', vehicle_type: '' }))}>
                   <SelectTrigger className="h-8 text-sm w-full">
                     {form.company_id
                       ? <span>{companies.find(c => c.id === form.company_id)?.name}</span>
                       : <span className="text-muted-foreground text-sm">Select company</span>
                     }
                   </SelectTrigger>
-                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{availableCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               )}
             </div>
@@ -263,7 +277,7 @@ function ClientRateModal({ companies, vehicleNames, defaultCompanyId, existing, 
                       : <span className="text-muted-foreground text-sm">Select vehicle</span>
                     }
                   </SelectTrigger>
-                  <SelectContent>{vehicleNames.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{availableVehicles.map(v => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
                 </Select>
               )}
             </div>
@@ -1138,8 +1152,8 @@ export default function RateCardsPage() {
       )}
 
       {editingRate && <RateEditModal rate={editingRate} onClose={() => setEditingRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['rate-cards'] }); setEditingRate(null) }} />}
-      {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} driverRates={driverRates} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
-      {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} driverRates={driverRates} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
+      {showClientModal && <ClientRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={clientModalDefaultCompany} driverRates={driverRates} clientRates={clientRates} onClose={() => { setShowClientModal(false); setClientModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setShowClientModal(false); setClientModalDefaultCompany(undefined) }} />}
+      {editingClientRate && <ClientRateModal companies={companies} vehicleNames={vehicleNames} existing={editingClientRate} driverRates={driverRates} clientRates={clientRates} onClose={() => setEditingClientRate(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); setEditingClientRate(null) }} />}
       {duplicatingClientGroup && <DuplicateClientModal sourceCompanyName={duplicatingClientGroup.companyName} sourceRates={duplicatingClientGroup.rates} companies={companies} clientRates={clientRates} driverRates={driverRates} onClose={() => setDuplicatingClientGroup(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setDuplicatingClientGroup(null) }} />}
       {duplicatingRow && <DuplicateRowModal sourceRate={duplicatingRow.rate} companyRates={duplicatingRow.companyRates} vehicleNames={vehicleNames} driverRates={driverRates} onClose={() => setDuplicatingRow(null)} onSaved={() => { qc.invalidateQueries({ queryKey: ['client-rate-cards'] }); qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setDuplicatingRow(null) }} />}
       {showDriverModal && <DriverRateModal companies={companies} vehicleNames={vehicleNames} defaultCompanyId={driverModalDefaultCompany} onClose={() => { setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} onSaved={() => { qc.invalidateQueries({ queryKey: ['driver-rate-cards'] }); setShowDriverModal(false); setDriverModalDefaultCompany(undefined) }} />}
