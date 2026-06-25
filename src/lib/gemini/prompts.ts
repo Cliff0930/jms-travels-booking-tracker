@@ -1015,13 +1015,15 @@ For "modify_request":
 - cancel_reason: null
 
 === NEW BOOKING DETECTION ===
-Set is_new_booking_request: true ONLY if the conversation clearly contains TWO SEPARATE booking requests with different details.
+Set is_new_booking_request: true ONLY if the conversation clearly contains TWO SEPARATE booking requests with DIFFERENT details (different date OR different route/destination).
 Signals: "also book", "another cab", "one more", "for my colleague [name]" with a different trip.
 
 NOT a new booking:
 - "I need it for 2 days" → set total_days = 2
 - "Return trip also" → set service_type = "return"
 - "Book for my guest [name]" with same trip details → is_guest_booking = true
+- Client re-states the SAME trip more completely in a later message — this is a CONTINUATION filling in missing fields, NOT a new booking. Even if the second message looks self-contained (has all details), if the date and route match what was already being discussed, treat it as completing the current booking. is_new_booking_request = false.
+  Example: first message "Book TT from Bangalore to Shakleshpur June 29–July 1" (missing time and address), second message "Pickup at 6am from 444, 2nd Cross Road HBR Layout, Bangalore to Shakleshpur, June 29–July 1" → same booking, now complete. Merge all details and set is_complete = true.
 
 When is_new_booking_request = true, acknowledge both and ask for any missing details of the second booking.
 
