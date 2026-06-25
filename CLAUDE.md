@@ -142,6 +142,28 @@ When 3+ distinct guest phone numbers appear in a session (coordinator bulk patte
 
 ---
 
+## Trip Groups (shipped 2026-06-25, commit ff543d8)
+
+For mixed itineraries (airport Day 1 + local Day 2 + outstation Days 3–5), create **separate bookings per segment** and link them under a Trip Group. Each booking bills independently with the correct trip type.
+
+- **DB:** `trip_groups (id, label, created_at)` + `bookings.trip_group_id UUID FK → trip_groups(id) ON DELETE SET NULL`
+- **API:** `POST/GET /api/trip-groups`, `GET/PATCH/DELETE /api/trip-groups/[groupId]`, `PATCH /api/bookings/[id]/trip-group`
+- **UI:** `TripGroupPanel` on every booking detail page — "Link to Trip Group" (create new or join existing); shows sibling bookings with type/status/driver/route
+- **Types:** `TripGroup`, `TripGroupBooking` in `src/types/index.ts`; `Booking.trip_group_id: string | null`
+
+---
+
+## Outstation Trip — Single Leg Rule
+
+Outstation = always **1 leg**, 1 arrived link, 1 completed link for the whole trip. Driver taps Arrived on Day 1, taps Completed on last day (fills closing date). `booking.total_days` updated from actual dates on completion.
+
+- **Confirm route:** `trip_type === 'outstation'` → upserts exactly 1 leg (day_number=1)
+- **`POST /api/bookings/[id]/legs`:** Also checks `trip_type` — outstation → 1 leg, others → `total_days` legs
+- **TripLegsPanel:** "Generate Legs" button hidden for outstation (`tripType !== 'outstation'` guard)
+- **Changing trip_type after booking starts:** Safe before Arrived or between Arrived+Completed (server reads type live). After Completed: DO NOT change trip_type — use `slab_override` on tripsheet instead (changing type after completion miscalculates billing on already-recorded outstation KMs)
+
+---
+
 ## Multi-leg Booking Flow
 - `total_days > 1` creates N `booking_legs` rows
 - Each leg has: `day_number`, `leg_date`, `driver_id` (can differ per leg), `leg_status`, `link_sent_at`
