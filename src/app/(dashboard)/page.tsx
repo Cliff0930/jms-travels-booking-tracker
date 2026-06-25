@@ -450,7 +450,7 @@ export default function DashboardPage() {
       if (b.status === 'cancelled') return false
       if (b.pickup_date === d) return true
       // Also include bookings with a non-cancelled leg on this date
-      return (b.booking_legs ?? []).some(l => l.leg_date === d && l.leg_status !== 'cancelled' && b.pickup_date !== d)
+      return (b.booking_legs ?? []).some(l => l.leg_date === d && l.leg_status !== 'cancelled' && b.pickup_date !== d && (b.status !== 'completed' || l.leg_status === 'completed' || l.leg_status === 'in_progress'))
     })
     return { date: d, trips }
   }), [bookings])
@@ -463,7 +463,7 @@ export default function DashboardPage() {
         trips.push(b)
         continue
       }
-      const leg = (b.booking_legs ?? []).find(l => l.leg_date === selectedDay && l.leg_status !== 'cancelled')
+      const leg = (b.booking_legs ?? []).find(l => l.leg_date === selectedDay && l.leg_status !== 'cancelled' && (b.status !== 'completed' || l.leg_status === 'completed' || l.leg_status === 'in_progress'))
       if (leg) {
         const _effectiveStatus = (() => {
           if (leg.leg_status === 'completed') return 'completed'
