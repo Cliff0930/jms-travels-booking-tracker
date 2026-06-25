@@ -124,6 +124,11 @@ When `booking.guest_name` is set (company coordinator booked for a guest travell
 - Active-booking list in cancel/modify disambiguation is capped at **3** (was 10).
 - Client can still reach any booking by typing its ref, guest name, date, or time — the handler has 8 resolution strategies including a live DB lookup by ref for bookings outside the top 3.
 
+### WhatsApp re-stated complete details (`CONVERSATION_PROMPT`, fixed 2026-06-25, commit `6f6863d`)
+When a client sends partial info first, the bot asks for missing fields, and the client re-sends ALL details again in a self-contained second message, Gemini was sometimes setting `is_new_booking_request=true` — treating it as a new booking. This reset the session and triggered a duplicate booking attempt, which the duplicate guard then blocked and alerted the operator.
+- **Fix:** Explicit rule added to `CONVERSATION_PROMPT` `NEW BOOKING DETECTION`: "If the date and route match what was already being discussed, treat it as a continuation filling in missing fields — not a new booking. `is_new_booking_request = false`."
+- **Duplicate alert meaning:** If you see "⚠️ Duplicate booking blocked!", check the existing booking ref. If it correctly reflects the customer's intent → the guard worked, no action needed. Most alerts are either Meta webhook re-delivery (at-least-once) or this Gemini misfire pattern (now fixed).
+
 ---
 
 ## WhatsApp Bulk Coordinator Flow (shipped 2026-06-17)
