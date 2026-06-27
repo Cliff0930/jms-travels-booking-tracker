@@ -170,6 +170,13 @@ export async function POST(request: Request) {
   if (leg_id) {
     const legStatus = status === 'arrived' ? 'in_progress' : 'completed'
     await supabase.from('booking_legs').update({ leg_status: legStatus }).eq('id', leg_id)
+  } else if (booking.trip_type === 'outstation') {
+    // Outstation uses booking-level links (no leg_id), so update the single leg manually
+    const legStatus = status === 'arrived' ? 'in_progress' : 'completed'
+    await supabase.from('booking_legs')
+      .update({ leg_status: legStatus })
+      .eq('booking_id', booking_id)
+      .eq('day_number', 1)
   }
 
   // Trip sheet handling

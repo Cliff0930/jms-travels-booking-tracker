@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useDrivers } from '@/hooks/useDrivers'
 import { DriverSearchCombobox } from '@/components/shared/DriverSearchCombobox'
-import { Calendar, User, Send, CheckCircle2, Bell } from 'lucide-react'
+import { Calendar, User, Send, CheckCircle2, Bell, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils/date'
 import type { BookingLeg, Driver } from '@/types'
@@ -126,31 +126,52 @@ export function TripLegsPanel({ bookingId, driverAssigned = false, tripType }: T
               timeZone: 'Asia/Kolkata',
             })
           : null
+        const isOutstation = tripType === 'outstation'
         return (
           <div key={leg.id} className="p-3 rounded-lg border border-[#C3C5D7] bg-[#F9F9FE]">
             {/* Top row: day circle + info */}
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#D4DCFF] flex items-center justify-center text-xs font-bold text-[#1A56DB] shrink-0 mt-0.5">
-                {leg.day_number}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isOutstation ? 'bg-amber-100' : 'bg-[#D4DCFF]'}`}>
+                {isOutstation
+                  ? <Route className="w-4 h-4 text-amber-700" />
+                  : <span className="text-xs font-bold text-[#1A56DB]">{leg.day_number}</span>
+                }
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                  <Calendar className="w-3.5 h-3.5 text-[#737686] shrink-0" />
-                  <span className="text-sm font-medium text-[#191B23] whitespace-nowrap">
-                    {formatDate(leg.leg_date)}
-                  </span>
-                  <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
-                    {leg.leg_status.replace('_', ' ')}
-                  </Badge>
-                  {tripType === 'airport' && (
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${leg.day_number === 1 ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>
-                      {leg.day_number === 1 ? 'Airport Pickup' : 'Local'}
-                    </span>
-                  )}
-                  {tripType === 'local' && (
-                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#ECFDF5] text-[#065F46]">Local</span>
+                  {isOutstation ? (
+                    <>
+                      <span className="text-sm font-semibold text-[#191B23]">Outstation Journey</span>
+                      <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
+                        {leg.leg_status.replace('_', ' ')}
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="w-3.5 h-3.5 text-[#737686] shrink-0" />
+                      <span className="text-sm font-medium text-[#191B23] whitespace-nowrap">
+                        {formatDate(leg.leg_date)}
+                      </span>
+                      <Badge className={`text-xs px-1.5 py-0 capitalize ${legStatusColor(leg.leg_status)}`}>
+                        {leg.leg_status.replace('_', ' ')}
+                      </Badge>
+                      {tripType === 'airport' && (
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${leg.day_number === 1 ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                          {leg.day_number === 1 ? 'Airport Pickup' : 'Local'}
+                        </span>
+                      )}
+                      {tripType === 'local' && (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#ECFDF5] text-[#065F46]">Local</span>
+                      )}
+                    </>
                   )}
                 </div>
+                {isOutstation && (
+                  <div className="flex items-center gap-1 text-xs text-[#737686] mb-1">
+                    <Calendar className="w-3 h-3 shrink-0" />
+                    <span>Start: {formatDate(leg.leg_date)}</span>
+                  </div>
+                )}
                 {leg.driver ? (
                   <div className="flex items-center gap-1 text-xs text-[#434654]">
                     <User className="w-3 h-3 shrink-0" />
