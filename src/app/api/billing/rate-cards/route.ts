@@ -15,7 +15,15 @@ export async function GET(request: Request) {
       .eq('is_active', true)
       .order('vehicle_type', { ascending: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data ?? [])
+    if (data && data.length > 0) return NextResponse.json(data)
+    // Company has no rate cards — fall back to active default rate cards
+    const { data: defaults, error: dErr } = await supabase
+      .from('rate_cards')
+      .select('vehicle_type')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+    if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 })
+    return NextResponse.json(defaults ?? [])
   }
 
   let q = supabase.from('rate_cards').select('*').order('sort_order', { ascending: true })
