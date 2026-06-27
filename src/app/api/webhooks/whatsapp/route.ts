@@ -859,6 +859,19 @@ async function processClientMessage(
 
   // Still collecting — ask next question
   if (!result.is_complete) {
+    // Suppress the question on the very first agent turn when all we have is a location.
+    // Customers often send address details across several rapid messages before the booking
+    // line (date/time/destination) arrives. Asking immediately causes multiple clarification
+    // messages to pile up before they've finished typing. Wait silently instead.
+    const hasAnyPriorAgentMsg = (session.messages as Array<{ role: string }>).some(m => m.role === 'agent')
+    const onlyLocationSoFar = (
+      result.extracted.pickup_location !== null &&
+      result.extracted.pickup_date === null &&
+      result.extracted.pickup_time === null &&
+      result.extracted.drop_location === null
+    )
+    if (!hasAnyPriorAgentMsg && onlyLocationSoFar) return
+
     if (result.next_question) {
       const ext = result.extracted
       const recapLines: string[] = []
