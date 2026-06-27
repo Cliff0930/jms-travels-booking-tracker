@@ -12,9 +12,9 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const PRIMARY_NAV = [
-  { href: '/',         label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/bookings', label: 'Bookings',  icon: BookOpen },
-  { href: '/clients',  label: 'Clients',   icon: Users },
+  { href: '/',                  label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/bookings',          label: 'Bookings',  icon: BookOpen },
+  { href: '/bookings/calendar', label: 'Calendar',  icon: CalendarDays },
 ]
 
 interface NavItem { href: string; label: string; icon: React.ElementType }
@@ -24,10 +24,9 @@ const MORE_GROUPS: NavGroup[] = [
   {
     label: 'Operations',
     items: [
-      { href: '/bookings/calendar', label: 'Calendar',      icon: CalendarDays },
-      { href: '/messages',          label: 'Messages',      icon: MessageSquare },
-      { href: '/reimbursements',    label: 'Reimburse',     icon: Wallet },
-      { href: '/advances',          label: 'Advances',      icon: IndianRupee },
+      { href: '/messages',       label: 'Messages',  icon: MessageSquare },
+      { href: '/reimbursements', label: 'Reimburse', icon: Wallet },
+      { href: '/advances',       label: 'Advances',  icon: IndianRupee },
     ],
   },
   {
@@ -35,6 +34,7 @@ const MORE_GROUPS: NavGroup[] = [
     items: [
       { href: '/drivers',   label: 'Drivers',   icon: Car },
       { href: '/companies', label: 'Companies', icon: Building2 },
+      { href: '/clients',   label: 'Clients',   icon: Users },
     ],
   },
   {
