@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = createAdminClient()
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, salutation), company:companies(name, formal_address), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen)')
+    .select('*, client:clients!client_id(id, name, primary_phone, primary_email, salutation), company:companies!company_id(name, formal_address), driver:drivers(id, name, phone, secondary_phone, vehicle_name, vehicle_number, vehicle_color, uses_app, last_app_seen)')
     .eq('id', id)
     .single()
 

@@ -40,7 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const [bookingRes, newDriverRes, legRes] = await Promise.all([
       supabase
         .from('bookings')
-        .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies(name, formal_address)')
+        .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), company:companies!company_id(name, formal_address)')
         .eq('id', id)
         .single(),
       supabase

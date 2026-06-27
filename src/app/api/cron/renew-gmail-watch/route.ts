@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createAdminClient } from '@/lib/supabase/server'
 import { notifyOperator } from '@/lib/utils/notify-operator'
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
   try {
     const { data: pendingBookings } = await supabase
       .from('bookings')
-      .select('id, booking_ref, updated_at, company:companies(approval_timeout_hours)')
+      .select('id, booking_ref, updated_at, company:companies!company_id(approval_timeout_hours)')
       .eq('status', 'pending_approval')
       .order('updated_at', { ascending: true })
       .limit(20)

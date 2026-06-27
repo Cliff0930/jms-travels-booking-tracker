@@ -19,8 +19,8 @@ export async function GET(request: Request) {
   const includeLegs = searchParams.get('include_legs') === '1'
 
   const selectFields = includeLegs
-    ? '*, booking_legs(id, day_number, leg_date, leg_status), client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
-    : '*, client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
+    ? '*, booking_legs(id, day_number, leg_date, leg_status), client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies!company_id(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
+    : '*, client:clients!client_id(id, name, primary_phone, primary_email, client_type, is_vip, is_verified, company:companies!company_id(id, name)), company:companies!company_id(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number, vehicle_type, status)'
 
   let query = supabase
     .from('bookings')

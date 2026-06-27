@@ -36,7 +36,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const [bookingRes, legsRes] = await Promise.all([
     supabase
       .from('bookings')
-      .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies(name, formal_address, show_designation)')
+      .select('*, client:clients!client_id(name, primary_phone, primary_email, salutation), guest_client:clients!guest_client_id(name, prefix, designation), company:companies!company_id(name, formal_address, show_designation)')
       .eq('id', id)
       .single(),
     supabase

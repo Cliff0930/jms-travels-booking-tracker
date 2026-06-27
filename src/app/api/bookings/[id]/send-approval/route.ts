@@ -14,7 +14,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, company:companies(*), client:clients!client_id(*)')
+    .select('*, company:companies!company_id(*), client:clients!client_id(*)')
     .eq('id', id)
     .single()
 

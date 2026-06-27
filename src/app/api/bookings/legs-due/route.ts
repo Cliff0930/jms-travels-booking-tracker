@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_ref, status, trip_type, total_days, pickup_location, drop_location, pickup_date, pickup_time, guest_name, guest_phone, client:clients!client_id(id, name, primary_phone), company:companies(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number)')
+    .select('id, booking_ref, status, trip_type, total_days, pickup_location, drop_location, pickup_date, pickup_time, guest_name, guest_phone, client:clients!client_id(id, name, primary_phone), company:companies!company_id(id, name), driver:drivers(id, name, phone, vehicle_name, vehicle_number)')
     .in('id', bookingIds)
     .in('status', ['confirmed', 'in_progress', 'completed'])
 
