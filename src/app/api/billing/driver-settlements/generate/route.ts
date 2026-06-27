@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     .from('bookings')
     .select(`
       id, booking_ref, pickup_date, company_id, trip_type, total_days,
-      vehicle_type,
+      vehicle_type, billing_vehicle_type,
       company:companies!company_id(id, name),
       trip_sheets(id, tripsheet_number, opening_km, closing_km,
         manual_opening_time, manual_closing_time,
@@ -224,9 +224,12 @@ export async function POST(request: Request) {
     const companyId = b.company_id ?? ''
     const company = b.company as unknown as { name: string } | null
 
+    const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()
+    const vForRate = billingVehicle || driverVehicle
+
     const rate: RateCard =
-      clientRatesByCompany[companyId]?.[driverVehicle] ??
-      defaultRateMap[driverVehicle] ??
+      clientRatesByCompany[companyId]?.[vForRate] ??
+      defaultRateMap[vForRate] ??
       DEFAULT_RATE
 
     // Use driver-adjusted KM/time for settlement; fall back to actual if not set
@@ -250,7 +253,7 @@ export async function POST(request: Request) {
     // Priority: driver fixed rates → company driver rates → commission%
     let hireEarnings: number
     let rateSource: 'fixed' | 'company' | 'commission' = 'commission'
-    const companyRate = companyDriverRateMap[companyId]?.[driverVehicle] as Record<string,unknown> | undefined
+    const companyRate = companyDriverRateMap[companyId]?.[vForRate] as Record<string,unknown> | undefined
 
     if (driverFixed) {
       hireEarnings = r2(calcHireCharges(actualKms, actualMinutes, days, effectiveTripType, driverFixed))
@@ -275,8 +278,8 @@ export async function POST(request: Request) {
     const bataCount = Number(sheet?.bata_driver ?? 0)
     const tripType = b.trip_type ?? 'local'
     // Bata priority: driver fixed outstation/local bata → company_driver_rates → company_bata_rates → driver default
-    const bataKey = `${companyId}:${driverVehicle}:${tripType}`
-    const bataKeyAll = `${companyId}:${driverVehicle}:all`
+    const bataKey = `${companyId}:${vForRate}:${tripType}`
+    const bataKeyAll = `${companyId}:${vForRate}:all`
     const isOutstationTrip = tripType === 'outstation'
     const driverBataRate =
       (isOutstationTrip && driver.fixed_rate_outstation_bata ? Number(driver.fixed_rate_outstation_bata) : null) ??
@@ -307,7 +310,7 @@ export async function POST(request: Request) {
       tripsheet_number: (sheet?.tripsheet_number as string | null) ?? null,
       company_name: company?.name ?? '',
       trip_type: tripType,
-      vehicle_type: driver.vehicle_name,
+      vehicle_type: billingVehicle || driver.vehicle_name,
       actual_kms: actualKms,
       actual_hrs: actualHrs,
       client_hire_charges: hireCharges,

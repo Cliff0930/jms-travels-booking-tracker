@@ -298,6 +298,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
 
+  // Billing vehicle override
+  const [billingVehicle, setBillingVehicle] = useState<string | null>(null)
+  const [savingBillingVehicle, setSavingBillingVehicle] = useState(false)
+  useEffect(() => {
+    if (booking) setBillingVehicle((booking as { billing_vehicle_type?: string | null }).billing_vehicle_type ?? null)
+  }, [booking?.id])
+  const { data: rateCardVehicles = [] } = useQuery<string[]>({
+    queryKey: ['rate-cards-vehicles'],
+    queryFn: () => fetch('/api/billing/rate-cards').then(r => r.json()).then((d: { vehicle_type: string }[]) => d.map(r => r.vehicle_type)),
+  })
+  async function handleSaveBillingVehicle(value: string | null) {
+    setBillingVehicle(value)
+    setSavingBillingVehicle(true)
+    try {
+      await fetch(`/api/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: value }) })
+      toast.success(value ? `Billing as ${value}` : 'Reset to driver vehicle')
+      qc.invalidateQueries({ queryKey: ['booking', id] })
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSavingBillingVehicle(false)
+    }
+  }
+
   // Auto-calculate and auto-save both bata counts whenever times change or edit form opens
   const lastAutoSavedBata = useRef<string | null>(null)
   useEffect(() => {
@@ -2279,6 +2303,50 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Timeline</h2>
             <TripTimeline booking={booking} />
           </div>
+
+          {booking?.driver_id && (
+            <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-[#191B23] flex items-center gap-2">
+                  <Car className="w-4 h-4 text-amber-600" />
+                  Billing Vehicle
+                </h2>
+                {billingVehicle && (
+                  <button
+                    onClick={() => handleSaveBillingVehicle(null)}
+                    disabled={savingBillingVehicle}
+                    className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-0.5"
+                  >
+                    <X className="w-3 h-3" /> Reset to auto
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs text-[#737686]">
+                  {billingVehicle
+                    ? <span>Billing at <span className="font-semibold text-amber-700">{billingVehicle}</span> rate — overrides driver vehicle for both client invoice and driver settlement.</span>
+                    : <span>Auto — using driver vehicle <span className="font-semibold">{(booking as { driver?: { vehicle_name?: string } | null }).driver?.vehicle_name ?? '—'}</span> rate.</span>
+                  }
+                </p>
+                <Select
+                  value={billingVehicle ?? ''}
+                  onValueChange={(v: string | null) => { if (v) handleSaveBillingVehicle(v) }}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    {billingVehicle
+                      ? <span>{billingVehicle}</span>
+                      : <span className="text-muted-foreground">Select vehicle to bill as…</span>
+                    }
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rateCardVehicles.map(v => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {tripSheets.length > 0 && (
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">

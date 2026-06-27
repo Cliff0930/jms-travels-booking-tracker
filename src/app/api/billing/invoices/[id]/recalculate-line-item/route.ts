@@ -142,8 +142,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const driver = booking?.driver as { vehicle_name?: string; vehicle_number?: string } | null
+  const billingVehicle = ((booking?.billing_vehicle_type as string | null) ?? '').toUpperCase()
   const driverVehicleName = (driver?.vehicle_name ?? '').toUpperCase()
-  const vType = driverVehicleName || (booking?.vehicle_type ?? '').toUpperCase()
+  const vType = billingVehicle || driverVehicleName || (booking?.vehicle_type ?? '').toUpperCase()
   const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
     package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
     package_airport_rate: 0,
@@ -172,8 +173,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
   const bataCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)
 
-  const cbKey    = `${driverVehicleName}:${booking?.trip_type ?? 'local'}`
-  const cbKeyAll = `${driverVehicleName}:all`
+  const cbKey    = `${billingVehicle || driverVehicleName}:${booking?.trip_type ?? 'local'}`
+  const cbKeyAll = `${billingVehicle || driverVehicleName}:all`
 
   let calc
   if (slabOverride === 'OUTSTATION' || (!slabOverride && booking?.trip_type === 'outstation')) {

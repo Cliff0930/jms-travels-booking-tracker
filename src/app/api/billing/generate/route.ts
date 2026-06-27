@@ -176,7 +176,7 @@ export async function POST(request: Request) {
 
   const bookingSelect = `
     id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
-    vehicle_type, guest_name, guest_client_id,
+    vehicle_type, billing_vehicle_type, guest_name, guest_client_id,
     driver:drivers!driver_id(vehicle_name, vehicle_number),
     trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
       client_opening_km, client_closing_km, client_opening_time, client_closing_time,
@@ -248,9 +248,9 @@ export async function POST(request: Request) {
   for (const b of filteredBookings) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0] // use first sheet per booking
-    // Use driver's vehicle_name (specific model) for rate lookup, not booking vehicle_type (category)
+    const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()
     const driverVehicleName = ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_name ?? '').toUpperCase()
-    const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
+    const vType = billingVehicle || driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
     const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
       package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
       package_airport_rate: 0,
@@ -284,8 +284,8 @@ export async function POST(request: Request) {
     const days = b.total_days ?? 1
 
     // Company bata rate (what we charge the company) — look up by vehicle+trip_type, fall back to vehicle+all, then rate card default
-    const cbKey  = `${driverVehicleName}:${b.trip_type ?? 'local'}`
-    const cbKeyAll = `${driverVehicleName}:all`
+    const cbKey  = `${billingVehicle || driverVehicleName}:${b.trip_type ?? 'local'}`
+    const cbKeyAll = `${billingVehicle || driverVehicleName}:all`
     let calc
     if (slabOverride === 'OUTSTATION' || (!slabOverride && b.trip_type === 'outstation')) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
@@ -328,7 +328,7 @@ export async function POST(request: Request) {
       trip_date: b.pickup_date,
       booking_ref: b.booking_ref,
       // tripsheet_number is NOT stored in invoice_line_items — fetched live from trip_sheets in the detail route
-      vehicle_type: driverVehicleName || b.vehicle_type || '',
+      vehicle_type: billingVehicle || driverVehicleName || b.vehicle_type || '',
       vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
       guest_name: b.guest_name,
       pickup_location: b.pickup_location,

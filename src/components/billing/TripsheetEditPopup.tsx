@@ -4,6 +4,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -160,11 +161,20 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   const [form, setForm] = useState<Form | null>(null)
   const [tab, setTab] = useState<Tab>('actual')
   const [slabOverride, setSlabOverride] = useState<string | null>(null)
+  const [billingVehicleType, setBillingVehicleType] = useState<string | null>(null)
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
 
   useEffect(() => {
     async function load() {
       try {
-        let sheets: TripSheet[] = await fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json())
+        const [sheetsData, bookingRes, rateCards] = await Promise.all([
+          fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json()) as Promise<TripSheet[]>,
+          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null }>,
+          fetch('/api/billing/rate-cards').then(r => r.json()) as Promise<{ vehicle_type: string }[]>,
+        ])
+        setBillingVehicleType(bookingRes.billing_vehicle_type ?? null)
+        setVehicleTypes(rateCards.map(r => r.vehicle_type))
+        let sheets: TripSheet[] = sheetsData
 
         if (sheets.length === 0) {
           const res = await fetch(`/api/bookings/${bookingId}/trip-sheet`, { method: 'POST' })
@@ -305,6 +315,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         })
         await recalculate()
       }
+      await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: billingVehicleType }) })
       toast.success(mode === 'driver' ? 'Driver sheet updated' : 'Tripsheet saved')
       onSaved()
       onClose()
@@ -445,6 +456,39 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
                         )
                       })}
                     </div>
+                  </div>
+
+                  {/* Billing vehicle override */}
+                  <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                        <Car className="w-3 h-3" /> Bill as Vehicle
+                      </p>
+                      {billingVehicleType && (
+                        <button
+                          onClick={() => setBillingVehicleType(null)}
+                          className="text-[10px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5 transition-colors"
+                        >
+                          <X className="w-3 h-3" /> Reset to auto
+                        </button>
+                      )}
+                    </div>
+                    <Select
+                      value={billingVehicleType ?? ''}
+                      onValueChange={(v: string | null) => { if (v) setBillingVehicleType(v) }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        {billingVehicleType
+                          ? <span className="text-blue-700 font-semibold">{billingVehicleType}</span>
+                          : <span className="text-gray-400">Auto (driver vehicle)</span>
+                        }
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vehicleTypes.map(v => (
+                          <SelectItem key={v} value={v}>{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Outstation dates */}
