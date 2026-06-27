@@ -163,20 +163,29 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   const [slabOverride, setSlabOverride] = useState<string | null>(null)
   const [billingVehicleType, setBillingVehicleType] = useState<string | null>(null)
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
+  const [billingCompanyId, setBillingCompanyId] = useState<string | null>(null)
+  const [groupCompanies, setGroupCompanies] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     async function load() {
       try {
         const [sheetsData, bookingRes] = await Promise.all([
           fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json()) as Promise<TripSheet[]>,
-          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null; company_id?: string | null }>,
+          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null; billing_company_id?: string | null; company_id?: string | null }>,
         ])
         setBillingVehicleType(bookingRes.billing_vehicle_type ?? null)
+        setBillingCompanyId(bookingRes.billing_company_id ?? null)
         const vehicleUrl = bookingRes.company_id
           ? `/api/billing/rate-cards?company_id=${bookingRes.company_id}`
           : '/api/billing/rate-cards?active=true'
-        const rateCards = await fetch(vehicleUrl).then(r => r.json()) as { vehicle_type: string }[]
+        const [rateCards, groupRes] = await Promise.all([
+          fetch(vehicleUrl).then(r => r.json()) as Promise<{ vehicle_type: string }[]>,
+          bookingRes.company_id
+            ? fetch(`/api/companies?group_of=${bookingRes.company_id}`).then(r => r.json()) as Promise<{ id: string; name: string }[]>
+            : Promise.resolve([] as { id: string; name: string }[]),
+        ])
         setVehicleTypes(rateCards.map(r => r.vehicle_type))
+        setGroupCompanies(groupRes)
         let sheets: TripSheet[] = sheetsData
 
         if (sheets.length === 0) {
@@ -318,7 +327,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         })
         await recalculate()
       }
-      await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: billingVehicleType }) })
+      await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: billingVehicleType, billing_company_id: billingCompanyId }) })
       toast.success(mode === 'driver' ? 'Driver sheet updated' : 'Tripsheet saved')
       onSaved()
       onClose()
@@ -493,6 +502,40 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {groupCompanies.length > 0 && (
+                    <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] flex items-center gap-1">
+                          <Tag className="w-3 h-3" /> Bill to Company
+                        </p>
+                        {billingCompanyId && (
+                          <button
+                            onClick={() => setBillingCompanyId(null)}
+                            className="text-[10px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5 transition-colors"
+                          >
+                            <X className="w-3 h-3" /> Reset
+                          </button>
+                        )}
+                      </div>
+                      <Select
+                        value={billingCompanyId ?? ''}
+                        onValueChange={(v: string | null) => { if (v) setBillingCompanyId(v) }}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          {billingCompanyId
+                            ? <span className="text-blue-700 font-semibold">{groupCompanies.find(c => c.id === billingCompanyId)?.name ?? '—'}</span>
+                            : <span className="text-gray-400">Auto (booking company)</span>
+                          }
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groupCompanies.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Outstation dates */}
                   {tripType === 'outstation' && (
