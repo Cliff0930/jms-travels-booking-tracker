@@ -21,12 +21,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('pickup_date, total_days, trip_type')
+    .select('pickup_date, total_days, trip_type, status')
     .eq('id', id)
     .single()
 
   if (!booking || !booking.pickup_date || !booking.total_days) {
     return NextResponse.json({ error: 'Booking not found or missing date/days' }, { status: 400 })
+  }
+
+  if (booking.status !== 'confirmed') {
+    return NextResponse.json({ error: 'Legs can only be generated for confirmed bookings' }, { status: 400 })
   }
 
   // Outstation: always 1 leg — dates captured on completion via trip_opening_date/trip_closing_date
