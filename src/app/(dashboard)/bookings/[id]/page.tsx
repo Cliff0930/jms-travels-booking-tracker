@@ -1684,7 +1684,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </div>
           )}
 
-          {booking.total_days > 1 && (
+          {booking.total_days > 1 && booking.status === 'confirmed' && (
             <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
               <h2 className="text-base font-semibold text-[#191B23] mb-4">
                 Trip Legs
