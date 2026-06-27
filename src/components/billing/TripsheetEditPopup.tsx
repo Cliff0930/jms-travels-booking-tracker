@@ -167,12 +167,15 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   useEffect(() => {
     async function load() {
       try {
-        const [sheetsData, bookingRes, rateCards] = await Promise.all([
+        const [sheetsData, bookingRes] = await Promise.all([
           fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json()) as Promise<TripSheet[]>,
-          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null }>,
-          fetch('/api/billing/rate-cards').then(r => r.json()) as Promise<{ vehicle_type: string }[]>,
+          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null; company_id?: string | null }>,
         ])
         setBillingVehicleType(bookingRes.billing_vehicle_type ?? null)
+        const vehicleUrl = bookingRes.company_id
+          ? `/api/billing/rate-cards?company_id=${bookingRes.company_id}`
+          : '/api/billing/rate-cards?active=true'
+        const rateCards = await fetch(vehicleUrl).then(r => r.json()) as { vehicle_type: string }[]
         setVehicleTypes(rateCards.map(r => r.vehicle_type))
         let sheets: TripSheet[] = sheetsData
 

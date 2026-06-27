@@ -305,8 +305,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     if (booking) setBillingVehicle((booking as { billing_vehicle_type?: string | null }).billing_vehicle_type ?? null)
   }, [booking?.id])
   const { data: rateCardVehicles = [] } = useQuery<string[]>({
-    queryKey: ['rate-cards-vehicles'],
-    queryFn: () => fetch('/api/billing/rate-cards').then(r => r.json()).then((d: { vehicle_type: string }[]) => d.map(r => r.vehicle_type)),
+    queryKey: ['rate-cards-vehicles', booking?.company_id ?? null],
+    queryFn: () => {
+      const url = booking?.company_id
+        ? `/api/billing/rate-cards?company_id=${booking.company_id}`
+        : '/api/billing/rate-cards?active=true'
+      return fetch(url).then(r => r.json()).then((d: { vehicle_type: string }[]) => d.map(r => r.vehicle_type))
+    },
+    enabled: !!booking,
   })
   async function handleSaveBillingVehicle(value: string | null) {
     setBillingVehicle(value)

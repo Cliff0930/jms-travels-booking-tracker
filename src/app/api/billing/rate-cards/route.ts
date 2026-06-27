@@ -1,12 +1,26 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rate_cards')
-    .select('*')
-    .order('sort_order', { ascending: true })
+  const { searchParams } = new URL(request.url)
+  const companyId = searchParams.get('company_id')
+  const activeOnly = searchParams.get('active') === 'true'
+
+  if (companyId) {
+    const { data, error } = await supabase
+      .from('client_rate_cards')
+      .select('vehicle_type')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .order('vehicle_type', { ascending: true })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data ?? [])
+  }
+
+  let q = supabase.from('rate_cards').select('*').order('sort_order', { ascending: true })
+  if (activeOnly) q = q.eq('is_active', true)
+  const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
