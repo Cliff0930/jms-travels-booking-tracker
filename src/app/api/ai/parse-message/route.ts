@@ -285,6 +285,45 @@ export async function POST(request: Request) {
         (emailClient?.company as Company | null)?.formal_address,
       )
 
+      // If cancel request with no specific ref and thread has multiple active bookings — ask which one
+      if (result.classification === 'cancel_request' && !result.target_booking_ref && gmail_thread_id) {
+        const { data: threadBookings } = await supabase
+          .from('bookings')
+          .select('id, booking_ref, pickup_date, pickup_time, guest_name, client:clients!client_id(name)')
+          .eq('gmail_thread_id', gmail_thread_id)
+          .not('status', 'in', '("completed","cancelled")')
+          .order('pickup_date', { ascending: true })
+
+        if (threadBookings && threadBookings.length > 1) {
+          const list = threadBookings.map((b, i) => {
+            const datePart = b.pickup_date ? formatDate(b.pickup_date as string) : '—'
+            const timePart = b.pickup_time ? ` at ${formatTime(b.pickup_time as string)}` : ''
+            const name = (b.guest_name as string | null) ?? (b.client as { name?: string } | null)?.name ?? '—'
+            return `  ${i + 1}. ${b.booking_ref as string} · ${datePart}${timePart} · ${name}`
+          }).join('\n')
+
+          await sendEmail({
+            to: sender_email,
+            subject: 'Cancellation Request — Please Confirm',
+            cc: ccForReply,
+            ...threading,
+            body: [
+              `Hi ${clientName},`,
+              ``,
+              `We received your cancellation request. We found multiple bookings on this thread:`,
+              ``,
+              list,
+              ``,
+              `Please reply with the booking reference(s) you'd like to cancel`,
+              `(e.g. "Cancel ${(threadBookings[0].booking_ref as string)}" or "Cancel all").`,
+              ``,
+              `JMS Travels Team`,
+            ].join('\n'),
+          }).catch(() => {})
+          return NextResponse.json({ ok: true, classification: 'cancel_request' })
+        }
+      }
+
       const { booking } = await findBookingForCancelModify(
         supabase,
         (client as Client)?.id ?? null,
