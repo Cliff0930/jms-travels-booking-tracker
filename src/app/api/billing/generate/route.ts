@@ -191,7 +191,8 @@ export async function POST(request: Request) {
   if (isIndividual) {
     bookingsQ = bookingsQ.eq('guest_client_id', individual_client_id!)
   } else {
-    bookingsQ = bookingsQ.eq('company_id', company_id!)
+    // Include bookings explicitly redirected to this company AND bookings whose own company_id matches (excluding those redirected elsewhere)
+    bookingsQ = bookingsQ.or(`billing_company_id.eq.${company_id},and(company_id.eq.${company_id},billing_company_id.is.null)`)
   }
   const { data: bookings, error: bookingsErr } = await bookingsQ
   if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 })
@@ -234,7 +235,7 @@ export async function POST(request: Request) {
   if (isIndividual) {
     olderQ = olderQ.eq('guest_client_id', individual_client_id!)
   } else {
-    olderQ = olderQ.eq('company_id', company_id!)
+    olderQ = olderQ.or(`billing_company_id.eq.${company_id},and(company_id.eq.${company_id},billing_company_id.is.null)`)
   }
   const { data: olderBookings } = await olderQ
   const missedBookings = (olderBookings ?? []).filter(b =>

@@ -577,6 +577,29 @@ export default function CompaniesPage() {
                       />
                     </div>
                     <div className="p-4 space-y-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">Company Group</h3>
+                      <p className="text-xs text-[#9CA3AF]">Link to a parent company so billing can be redirected between group members (e.g. CDAC EC1 → CDAC Pune).</p>
+                      <Select
+                        value={selectedCompany.parent_company_id ?? '__none__'}
+                        onValueChange={v => {
+                          const val = v === '__none__' ? null : v
+                          if (val !== selectedCompany.parent_company_id) updateCompany(selectedCompany.id, { parent_company_id: val })
+                        }}
+                      >
+                        <SelectTrigger className="border-[#C3C5D7] text-sm">
+                          {selectedCompany.parent_company_id
+                            ? <span>{(companies ?? []).find(c => c.id === selectedCompany.parent_company_id)?.name ?? 'Unknown'}</span>
+                            : <span className="text-muted-foreground">No parent (standalone)</span>}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No parent (standalone)</SelectItem>
+                          {(companies ?? []).filter(c => c.id !== selectedCompany.id && !c.parent_company_id).map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="p-4 space-y-2">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">GSTIN</h3>
                       <p className="text-xs text-[#9CA3AF]">15-character GST registration number. Printed on invoices.</p>
                       <Input

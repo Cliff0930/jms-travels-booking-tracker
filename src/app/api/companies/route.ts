@@ -5,6 +5,21 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')
+  const groupOf = searchParams.get('group_of')
+
+  // Return all companies in the same group as groupOf (siblings + parent)
+  if (groupOf) {
+    const { data: self } = await supabase.from('companies').select('parent_company_id').eq('id', groupOf).single()
+    const parentId = self?.parent_company_id ?? groupOf
+    const { data, error } = await supabase
+      .from('companies').select('*')
+      .or(`id.eq.${parentId},parent_company_id.eq.${parentId}`)
+      .neq('id', groupOf)
+      .order('name')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data ?? [])
+  }
+
   let query = supabase.from('companies').select('*').order('name')
   if (q) query = query.ilike('name', `%${q}%`)
   const { data, error } = await query

@@ -53,6 +53,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
   const isPossibleDup = (booking.flags as string[] | undefined)?.includes('possible_duplicate')
   const isNeedsClarification = (booking.flags as string[] | undefined)?.includes('needs_clarification')
   const isOfflineTrip = (booking.flags as string[] | undefined)?.includes('offline_trip')
+  const hasBillingHint = !!(booking.billing_company_hint && !booking.billing_company_id)
 
   const src      = SOURCE_CONFIG[booking.source as keyof typeof SOURCE_CONFIG] ?? SOURCE_CONFIG.manual
   const SrcIcon  = src.Icon
@@ -63,7 +64,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
 
   const borderCls = isNeedsClarification ? 'border-orange-400'
     : noDriver    ? 'border-red-400'
-    : isPossibleDup || isDraft ? 'border-amber-400'
+    : isPossibleDup || isDraft || hasBillingHint ? 'border-amber-400'
     : 'border-[#E5E7EB]'
 
   return (
@@ -87,6 +88,7 @@ export function BookingCard({ booking, onConfirm, onCancel, onAssign }: BookingC
             )}
             {isNeedsClarification && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 border border-orange-300">Clarify</span>}
             {isPossibleDup && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">Dup?</span>}
+            {hasBillingHint && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-300">Bill?</span>}
             {booking.trip_type === 'local'      && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700">Local</span>}
             {booking.trip_type === 'outstation' && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700">Outstation</span>}
             {booking.trip_type === 'airport'    && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">Airport</span>}

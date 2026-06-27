@@ -40,6 +40,7 @@ export interface Company {
   show_designation: boolean
   gstin: string | null
   address: string | null
+  parent_company_id: string | null
   created_at: string
   updated_at: string
 }
@@ -223,6 +224,8 @@ export interface Booking {
   is_settlement_duty: boolean
   exclude_from_billing: boolean
   trip_group_id: string | null
+  billing_company_id: string | null
+  billing_company_hint: string | null
   created_at: string
   updated_at: string
   client?: Client

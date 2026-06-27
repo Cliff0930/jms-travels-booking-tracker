@@ -31,6 +31,7 @@ export interface ConversationResult {
     company_mentioned: string | null
     booking_type: 'company' | 'personal' | null
     pickup_stops: PickupStop[] | null
+    billing_company_hint: string | null
   }
   modification_request: ModificationRequest | null
   cancel_reason: string | null
@@ -150,7 +151,7 @@ export async function converseBooking(
         pax_count: null, vehicle_type: null, guest_name: null, guest_phone: null,
         trip_type: 'local', service_type: 'one_way', total_days: 1,
         special_instructions: null, company_mentioned: null, booking_type: null,
-        pickup_stops: null,
+        pickup_stops: null, billing_company_hint: null,
       },
       modification_request: null, cancel_reason: null, target_booking_ref: null,
       missing_mandatory: ['pickup_location', 'pickup_date', 'pickup_time'],

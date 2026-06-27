@@ -629,6 +629,7 @@ async function processClientMessage(
               company_mentioned: bk.extracted.company_mentioned ?? null,
               booking_type: (client.company_id ? 'company' : 'personal') as 'company' | 'personal',
               pickup_stops: bk.extracted.pickup_stops ?? null,
+              billing_company_hint: bk.extracted.billing_company_hint ?? null,
             },
             missing_mandatory: [],
             is_complete: true,
@@ -1080,6 +1081,7 @@ async function createBookingFromResult(
       special_instructions: ext.special_instructions?.slice(0, 500) ?? null,
       booking_type: ext.booking_type ?? (client.company_id ? 'company' : 'personal'),
       pickup_stops: ext.pickup_stops ?? null,
+      billing_company_hint: ext.billing_company_hint ?? null,
       flags,
     })
     .select()

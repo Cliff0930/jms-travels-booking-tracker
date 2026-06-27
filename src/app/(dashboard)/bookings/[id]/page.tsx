@@ -328,6 +328,31 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  // Billing company override
+  const [billingCompanyId, setBillingCompanyId] = useState<string | null>(null)
+  const [savingBillingCompany, setSavingBillingCompany] = useState(false)
+  useEffect(() => {
+    if (booking) setBillingCompanyId((booking as { billing_company_id?: string | null }).billing_company_id ?? null)
+  }, [booking?.id])
+  const { data: groupCompanies = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['company-group', booking?.company_id ?? null],
+    queryFn: () => fetch(`/api/companies?group_of=${booking!.company_id}`).then(r => r.json()),
+    enabled: !!booking?.company_id,
+  })
+  async function handleSaveBillingCompany(value: string | null) {
+    setBillingCompanyId(value)
+    setSavingBillingCompany(true)
+    try {
+      await fetch(`/api/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_company_id: value }) })
+      toast.success(value ? 'Billing company updated' : 'Reset to booking company')
+      qc.invalidateQueries({ queryKey: ['booking', id] })
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSavingBillingCompany(false)
+    }
+  }
+
   // Auto-calculate and auto-save both bata counts whenever times change or edit form opens
   const lastAutoSavedBata = useRef<string | null>(null)
   useEffect(() => {
@@ -2350,6 +2375,61 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+          )}
+
+          {booking?.company_id && (
+            <div className={`bg-white rounded-lg border p-5 ${(booking as { billing_company_hint?: string | null; billing_company_id?: string | null }).billing_company_hint && !billingCompanyId ? 'border-amber-400' : 'border-[#C3C5D7]'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-[#191B23] flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-amber-600" />
+                  Billing Company
+                </h2>
+                {billingCompanyId && (
+                  <button
+                    onClick={() => handleSaveBillingCompany(null)}
+                    disabled={savingBillingCompany}
+                    className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-0.5"
+                  >
+                    <X className="w-3 h-3" /> Reset to booking company
+                  </button>
+                )}
+              </div>
+              {(booking as { billing_company_hint?: string | null; billing_company_id?: string | null }).billing_company_hint && !billingCompanyId && (
+                <div className="mb-3 flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800">Client said: <span className="font-semibold">&quot;{(booking as { billing_company_hint?: string | null }).billing_company_hint}&quot;</span> — set billing company below if different.</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <p className="text-xs text-[#737686]">
+                  {billingCompanyId
+                    ? <span>Billing to <span className="font-semibold text-amber-700">{groupCompanies.find(c => c.id === billingCompanyId)?.name ?? '—'}</span> — overrides the booking company on invoices.</span>
+                    : <span>Auto — billing to booking company <span className="font-semibold">{booking.company?.name ?? '—'}</span>.</span>
+                  }
+                </p>
+                {groupCompanies.length > 0 && (
+                  <Select
+                    value={billingCompanyId ?? ''}
+                    onValueChange={(v: string | null) => { if (v) handleSaveBillingCompany(v) }}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      {billingCompanyId
+                        ? <span>{groupCompanies.find(c => c.id === billingCompanyId)?.name ?? '—'}</span>
+                        : <span className="text-muted-foreground">Select company to bill to…</span>
+                      }
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupCompanies.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {groupCompanies.length === 0 && (
+                  <p className="text-xs text-[#9CA3AF]">No group members configured. Add a parent company in Settings → Companies to enable cross-company billing.</p>
+                )}
               </div>
             </div>
           )}

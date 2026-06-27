@@ -120,7 +120,7 @@ export async function POST(request: Request) {
   const { data: bookings, error: bErr } = await supabase
     .from('bookings')
     .select(`
-      id, booking_ref, pickup_date, company_id, trip_type, total_days,
+      id, booking_ref, pickup_date, company_id, billing_company_id, trip_type, total_days,
       vehicle_type, billing_vehicle_type,
       company:companies!company_id(id, name),
       trip_sheets(id, tripsheet_number, opening_km, closing_km,
@@ -139,7 +139,10 @@ export async function POST(request: Request) {
   if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 })
 
   const trips = bookings ?? []
-  const companyIds = [...new Set(trips.map(b => b.company_id).filter(Boolean))] as string[]
+  const companyIds = [...new Set(trips.flatMap(b => [
+    ((b as Record<string, unknown>).billing_company_id as string | null) ?? b.company_id,
+    b.company_id,
+  ]).filter(Boolean))] as string[]
 
   // 4. Rate cards per company
   const clientRatesByCompany: Record<string, Record<string, RateCard>> = {}
@@ -221,7 +224,7 @@ export async function POST(request: Request) {
   for (const b of trips) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0]
-    const companyId = b.company_id ?? ''
+    const companyId = ((b as Record<string, unknown>).billing_company_id as string | null) ?? b.company_id ?? ''
     const company = b.company as unknown as { name: string } | null
 
     const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()

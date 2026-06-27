@@ -71,6 +71,7 @@ Fields to extract:
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
 15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels in the message. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
+16. billing_company_hint — if the message explicitly says the bill should go to a DIFFERENT company than the sender's (e.g. "please bill to CDAC Pune", "charge to Head Office", "invoice ABC Corp"), capture the exact phrase or company name here. Leave null if billing is to the sender's own company (the normal case). NEVER ask for this.
 
 Location keyword resolution:
 If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory. The driver or operator will confirm the exact address with the client.
@@ -118,7 +119,8 @@ Respond with ONLY a JSON object, no other text:
         "additional_phones": [],
         "company_mentioned": "name or null",
         "department": "department or team name or null",
-        "pickup_stops": null
+        "pickup_stops": null,
+        "billing_company_hint": "phrase or null"
       },
       "missing_mandatory": ["list of mandatory fields missing for THIS booking"],
       "is_guest_booking": true or false
@@ -327,6 +329,7 @@ Fields to extract:
 13. additional_phones — any extra phone numbers mentioned in the message. Normalise all numbers to 10 digits (strip +91 and spaces)
 14. company_mentioned — any company name mentioned
 15. department — the requester's department or team name (e.g. "Learning & Training", "NPD", "Finance", "R&D"). Extract from "Department:" labels. Not mandatory — leave null if not mentioned, never ask. Do NOT put department in special_instructions.
+16. billing_company_hint — if the message explicitly says the bill should go to a DIFFERENT company than the sender's (e.g. "please bill to CDAC Pune", "charge to Head Office", "invoice ABC Corp"), capture the exact phrase or company name here. Leave null if billing is to the sender's own company (the normal case). NEVER ask for this.
 
 Location keyword resolution:
 If the sender uses words like "home", "office", "residence", "airport", "factory" check if their saved_locations contains a match. If yes, resolve to the full saved address. If no saved address is found, accept the keyword exactly as typed (e.g. "Home", "Residence", "Domlur office") — do NOT ask for clarification and do NOT add it to missing_mandatory.
@@ -1054,7 +1057,8 @@ Respond with ONLY a valid JSON object, no markdown, no other text:
     "special_instructions": null,
     "company_mentioned": null,
     "booking_type": "company|personal|null",
-    "pickup_stops": null
+    "pickup_stops": null,
+    "billing_company_hint": null
   },
   "modification_request": { "changes": [], "booking_ref": null },
   "cancel_reason": null,

@@ -502,6 +502,7 @@ export async function POST(request: Request) {
           special_instructions: bk.extracted.special_instructions,
           department: bk.extracted.department ?? null,
           pickup_stops: bk.extracted.pickup_stops ?? null,
+          billing_company_hint: bk.extracted.billing_company_hint ?? null,
           booking_type: (client as Client)?.company_id ? 'company' : 'personal',
         })
         .select('id, booking_ref')
