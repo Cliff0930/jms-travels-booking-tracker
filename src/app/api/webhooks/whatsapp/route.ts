@@ -477,6 +477,88 @@ async function processClientMessage(
       // Has explicit modify keyword, or a date/time pattern — fall through to Gemini processing
     }
 
+    // ── Active trip guard ──────────────────────────────────────────────────
+    // If the sender has a confirmed/driver_assigned booking for today or an
+    // in_progress booking, classify status messages without Gemini so arrival
+    // pings, waiting messages, and driver queries don't create ghost bookings.
+    const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    const { data: confirmedToday } = await supabase
+      .from('bookings')
+      .select('id, booking_ref, pickup_time, pickup_location, status, driver:drivers!driver_id(name, primary_phone)')
+      .eq('client_id', client.id)
+      .in('status', ['confirmed', 'driver_assigned'])
+      .eq('pickup_date', todayIST)
+      .order('pickup_time', { ascending: true, nullsFirst: true })
+      .limit(1)
+      .maybeSingle()
+
+    const { data: inProgressNow } = !confirmedToday
+      ? await supabase
+          .from('bookings')
+          .select('id, booking_ref, pickup_time, pickup_location, status, driver:drivers!driver_id(name, primary_phone)')
+          .eq('client_id', client.id)
+          .eq('status', 'in_progress')
+          .order('pickup_date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null }
+
+    const activeTrip = confirmedToday ?? inProgressNow
+
+    if (activeTrip) {
+      const lc = rawContent.toLowerCase().trim()
+
+      const isArrival      = /\b(reached|arrived|i['''`]?m here|am here|i am here|just landed|landed|coming out|coming to pickup|at arrivals|deplaning|out of (the )?airport)\b/i.test(rawContent)
+      const isLocationPing = /\b(at (gate|terminal)|terminal \d|gate [a-z]?\d)\b/i.test(rawContent) || /^[A-Z]\d{1,3}$/.test(rawContent.trim())
+      const isWaiting      = /\b(waiting|still waiting|waiting for (driver|cab|car)|where['''`]?s? (my )?(driver|cab|car)|driver not (here|come|arrived|coming)|no (cab|driver) yet|cab not (here|arrived)|driver not (picking|answering|responding|reachable))\b/i.test(rawContent)
+      const isDriverQuery  = /\b(driver['''`]?s? (number|phone|contact|name|details)|which (car|cab|vehicle)|please (call|send|share).{0,20}driver|ask driver to call)\b/i.test(rawContent)
+      const isFlightDelay  = /\b(flight (delayed|late|pushed)|delayed by|running (late|behind)|will be (late|delayed)|my flight (is|got) (delayed|late))\b/i.test(rawContent)
+      const isAck          = /^(ok|okay|k|alright|sure|fine|noted|got it|thanks|thank you|thx|ty|great|good|perfect|done|yes|no|👍|🙏|received|seen)\.?$/i.test(lc)
+
+      const isStatusMessage = isArrival || isLocationPing || isWaiting || isDriverQuery || isFlightDelay || isAck
+
+      // If they explicitly want a new booking, fall through to Gemini regardless
+      const hasNewBookingSignal = /\b(book(ing)?|need a cab|want a cab|please book|can you book|arrange a cab|i need a (cab|car|ride))\b/i.test(rawContent)
+
+      if (isStatusMessage && !hasNewBookingSignal) {
+        type DriverRow = { name: string; primary_phone: string }
+        const driver = (activeTrip as unknown as { driver?: DriverRow | null }).driver ?? null
+        const ref        = activeTrip.booking_ref as string
+        const pickupTime = (activeTrip.pickup_time as string | null) ? formatTime(activeTrip.pickup_time as string) : null
+        const pickupLoc  = (activeTrip.pickup_location as string | null) ?? null
+        const clientName = formalName(client.name, client.salutation, (client.company as import('@/types').Company | null)?.formal_address)
+
+        let body = ''
+
+        if (isAck) {
+          body = `You're welcome! Safe travels. 🙏\n\n— JMS Travels`
+        } else if (isFlightDelay) {
+          body = driver
+            ? `Hi ${clientName}, noted — your driver has been informed.\n\nYour driver for ${ref}:\n${driver.name} — ${driver.primary_phone}\n\nFor any assistance, call us at 9845572207.\n\n— JMS Travels`
+            : `Hi ${clientName}, noted! Your booking ${ref} is confirmed${pickupTime ? ` for ${pickupTime}` : ''}. Your driver will be assigned shortly.\n\nFor assistance, call 9845572207.\n\n— JMS Travels`
+        } else if (driver) {
+          const lines = [
+            `Hi ${clientName}, your driver for ${ref}:`,
+            `${driver.name} — ${driver.primary_phone}`,
+          ]
+          if (pickupTime && pickupLoc) lines.push(`Pickup: ${pickupTime} from ${pickupLoc}`)
+          else if (pickupTime) lines.push(`Pickup time: ${pickupTime}`)
+          lines.push(`\nPlease contact your driver directly. For any issues, call us at 9845572207.\n\n— JMS Travels`)
+          body = lines.join('\n')
+        } else {
+          body = `Hi ${clientName}, your booking ${ref} is confirmed${pickupTime ? ` for ${pickupTime}` : ''}. Your driver will be assigned shortly.\n\nFor any assistance, call us at 9845572207.\n\n— JMS Travels`
+        }
+
+        await sendWhatsAppMessage({ to: senderPhone, body, log: { client_id: client.id } })
+        await supabase
+          .from('raw_messages')
+          .update({ ai_classification: 'status_update', processed: true, processed_at: new Date().toISOString() })
+          .eq('id', rawMsgId)
+        return
+      }
+    }
+
     const { data: newSession } = await supabase
       .from('conversation_sessions')
       .insert({
