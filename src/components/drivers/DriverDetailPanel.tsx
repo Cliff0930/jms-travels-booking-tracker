@@ -201,6 +201,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={o => { if (!o) { setEditing(false); onClose() } }}>
       <SheetContent className="w-full md:w-3/4 lg:w-1/2 p-0 flex flex-col" showCloseButton={false}>
         {/* Gradient Header */}
@@ -668,6 +669,7 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
         )}
       </DialogContent>
     </Dialog>
+    </>
   )
 }
 
