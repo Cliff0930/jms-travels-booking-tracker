@@ -422,18 +422,26 @@ export default function DashboardPage() {
     b.pickup_date === today &&
     nowMins >= 21 * 60
   )
-  const outstationLastDay = bookings.filter(b => {
+  const outstationOverdue = bookings.filter(b => {
     if (b.status !== 'in_progress' || b.trip_type !== 'outstation' || !b.pickup_date) return false
-    const last = new Date(b.pickup_date + 'T00:00:00')
-    last.setDate(last.getDate() + (b.total_days || 1) - 1)
-    return last.toLocaleDateString('en-CA') === today && nowMins >= 20 * 60
+    const lastDay = new Date(b.pickup_date + 'T00:00:00')
+    lastDay.setDate(lastDay.getDate() + (b.total_days || 1) - 1)
+    return lastDay.toLocaleDateString('en-CA') <= today
   })
 
   const driverAlerts: { booking: Booking; severity: 'critical' | 'warning'; message: string }[] = [
     ...pickupOverdue.map(b => ({ booking: b, severity: 'critical' as const, message: `Pickup at ${fmtTime(b.pickup_time)} — driver hasn't started trip` })),
     ...airportOverdue.map(b => ({ booking: b, severity: 'critical' as const, message: `Airport trip (${fmtTime(b.pickup_time)}) running over 2 hrs — follow up` })),
     ...localNotClosed.map(b => ({ booking: b, severity: 'warning'  as const, message: `Local trip not closed — ask driver to submit duty details` })),
-    ...outstationLastDay.map(b => ({ booking: b, severity: 'warning' as const, message: `Outstation last day — trip not yet closed by driver` })),
+    ...outstationOverdue.map(b => {
+      const lastDay = new Date(b.pickup_date! + 'T00:00:00')
+      lastDay.setDate(lastDay.getDate() + (b.total_days || 1) - 1)
+      const daysOver = Math.round((new Date(today + 'T00:00:00').getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24))
+      const msg = daysOver === 0
+        ? `Outstation trip ends today — driver hasn't closed it yet`
+        : `Outstation overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''} — driver hasn't closed the trip`
+      return { booking: b, severity: daysOver >= 1 ? 'critical' as const : 'warning' as const, message: msg }
+    }),
   ]
 
   const unsentTodayLegs    = todayLegsDue.filter(i => !i.leg.link_sent_at && !sentLegIds.has(i.leg.id))
