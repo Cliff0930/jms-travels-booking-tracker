@@ -386,8 +386,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   if (isLoading) return <div className="py-12 text-center text-[#737686]">Loading booking…</div>
   if (!booking) return <div className="py-12 text-center text-[#737686]">Booking not found</div>
 
-  // Use booking's direct company, or fall back to the coordinator client's company
-  const displayCompany = booking.company ?? booking.client?.company ?? null
+  // For personal bookings only use the booking's own company_id (no client fallback)
+  const displayCompany = booking.booking_type === 'personal'
+    ? (booking.company ?? null)
+    : (booking.company ?? booking.client?.company ?? null)
 
   function startField(name: string, value: string, value2 = '') {
     setEditingField(name)
