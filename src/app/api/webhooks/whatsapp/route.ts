@@ -532,7 +532,7 @@ async function processClientMessage(
         let body = ''
 
         if (isAck) {
-          body = `You're welcome! Safe travels. 🙏\n\n— JMS Travels`
+          body = `You're welcome! Safe journey. 🙏\n\n— JMS Travels`
         } else if (isFlightDelay) {
           body = driver
             ? `Hi ${clientName}, noted — your driver has been informed.\n\nYour driver for ${ref}:\n${driver.name} — ${driver.primary_phone}\n\nFor any assistance, call us at 9845572207.\n\n— JMS Travels`
