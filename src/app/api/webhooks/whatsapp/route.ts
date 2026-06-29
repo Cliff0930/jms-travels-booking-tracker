@@ -618,7 +618,7 @@ async function processClientMessage(
       if (!isConfirmationPending && attemptCount >= 2) {
         await sendWhatsAppMessage({
           to: senderPhone,
-          body: `Hi ${client.name}, I'm ${BOT_NAME}, from JMS Travels — I wasn't able to identify your booking after a few attempts, sorry for the confusion!\n\nPlease call us at 9845572207 — our team will sort it out in minutes.\n\n— JMS Travels`,
+          body: `Hi ${client.name}, I'm ${BOT_NAME}, from JMS Travels' automated booking assistant — I wasn't able to identify your booking after a few attempts, sorry for the confusion!\n\nPlease call us at 9845572207 — our team will sort it out in minutes.\n\n— JMS Travels`,
           log: { client_id: client.id },
         })
         await supabase.from('conversation_sessions').delete().eq('id', session.id)
@@ -911,7 +911,7 @@ async function processClientMessage(
     if (otherCount >= 2) {
       await sendWhatsAppMessage({
         to: senderPhone,
-        body: `Hi ${client.name}, I'm ${BOT_NAME}, from JMS Travels — I wasn't able to understand your request after a few attempts.\n\nPlease call us at 9845572207 — our team will be happy to help directly.\n\n— JMS Travels`,
+        body: `Hi ${client.name}, I'm ${BOT_NAME}, from JMS Travels' automated booking assistant — I wasn't able to understand your request after a few attempts.\n\nPlease call us at 9845572207 — our team will be happy to help directly.\n\n— JMS Travels`,
         log: { client_id: client.id },
       })
       await supabase.from('conversation_sessions').delete().eq('id', session.id)
@@ -972,11 +972,11 @@ async function processClientMessage(
       let questionPrefix = ''
       if (agentTurnCount === 0) {
         // Scenario 1 — first ever bot question: introduce the assistant
-        questionPrefix = `Hi ${clientFormalName}! I'm ${BOT_NAME}, from JMS Travels.\n\n`
+        questionPrefix = `Hi ${clientFormalName}! I'm ${BOT_NAME}, from JMS Travels' automated booking assistant.\n\n`
       } else if (agentTurnCount >= 3 && result.missing_mandatory.length > 0) {
         // Scenario 2b — stuck after 3 turns: soft escalation, mention call as option
         const missingLabel = result.missing_mandatory[0].replace(/_/g, ' ')
-        questionPrefix = `I'm ${BOT_NAME}, from JMS Travels — I'm having a little difficulty picking up your ${missingLabel} from your message.\n\nYou can type it clearly (e.g., 'from Koramangala, 2 July, 9 AM'), or if it's easier, call us at 9845572207.\n\n`
+        questionPrefix = `I'm ${BOT_NAME}, from JMS Travels' automated booking assistant — I'm having a little difficulty picking up your ${missingLabel} from your message.\n\nYou can type it clearly (e.g., 'from Koramangala, 2 July, 9 AM'), or if it's easier, call us at 9845572207.\n\n`
       } else if (agentTurnCount >= 2 && result.missing_mandatory.length > 0) {
         // Scenario 2a — stuck after 2 turns: gentle nudge with example, no call yet
         const missingLabel = result.missing_mandatory[0].replace(/_/g, ' ')
