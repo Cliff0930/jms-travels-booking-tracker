@@ -15,6 +15,7 @@ import type { Client, ClientLocation } from '@/types'
 import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
 const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000 // 8 hours
+const BOT_NAME = '[BotName]' // update once name is finalised
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -617,7 +618,7 @@ async function processClientMessage(
       if (!isConfirmationPending && attemptCount >= 2) {
         await sendWhatsAppMessage({
           to: senderPhone,
-          body: `We're sorry we couldn't resolve your query over chat. For immediate assistance, please call us at 9845572207 — our team will be happy to assist you directly.\n\n— JMS Travels`,
+          body: `Hi ${client.name}, I'm ${BOT_NAME}, JMS Travels' automated assistant — I wasn't able to identify your booking after a few attempts, sorry for the confusion!\n\nPlease call us at 9845572207 — our team will sort it out in minutes.\n\n— JMS Travels`,
           log: { client_id: client.id },
         })
         await supabase.from('conversation_sessions').delete().eq('id', session.id)
@@ -910,7 +911,7 @@ async function processClientMessage(
     if (otherCount >= 2) {
       await sendWhatsAppMessage({
         to: senderPhone,
-        body: `We're sorry we couldn't resolve your query over chat. For immediate assistance, please call us at 9845572207 — our team will be happy to assist you directly.\n\n— JMS Travels`,
+        body: `Hi ${client.name}, I'm ${BOT_NAME}, JMS Travels' automated assistant — I wasn't able to understand your request after a few attempts.\n\nPlease call us at 9845572207 — our team will be happy to help directly.\n\n— JMS Travels`,
         log: { client_id: client.id },
       })
       await supabase.from('conversation_sessions').delete().eq('id', session.id)
@@ -963,9 +964,28 @@ async function processClientMessage(
         if (ext.pickup_location) recapLines.push(`Pickup: ${ext.pickup_location}`)
         if (ext.drop_location) recapLines.push(`Drop: ${ext.drop_location}`)
       }
+
+      // Count how many times the bot has already asked a question this session
+      const agentTurnCount = (session.messages as Array<{ role: string }>).filter(m => m.role === 'agent').length
+      const clientFormalName = formalName(client.name, client.salutation, (client.company as import('@/types').Company | null)?.formal_address)
+
+      let questionPrefix = ''
+      if (agentTurnCount === 0) {
+        // Scenario 1 — first ever bot question: introduce the assistant
+        questionPrefix = `Hi ${clientFormalName}! I'm ${BOT_NAME}, JMS Travels' automated booking assistant.\n\n`
+      } else if (agentTurnCount >= 3 && result.missing_mandatory.length > 0) {
+        // Scenario 2b — stuck after 3 turns: soft escalation, mention call as option
+        const missingLabel = result.missing_mandatory[0].replace(/_/g, ' ')
+        questionPrefix = `I'm ${BOT_NAME}, JMS Travels' automated assistant — I'm having a little difficulty picking up your ${missingLabel} from your message.\n\nYou can type it clearly (e.g., 'from Koramangala, 2 July, 9 AM'), or if it's easier, call us at 9845572207.\n\n`
+      } else if (agentTurnCount >= 2 && result.missing_mandatory.length > 0) {
+        // Scenario 2a — stuck after 2 turns: gentle nudge with example, no call yet
+        const missingLabel = result.missing_mandatory[0].replace(/_/g, ' ')
+        questionPrefix = `I want to make sure I get this right for you! I'm still missing your ${missingLabel}. Could you type it clearly? For example:\n'Pickup from Indiranagar, 2 July, 10 AM'\n\n`
+      }
+
       const outMsg = recapLines.length > 0
-        ? `Welcome back! Here's what I have so far:\n${recapLines.join('\n')}\n\n${result.next_question}`
-        : result.next_question
+        ? `${questionPrefix}Welcome back! Here's what I have so far:\n${recapLines.join('\n')}\n\n${result.next_question}`
+        : `${questionPrefix}${result.next_question}`
       const agentMsg = { role: 'agent' as const, content: outMsg, timestamp: new Date().toISOString() }
       await supabase
         .from('conversation_sessions')
