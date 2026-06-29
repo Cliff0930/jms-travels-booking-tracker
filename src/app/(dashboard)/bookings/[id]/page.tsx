@@ -243,6 +243,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [showApproveByCall, setShowApproveByCall] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('Client Request')
+  const [showPersonalConfirm, setShowPersonalConfirm] = useState(false)
   const [savingGuest, setSavingGuest] = useState(false)
 
   // Resend message dialog
@@ -851,15 +852,40 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleSwitchBookingType() {
     if (!canEdit || !booking) return
-    const newType = booking.booking_type === 'company' ? 'personal' : 'company'
+    if (booking.booking_type === 'company') {
+      setShowPersonalConfirm(true)
+      return
+    }
     try {
       await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_type: newType }),
+        body: JSON.stringify({ booking_type: 'company' }),
       })
       qc.invalidateQueries({ queryKey: ['bookings', id] })
-      toast.success(`Switched to ${newType === 'company' ? 'Corporate' : 'Personal'}`)
+      toast.success('Switched to Corporate')
+    } catch {
+      toast.error('Failed to update booking type')
+    }
+  }
+
+  async function confirmSwitchToPersonal() {
+    if (!booking) return
+    try {
+      await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_type: 'personal',
+          company_id: null,
+          billing_company_id: null,
+          billing_company_hint: null,
+        }),
+      })
+      setBillingCompanyId(null)
+      setShowPersonalConfirm(false)
+      qc.invalidateQueries({ queryKey: ['bookings', id] })
+      toast.success('Switched to Personal — company link removed')
     } catch {
       toast.error('Failed to update booking type')
     }
@@ -3189,6 +3215,24 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               onClick={handleCopyToClipboard}
             >
               {copied ? '✓ Copied!' : 'Copy to Clipboard'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPersonalConfirm} onOpenChange={setShowPersonalConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Switch to Personal Booking?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#434654]">
+            This will remove the company link from this booking. It will no longer appear in any company invoice — the trip will be billed directly to the individual.
+          </p>
+          <p className="text-xs text-[#737686] mt-1">Company, billing company, and billing hint will all be cleared.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPersonalConfirm(false)}>Cancel</Button>
+            <Button className="bg-[#1A56DB] hover:bg-[#003FB1] text-white rounded-sm" onClick={confirmSwitchToPersonal}>
+              Yes, Switch to Personal
             </Button>
           </DialogFooter>
         </DialogContent>
