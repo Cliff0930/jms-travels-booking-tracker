@@ -57,6 +57,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   await supabase.from('drivers').update({ status: 'on_duty' }).eq('id', driver_id)
 
+  await supabase.from('booking_status_history').insert({
+    booking_id: id,
+    old_status: booking.status,
+    new_status: 'driver_assigned',
+    changed_by: 'operator',
+  })
+
   // Send trip brief to driver via WhatsApp
   const { data: driver } = await supabase
     .from('drivers')

@@ -1,7 +1,8 @@
 'use client'
 
-import { CheckCircle2, Circle, XCircle, Clock } from 'lucide-react'
+import { CheckCircle2, Circle, XCircle } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils/date'
+import type { BookingStatusHistory } from '@/types'
 
 interface TimelineBooking {
   status: string
@@ -58,9 +59,23 @@ function stepState(key: string, booking: TimelineBooking): StepState {
   return 'upcoming'
 }
 
-export function TripTimeline({ booking }: { booking: TimelineBooking }) {
+const HISTORY_STATUS_MAP: Record<string, string> = {
+  confirmed:    'confirmed',
+  driver:       'driver_assigned',
+  in_progress:  'in_progress',
+  completed:    'completed',
+}
+
+export function TripTimeline({ booking, statusHistory = [] }: { booking: TimelineBooking; statusHistory?: BookingStatusHistory[] }) {
   const hasApproval = !!(booking.approval_status || booking.company?.approval_required)
   const isCancelled = booking.status === 'cancelled'
+
+  function historyTs(stepKey: string): string | null {
+    const target = HISTORY_STATUS_MAP[stepKey]
+    if (!target) return null
+    const entry = statusHistory.find(h => h.new_status === target)
+    return entry?.changed_at ?? null
+  }
 
   const steps: Step[] = [
     {
@@ -84,22 +99,26 @@ export function TripTimeline({ booking }: { booking: TimelineBooking }) {
       key: 'confirmed',
       label: 'Confirmed',
       state: stepState('confirmed', booking),
+      timestamp: historyTs('confirmed'),
     },
     {
       key: 'driver',
       label: 'Driver Assigned',
       sublabel: booking.driver?.name ?? undefined,
       state: stepState('driver', booking),
+      timestamp: historyTs('driver'),
     },
     {
       key: 'in_progress',
       label: 'In Progress',
       state: stepState('in_progress', booking),
+      timestamp: historyTs('in_progress'),
     },
     {
       key: 'completed',
       label: 'Completed',
       state: stepState('completed', booking),
+      timestamp: historyTs('completed'),
     },
   ]
 

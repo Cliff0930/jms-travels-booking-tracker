@@ -21,7 +21,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MapPin, Calendar, Clock, Users, Car, ArrowLeft, Phone, CheckCircle, Send, RefreshCw, Pencil, X, History, AlertCircle, UserPlus, Gauge, Radio, RotateCcw, Building2, AlertTriangle, Zap, ChevronDown, Trash2, Lock, Copy, Navigation, Plus } from 'lucide-react'
-import type { PickupStop } from '@/types'
+import type { PickupStop, BookingStatusHistory } from '@/types'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
@@ -85,6 +85,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const { data: editLogs = [] } = useQuery<EditLog[]>({
     queryKey: ['booking-edit-logs', id],
     queryFn: () => fetch(`/api/bookings/${id}/edit-logs`).then(r => r.json()),
+    enabled: !!id,
+  })
+  const { data: statusHistory = [] } = useQuery<BookingStatusHistory[]>({
+    queryKey: ['booking-status-history', id],
+    queryFn: () => fetch(`/api/bookings/${id}/status-history`).then(r => r.json()),
     enabled: !!id,
   })
 
@@ -2360,7 +2365,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
           <div className="bg-white rounded-lg border border-[#C3C5D7] p-5">
             <h2 className="text-base font-semibold text-[#191B23] mb-4">Trip Timeline</h2>
-            <TripTimeline booking={booking} />
+            <TripTimeline booking={booking} statusHistory={statusHistory} />
           </div>
 
           {booking?.driver_id && (
