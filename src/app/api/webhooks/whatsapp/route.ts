@@ -15,7 +15,7 @@ import type { Client, ClientLocation } from '@/types'
 import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
 const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000 // 8 hours
-const BOT_NAME = '[BotName]' // update once name is finalised
+const BOT_NAME = 'Joy'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
