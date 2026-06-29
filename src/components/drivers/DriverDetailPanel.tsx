@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useUpdateDriver } from '@/hooks/useDrivers'
 import { useCanEdit } from '@/hooks/useCurrentUser'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DriverStatusBadge } from '@/components/shared/StatusBadge'
-import { Phone, Mail, Car, Users, Pencil, X, MapPin, Smartphone, KeyRound, ArrowUpDown } from 'lucide-react'
+import { Phone, Mail, Car, Users, Pencil, X, MapPin, Smartphone, KeyRound, ArrowUpDown, GitMerge } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Driver, VehicleType } from '@/types'
@@ -54,7 +55,12 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [swappingPhone, setSwappingPhone] = useState(false)
+  const [showMerge, setShowMerge] = useState(false)
+  const [mergeStep, setMergeStep] = useState<1 | 2>(1)
+  const [mergeTargetId, setMergeTargetId] = useState('')
+  const [merging, setMerging] = useState(false)
   const updateDriver = useUpdateDriver()
+  const qc = useQueryClient()
 
   const { data: stats, isLoading: statsLoading } = useQuery<DriverStats>({
     queryKey: ['driver-stats', driver?.id],
@@ -67,7 +73,40 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
     queryFn: () => fetch('/api/vehicle-names').then(r => r.json()),
   })
 
+  const { data: allDrivers = [] } = useQuery<Driver[]>({
+    queryKey: ['drivers'],
+    queryFn: () => fetch('/api/drivers').then(r => r.json()),
+    enabled: showMerge,
+  })
+  const otherDrivers = allDrivers.filter(d => d.id !== driver?.id && d.is_active)
+  const mergeTarget = otherDrivers.find(d => d.id === mergeTargetId) ?? null
+
   const canEdit = useCanEdit()
+
+  function openMerge() { setShowMerge(true); setMergeStep(1); setMergeTargetId('') }
+  function closeMerge() { setShowMerge(false); setMergeTargetId(''); setMergeStep(1) }
+
+  async function handleMerge() {
+    if (!mergeTargetId || !driver) return
+    setMerging(true)
+    try {
+      const res = await fetch(`/api/drivers/${driver.id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_driver_id: mergeTargetId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success(`${driver.name} merged into ${mergeTarget?.name} and deactivated`)
+      closeMerge()
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Merge failed')
+    } finally {
+      setMerging(false)
+    }
+  }
 
   if (!driver) return null
   const initials = driver.name.split(' ').map(n => n[0]).slice(0, 2).join('')
@@ -523,10 +562,19 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
           {/* Driver App PIN */}
           {!editing && <DriverAppPin driver={driver} />}
 
-          {/* Deactivate / Reactivate */}
+          {/* Merge / Deactivate / Reactivate */}
           {!editing && (
             <>
               <Separator />
+              {driver.is_active && canEdit && (
+                <Button
+                  variant="outline"
+                  className="w-full text-orange-600 border-orange-200 hover:bg-orange-50 rounded-sm gap-1.5"
+                  onClick={openMerge}
+                >
+                  <GitMerge className="w-4 h-4" /> Merge Driver
+                </Button>
+              )}
               {driver.is_active ? (
                 onDeactivate && (
                   <Button
@@ -553,6 +601,73 @@ export function DriverDetailPanel({ driver, open, onClose, onDeactivate, onReact
         </div>
       </SheetContent>
     </Sheet>
+
+    <Dialog open={showMerge} onOpenChange={open => { if (!open) closeMerge() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitMerge className="w-4 h-4 text-orange-500" /> Merge Driver
+          </DialogTitle>
+        </DialogHeader>
+
+        {mergeStep === 1 ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Move all bookings, trip sheets, and advances from <strong>{driver?.name}</strong> into another driver record. <strong>{driver?.name}</strong> will be deactivated after the merge.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700">Merge into</Label>
+              <Select value={mergeTargetId} onValueChange={v => v && setMergeTargetId(v)}>
+                <SelectTrigger className="border-[#C3C5D7]">
+                  {mergeTargetId && mergeTarget
+                    ? <span className="text-sm">{mergeTarget.name} · {mergeTarget.vehicle_number}</span>
+                    : <span className="text-sm text-muted-foreground">Select target driver…</span>
+                  }
+                </SelectTrigger>
+                <SelectContent>
+                  {otherDrivers.map(d => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name} · {d.vehicle_name} · {d.vehicle_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={closeMerge}>Cancel</Button>
+              <Button
+                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white rounded-sm"
+                disabled={!mergeTargetId}
+                onClick={() => setMergeStep(2)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+              <p className="text-sm font-semibold text-amber-800">This cannot be undone</p>
+              <p className="text-xs text-amber-700">
+                All bookings, trip sheets, advances, and message logs linked to <strong>{driver?.name}</strong> will be moved to <strong>{mergeTarget?.name}</strong>.
+                <br /><br />
+                <strong>{driver?.name}</strong> will then be deactivated.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 rounded-sm" onClick={() => setMergeStep(1)}>Back</Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-sm"
+                onClick={handleMerge}
+                disabled={merging}
+              >
+                {merging ? 'Merging…' : 'Confirm Merge'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
