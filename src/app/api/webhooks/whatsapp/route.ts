@@ -359,7 +359,7 @@ async function processClientMessage(
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       const { data: recentBooking } = await supabase
         .from('bookings')
-        .select('id, booking_ref, pickup_location, pickup_location_url, drop_location, drop_location_url, trip_type')
+        .select('id, booking_ref, pickup_location, pickup_location_url, drop_location, drop_location_url, trip_type, special_instructions')
         .eq('client_id', client.id)
         .gt('created_at', oneDayAgo)
         .in('status', ['pending', 'draft', 'pending_approval'])
@@ -373,8 +373,36 @@ async function processClientMessage(
 
         // Guard: don't treat questions or action sentences as addresses
         const isQuestionOrAction =
-          /^(do |does |can |could |would |should |is |are |was |will |what |how |why |when |where |who |i want|i need|please|thanks|okay|ok\b|hi\b|hello\b)/i.test(addressText) ||
+          /^(do |does |can |could |would |should |is |are |was |will |what |how |why |when |where |who |i want|i need|i also|also |please|thanks|okay|ok\b|hi\b|hello\b)/i.test(addressText) ||
           /\b(cancel|want to cancel|i want to)\b/i.test(addressText)
+
+        // Special instruction follow-ups — these should be saved to special_instructions,
+        // not overwrite pickup/drop location fields
+        const isSpecialInstructionFollowUp =
+          /\b(name.{0,10}board|board.{0,10}name|placard|sign.{0,5}board)\b/i.test(rawContent) ||
+          /\bpassenger.{0,10}name\s*:/i.test(rawContent) ||
+          /\b(luggage|baggage|bags?|trolleys?|suitcases?|heavy.{0,10}bag)\b/i.test(rawContent) ||
+          /\b(child.{0,10}seat|baby.{0,10}seat|infant.{0,10}seat|car.{0,10}seat)\b/i.test(rawContent) ||
+          /\b(wheelchair|differently.{0,5}abled|mobility.{0,5}aid)\b/i.test(rawContent) ||
+          /\bflight.{0,5}(number|no\.?|#)\b/i.test(rawContent) ||
+          /\b(senior.{0,5}citizen|elderly)\b/i.test(rawContent) ||
+          /\bdon'?t\s+call\b|\bno\s+calls?\b|\bonly\s+whatsapp\b|\bwhatsapp\s+only\b/i.test(rawContent) ||
+          /\b(one\s+more\s+passenger|extra\s+pax|total\s+(pax|passengers?)|adding.{0,10}passenger)\b/i.test(rawContent)
+
+        if (isSpecialInstructionFollowUp) {
+          const existing = (recentBooking as unknown as { special_instructions?: string | null }).special_instructions || ''
+          const appended = existing ? `${existing}\n${rawContent.trim()}` : rawContent.trim()
+          await supabase
+            .from('bookings')
+            .update({ special_instructions: appended.slice(0, 500), updated_at: new Date().toISOString() })
+            .eq('id', recentBooking.id)
+          await sendWhatsAppMessage({
+            to: senderPhone,
+            body: `Noted! We've added that to the special instructions for booking ${recentBooking.booking_ref}.`,
+            log: { client_id: client.id },
+          })
+          return
+        }
 
         // Name + up-pointer pattern: "Dr Kishore Subbiah 👆" or "see above" — update guest_name on the booking
         const UP_POINTER = /👆|as above|refer above|see above|check above|above location|location above|above address|that location|that address|same as above|\^/i
