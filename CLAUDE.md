@@ -131,6 +131,30 @@ When `booking.guest_name` is set (company coordinator booked for a guest travell
 - Active-booking list in cancel/modify disambiguation is capped at **3** (was 10).
 - Client can still reach any booking by typing its ref, guest name, date, or time — the handler has 8 resolution strategies including a live DB lookup by ref for bookings outside the top 3.
 
+### Post-booking ack reply — date-aware (`webhooks/whatsapp/route.ts`, fixed 2026-06-30)
+When a client sends a simple acknowledgement (Thanks / OK / Great / 👍 etc.) after receiving a driver assignment notification, the bot now looks beyond today's trips:
+- **Today** (`confirmed` / `in_progress`) → `"You're welcome! Safe journey. 🙏"`
+- **Tomorrow** (`driver_assigned`, `pickup_date = tomorrow`) → `"You're welcome! We'll see you tomorrow. 🙏"`
+- **2–7 days out** (`driver_assigned`, `pickup_date` within next 7 days) → `"You're welcome! We'll see you on Wednesday, 2nd July. 🙏"` (day + ordinal date computed in IST)
+- **No upcoming trip found** → falls through to Gemini / session handler
+- **Root cause:** original code only checked `confirmedToday` (pickup_date = today), so next-day acks fell through to Gemini and got the generic helpline reply instead.
+
+### Post-booking special instruction follow-ups (`webhooks/whatsapp/route.ts`, fixed 2026-06-30)
+After a booking is created (status `pending`/`draft`/`pending_approval`), the bot's `isLocationFollowUp` block intercepts follow-up messages. Previously, any message longer than 10 chars that didn't start with a question word was saved as `pickup_location`. This caused messages like "Name board: Manoj Narayan" to overwrite the pickup address.
+
+**Fix:** `isSpecialInstructionFollowUp` regex block runs **before** address detection and matches:
+- Name board / placard requests (`name board`, `board`, `placard`)
+- `Passenger name:` pattern
+- Luggage info (`luggage`, `bags`, `trolley`, `suitcase`)
+- Child/baby/infant seat
+- Wheelchair / mobility aid
+- Flight number / PNR
+- Senior citizen mentions
+- "Don't call / only WhatsApp"
+- Extra pax (`one more passenger`, `total pax`, `extra pax`)
+
+On match: appends raw message to `special_instructions` (capped at 500 chars), replies `"Noted! We've added that to the special instructions for BK-XXXX."`. Also expanded `isQuestionOrAction` guard to block sentences starting with `"Also "` / `"I also"` from entering address detection.
+
 ### WhatsApp re-stated complete details (`CONVERSATION_PROMPT`, fixed 2026-06-25, commit `6f6863d`)
 When a client sends partial info first, the bot asks for missing fields, and the client re-sends ALL details again in a self-contained second message, Gemini was sometimes setting `is_new_booking_request=true` — treating it as a new booking. This reset the session and triggered a duplicate booking attempt, which the duplicate guard then blocked and alerted the operator.
 - **Fix:** Explicit rule added to `CONVERSATION_PROMPT` `NEW BOOKING DETECTION`: "If the date and route match what was already being discussed, treat it as a continuation filling in missing fields — not a new booking. `is_new_booking_request = false`."
