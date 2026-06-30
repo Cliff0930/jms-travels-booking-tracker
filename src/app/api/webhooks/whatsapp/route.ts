@@ -507,7 +507,22 @@ async function processClientMessage(
 
     const activeTrip = confirmedToday ?? inProgressNow
 
-    if (activeTrip) {
+    const tomorrowIST = new Date(Date.now() + (5.5 + 24) * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { data: assignedTomorrow } = !activeTrip
+      ? await supabase
+          .from('bookings')
+          .select('id, booking_ref, pickup_time, pickup_location, status, driver:drivers!driver_id(name, primary_phone)')
+          .eq('client_id', client.id)
+          .eq('status', 'driver_assigned')
+          .eq('pickup_date', tomorrowIST)
+          .order('pickup_time', { ascending: true, nullsFirst: true })
+          .limit(1)
+          .maybeSingle()
+      : { data: null }
+
+    const tripForStatus = activeTrip ?? assignedTomorrow
+
+    if (tripForStatus) {
       const lc = rawContent.toLowerCase().trim()
 
       const isArrival      = /\b(reached|arrived|i['''`]?m here|am here|i am here|just landed|landed|coming out|coming to pickup|at arrivals|deplaning|out of (the )?airport)\b/i.test(rawContent)
@@ -524,16 +539,18 @@ async function processClientMessage(
 
       if (isStatusMessage && !hasNewBookingSignal) {
         type DriverRow = { name: string; primary_phone: string }
-        const driver = (activeTrip as unknown as { driver?: DriverRow | null }).driver ?? null
-        const ref        = activeTrip.booking_ref as string
-        const pickupTime = (activeTrip.pickup_time as string | null) ? formatTime(activeTrip.pickup_time as string) : null
-        const pickupLoc  = (activeTrip.pickup_location as string | null) ?? null
+        const driver = (tripForStatus as unknown as { driver?: DriverRow | null }).driver ?? null
+        const ref        = tripForStatus.booking_ref as string
+        const pickupTime = (tripForStatus.pickup_time as string | null) ? formatTime(tripForStatus.pickup_time as string) : null
+        const pickupLoc  = (tripForStatus.pickup_location as string | null) ?? null
         const clientName = formalName(client.name, client.salutation, (client.company as import('@/types').Company | null)?.formal_address)
 
         let body = ''
 
         if (isAck) {
-          body = `You're welcome! Safe journey. 🙏\n\n— JMS Travels`
+          body = assignedTomorrow && !activeTrip
+            ? `You're welcome! We'll see you tomorrow. 🙏\n\n— JMS Travels`
+            : `You're welcome! Safe journey. 🙏\n\n— JMS Travels`
         } else if (isFlightDelay) {
           body = driver
             ? `Hi ${clientName}, noted — your driver has been informed.\n\nYour driver for ${ref}:\n${driver.name} — ${driver.primary_phone}\n\nFor any assistance, call us at 9845572207.\n\n— JMS Travels`
