@@ -508,19 +508,22 @@ async function processClientMessage(
     const activeTrip = confirmedToday ?? inProgressNow
 
     const tomorrowIST = new Date(Date.now() + (5.5 + 24) * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const { data: assignedTomorrow } = !activeTrip
+    const in7DaysIST  = new Date(Date.now() + (5.5 + 7 * 24) * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { data: assignedSoon } = !activeTrip
       ? await supabase
           .from('bookings')
-          .select('id, booking_ref, pickup_time, pickup_location, status, driver:drivers!driver_id(name, primary_phone)')
+          .select('id, booking_ref, pickup_date, pickup_time, pickup_location, status, driver:drivers!driver_id(name, primary_phone)')
           .eq('client_id', client.id)
           .eq('status', 'driver_assigned')
-          .eq('pickup_date', tomorrowIST)
+          .gte('pickup_date', tomorrowIST)
+          .lte('pickup_date', in7DaysIST)
+          .order('pickup_date', { ascending: true })
           .order('pickup_time', { ascending: true, nullsFirst: true })
           .limit(1)
           .maybeSingle()
       : { data: null }
 
-    const tripForStatus = activeTrip ?? assignedTomorrow
+    const tripForStatus = activeTrip ?? assignedSoon
 
     if (tripForStatus) {
       const lc = rawContent.toLowerCase().trim()
@@ -548,9 +551,23 @@ async function processClientMessage(
         let body = ''
 
         if (isAck) {
-          body = assignedTomorrow && !activeTrip
-            ? `You're welcome! We'll see you tomorrow. 🙏\n\n— JMS Travels`
-            : `You're welcome! Safe journey. 🙏\n\n— JMS Travels`
+          if (!activeTrip && assignedSoon) {
+            const pd = (assignedSoon as unknown as { pickup_date?: string }).pickup_date
+            if (pd === tomorrowIST) {
+              body = `You're welcome! We'll see you tomorrow. 🙏\n\n— JMS Travels`
+            } else if (pd) {
+              const d = new Date(pd + 'T00:00:00+05:30')
+              const dayName  = d.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+              const dayNum   = parseInt(d.toLocaleDateString('en-IN', { day: 'numeric', timeZone: 'Asia/Kolkata' }))
+              const monthName = d.toLocaleDateString('en-IN', { month: 'long', timeZone: 'Asia/Kolkata' })
+              const ord = dayNum + (dayNum % 10 === 1 && dayNum !== 11 ? 'st' : dayNum % 10 === 2 && dayNum !== 12 ? 'nd' : dayNum % 10 === 3 && dayNum !== 13 ? 'rd' : 'th')
+              body = `You're welcome! We'll see you on ${dayName}, ${ord} ${monthName}. 🙏\n\n— JMS Travels`
+            } else {
+              body = `You're welcome! We'll see you soon. 🙏\n\n— JMS Travels`
+            }
+          } else {
+            body = `You're welcome! Safe journey. 🙏\n\n— JMS Travels`
+          }
         } else if (isFlightDelay) {
           body = driver
             ? `Hi ${clientName}, noted — your driver has been informed.\n\nYour driver for ${ref}:\n${driver.name} — ${driver.primary_phone}\n\nFor any assistance, call us at 9845572207.\n\n— JMS Travels`
