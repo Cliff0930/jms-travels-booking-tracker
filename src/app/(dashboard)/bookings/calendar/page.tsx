@@ -88,8 +88,6 @@ export default function BookingCalendarPage() {
       // Also plot on each continuation leg date with a per-leg derived status
       for (const leg of (b.booking_legs ?? [])) {
         if (!leg.leg_date || leg.leg_status === 'cancelled') continue
-        const legRan = leg.leg_status === 'completed' || leg.leg_status === 'in_progress'
-        if (!['confirmed', 'in_progress'].includes(b.status) && !legRan) continue
         const legKey = leg.leg_date.slice(0, 10)
         if (legKey === pickupKey) continue  // Day 1 already added above
         if (!map[legKey]) map[legKey] = []
