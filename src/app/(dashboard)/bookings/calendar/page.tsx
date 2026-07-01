@@ -65,9 +65,14 @@ export default function BookingCalendarPage() {
   )
   const [statusFilter, setStatusFilter] = useState<string>('active')
 
-  // Fetch whole month (+1 week buffer each side)
-  const dateFrom = fmtKey(year, month, 1)
-  const lastDay  = new Date(year, month + 1, 0).getDate()
+  const lastDay = new Date(year, month + 1, 0).getDate()
+
+  // Fetch window is wider than the visible month: a multi-day booking's pickup_date
+  // (used by the API's date filter) can fall before this month even though its
+  // continuation legs land inside it — 30-day backward buffer covers that.
+  const fetchFromDate = new Date(year, month, 1)
+  fetchFromDate.setDate(fetchFromDate.getDate() - 30)
+  const dateFrom = fmtKey(fetchFromDate.getFullYear(), fetchFromDate.getMonth(), fetchFromDate.getDate())
   const dateTo   = fmtKey(year, month, lastDay)
 
   const { data: bookings = [], isLoading } = useQuery<CalBooking[]>({
