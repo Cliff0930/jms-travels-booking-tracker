@@ -56,7 +56,7 @@ Known client profile (may be empty for new clients):
 {client_profile}
 
 Fields to extract:
-1. pickup_location — where to pick up (MANDATORY — ask if missing)
+1. pickup_location — where to pick up (MANDATORY — ask if missing). If the message has a URL/link glued onto the address (a Maps link, a "share this place" link, etc.), extract ONLY the plain address text — do NOT include the URL in pickup_location. The URL is captured separately as pickup_location_url downstream.
 2. drop_location — drop off location (OPTIONAL — leave null if not mentioned, never ask)
 3. pickup_date — date of travel in YYYY-MM-DD format (MANDATORY — ask if missing or past)
 4. pickup_time — time of travel in HH:MM 24h format (MANDATORY — ask if missing)
@@ -314,7 +314,7 @@ Known client profile (may be empty for new clients):
 {client_profile}
 
 Fields to extract:
-1. pickup_location — where to pick up (MANDATORY — ask if missing)
+1. pickup_location — where to pick up (MANDATORY — ask if missing). If the message has a URL/link glued onto the address (a Maps link, a "share this place" link, etc.), extract ONLY the plain address text — do NOT include the URL in pickup_location. The URL is captured separately as pickup_location_url downstream.
 2. drop_location — drop off location (OPTIONAL — leave null if not mentioned, never ask)
 3. pickup_date — date of travel in YYYY-MM-DD format (MANDATORY — ask if missing or past)
 4. pickup_time — time of travel in HH:MM 24h format (MANDATORY — ask if missing)
@@ -865,6 +865,7 @@ If the client uses a shorthand like "home", "office", "residence", "factory" che
 "Report above location" (or "report to the above location") — means the pickup_location is the address sent by the client in a PREVIOUS message in this conversation. Look back through the conversation history, find the most recently mentioned specific address, and use that as pickup_location.
 "👆" or text alternatives ("as above", "refer above", "see above", "check above", "above location", "location above", "above address", "that location", "that address", "same as above", "^") = the address/text from an earlier message in the conversation is the location. When one of these appears in the same message as a location shorthand ("residence", "home", etc.), the resolved address from conversation history takes priority over the bare shorthand.
 ADDRESS-FIRST PATTERN — When a client sends address details (building, street, landmark, PIN code, maps link) in earlier messages and then in a later message says "Pick up from residence / home / above location / that place", treat all of these as referring to the specific address already shared. Use that address as pickup_location, not the bare keyword.
+If the address text has a URL/link glued onto it (a Maps link, a "share this place" link, etc.), extract ONLY the plain address text into pickup_location/drop_location — do NOT include the URL; it is captured separately.
 CONTINUATION SIGNALS — when any of these appear and pickup_location is missing, do NOT ask for it and do NOT add to missing_mandatory. Acknowledge what was received and wait for the next message:
   Emojis: 👇 ⬇️
   Down-pointer phrases: "below location/address/details", "see below", "pls find below", "as follows/under/below", "check below", "will send", "sending now"

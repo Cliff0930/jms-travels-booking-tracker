@@ -35,7 +35,10 @@ function getNowTimeIST(): string {
 }
 
 function extractMapsUrls(text: string): { pickup_location_url: string | null; drop_location_url: string | null } {
-  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
+  // google.com/search is only treated as a maps link when it carries a kgmid= param —
+  // Google's Knowledge Graph ID, which appears on "share this place" links from
+  // Search/Assistant on Android but not on unrelated search-result links.
+  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps|(?:www\.)?google\.com\/search(?=[^\s]*[?&]kgmid=))[^\s]*/gi
   const matches = [...text.matchAll(urlRegex)]
   if (matches.length === 0) return { pickup_location_url: null, drop_location_url: null }
 
@@ -69,6 +72,18 @@ function extractMapsUrls(text: string): { pickup_location_url: string | null; dr
   return { pickup_location_url: pickupUrl, drop_location_url: dropUrl }
 }
 
+// Finds the sender's own contact number from labeled signature lines
+// ("Mobile: +91...", "Contact No: ...") — the same label markers Gemini is
+// told to exclude from guest_phone (that's the traveler's number, which may
+// differ from the sender's). Used only as a fallback: populating a new
+// client's primary_phone, and filling guest_phone when no distinct guest was
+// identified (sender is the traveler themselves).
+function extractSenderPhone(text: string): string | null {
+  const match = text.match(/\b(?:mobile|mob\.?|cell|contact(?:\s*(?:no\.?|number))?|phone|ph\.?|tel\.?)\s*:?\s*(?:\+?91[\s-]?)?(\d{5}[\s-]?\d{5}|\d{10})\b/i)
+  if (!match) return null
+  const digits = match[0].replace(/\D/g, '').slice(-10)
+  return /^[6-9]\d{9}$/.test(digits) ? digits : null
+}
 
 function buildWhatsAppConfirmation(
   clientName: string,
@@ -247,6 +262,7 @@ export async function POST(request: Request) {
 
     const savedLocations: ClientLocation[] = (client as Client & { locations?: ClientLocation[] })?.locations || []
     const mapsUrls = extractMapsUrls(message)
+    const senderSignaturePhone = extractSenderPhone(message)
     const result = await classifyAndExtract(message, client, savedLocations)
 
     await supabase
@@ -394,6 +410,22 @@ export async function POST(request: Request) {
       return [bk]
     })
 
+    // Self-booking fallback: no distinct guest was identified (sender is the traveler) but
+    // guest_phone still came back missing — fill it from the sender's own signature phone
+    // instead of sending an avoidable "missing info" round-trip for details already in the
+    // email. Signature phones are still never used as guest_phone when a distinct guest IS named.
+    if (channel === 'email' && senderSignaturePhone) {
+      for (const bk of bookingsToProcess) {
+        if (!bk.extracted.guest_name && bk.missing_mandatory.includes('guest_phone')) {
+          const rawSenderName = sender_name || sender_email?.split('@')[0] || ''
+          const { cleanName } = extractHonorific(rawSenderName)
+          bk.extracted.guest_name = cleanName || null
+          bk.extracted.guest_phone = senderSignaturePhone
+          bk.missing_mandatory = bk.missing_mandatory.filter(f => f !== 'guest_phone' && f !== 'guest_name')
+        }
+      }
+    }
+
     const allMissing = bookingsToProcess.flatMap(b => b.missing_mandatory)
 
     await supabase
@@ -419,7 +451,7 @@ export async function POST(request: Request) {
       }
       const { data: newClient } = await supabase
         .from('clients')
-        .insert({ name, salutation: emailSalutation, primary_email: sender_email, client_type: autoCompanyId ? 'corporate' : 'walkin', company_id: autoCompanyId })
+        .insert({ name, salutation: emailSalutation, primary_email: sender_email, primary_phone: senderSignaturePhone, client_type: autoCompanyId ? 'corporate' : 'walkin', company_id: autoCompanyId })
         .select('*, company:companies!company_id(*), locations:client_locations(*)')
         .single()
       if (newClient) {

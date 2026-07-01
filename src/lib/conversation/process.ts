@@ -5,7 +5,10 @@ import { formatDate, formatTime } from '@/lib/utils/date'
 import type { ConversationMessage } from '@/types'
 
 function extractMapsUrls(text: string): { pickup_location_url: string | null; drop_location_url: string | null } {
-  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps)[^\s]*/gi
+  // google.com/search is only treated as a maps link when it carries a kgmid= param —
+  // Google's Knowledge Graph ID, which appears on "share this place" links from
+  // Search/Assistant on Android but not on unrelated search-result links.
+  const urlRegex = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|www\.google\.com\/maps|google\.com\/maps|(?:www\.)?google\.com\/search(?=[^\s]*[?&]kgmid=))[^\s]*/gi
   const matches = [...text.matchAll(urlRegex)]
   if (matches.length === 0) return { pickup_location_url: null, drop_location_url: null }
 
