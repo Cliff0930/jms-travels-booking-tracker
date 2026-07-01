@@ -10,8 +10,8 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/send'
 import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { notifyOperator } from '@/lib/utils/notify-operator'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
-import { formatDate, formatTime } from '@/lib/utils/date'
-import type { Client, ClientLocation } from '@/types'
+import { formatDate, formatTime, bookingUrgencyLabel } from '@/lib/utils/date'
+import type { Client, ClientLocation, Company } from '@/types'
 import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
 const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000 // 8 hours
@@ -1177,14 +1177,19 @@ async function processClientMessage(
       .gte('sent_at', sessionCreatedAt)
       .is('booking_id', null),
     sendWhatsAppMessage({ to: senderPhone, body: ackBody, log: { client_id: client.id, booking_id: booking.id, template_used: 'booking_received' } }),
-    notifyOperator([
-      `📱 New booking via WhatsApp`,
-      `From: ${client.name} (${senderPhone})`,
-      `Ref: ${booking.booking_ref}`,
-      result.extracted.pickup_date ? `Date: ${result.extracted.pickup_date}${result.extracted.pickup_time ? ` ${result.extracted.pickup_time}` : ''}` : null,
-      result.extracted.pickup_location ? `Pickup: ${result.extracted.pickup_location}` : null,
-      needsApproval ? '⏳ Pending approval' : '✅ Ready to confirm',
-    ].filter(Boolean).join('\n'), 'ops', `/bookings/${booking.id}`),
+    notifyOperator((() => {
+      const companyName = (client.company as Company | null)?.name ?? null
+      const displayName = companyName ?? client.name
+      const urgency = bookingUrgencyLabel(result.extracted.pickup_date ?? null, result.extracted.pickup_time ?? null)
+      return [
+        `📱 New booking via WhatsApp — ${displayName}${urgency ? ` · ${urgency}` : ''}`,
+        `From: ${client.name} (${senderPhone})`,
+        `Ref: ${booking.booking_ref}`,
+        result.extracted.pickup_date ? `Date: ${result.extracted.pickup_date}${result.extracted.pickup_time ? ` ${result.extracted.pickup_time}` : ''}` : null,
+        result.extracted.pickup_location ? `Pickup: ${result.extracted.pickup_location}` : null,
+        needsApproval ? '⏳ Pending approval' : '✅ Ready to confirm',
+      ].filter(Boolean).join('\n')
+    })(), 'ops', `/bookings/${booking.id}`),
   ])
 
   if (isAfterHours()) {

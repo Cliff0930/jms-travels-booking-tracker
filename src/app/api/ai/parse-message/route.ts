@@ -10,7 +10,7 @@ import { notifyOperator } from '@/lib/utils/notify-operator'
 import { handleEmailCancel, handleEmailModify } from '@/lib/email/handle-change'
 import { findOrCreateGuestClient } from '@/lib/utils/guest-client'
 import { isAfterHours, sendAfterHoursNotices } from '@/lib/utils/after-hours'
-import { formatDate, formatTime } from '@/lib/utils/date'
+import { formatDate, formatTime, bookingUrgencyLabel } from '@/lib/utils/date'
 import type { Client, ClientLocation, Company } from '@/types'
 import { formalName, extractHonorific } from '@/lib/utils/client-name'
 
@@ -667,8 +667,14 @@ export async function POST(request: Request) {
       const refs = createdBookings.map(b => b.booking.booking_ref).join(', ')
       const firstExt = createdBookings[0].extracted
       const statusNote = allMissing.length > 0 ? `⚠️ Missing: ${allMissing.map(f => f.replace(/_/g, ' ')).join(', ')}` : '✅ All fields complete'
+      const companyName = (emailClient2?.company as Company | null)?.name ?? null
+      const displayName = companyName ?? emailClient2?.name ?? (sender_email || sender_phone || 'unknown')
+      const urgency = bookingUrgencyLabel(firstExt.pickup_date ?? null, firstExt.pickup_time ?? null)
+      const headline = createdBookings.length > 1
+        ? `📩 ${createdBookings.length} new bookings via ${channel} — ${displayName}${urgency ? ` · ${urgency}` : ''}`
+        : `📩 New booking via ${channel} — ${displayName}${urgency ? ` · ${urgency}` : ''}`
       const lines = [
-        `📩 New ${createdBookings.length > 1 ? `${createdBookings.length} bookings` : 'booking'} via ${channel}`,
+        headline,
         `From: ${sender_email || sender_phone || 'unknown'}`,
         `Ref: ${refs}`,
         firstExt.pickup_date ? `Date: ${firstExt.pickup_date}${firstExt.pickup_time ? ` ${firstExt.pickup_time}` : ''}` : null,
