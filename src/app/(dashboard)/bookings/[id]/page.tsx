@@ -491,6 +491,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       qc.invalidateQueries({ queryKey: ['booking-legs', id] })
       cancelField()
       toast.success('Saved')
+      if (json.warning) toast.warning(json.warning)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {

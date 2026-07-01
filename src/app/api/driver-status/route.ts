@@ -311,8 +311,12 @@ export async function POST(request: Request) {
       const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
       if (diffDays >= 0) outstationDays = diffDays + 1
     }
-    // Update total_days from actual dates so billing is accurate
-    if (tripType === 'outstation' && outstationDays > 0) {
+    // Update total_days from actual dates so billing is accurate — only when this is
+    // genuinely the last leg (newBookingStatus === 'completed' already accounts for
+    // remaining legs above). Without this guard, completing an early leg on a booking
+    // that still has other legs left (e.g. a stale multi-leg structure from before an
+    // outstation conversion) would silently shrink total_days mid-trip.
+    if (tripType === 'outstation' && outstationDays > 0 && newBookingStatus === 'completed') {
       await supabase.from('bookings').update({ total_days: outstationDays }).eq('id', booking_id)
     }
 

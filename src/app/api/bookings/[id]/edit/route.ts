@@ -136,6 +136,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq('leg_status', 'upcoming')
   }
 
+  // Outstation bookings use a single leg for the whole trip — if trip_type is being
+  // switched to outstation while the booking still has multiple active legs (left over
+  // from before the switch), that mismatch silently breaks completion/total_days logic
+  // downstream. Surface it instead of leaving it undetected — legs are NOT auto-modified
+  // here since they may already have real trip_sheets data attached.
+  let warning: string | null = null
+  if (typeof changes.trip_type === 'string' && changes.trip_type === 'outstation' && current.trip_type !== 'outstation') {
+    const { data: activeLegs } = await admin
+      .from('booking_legs')
+      .select('day_number')
+      .eq('booking_id', id)
+      .neq('leg_status', 'cancelled')
+    if ((activeLegs?.length ?? 0) > 1) {
+      warning = `This booking still has ${activeLegs!.length} active day-legs, but outstation trips use a single leg for the whole journey. Review the Trip Legs panel and reconcile manually — legs were not changed automatically.`
+    }
+  }
+
   if (guestName && (guestNameChanged || !existingGuestClientId)) {
     try {
       const guest = await findOrCreateGuestClient(admin, {
@@ -155,5 +172,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch { /* non-critical */ }
   }
 
-  return NextResponse.json(updated)
+  return NextResponse.json(warning ? { ...updated, warning } : updated)
 }
