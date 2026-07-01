@@ -240,7 +240,7 @@ export async function POST(request: Request) {
         opening_lng: lng ?? null,
         opening_time: new Date().toISOString(),
         manual_opening_time: manual_opening_time || null,
-        trip_opening_date: booking.trip_type === 'outstation' ? getTodayIST() : null,
+        trip_opening_date: getTodayIST(),
       }).then(({ error }) => { if (error) console.error('trip_sheets insert error:', error.message) })
     }
   } else {
@@ -301,9 +301,11 @@ export async function POST(request: Request) {
       gpsKm = totalDistanceKm(gpsLogs)
     }
 
-    // For outstation: calculate actual days from opening/closing dates
+    // Opening/closing dates are captured for every trip type now (needed for accurate
+    // Total Hours display when a trip spans multiple calendar days) — the total_days
+    // recalculation below still only applies to outstation, where day-count billing matters.
     const tripType = booking.trip_type ?? 'local'
-    const closingDateFinal = tripType === 'outstation' ? (trip_closing_date || getTodayIST()) : null
+    const closingDateFinal = trip_closing_date || getTodayIST()
     const openingDate = (sheet as { trip_opening_date?: string | null } | null)?.trip_opening_date ?? null
     let outstationDays = tripType === 'outstation' ? (booking.total_days ?? 1) : 0
     if (tripType === 'outstation' && openingDate && closingDateFinal) {

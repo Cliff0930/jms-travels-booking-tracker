@@ -2638,18 +2638,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <Label className="text-xs text-[#737686]">Closing Time</Label>
                       <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.manual_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, manual_closing_time: e.target.value }))} />
                     </div>
-                    {booking.trip_type === 'outstation' && (
-                      <>
-                        <div>
-                          <Label className="text-xs text-[#737686]">Opening Date</Label>
-                          <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_opening_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_opening_date: e.target.value }))} />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-[#737686]">Closing Date</Label>
-                          <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_closing_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_closing_date: e.target.value }))} />
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <Label className="text-xs text-[#737686]">Opening Date</Label>
+                      <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_opening_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_opening_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[#737686]">Closing Date</Label>
+                      <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_closing_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_closing_date: e.target.value }))} />
+                    </div>
                   </div>
 
                   {/* Bata — auto-calculated, shown as info */}
@@ -2842,8 +2838,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <span className="font-medium text-[#191B23]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
                   </div>
                   {tripSheet.manual_closing_time && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className="text-[#434654]">{tripSheet.manual_closing_time}</span></div>}
-                  {booking.trip_type === 'outstation' && tripSheet.trip_opening_date && <div className="flex justify-between"><span className="text-[#737686]">Opening Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_opening_date)}</span></div>}
-                  {booking.trip_type === 'outstation' && tripSheet.trip_closing_date && <div className="flex justify-between"><span className="text-[#737686]">Closing Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_closing_date)}</span></div>}
+                  {tripSheet.trip_opening_date && tripSheet.trip_closing_date && tripSheet.trip_opening_date !== tripSheet.trip_closing_date && (
+                    <>
+                      <div className="flex justify-between"><span className="text-[#737686]">Opening Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_opening_date)}</span></div>
+                      <div className="flex justify-between"><span className="text-[#737686]">Closing Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_closing_date)}</span></div>
+                    </>
+                  )}
                   {tripSheet.manual_opening_time && tripSheet.manual_closing_time && (
                     <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5 mt-1">
                       <span className="text-[#737686]">Total Hours</span>

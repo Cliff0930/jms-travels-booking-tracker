@@ -170,7 +170,6 @@ function DriverStatusContent() {
   const [serverOpeningKm, setServerOpeningKm] = useState<number | null>(null)
   const [serverOpeningTime, setServerOpeningTime] = useState<string | null>(null)
   const [alreadyDone, setAlreadyDone] = useState(false)
-  const [isOutstation, setIsOutstation] = useState(false)
   const [tripIdentity, setTripIdentity] = useState<TripIdentity | null>(null)
   const [tripSheetLoaded, setTripSheetLoaded] = useState(false)
   // True while we check whether this driver should be redirected to a different link.
@@ -200,7 +199,6 @@ function DriverStatusContent() {
         company?: { name?: string } | null
       }) => {
         if (b.is_settlement_duty) setIsSettlementDuty(true)
-        if (b.trip_type === 'outstation') setIsOutstation(true)
         setTripIdentity({
           guestName: b.guest_name ?? null,
           company: b.company?.name ?? null,
@@ -365,7 +363,7 @@ function DriverStatusContent() {
         link_code: linkCode, leg_id: legId,
         closing_km: parseFloat(closingKm),
         manual_closing_time: closingTime,
-        ...(isOutstation ? { trip_closing_date: closingDate } : {}),
+        trip_closing_date: closingDate,
       }
       if (tollAmount) body.toll_amount = parseFloat(tollAmount)
       if (parkingAmount) body.parking_amount = parseFloat(parkingAmount)
@@ -722,20 +720,18 @@ function DriverStatusContent() {
                 <Label className="text-sm font-medium text-[#191B23]">Closing Time *</Label>
                 <TimePicker value={closingTime} onChange={setClosingTime} />
               </div>
-              {isOutstation && (
-                <div>
-                  <Label htmlFor="closing_date" className="text-sm font-medium text-[#191B23]">
-                    Closing Date <span className="font-normal text-[#737686]">(date you returned)</span>
-                  </Label>
-                  <input
-                    id="closing_date"
-                    type="date"
-                    value={closingDate}
-                    onChange={e => setClosingDate(e.target.value)}
-                    className="mt-1.5 w-full border border-[#C3C5D7] rounded-md h-12 px-3 text-base focus:outline-none focus:ring-2 focus:ring-[#1A56DB]"
-                  />
-                </div>
-              )}
+              <div>
+                <Label htmlFor="closing_date" className="text-sm font-medium text-[#191B23]">
+                  Closing Date <span className="font-normal text-[#737686]">(defaults to today — change only if the trip ended on a different day)</span>
+                </Label>
+                <input
+                  id="closing_date"
+                  type="date"
+                  value={closingDate}
+                  onChange={e => setClosingDate(e.target.value)}
+                  className="mt-1.5 w-full border border-[#C3C5D7] rounded-md h-12 px-3 text-base focus:outline-none focus:ring-2 focus:ring-[#1A56DB]"
+                />
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label htmlFor="toll" className="text-sm font-medium text-[#191B23]">Toll <span className="font-normal text-[#737686]">(₹)</span></Label>
