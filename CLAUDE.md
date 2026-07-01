@@ -227,7 +227,9 @@ Outstation = always **1 leg**, 1 arrived link, 1 completed link for the whole tr
 
 ## Driver App
 - React Native / Expo, separate repo in same GitHub
-- Node v20 REQUIRED for OTA: `PATH="/Users/sami/.nvm/versions/node/v20.20.2/bin:$PATH" eas update --channel preview --non-interactive`
+- Node v20 REQUIRED for OTA (v18 and v24 both fail — Metro bundler issue)
+- **Windows (this machine):** `.\ota-push.ps1 -Message "your message"` from the driver app folder — uses Node 20 at `C:\Users\hp\AppData\Local\nvm\v20.20.2\` + eas-cli installed there + EXPO_TOKEN env var
+- **Mac (legacy):** `PATH="/Users/sami/.nvm/versions/node/v20.20.2/bin:$PATH" eas update --channel preview --message "..." --non-interactive`
 - Always push OTA immediately after driver-app git push
 - APK build: EAS (not local)
 
