@@ -232,6 +232,32 @@ Outstation = always **1 leg**, 1 arrived link, 1 completed link for the whole tr
 - **Mac (legacy):** `PATH="/Users/sami/.nvm/versions/node/v20.20.2/bin:$PATH" eas update --channel preview --message "..." --non-interactive`
 - Always push OTA immediately after driver-app git push
 - APK build: EAS (not local)
+- **Closing date on CompletedScreen (fixed 2026-07-01):** The "CLOSING DATE" Today/Yesterday picker and `trip_closing_date` field now sent for every trip type, not just outstation. Removed the `isOutstation` gate — backend (`driver-status/route.ts`) already captures opening/closing dates for all trip types.
+
+---
+
+## Operator Push Notifications — Booking Urgency (shipped 2026-07-01)
+Push notification body (lock screen first line) for new bookings now shows **company name + urgency** instead of just "New booking via email/WhatsApp".
+
+- **Format:** `📩 Wipro · In 2 hrs` / `📱 Licious · In 45 min` / `📩 John Smith · Tomorrow 9:00 AM`
+- **Urgency logic** (`bookingUrgencyLabel()` in `src/lib/utils/date.ts`):
+  - < 1 hr away → `"In X min"`
+  - 1–4 hrs away → `"In X hrs"` (rounds down to floor hour)
+  - 5+ hrs same day → `"Today HH:MM AM/PM"`
+  - Tomorrow → `"Tomorrow HH:MM AM/PM"`
+  - Further → `"Mon, 3 Jul HH:MM AM/PM"`
+- **Company name:** uses `client.company.name`; falls back to `client.name` for personal/walkin bookings
+- Applied in both `parse-message/route.ts` (email) and `webhooks/whatsapp/route.ts` (WhatsApp) — first line of the `notifyOperator()` call only (push body). Full notification body in DB/notifications page unchanged.
+
+---
+
+## Driver Substitution History (shipped 2026-07-01)
+When a driver is substituted (`POST /api/bookings/[id]/substitute`), a `booking_status_history` row is now inserted with `new_status = 'driver_substituted'` and `note = "Driver changed: OldName → NewName (reason)"`.
+
+- **TripTimeline** (`src/components/bookings/TripTimeline.tsx`) reads these entries (`statusHistory.filter(h => h.new_status === 'driver_substituted')`) and renders them as **amber indented events** under the "Driver Assigned" step — showing old→new driver name, reason, and exact timestamp.
+- Multiple substitutions on the same booking each get their own entry in order.
+- `vehicle_swaps` table still records the driver IDs for FK reporting; `booking_status_history` is the human-readable audit trail shown in UI.
+- Only new substitutions (after 2026-07-01) have history; old ones don't — no backfill possible without original data.
 
 ---
 
