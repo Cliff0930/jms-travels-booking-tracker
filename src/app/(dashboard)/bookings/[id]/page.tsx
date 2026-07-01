@@ -25,7 +25,7 @@ import type { PickupStop, BookingStatusHistory } from '@/types'
 import { WaBadge } from '@/components/shared/WaBadge'
 import { GuestSearchCombobox } from '@/components/shared/GuestSearchCombobox'
 import { useCanEdit, useIsAdmin } from '@/hooks/useCurrentUser'
-import { formatBookingDateTime, formatTimestamp } from '@/lib/utils/date'
+import { formatBookingDateTime, formatTimestamp, formatDate } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -171,6 +171,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     gps_km: number | null
     route_image_url: string | null
     slab_override: string | null
+    trip_opening_date: string | null
+    trip_closing_date: string | null
     leg?: { day_number: number; leg_date: string } | null
     invoiced?: boolean
   }
@@ -311,6 +313,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     client_opening_km: string; client_closing_km: string
     client_opening_time: string; client_closing_time: string
     slab_override: string | null
+    trip_opening_date: string; trip_closing_date: string
   } | null>(null)
   const [sheetViewTab, setSheetViewTab] = useState<'actual' | 'driver' | 'client'>('actual')
   const [savingSheet, setSavingSheet] = useState(false)
@@ -792,6 +795,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       client_opening_time: sheet.client_opening_time  ?? sheet.manual_opening_time ?? '',
       client_closing_time: sheet.client_closing_time  ?? sheet.manual_closing_time ?? '',
       slab_override: sheet.slab_override ?? null,
+      trip_opening_date: sheet.trip_opening_date ?? '',
+      trip_closing_date: sheet.trip_closing_date ?? '',
     })
     setEditingSheet(true)
   }
@@ -820,6 +825,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         client_opening_time: sheetEditForm.client_opening_time  || null,
         client_closing_time: sheetEditForm.client_closing_time  || null,
         slab_override: sheetEditForm.slab_override ?? null,
+        trip_opening_date: sheetEditForm.trip_opening_date || null,
+        trip_closing_date: sheetEditForm.trip_closing_date || null,
       }
       const res = await fetch(`/api/bookings/${id}/trip-sheet?sheetId=${tripSheet.id}`, {
         method: 'PATCH',
@@ -2621,6 +2628,18 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       <Label className="text-xs text-[#737686]">Closing Time</Label>
                       <Input type="time" className="h-8 text-sm mt-1" value={sheetEditForm.manual_closing_time} onChange={e => setSheetEditForm(f => f && ({ ...f, manual_closing_time: e.target.value }))} />
                     </div>
+                    {booking.trip_type === 'outstation' && (
+                      <>
+                        <div>
+                          <Label className="text-xs text-[#737686]">Opening Date</Label>
+                          <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_opening_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_opening_date: e.target.value }))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-[#737686]">Closing Date</Label>
+                          <Input type="date" className="h-8 text-sm mt-1" value={sheetEditForm.trip_closing_date} onChange={e => setSheetEditForm(f => f && ({ ...f, trip_closing_date: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Bata — auto-calculated, shown as info */}
@@ -2813,6 +2832,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     <span className="font-medium text-[#191B23]">{tripSheet.closing_km != null ? tripSheet.closing_km.toLocaleString() : '—'}</span>
                   </div>
                   {tripSheet.manual_closing_time && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className="text-[#434654]">{tripSheet.manual_closing_time}</span></div>}
+                  {booking.trip_type === 'outstation' && tripSheet.trip_opening_date && <div className="flex justify-between"><span className="text-[#737686]">Opening Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_opening_date)}</span></div>}
+                  {booking.trip_type === 'outstation' && tripSheet.trip_closing_date && <div className="flex justify-between"><span className="text-[#737686]">Closing Date</span><span className="text-[#434654]">{formatDate(tripSheet.trip_closing_date)}</span></div>}
                   {tripSheet.manual_opening_time && tripSheet.manual_closing_time && (
                     <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5 mt-1">
                       <span className="text-[#737686]">Total Hours</span>
