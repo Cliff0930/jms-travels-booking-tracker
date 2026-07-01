@@ -78,6 +78,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq('id', new_driver_id)
     .single()
 
+  // Log substitution in status history so TripTimeline can display it
+  if (newDriver) {
+    const oldDriverName = (booking.driver as { name?: string } | null)?.name ?? 'Unknown'
+    void supabase.from('booking_status_history').insert({
+      booking_id: id,
+      old_status: booking.status,
+      new_status: 'driver_substituted',
+      changed_by: swapped_by || 'operator',
+      note: `Driver changed: ${oldDriverName} → ${newDriver.name}${reason ? ` (${reason})` : ''}`,
+    })
+  }
+
   const client = booking.client as Client | null
   const guestClientForSub = booking.guest_client as { name?: string; prefix?: string; designation?: string } | null
   const subCompany = booking.company as { formal_address?: boolean; show_designation?: boolean } | null

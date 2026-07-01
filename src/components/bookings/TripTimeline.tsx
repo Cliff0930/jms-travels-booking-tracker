@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, Circle, XCircle } from 'lucide-react'
+import { CheckCircle2, Circle, XCircle, ArrowRightLeft } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils/date'
 import type { BookingStatusHistory } from '@/types'
 
@@ -69,6 +69,7 @@ const HISTORY_STATUS_MAP: Record<string, string> = {
 export function TripTimeline({ booking, statusHistory = [] }: { booking: TimelineBooking; statusHistory?: BookingStatusHistory[] }) {
   const hasApproval = !!(booking.approval_status || booking.company?.approval_required)
   const isCancelled = booking.status === 'cancelled'
+  const driverSwaps = statusHistory.filter(h => h.new_status === 'driver_substituted')
 
   function historyTs(stepKey: string): string | null {
     const target = HISTORY_STATUS_MAP[stepKey]
@@ -127,33 +128,59 @@ export function TripTimeline({ booking, statusHistory = [] }: { booking: Timelin
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1 && !isCancelled
         return (
-          <div key={step.key} className="flex gap-3">
-            {/* Icon + connector */}
-            <div className="flex flex-col items-center">
-              <StepIcon state={step.state} />
-              {!isLast && (
-                <div className={`w-px flex-1 min-h-[20px] mt-0.5 ${step.state === 'done' ? 'bg-[#10B981]' : 'bg-[#E5E7EB]'}`} />
-              )}
+          <div key={step.key}>
+            <div className="flex gap-3">
+              {/* Icon + connector */}
+              <div className="flex flex-col items-center">
+                <StepIcon state={step.state} />
+                {(!isLast || (step.key === 'driver' && driverSwaps.length > 0)) && (
+                  <div className={`w-px flex-1 min-h-[20px] mt-0.5 ${step.state === 'done' ? 'bg-[#10B981]' : 'bg-[#E5E7EB]'}`} />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className={`pb-4 flex-1 min-w-0 ${isLast && driverSwaps.length === 0 ? 'pb-0' : ''}`}>
+                <div className={`text-sm font-medium leading-none ${
+                  step.state === 'active' ? 'text-[#1A56DB]' :
+                  step.state === 'done' ? 'text-[#191B23]' :
+                  'text-[#9CA3AF]'
+                }`}>
+                  {step.label}
+                </div>
+                {step.sublabel && (
+                  <div className={`text-xs mt-0.5 ${step.state === 'upcoming' ? 'text-[#D1D5DB]' : 'text-[#737686]'}`}>
+                    {step.sublabel}
+                  </div>
+                )}
+                {step.timestamp && step.state !== 'upcoming' && (
+                  <div className="text-xs text-[#9CA3AF] mt-0.5">{formatTimestamp(step.timestamp)}</div>
+                )}
+              </div>
             </div>
 
-            {/* Content */}
-            <div className={`pb-4 flex-1 min-w-0 ${isLast ? 'pb-0' : ''}`}>
-              <div className={`text-sm font-medium leading-none ${
-                step.state === 'active' ? 'text-[#1A56DB]' :
-                step.state === 'done' ? 'text-[#191B23]' :
-                'text-[#9CA3AF]'
-              }`}>
-                {step.label}
-              </div>
-              {step.sublabel && (
-                <div className={`text-xs mt-0.5 ${step.state === 'upcoming' ? 'text-[#D1D5DB]' : 'text-[#737686]'}`}>
-                  {step.sublabel}
+            {/* Driver substitution entries — shown indented after "Driver Assigned" */}
+            {step.key === 'driver' && driverSwaps.map((swap, si) => {
+              const isLastSwap = si === driverSwaps.length - 1
+              return (
+                <div key={swap.changed_at} className="flex gap-3 pl-2">
+                  <div className="flex flex-col items-center">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-amber-100 shrink-0">
+                      <ArrowRightLeft className="w-3 h-3 text-amber-600" />
+                    </div>
+                    {(!isLast || !isLastSwap) && (
+                      <div className="w-px flex-1 min-h-[20px] mt-0.5 bg-[#10B981]" />
+                    )}
+                  </div>
+                  <div className={`flex-1 min-w-0 ${isLastSwap && isLast ? 'pb-0' : 'pb-4'}`}>
+                    <div className="text-sm font-medium text-amber-700 leading-none">Driver Changed</div>
+                    {swap.note && (
+                      <div className="text-xs text-[#737686] mt-0.5">{swap.note.replace('Driver changed: ', '')}</div>
+                    )}
+                    <div className="text-xs text-[#9CA3AF] mt-0.5">{formatTimestamp(swap.changed_at)}</div>
+                  </div>
                 </div>
-              )}
-              {step.timestamp && step.state !== 'upcoming' && (
-                <div className="text-xs text-[#9CA3AF] mt-0.5">{formatTimestamp(step.timestamp)}</div>
-              )}
-            </div>
+              )
+            })}
           </div>
         )
       })}
