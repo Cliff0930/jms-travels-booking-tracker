@@ -184,7 +184,17 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     return h * 60 + m
   }
 
-  function calcManualDuration(open: string, close: string): string {
+  function calcManualDuration(open: string, close: string, openDate?: string | null, closeDate?: string | null): string {
+    // With known opening/closing dates (outstation trips), compute the real elapsed
+    // time across day boundaries instead of assuming same-day / a single midnight wrap.
+    if (openDate && closeDate) {
+      const diffMs = new Date(`${closeDate}T${close}:00`).getTime() - new Date(`${openDate}T${open}:00`).getTime()
+      if (diffMs > 0) {
+        const totalMinutes = Math.floor(diffMs / 60000)
+        const h = Math.floor(totalMinutes / 60), m = totalMinutes % 60
+        return m > 0 ? `${h}h ${m}m` : `${h}h`
+      }
+    }
     const [oh, om] = open.split(':').map(Number)
     const [ch, cm] = close.split(':').map(Number)
     let mins = (ch * 60 + cm) - (oh * 60 + om)
@@ -2837,7 +2847,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                   {tripSheet.manual_opening_time && tripSheet.manual_closing_time && (
                     <div className="flex justify-between border-t border-[#C3C5D7] pt-1.5 mt-1">
                       <span className="text-[#737686]">Total Hours</span>
-                      <span className="font-semibold text-[#191B23]">{calcManualDuration(tripSheet.manual_opening_time, tripSheet.manual_closing_time)}</span>
+                      <span className="font-semibold text-[#191B23]">{calcManualDuration(tripSheet.manual_opening_time, tripSheet.manual_closing_time, tripSheet.trip_opening_date, tripSheet.trip_closing_date)}</span>
                     </div>
                   )}
                   {tripSheet.opening_km != null && tripSheet.closing_km != null && (
@@ -2892,7 +2902,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                         <span className={`font-medium ${isAdjKm ? 'text-amber-700' : 'text-[#191B23]'}`}>{dCKm != null ? dCKm.toLocaleString() : '—'}{isAdjKm && tripSheet.driver_closing_km != null ? ' ⚠' : ''}</span>
                       </div>
                       {dCTime && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className={isAdjTime && tripSheet.driver_closing_time ? 'text-amber-700' : 'text-[#434654]'}>{dCTime}{isAdjTime && tripSheet.driver_closing_time ? ' ⚠' : ''}</span></div>}
-                      {dOTime && dCTime && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(dOTime, dCTime)}</span></div>}
+                      {dOTime && dCTime && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(dOTime, dCTime, tripSheet.trip_opening_date, tripSheet.trip_closing_date)}</span></div>}
                       {dOKm != null && dCKm != null && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5"><span className="text-[#737686]">Total KM</span><span className="font-semibold text-[#191B23]">{(dCKm - dOKm).toFixed(1)} km</span></div>}
                       {drv > 0 && booking.trip_type !== 'airport' && <div className="flex justify-between border-t border-[#FDE68A] pt-1.5"><span className="text-[#737686]">Bata</span><span className="font-medium text-[#1A56DB]">{drv} × ₹{driverRate} = ₹{drv * driverRate}</span></div>}
                     </div>
@@ -2922,7 +2932,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                         <span className={`font-medium ${isAdjKm ? 'text-blue-700' : 'text-[#191B23]'}`}>{cCKm != null ? cCKm.toLocaleString() : '—'}{isAdjKm && tripSheet.client_closing_km != null ? ' ⚠' : ''}</span>
                       </div>
                       {cCTime && <div className="flex justify-between"><span className="text-[#737686]">Closing Time</span><span className={isAdjTime && tripSheet.client_closing_time ? 'text-blue-700' : 'text-[#434654]'}>{cCTime}{isAdjTime && tripSheet.client_closing_time ? ' ⚠' : ''}</span></div>}
-                      {cOTime && cCTime && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(cOTime, cCTime)}</span></div>}
+                      {cOTime && cCTime && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5 mt-1"><span className="text-[#737686]">Total Hours</span><span className="font-semibold text-[#191B23]">{calcManualDuration(cOTime, cCTime, tripSheet.trip_opening_date, tripSheet.trip_closing_date)}</span></div>}
                       {cOKm != null && cCKm != null && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5"><span className="text-[#737686]">Total KM</span><span className="font-semibold text-[#191B23]">{(cCKm - cOKm).toFixed(1)} km</span></div>}
                       {cli > 0 && <div className="flex justify-between border-t border-[#BFDBFE] pt-1.5"><span className="text-[#737686]">Bata{isAirport ? ' (client only)' : ''}</span><span className="font-medium text-[#0E9F6E]">{cli} bata billed</span></div>}
                     </div>
