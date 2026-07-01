@@ -16,14 +16,14 @@ const DRIVER_STATUS_CONFIG: Record<DriverStatus, { label: string; color: string;
   off_duty:  { label: 'Off Duty',  color: '#6B7280', bg: '#F3F4F6', dot: '#9CA3AF' },
 }
 
-export function BookingStatusBadge({ status, className }: { status: BookingStatus; className?: string }) {
+export function BookingStatusBadge({ status, label, className }: { status: BookingStatus; label?: string; className?: string }) {
   const cfg = BOOKING_STATUS_CONFIG[status]
   return (
     <span
       className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-status-badge', className)}
       style={{ color: cfg.color, backgroundColor: cfg.bg }}
     >
-      {cfg.label}
+      {label ?? cfg.label}
     </span>
   )
 }

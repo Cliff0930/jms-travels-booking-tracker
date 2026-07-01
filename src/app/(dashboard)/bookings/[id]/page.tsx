@@ -1,5 +1,5 @@
 'use client'
-import { useState, use, useEffect, useRef } from 'react'
+import { useState, use, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBooking, useUpdateBooking, useConfirmBooking, useCancelBooking, useSendApproval, useBookingMessages } from '@/hooks/useBookings'
 import { BookingStatusBadge } from '@/components/shared/StatusBadge'
@@ -92,6 +92,21 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => fetch(`/api/bookings/${id}/status-history`).then(r => r.json()),
     enabled: !!id,
   })
+  const { data: legsForStatus = [] } = useQuery<{ day_number: number; leg_status: string }[]>({
+    queryKey: ['booking-legs', id],
+    queryFn: () => fetch(`/api/bookings/${id}/legs`).then(r => r.json()),
+    enabled: !!id && (booking?.total_days ?? 0) > 1,
+  })
+  const multiDayStatusLabel = useMemo(() => {
+    if (!booking || booking.total_days <= 1) return undefined
+    if (booking.status === 'completed') return 'Entire Trip Completed'
+    if (booking.status !== 'in_progress') return undefined
+    const inProgressLeg = legsForStatus.find(l => l.leg_status === 'in_progress')
+    if (inProgressLeg) return `Day ${inProgressLeg.day_number} In Progress`
+    const completedDays = legsForStatus.filter(l => l.leg_status === 'completed').map(l => l.day_number)
+    if (completedDays.length > 0) return `Day ${Math.max(...completedDays)} Completed`
+    return undefined
+  }, [booking, legsForStatus])
 
   interface ApiCostRow {
     api_type: string
@@ -974,7 +989,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-semibold text-[#191B23]">{booking.booking_ref}</h1>
-        <BookingStatusBadge status={booking.status} />
+        <BookingStatusBadge status={booking.status} label={multiDayStatusLabel} />
         {booking.booking_type && (
           <span className={cn(
             'px-2 py-0.5 rounded-full text-xs font-medium',
