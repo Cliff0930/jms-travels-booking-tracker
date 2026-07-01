@@ -99,8 +99,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   })
   const multiDayStatusLabel = useMemo(() => {
     if (!booking || booking.total_days <= 1) return undefined
-    if (booking.status === 'completed') return 'Entire Trip Completed'
-    if (booking.status !== 'in_progress') return undefined
+    if (booking.status !== 'in_progress' && booking.status !== 'completed') return undefined
+    const allLegsCompleted = legsForStatus.length > 0 && legsForStatus.every(l => l.leg_status === 'completed')
+    if (booking.status === 'completed' && allLegsCompleted) return 'Entire Trip Completed'
     const inProgressLeg = legsForStatus.find(l => l.leg_status === 'in_progress')
     if (inProgressLeg) return `Day ${inProgressLeg.day_number} In Progress`
     const completedDays = legsForStatus.filter(l => l.leg_status === 'completed').map(l => l.day_number)
