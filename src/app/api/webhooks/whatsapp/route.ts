@@ -350,8 +350,11 @@ async function processClientMessage(
     // Location follow-up check: if no active session but message looks like an address
     // or maps link, check if there's a recent booking to update the pickup_location on.
     const hasMapsUrl = /https?:\/\/(maps\.(app\.goo\.gl|google\.com)|goo\.gl\/maps)/i.test(rawContent)
+    // Time keywords/patterns match the same shape as hasTimePattern below (\d{1,2}\s*(?:am|pm) etc.)
+    // so compact times like "10pm"/"6am" are recognized here too — a bare \bam\b/\bpm\b never
+    // matches "10pm" since there's no word boundary between a digit and the following letter.
     const noBookingSignals = !rawContent.match(
-      /\b(book(ing)?|cab|car|vehicle|ride|airport|tonight|tomorrow|today|morning|afternoon|evening|am|pm|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change)\b/i
+      /\b(book(ing)?|cab|car|vehicle|ride|airport|tonight|tomorrow|today|morning|afternoon|evening|time|\d{1,2}[:.]\d{2}\s*(?:am|pm|hours|hrs)?|\d{1,2}\s*(?:am|pm)|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|cancel|flight|terminal|modify|change|reschedule|shift|update)\b/i
     )
     const isLocationFollowUp = noBookingSignals && (hasMapsUrl || rawContent.trim().split('\n').length <= 5)
 
@@ -374,7 +377,7 @@ async function processClientMessage(
         // Guard: don't treat questions or action sentences as addresses
         const isQuestionOrAction =
           /^(do |does |can |could |would |should |is |are |was |will |what |how |why |when |where |who |i want|i need|i also|also |please|thanks|okay|ok\b|hi\b|hello\b)/i.test(addressText) ||
-          /\b(cancel|want to cancel|i want to)\b/i.test(addressText)
+          /\b(cancel|want to cancel|i want to|reschedule|shift|move)\b/i.test(addressText)
 
         // Special instruction follow-ups — these should be saved to special_instructions,
         // not overwrite pickup/drop location fields
