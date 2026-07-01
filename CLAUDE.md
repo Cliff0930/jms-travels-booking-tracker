@@ -236,6 +236,17 @@ Outstation = always **1 leg**, 1 arrived link, 1 completed link for the whole tr
 
 ---
 
+## Operator App (shipped Phase 1: 2026-07-01)
+Native Android sideloaded APK for operators — full feature parity with web app, better mobile UI/UX.
+- **Repo:** `C:\Users\hp\OneDrive\JMS_Travel_App\jms-operator-app` (git init'd, no remote yet)
+- **Bundle ID:** `net.jmstravels.operator` | **Expo account:** `jmstravelprabhu`
+- **Auth endpoints here:** `src/app/api/operator-app/auth/login/route.ts` + `auth/me/route.ts`
+- **JWT utility:** `src/lib/utils/operator-app-auth.ts` — HMAC-SHA256, 1 year expiry
+- **Vercel env var:** `OPERATOR_APP_SECRET` — added 2026-07-01 (96-char hex secret)
+- EAS project not yet created in operator app — run `eas init` when ready for first binary build
+
+---
+
 ## Operator Push Notifications — Booking Urgency (shipped 2026-07-01)
 Push notification body (lock screen first line) for new bookings now shows **company name + urgency** instead of just "New booking via email/WhatsApp".
 
