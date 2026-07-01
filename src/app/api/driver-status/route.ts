@@ -139,8 +139,9 @@ export async function POST(request: Request) {
   let newBookingStatus = status === 'arrived' ? 'in_progress' : 'completed'
   const driverStatus = status === 'arrived' ? 'on_duty' : 'available'
 
-  // For multi-leg bookings: keep in_progress if more legs remain after this one
-  if (status === 'completed' && leg_id) {
+  // For multi-leg bookings: keep in_progress if more legs remain after this one.
+  // Day 1 uses the booking-level link (no leg_id) — treat it as day_number=1.
+  if (status === 'completed') {
     const { data: allLegs } = await supabase
       .from('booking_legs')
       .select('id, day_number')
@@ -149,8 +150,8 @@ export async function POST(request: Request) {
 
     if (allLegs && allLegs.length > 0) {
       const maxDay = Math.max(...allLegs.map(l => l.day_number))
-      const thisLeg = allLegs.find(l => l.id === leg_id)
-      if (thisLeg && thisLeg.day_number < maxDay) {
+      const thisLegDay = leg_id ? allLegs.find(l => l.id === leg_id)?.day_number : 1
+      if (thisLegDay !== undefined && thisLegDay < maxDay) {
         newBookingStatus = 'in_progress'
       }
     }
