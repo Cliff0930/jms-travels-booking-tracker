@@ -31,8 +31,10 @@ export function getCountdown(
   if (diffMin < 120) return { label: `${Math.floor(diffMin / 60)}h ${diffMin % 60}m`, cls: 'bg-red-50 text-red-700 border border-red-200', pulse: true }
   if (diffMin < 360) return { label: `${Math.floor(diffMin / 60)}h away`, cls: 'bg-amber-50 text-amber-700 border border-amber-200', pulse: false }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const tmr   = new Date(now + 86400000).toISOString().slice(0, 10)
+  // IST offset, not UTC — .toISOString() alone returns the UTC calendar date, which is
+  // still "yesterday" between 12:00-5:29 AM IST, wrongly labeling a today booking "Tomorrow".
+  const today = new Date(now + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const tmr   = new Date(now + 5.5 * 60 * 60 * 1000 + 86400000).toISOString().slice(0, 10)
   if (pickup_date === today) return { label: 'Today',    cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', pulse: false }
   if (pickup_date === tmr)   return { label: 'Tomorrow', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', pulse: false }
   return null
