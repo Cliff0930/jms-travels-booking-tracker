@@ -162,6 +162,20 @@ On match: appends raw message to `special_instructions` (capped at 500 chars), r
 
 **Fix:** `noBookingSignals` now reuses the same working time-pattern shape, plus added literal keyword `time` and `reschedule`/`shift`/`update`. `isQuestionOrAction` guard also gained `reschedule`/`shift`/`move`. General risk pattern to watch for: any correction message (time, passenger count, vehicle type) with no keyword match in `noBookingSignals`/`isSpecialInstructionFollowUp` can fall into the address-overwrite branch and silently corrupt `pickup_location`/`drop_location` while claiming success. `change`/`modify`/`cancel` corrections are already safe (already in the keyword list).
 
+### "Upto"/"until" end-time phrases wrongly extracted as pickup_time (fixed 2026-07-02, commit `80c5aab`)
+"Vehicle required upto 10:00 PM" (no actual flight arrival time given) got extracted as `pickup_time=22:00` instead of going to `special_instructions`. The existing "explicit end time" rule in `prompts.ts` only demonstrated the word "till" — Gemini didn't generalize to the synonym "upto" the client used, so with no other clock time in the message it fell through and got treated as the pickup time (found on BK-2026-0311).
+
+**Fix:** broadened field #12 in both `EXTRACTION_PROMPT` and `CLASSIFY_AND_EXTRACT_PROMPT` to explicitly list `till/until/upto/up to` as equivalent end-time phrases; `pickup_time` now stays missing (asked for) when no other clock time appears anywhere in the message, instead of being silently filled from an end-time phrase.
+
+**Related gap fixed same commit:** field #11 (`total_days`) had no instruction for computing it from a start date + "till/until/upto [end date]" pattern (e.g. pickup_date 1 July + "required till 4th July" = 4 days) — only explicit "N days"/"attached" wording worked. Now explicitly instructed to count inclusively between the two dates, since Gemini is known to be unreliable at freeform date arithmetic (this is why the WhatsApp bot's `{day_occurrences}` pre-computed lookup table exists for day-name → date resolution — same root weakness, applied here to date-range counting instead).
+
+**General lesson:** a prompt rule with only ONE example trigger word doesn't reliably generalize to synonyms ("upto" vs "till", "10pm" vs "pm" with a space — see the time-correction fix above). Treat single-example rules as candidates for the same failure mode.
+
+### Post-booking follow-up window too narrow — diagnosed, NOT fixed (2026-07-02)
+BK-2026-0309 (airport pickup, created with `special_instructions: "Flight details not provided"`) never got its flight info because the client's follow-up message arrived 3.5 hours later — outside the hardcoded **30-minute** `recentBookingAny` lookup window in `webhooks/whatsapp/route.ts` (~line 462, `thirtyMinsAgo`). Instead of appending to the existing booking, it created an unrelated new one (BK-2026-0311). The matching logic itself (the `hasFlightInfo` regex branch) is correct and would have worked if the window were wider — this file already has `SESSION_TIMEOUT_MS = 8h` for the same "same working day" reasoning elsewhere, just never applied here.
+
+**Discussed fix, user said hold off:** widen to reuse `SESSION_TIMEOUT_MS`, AND only auto-attach silently when there's exactly ONE non-completed booking for that client in the window (not `.limit(1)` "most recent") — otherwise a coordinator with 2+ open bookings the same day risks a follow-up silently landing on the wrong one. Do not implement without explicit sign-off.
+
 ### WhatsApp re-stated complete details (`CONVERSATION_PROMPT`, fixed 2026-06-25, commit `6f6863d`)
 When a client sends partial info first, the bot asks for missing fields, and the client re-sends ALL details again in a self-contained second message, Gemini was sometimes setting `is_new_booking_request=true` — treating it as a new booking. This reset the session and triggered a duplicate booking attempt, which the duplicate guard then blocked and alerted the operator.
 - **Fix:** Explicit rule added to `CONVERSATION_PROMPT` `NEW BOOKING DETECTION`: "If the date and route match what was already being discussed, treat it as a continuation filling in missing fields — not a new booking. `is_new_booking_request = false`."
@@ -399,6 +413,9 @@ Operator can override auto-detected slab in **two places**: (1) `TripsheetEditPo
 
 ## Analytics — Known Gotcha
 - `cancel_reason` does NOT exist on bookings; actual column is `cancelled_reason`. PostgREST silently returns null for the entire query if an unknown column is in the select string — no error thrown, just empty data. Always verify column names against `src/types/index.ts` before adding to a select.
+
+## IST vs UTC date bugs — recurring pattern
+`new Date().toISOString().slice(0, 10)` always returns the **UTC** calendar date, never local/IST. Between 12:00–5:29 AM IST, UTC is still on the *previous* calendar day, so any "today"/"tomorrow" comparison built this way is wrong for that ~5.5 hour window daily. **Fixed 2026-07-02 (commit `0e5765a`):** `getCountdown()` in `BookingCard.tsx` (shared by both card and list-row views) computed `today`/`tmr` this way, wrongly showing a green "Tomorrow" pill on bookings genuinely due today — while the adjacent "(Today)" label was correct, since `formatBookingDate()` uses date-fns `isToday()`/`isTomorrow()` (compares against the browser's actual local day) instead. Always add the `+ 5.5 * 60 * 60 * 1000` offset before `.toISOString()` for day-boundary comparisons — matches `bookingUrgencyLabel()` (same `date.ts` file) and server-side `getTodayIST()`, both already correct. Grep for bare `toISOString().slice(0, 10)` when auditing for the same bug elsewhere.
 
 ---
 
