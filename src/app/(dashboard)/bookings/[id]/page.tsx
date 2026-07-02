@@ -901,7 +901,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_type: 'company' }),
+        body: JSON.stringify({
+          booking_type: 'company',
+          company_id: (booking.client as { company_id?: string | null } | null)?.company_id ?? null,
+        }),
       })
       qc.invalidateQueries({ queryKey: ['bookings', id] })
       toast.success('Switched to Corporate')
