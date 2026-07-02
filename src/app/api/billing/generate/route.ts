@@ -185,7 +185,7 @@ export async function POST(request: Request) {
 
   // Fetch completed bookings in period
   let bookingsQ = supabase.from('bookings').select(bookingSelect)
-    .eq('status', 'completed').neq('exclude_from_billing', true)
+    .eq('status', 'completed').or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .gte('pickup_date', period_from).lte('pickup_date', period_to)
     .order('pickup_date', { ascending: true })
   if (isIndividual) {
@@ -230,7 +230,7 @@ export async function POST(request: Request) {
 
   // Fetch older completed bookings (before period_from) not yet invoiced
   let olderQ = supabase.from('bookings').select(bookingSelect)
-    .eq('status', 'completed').neq('exclude_from_billing', true)
+    .eq('status', 'completed').or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
   if (isIndividual) {
     olderQ = olderQ.eq('guest_client_id', individual_client_id!)

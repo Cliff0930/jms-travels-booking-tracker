@@ -40,7 +40,7 @@ export async function GET() {
     .select('id, pickup_date, company_id, company:companies!company_id(id, name)')
     .eq('status', 'completed')
     .not('company_id', 'is', null)
-    .neq('exclude_from_billing', true)
+    .or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .lt('pickup_date', cutoff)
     .order('pickup_date', { ascending: true })
 

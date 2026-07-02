@@ -13,7 +13,7 @@ export async function GET() {
       driver:drivers!driver_id(name, vehicle_name, vehicle_number)
     `)
     .eq('status', 'completed')
-    .neq('exclude_from_billing', true)
+    .or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .order('pickup_date', { ascending: false })
     .limit(500)
 

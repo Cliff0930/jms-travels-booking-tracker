@@ -143,7 +143,7 @@ export async function GET(request: Request) {
 
   let q = supabase.from('bookings').select(bookingSelect)
     .eq('booking_type', 'personal').eq('status', 'completed')
-    .neq('exclude_from_billing', true)
+    .or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .gte('pickup_date', period_from).lte('pickup_date', period_to)
     .order('pickup_date', { ascending: true })
   if (client_id) q = q.eq('guest_client_id', client_id)
@@ -154,7 +154,7 @@ export async function GET(request: Request) {
   // Older missed bookings
   let oldQ = supabase.from('bookings').select(bookingSelect)
     .eq('booking_type', 'personal').eq('status', 'completed')
-    .neq('exclude_from_billing', true)
+    .or('exclude_from_billing.is.null,exclude_from_billing.eq.false')
     .lt('pickup_date', period_from).order('pickup_date', { ascending: true })
   if (client_id) oldQ = oldQ.eq('guest_client_id', client_id)
   const { data: olderBookings } = await oldQ
