@@ -123,17 +123,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const isInterState  = (invoice.igst_amount ?? 0) > 0
 
   const [{ data: booking }, { data: sheet }, { data: defaultRates }, { data: clientRates }, { data: companyBataRates }] = await Promise.all([
-    supabase.from('bookings').select('*, driver:drivers!driver_id(vehicle_name, vehicle_number)').eq('id', li.booking_id).single(),
+    supabase.from('bookings').select('*, driver:drivers!driver_id(name, vehicle_name, vehicle_number)').eq('id', li.booking_id).single(),
     supabase.from('trip_sheets').select('*').eq('id', li.trip_sheet_id).single(),
     supabase.from('rate_cards').select('*'),
-    supabase.from('client_rate_cards').select('*').eq('company_id', invoice.company_id).eq('is_active', true).lte('effective_from', invoice.period_from).order('effective_from', { ascending: true }),
+    supabase.from('client_rate_cards').select('*').eq('company_id', invoice.company_id).eq('is_active', true).order('effective_from', { ascending: true }),
     supabase.from('company_bata_rates').select('vehicle_name, trip_type, rate_per_bata').eq('company_id', invoice.company_id).not('rate_per_bata', 'is', null),
   ])
 
   const defaultRateMap: Record<string, RateCard> = {}
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = r
-  const clientRateMap: Record<string, RateCard> = {}
-  for (const r of clientRates ?? []) clientRateMap[r.vehicle_type.toUpperCase()] = { ...defaultRateMap[r.vehicle_type.toUpperCase()], ...r }
+  // Keep every version per vehicle type so we can resolve the rate that was actually in effect
+  // on this booking's own trip date, not just whatever was effective as of invoice.period_from.
+  const clientRatesByVehicle: Record<string, (RateCard & { effective_from: string })[]> = {}
+  for (const r of clientRates ?? []) {
+    const key = r.vehicle_type.toUpperCase()
+    if (!clientRatesByVehicle[key]) clientRatesByVehicle[key] = []
+    clientRatesByVehicle[key].push({ ...defaultRateMap[key], ...r })
+  }
   const tdsPercent = (clientRates ?? [])[0]?.tds_percent ?? 0
 
   const companyBataMap: Record<string, number> = {}
@@ -141,18 +147,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     companyBataMap[`${(r.vehicle_name ?? '').toUpperCase()}:${r.trip_type ?? 'all'}`] = Number(r.rate_per_bata)
   }
 
-  const driver = booking?.driver as { vehicle_name?: string; vehicle_number?: string } | null
+  const driver = booking?.driver as { name?: string; vehicle_name?: string; vehicle_number?: string } | null
   const billingVehicle = ((booking?.billing_vehicle_type as string | null) ?? '').toUpperCase()
   const driverVehicleName = (driver?.vehicle_name ?? '').toUpperCase()
   const vType = billingVehicle || driverVehicleName || (booking?.vehicle_type ?? '').toUpperCase()
-  const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
-    package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
-    package_airport_rate: 0,
-    package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
-    extra_km_rate: 14, extra_hr_rate: 250,
-    outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
-    local_bata: 300, outstation_bata_per_day: 450,
+  const tripDate = (booking?.pickup_date as string | null) ?? (li.trip_date as string)
+
+  function resolveRate(vt: string): RateCard {
+    const versions = clientRatesByVehicle[vt]
+    if (versions) {
+      const applicable = versions.filter(v => v.effective_from <= tripDate)
+      if (applicable.length > 0) return applicable[applicable.length - 1]
+    }
+    return defaultRateMap[vt] ?? {
+      package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+      package_airport_rate: 0,
+      package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
+      extra_km_rate: 14, extra_hr_rate: 250,
+      outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
+      local_bata: 300, outstation_bata_per_day: 450,
+    }
   }
+  const rate: RateCard = resolveRate(vType)
 
   const openKm  = Number(sheet?.client_opening_km  ?? sheet?.opening_km  ?? 0)
   const closeKm = Number(sheet?.client_closing_km  ?? sheet?.closing_km  ?? 0)
@@ -198,6 +214,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const lineTotal = r2(calc.hire + gst.cgst + gst.sgst + gst.igst + toll + parking + permit + calc.bata)
 
   await supabase.from('invoice_line_items').update({
+    vehicle_type:    billingVehicle || driverVehicleName || (booking?.vehicle_type ?? '') || '',
+    vehicle_number:  driver?.vehicle_number ?? null,
+    driver_name:     driver?.name ?? null,
     actual_kms:      actualKms,
     actual_hrs:      displayHrs,
     package_type:    calc.pkgType,

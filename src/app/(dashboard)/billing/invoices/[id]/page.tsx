@@ -17,6 +17,7 @@ import { SendDocumentDialog } from '@/components/billing/SendDocumentDialog'
 interface LineItem {
   id: string; booking_id: string; trip_sheet_id: string | null
   booking_ref: string; tripsheet_number: string | null; trip_date: string; vehicle_type: string
+  driver_name: string | null
   guest_name: string | null; pickup_location: string | null; drop_location: string | null
   package_type: string; actual_kms: number; actual_hrs: number; package_kms: number
   package_rate: number; extra_kms: number; extra_km_rate: number; extra_km_amount: number
@@ -417,6 +418,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       'Guest Name': li.guest_name ?? '',
       'Vehicle Type': li.vehicle_type,
       'Vehicle No': li.vehicle_number ?? '',
+      'Driver Name': li.driver_name ?? '',
       'Pickup': li.pickup_location ?? '',
       'Drop': li.drop_location ?? '',
       'Trip Type': li.trip_type,
@@ -444,7 +446,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
     // Summary row
     rows.push({} as typeof rows[0])
-    rows.push({ 'Date': '', 'Booking Ref': 'INVOICE SUMMARY', 'Guest Name': '', 'Vehicle Type': '', 'Vehicle No': '', 'Pickup': '', 'Drop': '', 'Trip Type': '', 'Package': '', 'Actual KMs': 0, 'Actual Hrs': 0, 'Package KMs': 0, 'Package Rate (₹)': 0, 'Extra KMs': 0, 'Extra KM Rate': 0, 'Extra KM Amount (₹)': 0, 'Extra Hrs': 0, 'Extra Hr Amount (₹)': 0, 'Hire Charges (₹)': inv.subtotal, 'Toll (₹)': 0, 'Parking (₹)': 0, 'Permit (₹)': 0, 'Bata (₹)': 0, 'GST Taxable (₹)': inv.subtotal, 'CGST (₹)': inv.cgst_amount, 'SGST (₹)': inv.sgst_amount, 'IGST (₹)': inv.igst_amount, 'Line Total (₹)': inv.grand_total })
+    rows.push({ 'Date': '', 'Booking Ref': 'INVOICE SUMMARY', 'Guest Name': '', 'Vehicle Type': '', 'Vehicle No': '', 'Driver Name': '', 'Pickup': '', 'Drop': '', 'Trip Type': '', 'Package': '', 'Actual KMs': 0, 'Actual Hrs': 0, 'Package KMs': 0, 'Package Rate (₹)': 0, 'Extra KMs': 0, 'Extra KM Rate': 0, 'Extra KM Amount (₹)': 0, 'Extra Hrs': 0, 'Extra Hr Amount (₹)': 0, 'Hire Charges (₹)': inv.subtotal, 'Toll (₹)': 0, 'Parking (₹)': 0, 'Permit (₹)': 0, 'Bata (₹)': 0, 'GST Taxable (₹)': inv.subtotal, 'CGST (₹)': inv.cgst_amount, 'SGST (₹)': inv.sgst_amount, 'IGST (₹)': inv.igst_amount, 'Line Total (₹)': inv.grand_total })
 
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -560,7 +562,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <thead className="bg-gray-50 border-b">
               <tr>
                 {inv.status === 'draft' && <th className="px-2 py-2 text-center w-8" title="Mark as reviewed">✓</th>}
-                {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
+                {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'Driver', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
                   <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -603,6 +605,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   <td className="px-2 py-2 max-w-[110px] truncate">{li.guest_name ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{li.vehicle_type}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{li.driver_name ?? '—'}</td>
                   <td className="px-2 py-2 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
                   <td className="px-2 py-2 whitespace-nowrap text-right">
                     {li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}
@@ -625,7 +628,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </tbody>
             <tfoot className="bg-gray-50 border-t-2 border-gray-200">
               <tr>
-                <td colSpan={inv.status === 'draft' ? 7 : 6} className="px-2 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
+                <td colSpan={inv.status === 'draft' ? 8 : 7} className="px-2 py-2 font-semibold text-gray-700 text-right text-xs">Totals</td>
                 <td colSpan={10} />
                 <td className="px-2 py-2 font-bold text-right">{fmt(inv.subtotal)}</td>
                 <td colSpan={2} className="px-2 py-2 font-semibold text-gray-500 text-xs">

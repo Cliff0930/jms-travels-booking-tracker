@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight, Tag } from 'lucide-react'
+import { Gauge, Clock, IndianRupee, Calendar, Car, X, Save, ChevronRight, Tag, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TripSheet {
@@ -165,16 +165,27 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
   const [billingCompanyId, setBillingCompanyId] = useState<string | null>(null)
   const [groupCompanies, setGroupCompanies] = useState<{ id: string; name: string }[]>([])
+  const [driverVehicleName, setDriverVehicleName] = useState<string | null>(null)
+  const [bookingVehicleType, setBookingVehicleType] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       try {
         const [sheetsData, bookingRes] = await Promise.all([
           fetch(`/api/bookings/${bookingId}/trip-sheet`).then(r => r.json()) as Promise<TripSheet[]>,
-          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{ billing_vehicle_type?: string | null; billing_company_id?: string | null; company_id?: string | null }>,
+          fetch(`/api/bookings/${bookingId}`).then(r => r.json()) as Promise<{
+            billing_vehicle_type?: string | null; billing_company_id?: string | null; company_id?: string | null
+            vehicle_type?: string | null
+            driver?: { vehicle_name?: string | null } | null
+            company?: { name?: string | null } | null
+          }>,
         ])
         setBillingVehicleType(bookingRes.billing_vehicle_type ?? null)
         setBillingCompanyId(bookingRes.billing_company_id ?? null)
+        setDriverVehicleName(bookingRes.driver?.vehicle_name ?? null)
+        setBookingVehicleType(bookingRes.vehicle_type ?? null)
+        setCompanyName(bookingRes.company?.name ?? null)
         const vehicleUrl = bookingRes.company_id
           ? `/api/billing/rate-cards?company_id=${bookingRes.company_id}`
           : '/api/billing/rate-cards?active=true'
@@ -268,6 +279,9 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
     if (!form || !sheet) return
     setSaving(mode)
     try {
+      // Persist the billing overrides FIRST — recalculate() re-fetches the booking from the DB,
+      // so it must see the new billing_vehicle_type/billing_company_id, not the stale pre-save value.
+      await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: billingVehicleType, billing_company_id: billingCompanyId }) })
       if (mode === 'both') {
         await patchSheet({
           tripsheet_number:      s(form.tripsheet_number),
@@ -311,6 +325,7 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
           bata_driver:           n(form.bata_driver),
           slab_override:         slabOverride,
         })
+        await recalculate()
       } else {
         await patchSheet({
           client_opening_km:     n(form.client_opening_km),
@@ -327,7 +342,6 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
         })
         await recalculate()
       }
-      await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_vehicle_type: billingVehicleType, billing_company_id: billingCompanyId }) })
       toast.success(mode === 'driver' ? 'Driver sheet updated' : 'Tripsheet saved')
       onSaved()
       onClose()
@@ -351,6 +365,13 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
   ]
 
   const f = form
+
+  // Effective vehicle used for billing: override → driver's actual vehicle → booking's requested vehicle_type.
+  // Warn when it has no rate card for this company — this is the exact gap that causes a trip to
+  // silently bill at the default rate instead of the client's negotiated rate.
+  const effectiveVehicle = billingVehicleType || driverVehicleName || bookingVehicleType
+  const vehicleUnrated = !!effectiveVehicle && vehicleTypes.length > 0 &&
+    !vehicleTypes.some(v => v.toUpperCase() === effectiveVehicle.toUpperCase())
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
@@ -469,6 +490,19 @@ export function TripsheetEditPopup({ bookingId, tripSheetId, bookingRef, tripTyp
                       })}
                     </div>
                   </div>
+
+                  {/* Vehicle-not-rated warning */}
+                  {vehicleUnrated && (
+                    <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        <span className="font-semibold">{effectiveVehicle}</span> has no rate card
+                        {companyName ? <> for <span className="font-semibold">{companyName}</span></> : ' for this company'} —
+                        billing will fall back to the default rate. Pick a different vehicle to bill as below,
+                        or add a {effectiveVehicle} rate on the company&apos;s Rate Cards page.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Billing vehicle override */}
                   <div className="bg-white rounded-lg border border-[#E5E7EB] p-3 space-y-2">

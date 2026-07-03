@@ -144,15 +144,38 @@ export async function POST(request: Request) {
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = r
 
   // Company-specific rate overrides (skip for individual invoices — use defaults)
-  const clientRateMap: Record<string, RateCard> = {}
+  // Keep every version per vehicle type (sorted by effective_from) so each booking can
+  // resolve the rate that was actually in effect on ITS OWN trip date, not the invoice's period_from.
+  const clientRatesByVehicle: Record<string, (RateCard & { effective_from: string })[]> = {}
   let tdsPercent = 0
   if (!isIndividual && company_id) {
     const { data: clientRates } = await supabase
       .from('client_rate_cards').select('*')
       .eq('company_id', company_id).eq('is_active', true)
-      .lte('effective_from', period_from).order('effective_from', { ascending: true })
-    for (const r of clientRates ?? []) clientRateMap[r.vehicle_type.toUpperCase()] = { ...defaultRateMap[r.vehicle_type.toUpperCase()], ...r }
+      .order('effective_from', { ascending: true })
+    for (const r of clientRates ?? []) {
+      const key = r.vehicle_type.toUpperCase()
+      if (!clientRatesByVehicle[key]) clientRatesByVehicle[key] = []
+      clientRatesByVehicle[key].push({ ...defaultRateMap[key], ...r })
+    }
     tdsPercent = (clientRates ?? [])[0]?.tds_percent ?? 0
+  }
+
+  // Picks the latest client rate version effective on/before tripDate; falls back to the default rate card.
+  function resolveRate(vType: string, tripDate: string): RateCard {
+    const versions = clientRatesByVehicle[vType]
+    if (versions) {
+      const applicable = versions.filter(v => v.effective_from <= tripDate)
+      if (applicable.length > 0) return applicable[applicable.length - 1]
+    }
+    return defaultRateMap[vType] ?? {
+      package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
+      package_airport_rate: 0,
+      package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
+      extra_km_rate: 14, extra_hr_rate: 250,
+      outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
+      local_bata: 300, outstation_bata_per_day: 450,
+    }
   }
 
   // Company bata rates (skip for individual — use rate card defaults)
@@ -177,7 +200,7 @@ export async function POST(request: Request) {
   const bookingSelect = `
     id, booking_ref, pickup_date, pickup_location, drop_location, trip_type, total_days,
     vehicle_type, billing_vehicle_type, guest_name, guest_client_id,
-    driver:drivers!driver_id(vehicle_name, vehicle_number),
+    driver:drivers!driver_id(name, vehicle_name, vehicle_number),
     trip_sheets(id, tripsheet_number, opening_km, closing_km, manual_opening_time, manual_closing_time,
       client_opening_km, client_closing_km, client_opening_time, client_closing_time,
       toll_amount, parking_amount, permit_amount, bata_driver, bata_client,
@@ -250,16 +273,10 @@ export async function POST(request: Request) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0] // use first sheet per booking
     const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()
-    const driverVehicleName = ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_name ?? '').toUpperCase()
+    const driver = b.driver as { name?: string; vehicle_name?: string; vehicle_number?: string } | null
+    const driverVehicleName = (driver?.vehicle_name ?? '').toUpperCase()
     const vType = billingVehicle || driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
-    const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
-      package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
-      package_airport_rate: 0,
-      package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
-      extra_km_rate: 14, extra_hr_rate: 250,
-      outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
-      local_bata: 300, outstation_bata_per_day: 450,
-    }
+    const rate: RateCard = resolveRate(vType, b.pickup_date as string)
 
     // Use client-adjusted KM/time for invoicing; fall back to actual if not set
     const openKm  = Number(sheet?.client_opening_km  ?? sheet?.opening_km  ?? 0)
@@ -330,7 +347,8 @@ export async function POST(request: Request) {
       booking_ref: b.booking_ref,
       // tripsheet_number is NOT stored in invoice_line_items — fetched live from trip_sheets in the detail route
       vehicle_type: billingVehicle || driverVehicleName || b.vehicle_type || '',
-      vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
+      vehicle_number: driver?.vehicle_number ?? null,
+      driver_name: driver?.name ?? null,
       guest_name: b.guest_name,
       pickup_location: b.pickup_location,
       drop_location: b.drop_location,
@@ -368,16 +386,11 @@ export async function POST(request: Request) {
   for (const b of missedBookings) {
     const sheets = (b.trip_sheets ?? []) as Array<Record<string, unknown>>
     const sheet = sheets[0]
-    const driverVehicleName = ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_name ?? '').toUpperCase()
-    const vType = driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
-    const rate: RateCard = clientRateMap[vType] ?? defaultRateMap[vType] ?? {
-      package_4hr_kms: 40, package_4hr_hrs: 4, package_4hr_rate: 900,
-      package_airport_rate: 0,
-      package_8hr_kms: 80, package_8hr_hrs: 8, package_8hr_rate: 1900,
-      extra_km_rate: 14, extra_hr_rate: 250,
-      outstation_rate_per_km: 14, outstation_min_kms_per_day: 300,
-      local_bata: 300, outstation_bata_per_day: 450,
-    }
+    const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()
+    const driver = b.driver as { name?: string; vehicle_name?: string; vehicle_number?: string } | null
+    const driverVehicleName = (driver?.vehicle_name ?? '').toUpperCase()
+    const vType = billingVehicle || driverVehicleName || (b.vehicle_type ?? '').toUpperCase()
+    const rate: RateCard = resolveRate(vType, b.pickup_date as string)
     const openKm  = Number(sheet?.client_opening_km  ?? sheet?.opening_km  ?? 0)
     const closeKm = Number(sheet?.client_closing_km  ?? sheet?.closing_km  ?? 0)
     const actualKms = closeKm > openKm ? closeKm - openKm : 0
@@ -390,8 +403,8 @@ export async function POST(request: Request) {
     const permit  = Number(sheet?.client_permit_amount  ?? sheet?.permit_amount  ?? 0)
     const bataClientCount = Number(sheet?.bata_client ?? sheet?.bata_driver ?? 0)
     const days = b.total_days ?? 1
-    const cbKey = `${driverVehicleName}:${b.trip_type ?? 'local'}`
-    const cbKeyAll = `${driverVehicleName}:all`
+    const cbKey = `${billingVehicle || driverVehicleName}:${b.trip_type ?? 'local'}`
+    const cbKeyAll = `${billingVehicle || driverVehicleName}:all`
     let calc
     if (slabOverrideMissed === 'OUTSTATION' || (!slabOverrideMissed && b.trip_type === 'outstation')) {
       const outstationBataRate = companyBataMap[cbKey] ?? companyBataMap[cbKeyAll] ?? rate.outstation_bata_per_day ?? 450
@@ -419,8 +432,9 @@ export async function POST(request: Request) {
     missedLineItems.push({
       booking_id: b.id, trip_sheet_id: (sheet?.id as string | null) ?? null,
       trip_date: b.pickup_date, booking_ref: b.booking_ref,
-      vehicle_type: driverVehicleName || b.vehicle_type || '',
-      vehicle_number: ((b.driver as { vehicle_name?: string; vehicle_number?: string } | null)?.vehicle_number) ?? null,
+      vehicle_type: billingVehicle || driverVehicleName || b.vehicle_type || '',
+      vehicle_number: driver?.vehicle_number ?? null,
+      driver_name: driver?.name ?? null,
       guest_name: b.guest_name, pickup_location: b.pickup_location, drop_location: b.drop_location,
       trip_type: b.trip_type, package_type: calc.packageType, actual_kms: actualKms, actual_hrs: displayHrs,
       package_kms: calc.packageKms, package_rate: calc.packageRate,

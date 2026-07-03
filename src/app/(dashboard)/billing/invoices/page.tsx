@@ -31,6 +31,7 @@ interface Invoice {
 interface LineItemPreview {
   trip_date: string; booking_ref: string; booking_id: string; trip_sheet_id: string | null
   tripsheet_number: string | null; vehicle_type: string; vehicle_number: string | null
+  driver_name: string | null
   guest_name: string | null; pickup_location: string | null; trip_type: string | null
   package_type: string; actual_kms: number; actual_hrs: number; package_kms: number; package_rate: number
   extra_kms: number; extra_km_rate: number; extra_km_amount: number
@@ -230,6 +231,7 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
           <td className="px-2 py-1.5 max-w-[100px] truncate">{li.guest_name ?? '—'}</td>
           <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_number ?? '—'}</td>
           <td className="px-2 py-1.5 whitespace-nowrap">{li.vehicle_type}</td>
+          <td className="px-2 py-1.5 whitespace-nowrap">{li.driver_name ?? '—'}</td>
           <td className="px-2 py-1.5 whitespace-nowrap text-right">{Number(li.actual_kms).toFixed(0)}</td>
           <td className="px-2 py-1.5 whitespace-nowrap text-right">{li.trip_type === 'outstation' ? `${Number(li.actual_hrs).toFixed(0)}D` : Number(li.actual_hrs).toFixed(0)}</td>
           <td className="px-2 py-1.5 whitespace-nowrap">{li.package_type}{li.package_kms > 0 ? `/${li.package_kms}` : ''}</td>
@@ -260,7 +262,7 @@ function GenerateModal({ companies, onClose, onSaved, prefill }: {
               ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked }}
               onChange={e => toggleGroup(items, e.target.checked)} className="cursor-pointer" />
           </th>
-          {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
+          {['TS#', 'Date', 'Booking Ref', 'Guest', 'Cab No', 'Cab Type', 'Driver', 'KMs', 'Hrs/Days', 'Slab', 'Slab Rate', 'Ext Hrs', 'Ext Hr Rate', 'Ext Hr Amt', 'Ext KMs', 'Ext KM Rate', 'Ext KM Amt', 'Bata', 'Parking', 'Permit', 'Total'].map(h => (
             <th key={h} className="px-2 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{h}</th>
           ))}
         </tr>

@@ -144,20 +144,22 @@ export async function POST(request: Request) {
     b.company_id,
   ]).filter(Boolean))] as string[]
 
-  // 4. Rate cards per company
-  const clientRatesByCompany: Record<string, Record<string, RateCard>> = {}
+  // 4. Rate cards per company — keep every version per (company, vehicle) so each trip can
+  // resolve the rate actually in effect on ITS OWN trip date, not just as of period_from.
+  const clientRatesByCompany: Record<string, Record<string, (RateCard & { effective_from: string })[]>> = {}
   if (companyIds.length > 0) {
     const { data: clientRates } = await supabase
       .from('client_rate_cards')
       .select('*')
       .in('company_id', companyIds)
       .eq('is_active', true)
-      .lte('effective_from', period_from)
       .order('effective_from', { ascending: true })
 
     for (const r of clientRates ?? []) {
       if (!clientRatesByCompany[r.company_id]) clientRatesByCompany[r.company_id] = {}
-      clientRatesByCompany[r.company_id][r.vehicle_type.toUpperCase()] = { ...DEFAULT_RATE, ...r }
+      const key = r.vehicle_type.toUpperCase()
+      if (!clientRatesByCompany[r.company_id][key]) clientRatesByCompany[r.company_id][key] = []
+      clientRatesByCompany[r.company_id][key].push({ ...DEFAULT_RATE, ...r })
     }
   }
 
@@ -165,6 +167,16 @@ export async function POST(request: Request) {
   const { data: defaultRates } = await supabase.from('rate_cards').select('*')
   const defaultRateMap: Record<string, RateCard> = {}
   for (const r of defaultRates ?? []) defaultRateMap[r.vehicle_type.toUpperCase()] = { ...DEFAULT_RATE, ...r }
+
+  // Picks the latest client rate version effective on/before tripDate; falls back to the default rate card.
+  function resolveClientRate(companyId: string, vType: string, tripDate: string): RateCard {
+    const versions = clientRatesByCompany[companyId]?.[vType]
+    if (versions) {
+      const applicable = versions.filter(v => v.effective_from <= tripDate)
+      if (applicable.length > 0) return applicable[applicable.length - 1]
+    }
+    return defaultRateMap[vType] ?? DEFAULT_RATE
+  }
 
   // 6. Company bata driver rates (existing)
   const { data: companyBataRates } = await supabase
@@ -230,10 +242,7 @@ export async function POST(request: Request) {
     const billingVehicle = ((b.billing_vehicle_type as string | null) ?? '').toUpperCase()
     const vForRate = billingVehicle || driverVehicle
 
-    const rate: RateCard =
-      clientRatesByCompany[companyId]?.[vForRate] ??
-      defaultRateMap[vForRate] ??
-      DEFAULT_RATE
+    const rate: RateCard = resolveClientRate(companyId, vForRate, b.pickup_date as string)
 
     // Use driver-adjusted KM/time for settlement; fall back to actual if not set
     const openKm  = Number(sheet?.driver_opening_km  ?? sheet?.opening_km  ?? 0)
