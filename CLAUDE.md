@@ -400,6 +400,17 @@ Operator can override auto-detected slab in **two places**: (1) `TripsheetEditPo
 - **Duplicate row button (copy icon):** copies one vehicle row to a new vehicle type within the same company; vehicle dropdown filtered to unset vehicles for that company.
 - **Driver override auto-sync:** new client override → auto-create driver override if missing. Edit never syncs. Page-load one-time backfill via `syncedRef`. See `buildDriverRateBody()` in `rate-cards/page.tsx`.
 
+### Client rate `effective_from` — resolve per booking, not per invoice period (fixed 2026-07-03, commit `d1205d4`)
+Found on BK-2026-0308 (RSWM Limited, a brand-new company): the client added a client rate card the same day they generated the invoice, but the trip itself was from the day before. `client_rate_cards` was queried with `.lte('effective_from', period_from)` — comparing the rate's effective date against the *invoice's* period start, not the *booking's own* `pickup_date`. Since the rate's `effective_from` (today) was after the trip date (yesterday), the client rate was invisible to the query and billing silently fell back to the default `rate_cards` price instead of the client's negotiated rate — no error, just a wrong number.
+
+**Fix:** `generate/route.ts`, `recalculate-line-item/route.ts`, and `driver-settlements/generate/route.ts` now fetch every active client rate version per vehicle type (no date filter in the query) and resolve, per booking, the latest version with `effective_from <= that booking's own pickup_date`. A rate whose `effective_from` is genuinely after the trip still correctly falls back to default — that's real versioning working as intended. If a rate is entered late for an already-completed trip it's meant to cover, backdate its `effective_from` on the Rate Cards page (the date field is editable) rather than leaving it defaulted to "today".
+
+**Related bugs fixed same commit:**
+- `generate/route.ts`'s "missed/older bookings" loop (bookings dated before the invoice period, not yet billed) never read `billing_vehicle_type` at all — always used the driver's actual vehicle. Now matches the main loop's `billingVehicle || driverVehicleName || vehicle_type` priority.
+- `TripsheetEditPopup.tsx`: `handleSave()` called `recalculate()` (which re-fetches the booking from the DB) *before* PATCHing the new `billing_vehicle_type`/`billing_company_id` to the booking — so the first recalculation after changing a vehicle override used the stale pre-change value. Booking PATCH now runs first. The Driver tab save now also triggers a recalculation (previously only Actual/Client tabs did).
+- `invoice_line_items.vehicle_type` was set on invoice generation but never refreshed by `recalculate-line-item` — so after a recalculation the displayed vehicle name could lag behind the actual rate used. New `driver_name TEXT` column added; `vehicle_type`/`vehicle_number`/`driver_name` are now all written on every recalculation, and `driver_name` is shown alongside vehicle type/number in the invoice tables and Excel export (client-facing PDF intentionally left unchanged).
+- `TripsheetEditPopup.tsx` now shows an amber warning when the effective billing vehicle (override → driver's actual vehicle → booking's requested type) has no rate card for the booking's company — catches this failure mode at tripsheet-edit time instead of after an invoice silently bills at the wrong rate.
+
 ### Key billing files
 | File | Purpose |
 |---|---|
@@ -407,7 +418,7 @@ Operator can override auto-detected slab in **two places**: (1) `TripsheetEditPo
 | `src/app/api/billing/invoices/[id]/recalculate-line-item/route.ts` | Per-line recalculation after tripsheet edit |
 | `src/app/api/billing/cash-bills/generate/route.ts` | Personal/cash trip billing |
 | `src/app/api/billing/driver-settlements/generate/route.ts` | Driver pay settlement |
-| `src/components/billing/TripsheetEditPopup.tsx` | Tripsheet edit dialog (used in 5 places); has slab selector in Actual tab |
+| `src/components/billing/TripsheetEditPopup.tsx` | Tripsheet edit dialog (used in 5 places); has slab selector in Actual tab, "Bill as Vehicle" override, and a warning when the effective vehicle has no company rate card |
 
 ---
 
